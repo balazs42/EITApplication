@@ -7,7 +7,8 @@ namespace ServiceLayer
         public static IUnityContainer ApplyContainerRegistration()
         {
             return BusinessLayer.Settings.ApplyContainerRegistration()
-                .RegisterType<IDAQService, DAQService>();
+                .RegisterType<IDAQService, DAQService>()
+                .RegisterType<IReconstructionService, ReconstructionService>();
         }
     }
 }

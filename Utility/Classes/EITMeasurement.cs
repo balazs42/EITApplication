@@ -2,6 +2,11 @@
 {
     public class EITMeasurement
     {
-        public double[,] measurements = new double[16, 16];
+        public double[,] Measurements { get; set; } = new double[16, 16];
+
+        public EITMeasurement(double[,] measurements)
+        {
+            Measurements = measurements;
+        }
     }
 }
