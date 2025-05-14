@@ -936,3 +936,15 @@ C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\obj\Debug\
 C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\obj\Debug\net9.0-windows10.0.19041.0\win10-x64\qualifiers.txt
 C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\obj\Debug\net9.0-windows10.0.19041.0\win10-x64\qualifiers.txt.intermediate
 C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\obj\Debug\net9.0-windows10.0.19041.0\win10-x64\MultipleQualifiersPerDimensionFound.txt
+C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\config.json
+C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\System.IO.Ports.dll
+C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\Unity.Abstractions.dll
+C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\Unity.Container.dll
+C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\BusinessLayer.dll
+C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\DataAccessLayer.dll
+C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\ServiceLayer.dll
+C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\Utility.dll
+C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\ServiceLayer.pdb
+C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\Utility.pdb
+C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\BusinessLayer.pdb
+C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\DataAccessLayer.pdb

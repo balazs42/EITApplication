@@ -5,6 +5,8 @@
         public App()
         {
             InitializeComponent();
+
+            Utility.Composition.Container.InitializeContainer();
         }
 
         protected override Window CreateWindow(IActivationState? activationState)

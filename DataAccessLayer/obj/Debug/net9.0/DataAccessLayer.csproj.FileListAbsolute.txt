@@ -1,0 +1,16 @@
+C:\Users\Bazsi\Documents\EITApplication\DataAccessLayer\obj\Debug\net9.0\DataAccessLayer.csproj.AssemblyReference.cache
+C:\Users\Bazsi\Documents\EITApplication\DataAccessLayer\obj\Debug\net9.0\DataAccessLayer.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Bazsi\Documents\EITApplication\DataAccessLayer\obj\Debug\net9.0\DataAccessLayer.AssemblyInfoInputs.cache
+C:\Users\Bazsi\Documents\EITApplication\DataAccessLayer\obj\Debug\net9.0\DataAccessLayer.AssemblyInfo.cs
+C:\Users\Bazsi\Documents\EITApplication\DataAccessLayer\obj\Debug\net9.0\DataAccessLayer.csproj.CoreCompileInputs.cache
+C:\Users\Bazsi\Documents\EITApplication\DataAccessLayer\obj\Debug\net9.0\DataAccessLayer.sourcelink.json
+C:\Users\Bazsi\Documents\EITApplication\DataAccessLayer\bin\Debug\net9.0\DataAccessLayer.deps.json
+C:\Users\Bazsi\Documents\EITApplication\DataAccessLayer\bin\Debug\net9.0\DataAccessLayer.dll
+C:\Users\Bazsi\Documents\EITApplication\DataAccessLayer\bin\Debug\net9.0\DataAccessLayer.pdb
+C:\Users\Bazsi\Documents\EITApplication\DataAccessLayer\bin\Debug\net9.0\Utility.dll
+C:\Users\Bazsi\Documents\EITApplication\DataAccessLayer\bin\Debug\net9.0\Utility.pdb
+C:\Users\Bazsi\Documents\EITApplication\DataAccessLayer\obj\Debug\net9.0\DataAcce.E67BD773.Up2Date
+C:\Users\Bazsi\Documents\EITApplication\DataAccessLayer\obj\Debug\net9.0\DataAccessLayer.dll
+C:\Users\Bazsi\Documents\EITApplication\DataAccessLayer\obj\Debug\net9.0\refint\DataAccessLayer.dll
+C:\Users\Bazsi\Documents\EITApplication\DataAccessLayer\obj\Debug\net9.0\DataAccessLayer.pdb
+C:\Users\Bazsi\Documents\EITApplication\DataAccessLayer\obj\Debug\net9.0\ref\DataAccessLayer.dll
