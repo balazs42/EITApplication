@@ -13,6 +13,11 @@
             Y = 0.0;
         }
 
+        public Vertex()
+        {
+
+        }
+
         public Vertex(int id, double x, double y)
         {
             Id = id;

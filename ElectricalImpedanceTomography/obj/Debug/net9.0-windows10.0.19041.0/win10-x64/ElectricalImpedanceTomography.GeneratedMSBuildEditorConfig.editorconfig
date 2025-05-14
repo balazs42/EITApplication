@@ -51,8 +51,20 @@ build_metadata.AdditionalFiles.ManifestResourceName = ElectricalImpedanceTomogra
 build_metadata.AdditionalFiles.TargetPath = Resources\Styles\Styles.xaml
 build_metadata.AdditionalFiles.RelativePath = Resources\Styles\Styles.xaml
 
+[C:/Users/Bazsi/Documents/EITApplication/ElectricalImpedanceTomography/Views/DAQPage.xaml]
+build_metadata.AdditionalFiles.GenKind = Xaml
+build_metadata.AdditionalFiles.ManifestResourceName = ElectricalImpedanceTomography.Views.DAQPage.xaml
+build_metadata.AdditionalFiles.TargetPath = Views\DAQPage.xaml
+build_metadata.AdditionalFiles.RelativePath = Views\DAQPage.xaml
+
 [C:/Users/Bazsi/Documents/EITApplication/ElectricalImpedanceTomography/Views/MainPage.xaml]
 build_metadata.AdditionalFiles.GenKind = Xaml
 build_metadata.AdditionalFiles.ManifestResourceName = ElectricalImpedanceTomography.Views.MainPage.xaml
 build_metadata.AdditionalFiles.TargetPath = Views\MainPage.xaml
 build_metadata.AdditionalFiles.RelativePath = Views\MainPage.xaml
+
+[C:/Users/Bazsi/Documents/EITApplication/ElectricalImpedanceTomography/Views/ReconstructionPage.xaml]
+build_metadata.AdditionalFiles.GenKind = Xaml
+build_metadata.AdditionalFiles.ManifestResourceName = ElectricalImpedanceTomography.Views.ReconstructionPage.xaml
+build_metadata.AdditionalFiles.TargetPath = Views\ReconstructionPage.xaml
+build_metadata.AdditionalFiles.RelativePath = Views\ReconstructionPage.xaml

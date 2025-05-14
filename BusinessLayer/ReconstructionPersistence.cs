@@ -11,9 +11,9 @@ namespace BusinessLayer
             return new ReconstructionResult();
         }
 
-        public void StartReconstruction()
+        public void StartReconstruction(EITReconstructionParameters reconstructionParameters)
         {
-            
+            // TODO: reconstruction
         }
     }
 }

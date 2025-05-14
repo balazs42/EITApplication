@@ -20,9 +20,9 @@ namespace ServiceLayer
             return await _reconstructionPersistence.GetReconstructionResult();
         }
 
-        public void StartReconstruction()
+        public void StartReconstruction(EITReconstructionParameters reconstructionParameters)
         {
-            _reconstructionPersistence.StartReconstruction();
+            _reconstructionPersistence.StartReconstruction(reconstructionParameters);
         }
     }
 }

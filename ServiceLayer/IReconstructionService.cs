@@ -5,6 +5,6 @@ namespace ServiceLayer
     public interface IReconstructionService
     {
         public Task<ReconstructionResult> GetReconstructionResult();
-        public void StartReconstruction();
+        public void StartReconstruction(EITReconstructionParameters reconstructionParameters);
     }
 }
