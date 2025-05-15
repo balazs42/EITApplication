@@ -24,7 +24,7 @@ namespace Utility.Classes.Solvers
                                                 ConductivityDistribution initialGuess)
         {
             /*  high-level Gauss–Newton skeleton  */
-            double[] σ = initialGuess.ToArray();
+            double[] sigma = initialGuess.ToArray();
             Func<double[], double> objective = current =>
             {
                 var sim = _forward.Solve(startMesh,
@@ -49,7 +49,7 @@ namespace Utility.Classes.Solvers
                 return misfit + reg;
             };
 
-            var solution = _optimizer.Optimize(objective, σ);
+            var solution = _optimizer.Optimize(objective, sigma);
 
             return new ReconstructionResult(mesh: startMesh, ConductivityDistribution.FromArray(solution));
         }

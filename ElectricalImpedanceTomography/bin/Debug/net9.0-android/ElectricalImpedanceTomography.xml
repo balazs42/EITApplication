@@ -4,6 +4,12 @@
         <name>ElectricalImpedanceTomography</name>
     </assembly>
     <members>
+        <member name="T:ElectricalImpedanceTomography.ViewModels.DAQPageViewModel">
+            <inheritdoc/>
+        </member>
+        <member name="P:ElectricalImpedanceTomography.ViewModels.DAQPageViewModel.PlotModels">
+            <inheritdoc cref="F:ElectricalImpedanceTomography.ViewModels.DAQPageViewModel.plotModels"/>
+        </member>
         <member name="T:ElectricalImpedanceTomography.ViewModels.ReconstructionPageViewModel">
             <inheritdoc/>
         </member>
@@ -22,6 +28,9 @@
             for all properties generated with <see cref="T:CommunityToolkit.Mvvm.ComponentModel.ObservablePropertyAttribute"/>.
             </summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.PlotModels">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "PlotModels" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ReconstructionParameters">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ReconstructionParameters" generated properties.</summary>
         </member>
@@ -30,6 +39,9 @@
             A helper type providing cached, reusable <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instances
             for all properties generated with <see cref="T:CommunityToolkit.Mvvm.ComponentModel.ObservablePropertyAttribute"/>.
             </summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.PlotModels">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "PlotModels" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ReconstructionParameters">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ReconstructionParameters" generated properties.</summary>

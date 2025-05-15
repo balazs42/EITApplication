@@ -27,6 +27,11 @@
             => p.Select(x => x * _λ).ToArray();
     }
 
+    public sealed class FirstOrderTikhonov : IRegularisation
+    {
+        public double[] Apply(double[] p) => p;
+    }
+
     public sealed class Laplace : IRegularisation
     {
         // TODO: Implement, this is a placeholder
@@ -45,7 +50,9 @@
         {
             RegularizationTechnique.None => new NoRegularisation(),
             RegularizationTechnique.ZeroOrderTikhonov => new ZeroOrderTikhonov(),
-            /* … */
+            RegularizationTechnique.FirstOrderTikhonov => new FirstOrderTikhonov(),
+            RegularizationTechnique.Laplace => new Laplace(),
+            RegularizationTechnique.TotalVariation => new TotalVariaion(),
             _ => throw new NotSupportedException()
         };
     }

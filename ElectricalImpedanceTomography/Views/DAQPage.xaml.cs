@@ -14,4 +14,14 @@ public partial class DAQPage : ContentPage
 
 		BindingContext = _viewModel;
 	}
+
+    private void OnStopButtonPressed(object sender, EventArgs e)
+    {
+
+    }
+
+    private void OnStartButtonPressed(object sender, EventArgs e)
+    {
+
+    }
 }

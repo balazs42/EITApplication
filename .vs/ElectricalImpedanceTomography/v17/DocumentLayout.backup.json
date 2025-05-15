@@ -3,148 +3,20 @@
   "WorkspaceRootPath": "C:\\Users\\Bazsi\\Documents\\EITApplication\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\reconstructionparameters\\eitreconstructionparameters.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\reconstructionparameters\\eitreconstructionparameters.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|c:\\users\\bazsi\\documents\\eitapplication\\electricalimpedancetomography\\viewmodels\\reconstructionpageviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|solutionrelative:electricalimpedancetomography\\viewmodels\\reconstructionpageviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\meshing\\lbmmesh.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\meshing\\lbmmesh.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\meshing\\femmesh.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\meshing\\femmesh.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\meshing\\mesh.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\meshing\\mesh.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{0239C9A6-B7D7-D33F-C2D5-F469C95A9F18}|BusinessLayer\\BusinessLayer.csproj|c:\\users\\bazsi\\documents\\eitapplication\\businesslayer\\reconstructionpersistence.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{0239C9A6-B7D7-D33F-C2D5-F469C95A9F18}|BusinessLayer\\BusinessLayer.csproj|solutionrelative:businesslayer\\reconstructionpersistence.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|c:\\users\\bazsi\\documents\\eitapplication\\electricalimpedancetomography\\views\\mainpage.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
-      "RelativeMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|solutionrelative:electricalimpedancetomography\\views\\mainpage.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\solvers\\forwardmodels.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\solvers\\forwardmodels.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{0239C9A6-B7D7-D33F-C2D5-F469C95A9F18}|BusinessLayer\\BusinessLayer.csproj|c:\\users\\bazsi\\documents\\eitapplication\\businesslayer\\meshpersistence.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{0239C9A6-B7D7-D33F-C2D5-F469C95A9F18}|BusinessLayer\\BusinessLayer.csproj|solutionrelative:businesslayer\\meshpersistence.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\solvers\\latticeboltzmannsolver.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\solvers\\latticeboltzmannsolver.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\reconstructionresult.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\reconstructionresult.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\conductivitydistribution.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\conductivitydistribution.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\boundaryconditions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\boundaryconditions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\solvers\\inversesolver.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\solvers\\inversesolver.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\solvers\\forwardsolver.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\solvers\\forwardsolver.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\reconstructionparameters\\regularizationtechnique.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\reconstructionparameters\\regularizationtechnique.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\electrode.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\electrode.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{0239C9A6-B7D7-D33F-C2D5-F469C95A9F18}|BusinessLayer\\BusinessLayer.csproj|c:\\users\\bazsi\\documents\\eitapplication\\businesslayer\\ireconstructionpersistence.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{0239C9A6-B7D7-D33F-C2D5-F469C95A9F18}|BusinessLayer\\BusinessLayer.csproj|solutionrelative:businesslayer\\ireconstructionpersistence.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{0239C9A6-B7D7-D33F-C2D5-F469C95A9F18}|BusinessLayer\\BusinessLayer.csproj|c:\\users\\bazsi\\documents\\eitapplication\\businesslayer\\imeshpersistence.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{0239C9A6-B7D7-D33F-C2D5-F469C95A9F18}|BusinessLayer\\BusinessLayer.csproj|solutionrelative:businesslayer\\imeshpersistence.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\meshing\\femelement.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\meshing\\femelement.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\meshing\\vertex.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\meshing\\vertex.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|c:\\users\\bazsi\\documents\\eitapplication\\electricalimpedancetomography\\viewmodels\\mainpageviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|solutionrelative:electricalimpedancetomography\\viewmodels\\mainpageviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|c:\\users\\bazsi\\documents\\eitapplication\\electricalimpedancetomography\\viewmodels\\daqpageviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|solutionrelative:electricalimpedancetomography\\viewmodels\\daqpageviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|c:\\users\\bazsi\\documents\\eitapplication\\electricalimpedancetomography\\viewmodels\\baseviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|solutionrelative:electricalimpedancetomography\\viewmodels\\baseviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|c:\\users\\bazsi\\documents\\eitapplication\\electricalimpedancetomography\\views\\daqpage.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|solutionrelative:electricalimpedancetomography\\views\\daqpage.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|c:\\users\\bazsi\\documents\\eitapplication\\electricalimpedancetomography\\views\\reconstructionpage.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
-      "RelativeMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|solutionrelative:electricalimpedancetomography\\views\\reconstructionpage.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|c:\\users\\bazsi\\documents\\eitapplication\\electricalimpedancetomography\\views\\reconstructionpage.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|solutionrelative:electricalimpedancetomography\\views\\reconstructionpage.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{0239C9A6-B7D7-D33F-C2D5-F469C95A9F18}|BusinessLayer\\BusinessLayer.csproj|c:\\users\\bazsi\\documents\\eitapplication\\businesslayer\\settings.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{0239C9A6-B7D7-D33F-C2D5-F469C95A9F18}|BusinessLayer\\BusinessLayer.csproj|solutionrelative:businesslayer\\settings.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|c:\\users\\bazsi\\documents\\eitapplication\\electricalimpedancetomography\\views\\mainpage.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|solutionrelative:electricalimpedancetomography\\views\\mainpage.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|c:\\users\\bazsi\\documents\\eitapplication\\electricalimpedancetomography\\views\\daqpage.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
-      "RelativeMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|solutionrelative:electricalimpedancetomography\\views\\daqpage.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{A9FCCEB3-DD88-F8C0-89A3-FD31A7C54F23}|DataAccessLayer\\DataAccessLayer.csproj|c:\\users\\bazsi\\documents\\eitapplication\\dataaccesslayer\\daqrepositroy.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{A9FCCEB3-DD88-F8C0-89A3-FD31A7C54F23}|DataAccessLayer\\DataAccessLayer.csproj|solutionrelative:dataaccesslayer\\daqrepositroy.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|c:\\users\\bazsi\\documents\\eitapplication\\electricalimpedancetomography\\app.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|solutionrelative:electricalimpedancetomography\\app.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\eitmeasurement.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\eitmeasurement.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|c:\\users\\bazsi\\documents\\eitapplication\\electricalimpedancetomography\\mauiprogram.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|solutionrelative:electricalimpedancetomography\\mauiprogram.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{A9FCCEB3-DD88-F8C0-89A3-FD31A7C54F23}|DataAccessLayer\\DataAccessLayer.csproj|c:\\users\\bazsi\\documents\\eitapplication\\dataaccesslayer\\idaqrepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A9FCCEB3-DD88-F8C0-89A3-FD31A7C54F23}|DataAccessLayer\\DataAccessLayer.csproj|solutionrelative:dataaccesslayer\\idaqrepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|c:\\users\\bazsi\\documents\\eitapplication\\electricalimpedancetomography\\appshell.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
-      "RelativeMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|solutionrelative:electricalimpedancetomography\\appshell.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\composition\\container.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\composition\\container.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{E97FFDB7-4B9B-A9CE-F14D-44C1BF438DAB}|ServiceLayer\\ServiceLayer.csproj|c:\\users\\bazsi\\documents\\eitapplication\\servicelayer\\settings.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{E97FFDB7-4B9B-A9CE-F14D-44C1BF438DAB}|ServiceLayer\\ServiceLayer.csproj|solutionrelative:servicelayer\\settings.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|c:\\users\\bazsi\\documents\\eitapplication\\electricalimpedancetomography\\viewmodels\\daqpageviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|solutionrelative:electricalimpedancetomography\\viewmodels\\daqpageviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{0239C9A6-B7D7-D33F-C2D5-F469C95A9F18}|BusinessLayer\\BusinessLayer.csproj|c:\\users\\bazsi\\documents\\eitapplication\\businesslayer\\daqpersistence.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
@@ -153,6 +25,34 @@
     {
       "AbsoluteMoniker": "D:0:0:{0239C9A6-B7D7-D33F-C2D5-F469C95A9F18}|BusinessLayer\\BusinessLayer.csproj|c:\\users\\bazsi\\documents\\eitapplication\\businesslayer\\idaqpersistence.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{0239C9A6-B7D7-D33F-C2D5-F469C95A9F18}|BusinessLayer\\BusinessLayer.csproj|solutionrelative:businesslayer\\idaqpersistence.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\solvers\\inversesolver.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\solvers\\inversesolver.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|c:\\users\\bazsi\\documents\\eitapplication\\electricalimpedancetomography\\converters\\enumdescriptionconverter.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|solutionrelative:electricalimpedancetomography\\converters\\enumdescriptionconverter.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|c:\\users\\bazsi\\documents\\eitapplication\\electricalimpedancetomography\\views\\reconstructionpage.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|solutionrelative:electricalimpedancetomography\\views\\reconstructionpage.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{E97FFDB7-4B9B-A9CE-F14D-44C1BF438DAB}|ServiceLayer\\ServiceLayer.csproj|c:\\users\\bazsi\\documents\\eitapplication\\servicelayer\\reconstructionservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{E97FFDB7-4B9B-A9CE-F14D-44C1BF438DAB}|ServiceLayer\\ServiceLayer.csproj|solutionrelative:servicelayer\\reconstructionservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|c:\\users\\bazsi\\documents\\eitapplication\\electricalimpedancetomography\\views\\reconstructionpage.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
+      "RelativeMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|solutionrelative:electricalimpedancetomography\\views\\reconstructionpage.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\reconstructionparameters\\regularizationtechnique.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\reconstructionparameters\\regularizationtechnique.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|c:\\users\\bazsi\\documents\\eitapplication\\electricalimpedancetomography\\viewmodels\\reconstructionpageviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|solutionrelative:electricalimpedancetomography\\viewmodels\\reconstructionpageviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
@@ -162,504 +62,179 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 9,
+          "SelectedChildIndex": 4,
           "Children": [
-            {
-              "$type": "Document",
-              "DocumentIndex": 9,
-              "Title": "LatticeBoltzmannSolver.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Solvers\\LatticeBoltzmannSolver.cs",
-              "RelativeDocumentMoniker": "Utility\\Classes\\Solvers\\LatticeBoltzmannSolver.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Solvers\\LatticeBoltzmannSolver.cs",
-              "RelativeToolTip": "Utility\\Classes\\Solvers\\LatticeBoltzmannSolver.cs",
-              "ViewState": "AgIAAFAAAAAAAAAAAAAwwDwAAAArAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-15T10:04:23.112Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 4,
-              "Title": "Mesh.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\Mesh.cs",
-              "RelativeDocumentMoniker": "Utility\\Classes\\Meshing\\Mesh.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\Mesh.cs",
-              "RelativeToolTip": "Utility\\Classes\\Meshing\\Mesh.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABcAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-15T09:42:37.452Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 7,
-              "Title": "ForwardModels.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Solvers\\ForwardModels.cs",
-              "RelativeDocumentMoniker": "Utility\\Classes\\Solvers\\ForwardModels.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Solvers\\ForwardModels.cs",
-              "RelativeToolTip": "Utility\\Classes\\Solvers\\ForwardModels.cs",
-              "ViewState": "AgIAAEEAAAAAAAAAAAAEwFcAAABHAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-15T09:04:49.115Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 16,
-              "Title": "Electrode.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Electrode.cs",
-              "RelativeDocumentMoniker": "Utility\\Classes\\Electrode.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Electrode.cs",
-              "RelativeToolTip": "Utility\\Classes\\Electrode.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABgAAAAFAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-15T09:00:46.025Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 12,
-              "Title": "BoundaryConditions.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\BoundaryConditions.cs",
-              "RelativeDocumentMoniker": "Utility\\Classes\\BoundaryConditions.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\BoundaryConditions.cs",
-              "RelativeToolTip": "Utility\\Classes\\BoundaryConditions.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAB8AAAAJAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-15T08:58:00.571Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 11,
-              "Title": "ConductivityDistribution.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ConductivityDistribution.cs",
-              "RelativeDocumentMoniker": "Utility\\Classes\\ConductivityDistribution.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ConductivityDistribution.cs",
-              "RelativeToolTip": "Utility\\Classes\\ConductivityDistribution.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABMAAAA7AAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-15T08:56:51.818Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 10,
-              "Title": "ReconstructionResult.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ReconstructionResult.cs",
-              "RelativeDocumentMoniker": "Utility\\Classes\\ReconstructionResult.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ReconstructionResult.cs",
-              "RelativeToolTip": "Utility\\Classes\\ReconstructionResult.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAqwAcAAABAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-15T08:48:18.029Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 13,
-              "Title": "InverseSolver.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Solvers\\InverseSolver.cs",
-              "RelativeDocumentMoniker": "Utility\\Classes\\Solvers\\InverseSolver.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Solvers\\InverseSolver.cs",
-              "RelativeToolTip": "Utility\\Classes\\Solvers\\InverseSolver.cs",
-              "ViewState": "AgIAAA0AAAAAAAAAAAAgwCwAAABDAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-14T20:13:01.474Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 14,
-              "Title": "ForwardSolver.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Solvers\\ForwardSolver.cs",
-              "RelativeDocumentMoniker": "Utility\\Classes\\Solvers\\ForwardSolver.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Solvers\\ForwardSolver.cs",
-              "RelativeToolTip": "Utility\\Classes\\Solvers\\ForwardSolver.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAkAAAAvAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-14T20:12:51.324Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 0,
-              "Title": "EITReconstructionParameters.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ReconstructionParameters\\EITReconstructionParameters.cs",
-              "RelativeDocumentMoniker": "Utility\\Classes\\ReconstructionParameters\\EITReconstructionParameters.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ReconstructionParameters\\EITReconstructionParameters.cs",
-              "RelativeToolTip": "Utility\\Classes\\ReconstructionParameters\\EITReconstructionParameters.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAcAAAB3AAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-14T20:08:21.099Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 15,
-              "Title": "RegularizationTechnique.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ReconstructionParameters\\RegularizationTechnique.cs",
-              "RelativeDocumentMoniker": "Utility\\Classes\\ReconstructionParameters\\RegularizationTechnique.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ReconstructionParameters\\RegularizationTechnique.cs",
-              "RelativeToolTip": "Utility\\Classes\\ReconstructionParameters\\RegularizationTechnique.cs",
-              "ViewState": "AgIAAA8AAAAAAAAAAAAowCcAAAAFAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-14T20:08:09.635Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 20,
-              "Title": "Vertex.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\Vertex.cs",
-              "RelativeDocumentMoniker": "Utility\\Classes\\Meshing\\Vertex.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\Vertex.cs",
-              "RelativeToolTip": "Utility\\Classes\\Meshing\\Vertex.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAUAAAAlAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-14T19:22:03.751Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 19,
-              "Title": "FEMElement.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\FEMElement.cs",
-              "RelativeDocumentMoniker": "Utility\\Classes\\Meshing\\FEMElement.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\FEMElement.cs",
-              "RelativeToolTip": "Utility\\Classes\\Meshing\\FEMElement.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABgAAAA0AAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-14T19:12:13.22Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 3,
-              "Title": "FEMMesh.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\FEMMesh.cs",
-              "RelativeDocumentMoniker": "Utility\\Classes\\Meshing\\FEMMesh.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\FEMMesh.cs",
-              "RelativeToolTip": "Utility\\Classes\\Meshing\\FEMMesh.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAqwAUAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-14T15:30:17.789Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 2,
-              "Title": "LBMMesh.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\LBMMesh.cs",
-              "RelativeDocumentMoniker": "Utility\\Classes\\Meshing\\LBMMesh.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\LBMMesh.cs",
-              "RelativeToolTip": "Utility\\Classes\\Meshing\\LBMMesh.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA4AAAAUAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-14T15:29:26.259Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 8,
-              "Title": "MeshPersistence.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\BusinessLayer\\MeshPersistence.cs",
-              "RelativeDocumentMoniker": "BusinessLayer\\MeshPersistence.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\BusinessLayer\\MeshPersistence.cs",
-              "RelativeToolTip": "BusinessLayer\\MeshPersistence.cs",
-              "ViewState": "AgIAACcAAAAAAAAAAAAowEAAAAAwAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-14T15:23:05.77Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 18,
-              "Title": "IMeshPersistence.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\BusinessLayer\\IMeshPersistence.cs",
-              "RelativeDocumentMoniker": "BusinessLayer\\IMeshPersistence.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\BusinessLayer\\IMeshPersistence.cs",
-              "RelativeToolTip": "BusinessLayer\\IMeshPersistence.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAgAAABNAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-14T15:18:06.899Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 23,
-              "Title": "BaseViewModel.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\ViewModels\\BaseViewModel.cs",
-              "RelativeDocumentMoniker": "ElectricalImpedanceTomography\\ViewModels\\BaseViewModel.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\ViewModels\\BaseViewModel.cs",
-              "RelativeToolTip": "ElectricalImpedanceTomography\\ViewModels\\BaseViewModel.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAQAAAAiAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-14T15:12:26.104Z",
-              "EditorCaption": ""
-            },
             {
               "$type": "Bookmark",
               "Name": "ST:0:0:{aa2115a1-9712-457b-9047-dbb71ca2cdd2}"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 21,
-              "Title": "MainPageViewModel.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\ViewModels\\MainPageViewModel.cs",
-              "RelativeDocumentMoniker": "ElectricalImpedanceTomography\\ViewModels\\MainPageViewModel.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\ViewModels\\MainPageViewModel.cs",
-              "RelativeToolTip": "ElectricalImpedanceTomography\\ViewModels\\MainPageViewModel.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAIAAAATAAAAAAAAAA==",
+              "DocumentIndex": 1,
+              "Title": "EITMeasurement.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\EITMeasurement.cs",
+              "RelativeDocumentMoniker": "Utility\\Classes\\EITMeasurement.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\EITMeasurement.cs",
+              "RelativeToolTip": "Utility\\Classes\\EITMeasurement.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-14T15:00:53.218Z",
+              "WhenOpened": "2025-05-15T14:58:36.859Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 26,
+              "DocumentIndex": 3,
+              "Title": "DAQPageViewModel.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\ViewModels\\DAQPageViewModel.cs",
+              "RelativeDocumentMoniker": "ElectricalImpedanceTomography\\ViewModels\\DAQPageViewModel.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\ViewModels\\DAQPageViewModel.cs",
+              "RelativeToolTip": "ElectricalImpedanceTomography\\ViewModels\\DAQPageViewModel.cs",
+              "ViewState": "AgIAAF8AAAAAAAAAAAAwwF0AAAB8AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-15T14:54:05.202Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "IDAQRepository.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\DataAccessLayer\\IDAQRepository.cs",
+              "RelativeDocumentMoniker": "DataAccessLayer\\IDAQRepository.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\DataAccessLayer\\IDAQRepository.cs",
+              "RelativeToolTip": "DataAccessLayer\\IDAQRepository.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-15T14:53:59.351Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "DAQRepositroy.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\DataAccessLayer\\DAQRepositroy.cs",
+              "RelativeDocumentMoniker": "DataAccessLayer\\DAQRepositroy.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\DataAccessLayer\\DAQRepositroy.cs",
+              "RelativeToolTip": "DataAccessLayer\\DAQRepositroy.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAADoAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-15T14:44:09.524Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "DAQPersistence.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\BusinessLayer\\DAQPersistence.cs",
+              "RelativeDocumentMoniker": "BusinessLayer\\DAQPersistence.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\BusinessLayer\\DAQPersistence.cs",
+              "RelativeToolTip": "BusinessLayer\\DAQPersistence.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAsAAAArAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-15T14:43:58.333Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "IDAQPersistence.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\BusinessLayer\\IDAQPersistence.cs",
+              "RelativeDocumentMoniker": "BusinessLayer\\IDAQPersistence.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\BusinessLayer\\IDAQPersistence.cs",
+              "RelativeToolTip": "BusinessLayer\\IDAQPersistence.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAgAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-15T14:43:57.607Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "EnumDescriptionConverter.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\Converters\\EnumDescriptionConverter.cs",
+              "RelativeDocumentMoniker": "ElectricalImpedanceTomography\\Converters\\EnumDescriptionConverter.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\Converters\\EnumDescriptionConverter.cs",
+              "RelativeToolTip": "ElectricalImpedanceTomography\\Converters\\EnumDescriptionConverter.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA0AAAA9AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-15T14:37:40.265Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "InverseSolver.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Solvers\\InverseSolver.cs",
+              "RelativeDocumentMoniker": "Utility\\Classes\\Solvers\\InverseSolver.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Solvers\\InverseSolver.cs",
+              "RelativeToolTip": "Utility\\Classes\\Solvers\\InverseSolver.cs",
+              "ViewState": "AgIAAAMAAAAAAAAAAAAAABgAAAAJAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-15T14:35:38.943Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 11,
+              "Title": "RegularizationTechnique.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ReconstructionParameters\\RegularizationTechnique.cs",
+              "RelativeDocumentMoniker": "Utility\\Classes\\ReconstructionParameters\\RegularizationTechnique.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ReconstructionParameters\\RegularizationTechnique.cs",
+              "RelativeToolTip": "Utility\\Classes\\ReconstructionParameters\\RegularizationTechnique.cs",
+              "ViewState": "AgIAABQAAAAAAAAAAAAIwDYAAAAzAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-15T14:33:21.199Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
+              "Title": "ReconstructionService.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ServiceLayer\\ReconstructionService.cs",
+              "RelativeDocumentMoniker": "ServiceLayer\\ReconstructionService.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ServiceLayer\\ReconstructionService.cs",
+              "RelativeToolTip": "ServiceLayer\\ReconstructionService.cs",
+              "ViewState": "AgIAAAMAAAAAAAAAAAAAABwAAAAWAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-15T14:06:24.205Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 8,
               "Title": "ReconstructionPage.xaml.cs",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\Views\\ReconstructionPage.xaml.cs",
               "RelativeDocumentMoniker": "ElectricalImpedanceTomography\\Views\\ReconstructionPage.xaml.cs",
               "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\Views\\ReconstructionPage.xaml.cs",
               "RelativeToolTip": "ElectricalImpedanceTomography\\Views\\ReconstructionPage.xaml.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABQAAAACAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-05-14T15:00:15.838Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 25,
+              "DocumentIndex": 10,
               "Title": "ReconstructionPage.xaml",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\Views\\ReconstructionPage.xaml",
               "RelativeDocumentMoniker": "ElectricalImpedanceTomography\\Views\\ReconstructionPage.xaml",
               "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\Views\\ReconstructionPage.xaml",
               "RelativeToolTip": "ElectricalImpedanceTomography\\Views\\ReconstructionPage.xaml",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAgAAAARAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAsAAAA6AAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
               "WhenOpened": "2025-05-14T14:59:42.044Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 6,
-              "Title": "MainPage.xaml",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\Views\\MainPage.xaml",
-              "RelativeDocumentMoniker": "ElectricalImpedanceTomography\\Views\\MainPage.xaml",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\Views\\MainPage.xaml",
-              "RelativeToolTip": "ElectricalImpedanceTomography\\Views\\MainPage.xaml",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAsAAAAZAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
-              "WhenOpened": "2025-05-14T14:57:29.415Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 24,
-              "Title": "DAQPage.xaml.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\Views\\DAQPage.xaml.cs",
-              "RelativeDocumentMoniker": "ElectricalImpedanceTomography\\Views\\DAQPage.xaml.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\Views\\DAQPage.xaml.cs",
-              "RelativeToolTip": "ElectricalImpedanceTomography\\Views\\DAQPage.xaml.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAoAAAASAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-14T14:56:43.106Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 22,
-              "Title": "DAQPageViewModel.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\ViewModels\\DAQPageViewModel.cs",
-              "RelativeDocumentMoniker": "ElectricalImpedanceTomography\\ViewModels\\DAQPageViewModel.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\ViewModels\\DAQPageViewModel.cs",
-              "RelativeToolTip": "ElectricalImpedanceTomography\\ViewModels\\DAQPageViewModel.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAQAAAATAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-14T14:55:44.557Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 29,
-              "Title": "DAQPage.xaml",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\Views\\DAQPage.xaml",
-              "RelativeDocumentMoniker": "ElectricalImpedanceTomography\\Views\\DAQPage.xaml",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\Views\\DAQPage.xaml",
-              "RelativeToolTip": "ElectricalImpedanceTomography\\Views\\DAQPage.xaml",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAgAAAAPAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
-              "WhenOpened": "2025-05-14T14:54:39.306Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 28,
-              "Title": "MainPage.xaml.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\Views\\MainPage.xaml.cs",
-              "RelativeDocumentMoniker": "ElectricalImpedanceTomography\\Views\\MainPage.xaml.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\Views\\MainPage.xaml.cs",
-              "RelativeToolTip": "ElectricalImpedanceTomography\\Views\\MainPage.xaml.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAcAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-14T12:59:42.086Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 12,
               "Title": "ReconstructionPageViewModel.cs",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\ViewModels\\ReconstructionPageViewModel.cs",
               "RelativeDocumentMoniker": "ElectricalImpedanceTomography\\ViewModels\\ReconstructionPageViewModel.cs",
               "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\ViewModels\\ReconstructionPageViewModel.cs",
               "RelativeToolTip": "ElectricalImpedanceTomography\\ViewModels\\ReconstructionPageViewModel.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAgAAABHAAAAAAAAAA==",
+              "ViewState": "AgIAABUAAAAAAAAAAAAawDAAAAAJAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-05-14T12:58:46.482Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 33,
-              "Title": "AppShell.xaml",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\AppShell.xaml",
-              "RelativeDocumentMoniker": "ElectricalImpedanceTomography\\AppShell.xaml",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\AppShell.xaml",
-              "RelativeToolTip": "ElectricalImpedanceTomography\\AppShell.xaml",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
-              "WhenOpened": "2025-05-14T12:51:40.078Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 32,
-              "Title": "MauiProgram.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\MauiProgram.cs",
-              "RelativeDocumentMoniker": "ElectricalImpedanceTomography\\MauiProgram.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\MauiProgram.cs",
-              "RelativeToolTip": "ElectricalImpedanceTomography\\MauiProgram.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABQAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-14T12:51:34.505Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 31,
-              "Title": "App.xaml.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\App.xaml.cs",
-              "RelativeDocumentMoniker": "ElectricalImpedanceTomography\\App.xaml.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\App.xaml.cs",
-              "RelativeToolTip": "ElectricalImpedanceTomography\\App.xaml.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA0AAAAuAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-14T12:50:49.811Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 34,
-              "Title": "Container.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Composition\\Container.cs",
-              "RelativeDocumentMoniker": "Utility\\Composition\\Container.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Composition\\Container.cs",
-              "RelativeToolTip": "Utility\\Composition\\Container.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-14T12:50:32.747Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 5,
-              "Title": "ReconstructionPersistence.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\BusinessLayer\\ReconstructionPersistence.cs",
-              "RelativeDocumentMoniker": "BusinessLayer\\ReconstructionPersistence.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\BusinessLayer\\ReconstructionPersistence.cs",
-              "RelativeToolTip": "BusinessLayer\\ReconstructionPersistence.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAsAAAAfAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-14T12:35:37.761Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 17,
-              "Title": "IReconstructionPersistence.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\BusinessLayer\\IReconstructionPersistence.cs",
-              "RelativeDocumentMoniker": "BusinessLayer\\IReconstructionPersistence.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\BusinessLayer\\IReconstructionPersistence.cs",
-              "RelativeToolTip": "BusinessLayer\\IReconstructionPersistence.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAgAAABcAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-14T12:35:36.591Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 36,
-              "Title": "DAQPersistence.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\BusinessLayer\\DAQPersistence.cs",
-              "RelativeDocumentMoniker": "BusinessLayer\\DAQPersistence.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\BusinessLayer\\DAQPersistence.cs",
-              "RelativeToolTip": "BusinessLayer\\DAQPersistence.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAUAAAAxAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-14T12:35:32.789Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 37,
-              "Title": "IDAQPersistence.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\BusinessLayer\\IDAQPersistence.cs",
-              "RelativeDocumentMoniker": "BusinessLayer\\IDAQPersistence.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\BusinessLayer\\IDAQPersistence.cs",
-              "RelativeToolTip": "BusinessLayer\\IDAQPersistence.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAQAAAAkAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-14T12:35:29.975Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 30,
-              "Title": "DAQRepositroy.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\DataAccessLayer\\DAQRepositroy.cs",
-              "RelativeDocumentMoniker": "DataAccessLayer\\DAQRepositroy.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\DataAccessLayer\\DAQRepositroy.cs",
-              "RelativeToolTip": "DataAccessLayer\\DAQRepositroy.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAACAAAAAfAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-14T12:33:52.029Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 27,
-              "Title": "Settings.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\BusinessLayer\\Settings.cs",
-              "RelativeDocumentMoniker": "BusinessLayer\\Settings.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\BusinessLayer\\Settings.cs",
-              "RelativeToolTip": "BusinessLayer\\Settings.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAsAAAAJAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-14T12:32:52.378Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 35,
-              "Title": "Settings.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ServiceLayer\\Settings.cs",
-              "RelativeDocumentMoniker": "ServiceLayer\\Settings.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ServiceLayer\\Settings.cs",
-              "RelativeToolTip": "ServiceLayer\\Settings.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAwAAAAFAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-14T12:31:21.278Z",
               "EditorCaption": ""
             }
           ]

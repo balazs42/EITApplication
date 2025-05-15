@@ -3,16 +3,64 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="ElectricalImpedanceTomography.Views.ReconstructionPage"
              xmlns:viewmodels="clr-namespace:ElectricalImpedanceTomography.ViewModels"
-             x:DataType="viewmodels:ReconstructionPageViewModel"
+             xmlns:controls="clr-namespace:ElectricalImpedanceTomography.Controls"
+             xmlns:converters="clr-namespace:ElectricalImpedanceTomography.Converters"
+             x:DataType="viewmodels:ReconstructionPageViewModel"          
              Title="ReconstructionPage">
-    <VerticalStackLayout>
-        <Picker >
-            
-        </Picker>
-        
-        <Label 
-            Text="Welcome to .NET MAUI!"
-            VerticalOptions="Center" 
-            HorizontalOptions="Center" />
-    </VerticalStackLayout>
+    <ContentPage.Resources>
+        <Style TargetType="Picker">
+            <Setter Property="FontAttributes" Value="Bold"/>
+        </Style>
+        <converters:EnumDescriptionConverter x:Key="EnumDesc" />
+    </ContentPage.Resources>
+    <Grid RowDefinitions="Auto, Auto, Auto">
+        <Grid RowDefinitions="Auto, Auto, *" ColumnDefinitions="*, Auto">
+            <controls:NavBarControl Grid.Row="0" Grid.ColumnSpan="2" CurrentPageName="ReconstructionPage"/>
+            <Grid Grid.Row="1"
+                  Grid.Column="0"
+                  ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto"
+                  Padding="1"
+                  ColumnSpacing="20"
+                  HorizontalOptions="Center">
+                <Picker x:Name="DESolverPicker"
+                        Grid.Column="0"
+                        Title="Differential Eq. Solver"
+                        ItemsSource="{Binding DifferentialEquationSolverOptions}"
+                        SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}"
+                        ItemDisplayBinding="{Binding ., Converter={StaticResource EnumDesc}}"/>
+                <Picker x:Name="RegulariaztionPicker"
+                        Grid.Column="1"
+                        Title="Regularisation"
+                        ItemsSource="{Binding RegularizationTechniqueOptions}"
+                        SelectedItem="{Binding ReconstructionParameters.RegularizationTechnique}"
+                        ItemDisplayBinding="{Binding ., Converter={StaticResource EnumDesc}}" />
+                <Picker x:Name="ErrorMetricPicker"
+                        Grid.Column="2"
+                        Title="Error metric"
+                        ItemsSource="{Binding ErrorMetricOptions}"
+                        SelectedItem="{Binding ReconstructionParameters.ErrorMetric}"
+                        ItemDisplayBinding="{Binding ., Converter={StaticResource EnumDesc}}" />
+                <Picker x:Name="NumericSolverPicker"
+                        Grid.Column="3"
+                        Title="Numeric solver"
+                        ItemsSource="{Binding NumericSolverOptions}"
+                        SelectedItem="{Binding ReconstructionParameters.NumericSolver}"
+                        ItemDisplayBinding="{Binding ., Converter={StaticResource EnumDesc}}" />
+                <Picker x:Name="NumericOptimizerPicker"
+                        Grid.Column="4"
+                        Title="Optimizer"
+                        ItemsSource="{Binding NumericOptimizerOptions}"
+                        SelectedItem="{Binding ReconstructionParameters.NumericOptimizer}"
+                        ItemDisplayBinding="{Binding ., Converter={StaticResource EnumDesc}}" />
+                <Button Grid.Column="5"
+                        BackgroundColor="Gray"
+                        TextColor="White"
+                        FontSize="Small"
+                        Padding="10"
+                        Margin="10"
+                        Text="Start Reconstruction"
+                        Clicked="OnStartReconstruction"/>
+            </Grid>
+        </Grid>
+    </Grid>
 </ContentPage>

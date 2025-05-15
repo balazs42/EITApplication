@@ -271,6 +271,14 @@
               "target": "Package",
               "version": "[9.0.5, )",
               "autoReferenced": true
+            },
+            "OxyPlot.Maui.Skia": {
+              "target": "Package",
+              "version": "[1.1.0, )"
+            },
+            "SkiaSharp": {
+              "target": "Package",
+              "version": "[3.119.0, )"
             }
           },
           "imports": [
@@ -314,6 +322,14 @@
               "target": "Package",
               "version": "[9.0.5, )",
               "autoReferenced": true
+            },
+            "OxyPlot.Maui.Skia": {
+              "target": "Package",
+              "version": "[1.1.0, )"
+            },
+            "SkiaSharp": {
+              "target": "Package",
+              "version": "[3.119.0, )"
             }
           },
           "imports": [
@@ -357,6 +373,14 @@
               "target": "Package",
               "version": "[9.0.5, )",
               "autoReferenced": true
+            },
+            "OxyPlot.Maui.Skia": {
+              "target": "Package",
+              "version": "[1.1.0, )"
+            },
+            "SkiaSharp": {
+              "target": "Package",
+              "version": "[3.119.0, )"
             }
           },
           "imports": [
@@ -395,6 +419,14 @@
             "Microsoft.Maui.Controls": {
               "target": "Package",
               "version": "[9.0.51, )"
+            },
+            "OxyPlot.Maui.Skia": {
+              "target": "Package",
+              "version": "[1.1.0, )"
+            },
+            "SkiaSharp": {
+              "target": "Package",
+              "version": "[3.119.0, )"
             }
           },
           "imports": [

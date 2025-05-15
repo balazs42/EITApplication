@@ -19,8 +19,8 @@ public final class R {
 		public static final int fontStyle = 0x7f030217;
 		public static final int fontVariationSettings = 0x7f030218;
 		public static final int fontWeight = 0x7f030219;
-		public static final int swipeRefreshLayoutProgressSpinnerBackgroundColor = 0x7f030442;
-		public static final int ttcIndex = 0x7f0304fb;
+		public static final int swipeRefreshLayoutProgressSpinnerBackgroundColor = 0x7f030443;
+		public static final int ttcIndex = 0x7f0304fc;
 	}
 	public static final class color {
 		public static final int notification_action_color_filter = 0x7f0502f6;
@@ -160,7 +160,7 @@ public final class R {
 		public static final int Widget_Compat_NotificationActionText = 0x7f10033d;
 	}
 	public static final class styleable {
-		public static final int[] ColorStateListItem = new int[] { 0x010101a5, 0x0101031f, 0x01010647, 0x7f030031, 0x7f030283 };
+		public static final int[] ColorStateListItem = new int[] { 0x010101a5, 0x0101031f, 0x01010647, 0x7f030031, 0x7f030284 };
 		public static final int ColorStateListItem_alpha = 3;
 		public static final int ColorStateListItem_android_alpha = 1;
 		public static final int ColorStateListItem_android_color = 0;
@@ -171,7 +171,7 @@ public final class R {
 		public static final int FontFamily_fontProviderFetchTimeout = 4;
 		public static final int FontFamily_fontProviderPackage = 5;
 		public static final int FontFamily_fontProviderQuery = 6;
-		public static final int[] FontFamilyFont = new int[] { 0x01010532, 0x01010533, 0x0101053f, 0x0101056f, 0x01010570, 0x7f03020d, 0x7f030217, 0x7f030218, 0x7f030219, 0x7f0304fb };
+		public static final int[] FontFamilyFont = new int[] { 0x01010532, 0x01010533, 0x0101053f, 0x0101056f, 0x01010570, 0x7f03020d, 0x7f030217, 0x7f030218, 0x7f030219, 0x7f0304fc };
 		public static final int FontFamilyFont_android_font = 0;
 		public static final int FontFamilyFont_android_fontStyle = 2;
 		public static final int FontFamilyFont_android_fontVariationSettings = 4;
@@ -198,7 +198,7 @@ public final class R {
 		public static final int[] GradientColorItem = new int[] { 0x010101a5, 0x01010514 };
 		public static final int GradientColorItem_android_color = 0;
 		public static final int GradientColorItem_android_offset = 1;
-		public static final int[] SwipeRefreshLayout = new int[] { 0x7f030442 };
+		public static final int[] SwipeRefreshLayout = new int[] { 0x7f030443 };
 		public static final int SwipeRefreshLayout_swipeRefreshLayoutProgressSpinnerBackgroundColor = 0;
 	}
 }

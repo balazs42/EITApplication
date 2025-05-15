@@ -18,12 +18,30 @@ namespace ServiceLayer
 
         public async Task<ReconstructionResult> GetReconstructionResult()
         {
-            return await _reconstructionPersistence.GetReconstructionResult();
+            try
+            {
+                return await _reconstructionPersistence.GetReconstructionResult();
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                Console.WriteLine(ex.Message);
+                throw;
+            }
         }
 
         public void StartReconstruction(EITReconstructionParameters reconstructionParameters)
         {
-            _reconstructionPersistence.StartReconstruction(reconstructionParameters);
+            try
+            {
+                _reconstructionPersistence.StartReconstruction(reconstructionParameters);
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                Console.WriteLine(ex.Message);
+                throw;
+            }
         }
     }
 }

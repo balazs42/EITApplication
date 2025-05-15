@@ -39,6 +39,12 @@ build_metadata.AdditionalFiles.ManifestResourceName = ElectricalImpedanceTomogra
 build_metadata.AdditionalFiles.TargetPath = AppShell.xaml
 build_metadata.AdditionalFiles.RelativePath = AppShell.xaml
 
+[C:/Users/Bazsi/Documents/EITApplication/ElectricalImpedanceTomography/Controls/NavBarControl.xaml]
+build_metadata.AdditionalFiles.GenKind = Xaml
+build_metadata.AdditionalFiles.ManifestResourceName = ElectricalImpedanceTomography.Controls.NavBarControl.xaml
+build_metadata.AdditionalFiles.TargetPath = Controls\NavBarControl.xaml
+build_metadata.AdditionalFiles.RelativePath = Controls\NavBarControl.xaml
+
 [C:/Users/Bazsi/Documents/EITApplication/ElectricalImpedanceTomography/Resources/Styles/Colors.xaml]
 build_metadata.AdditionalFiles.GenKind = Xaml
 build_metadata.AdditionalFiles.ManifestResourceName = ElectricalImpedanceTomography.Resources.Styles.Colors.xaml

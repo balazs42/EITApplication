@@ -3,12 +3,88 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="ElectricalImpedanceTomography.Views.DAQPage"
              xmlns:viewmodels="clr-namespace:ElectricalImpedanceTomography.ViewModels"
+             xmlns:oxy="clr-namespace:OxyPlot.Maui.Skia;assembly=OxyPlot.Maui.Skia"
+             xmlns:oxyplot="clr-namespace:OxyPlot;assembly=OxyPlot"
+             xmlns:controls="clr-namespace:ElectricalImpedanceTomography.Controls"
              x:DataType="viewmodels:DAQPageViewModel"
              Title="DAQPage">
-    <VerticalStackLayout>
-        <Label 
-            Text="Welcome to .NET MAUI!"
-            VerticalOptions="Center" 
-            HorizontalOptions="Center" />
-    </VerticalStackLayout>
+    <ContentPage.Resources>
+        <Style x:Key="CardFrameStyle" TargetType="Border">
+            <Setter Property="Padding" Value="10"/>
+            <Setter Property="BackgroundColor" Value="White"/>
+            <Setter Property="Margin" Value="5"/>
+        </Style>
+
+        <Style x:Key="CardTitleStyle" TargetType="Label">
+            <Setter Property="FontSize" Value="Medium"/>
+            <Setter Property="FontAttributes" Value="Bold"/>
+            <Setter Property="HorizontalOptions" Value="Center"/>
+            <Setter Property="TextColor" Value="Black"/>
+        </Style>
+
+        <Style x:Key="ControlButtonStyle" TargetType="Button">
+            <Setter Property="FontSize" Value="20"/>
+            <Setter Property="FontAttributes" Value="Bold"/>
+            <Setter Property="HorizontalOptions" Value="Center"/>
+            <Setter Property="VerticalOptions" Value="Center"/>
+            <Setter Property="CornerRadius" Value="5"/>
+            <Setter Property="IsEnabled" Value="True"/>
+            <Setter Property="MinimumWidthRequest" Value="100"/>
+        </Style>
+
+    </ContentPage.Resources>
+    <Grid RowDefinitions="Auto, *, Auto">
+        <controls:NavBarControl Grid.Row="0" CurrentPageName="DAQPage"/>
+
+        <CollectionView Grid.Row="1" ItemsSource="{Binding PlotModels}" SelectionMode="None">
+            <CollectionView.ItemsLayout>
+                <GridItemsLayout Orientation="Vertical" Span="4"
+                              VerticalItemSpacing="10"
+                              HorizontalItemSpacing="10"/>
+            </CollectionView.ItemsLayout>
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="oxyplot:PlotModel">
+                    <VerticalStackLayout Spacing="2" Padding="5" BackgroundColor="Transparent">
+                        <Border Style="{StaticResource CardFrameStyle}">
+                            <oxy:PlotView Model="{Binding .}"
+                                          HeightRequest="150"             
+                                          MinimumWidthRequest="100"/>
+                            <Border.Shadow>
+                                <Shadow Brush="Gray" Opacity="1.0" Radius="1.0" Offset="1.0, 1.0"/>
+                            </Border.Shadow>
+                        </Border>
+                    </VerticalStackLayout>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+            <CollectionView.Margin>10</CollectionView.Margin>
+        </CollectionView>
+
+        <Grid Grid.Row="2"
+              ColumnDefinitions="Auto, Auto"
+              HorizontalOptions="Center"
+              VerticalOptions="Center"
+              ColumnSpacing="10"
+              Padding="10">
+            <Button Grid.Column="0" 
+                    Style="{StaticResource ControlButtonStyle}"
+                    Text="Stop" 
+                    Clicked="OnStopButtonPressed" 
+                    BackgroundColor="PaleVioletRed"
+                    BorderColor="Transparent">
+                <Button.Shadow>
+                    <Shadow Brush="PaleVioletRed" Opacity="1.0" Radius="2.0" />
+                </Button.Shadow>
+            </Button>
+            <Button Grid.Column="1" 
+                    Style="{StaticResource ControlButtonStyle}"
+                    Text="Start" 
+                    Clicked="OnStartButtonPressed" 
+                    Background="LightGreen"
+                    BorderColor="Transparent">
+                <Button.Shadow>
+                    <Shadow Brush="LightGreen" Opacity="1.0" Radius="2.0"/>
+                </Button.Shadow>
+            </Button>
+        </Grid>
+    </Grid>
 </ContentPage>

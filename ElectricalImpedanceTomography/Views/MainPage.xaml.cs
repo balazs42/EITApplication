@@ -1,6 +1,6 @@
 ﻿using ElectricalImpedanceTomography.ViewModels;
 
-namespace ElectricalImpedanceTomography
+namespace ElectricalImpedanceTomography.Views
 {
     public partial class MainPage : ContentPage
     {
