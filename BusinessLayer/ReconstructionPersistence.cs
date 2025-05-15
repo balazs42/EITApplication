@@ -1,19 +1,33 @@
 ﻿using Utility.Classes;
+using Utility.Classes.ReconstructionParameters;
+using Utility.Classes.Solvers;
 
 namespace BusinessLayer
 {
     public class ReconstructionPersistence : IReconstructionPersistence
     {
+        private InverseSolver? _inverseSolver;
+
+        // TODO: Implement initialization of these variables
+        private EITMeasurement _measurementData;
+        private Mesh _initialMesh;
+        private ConductivityDistribution _initialConductivityDistribution;
+
         public async Task<ReconstructionResult> GetReconstructionResult()
         {
-            await Task.Delay (1000);
+            if (_inverseSolver == null) throw new InvalidOperationException();
 
-            return new ReconstructionResult();
+            /* supply real data, mesh, and initial σ */
+            var result = await Task.Run(() => _inverseSolver.Reconstruct(_measurementData, 
+                                                                         _initialMesh, 
+                                                                         _initialConductivityDistribution));
+
+            return result;
         }
 
-        public void StartReconstruction(EITReconstructionParameters reconstructionParameters)
+        public void StartReconstruction(EITReconstructionParameters p)
         {
-            // TODO: reconstruction
+            _inverseSolver = new InverseSolver(p);
         }
     }
 }

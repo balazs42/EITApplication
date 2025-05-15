@@ -2,7 +2,11 @@
 {
     public partial class MainPageViewModel : BaseViewModel
     {
+        
+        public MainPageViewModel()
+        {
 
+        }
 
     }
 }

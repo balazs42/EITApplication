@@ -4,11 +4,35 @@
         <name>ElectricalImpedanceTomography</name>
     </assembly>
     <members>
+        <member name="T:ElectricalImpedanceTomography.ViewModels.ReconstructionPageViewModel">
+            <inheritdoc/>
+        </member>
+        <member name="P:ElectricalImpedanceTomography.ViewModels.ReconstructionPageViewModel.ReconstructionParameters">
+            <inheritdoc cref="F:ElectricalImpedanceTomography.ViewModels.ReconstructionPageViewModel.reconstructionParameters"/>
+        </member>
         <member name="T:ElectricalImpedanceTomography.Resource">
             <summary>
             Android Resource Designer class.
             Exposes the Android Resource designer assembly into the project Namespace.
             </summary>
+        </member>
+        <member name="T:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs">
+            <summary>
+            A helper type providing cached, reusable <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instances
+            for all properties generated with <see cref="T:CommunityToolkit.Mvvm.ComponentModel.ObservablePropertyAttribute"/>.
+            </summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ReconstructionParameters">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ReconstructionParameters" generated properties.</summary>
+        </member>
+        <member name="T:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs">
+            <summary>
+            A helper type providing cached, reusable <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instances
+            for all properties generated with <see cref="T:CommunityToolkit.Mvvm.ComponentModel.ObservablePropertyAttribute"/>.
+            </summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ReconstructionParameters">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ReconstructionParameters" generated properties.</summary>
         </member>
     </members>
 </doc>

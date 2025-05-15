@@ -1,15 +1,27 @@
-﻿namespace Utility.Classes
+﻿using Utility.Classes.Meshing;
+
+namespace Utility.Classes
 {
     public abstract class Mesh
     {
-        public int XNodes = 10;
-        public int YNodes = 10;
+        public List<Vertex> Vertices;
 
-        public double[,] condictivities;
-        
+        public Mesh(int numVertices)
+        {
+            Vertices = new List<Vertex>();
+
+            for(int i = 0; i <  numVertices; i++) 
+                Vertices.Add(new Vertex(i));
+        }
+
+        public Mesh(List<Vertex> vertices)
+        {
+            Vertices = vertices;
+        }
+
         public Mesh()
         {
-            condictivities = new double[XNodes, YNodes];
+
         }
     }
 }

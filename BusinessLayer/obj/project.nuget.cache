@@ -1,12 +1,13 @@
 {
   "version": 2,
-  "dgSpecHash": "+SzuF9KKqvs=",
+  "dgSpecHash": "g3dA/vitMng=",
   "success": true,
   "projectFilePath": "C:\\Users\\Bazsi\\Documents\\EITApplication\\BusinessLayer\\BusinessLayer.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Bazsi\\.nuget\\packages\\bhom\\6.3.0\\bhom.6.3.0.nupkg.sha512",
     "C:\\Users\\Bazsi\\.nuget\\packages\\bhom.engine\\6.3.0\\bhom.engine.6.3.0.nupkg.sha512",
     "C:\\Users\\Bazsi\\.nuget\\packages\\bhom.interop.trianglenet\\6.3.0\\bhom.interop.trianglenet.6.3.0.nupkg.sha512",
+    "C:\\Users\\Bazsi\\.nuget\\packages\\communitytoolkit.mvvm\\8.4.0\\communitytoolkit.mvvm.8.4.0.nupkg.sha512",
     "C:\\Users\\Bazsi\\.nuget\\packages\\comparenetobjects\\4.67.0\\comparenetobjects.4.67.0.nupkg.sha512",
     "C:\\Users\\Bazsi\\.nuget\\packages\\microsoft.csharp\\4.7.0\\microsoft.csharp.4.7.0.nupkg.sha512",
     "C:\\Users\\Bazsi\\.nuget\\packages\\microsoft.netcore.platforms\\5.0.1\\microsoft.netcore.platforms.5.0.1.nupkg.sha512",

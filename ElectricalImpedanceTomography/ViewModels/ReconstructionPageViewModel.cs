@@ -1,6 +1,5 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using ServiceLayer;
-using Utility.Classes;
 using Utility.Classes.ReconstructionParameters;
 
 namespace ElectricalImpedanceTomography.ViewModels

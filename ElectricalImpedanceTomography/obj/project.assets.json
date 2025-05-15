@@ -4681,6 +4681,7 @@
         "type": "project",
         "framework": ".NETCoreApp,Version=v9.0",
         "dependencies": {
+          "CommunityToolkit.Mvvm": "8.4.0",
           "Unity": "5.11.10"
         },
         "compile": {
@@ -8165,6 +8166,7 @@
         "type": "project",
         "framework": ".NETCoreApp,Version=v9.0",
         "dependencies": {
+          "CommunityToolkit.Mvvm": "8.4.0",
           "Unity": "5.11.10"
         },
         "compile": {
@@ -11649,6 +11651,7 @@
         "type": "project",
         "framework": ".NETCoreApp,Version=v9.0",
         "dependencies": {
+          "CommunityToolkit.Mvvm": "8.4.0",
           "Unity": "5.11.10"
         },
         "compile": {
@@ -15085,6 +15088,7 @@
         "type": "project",
         "framework": ".NETCoreApp,Version=v9.0",
         "dependencies": {
+          "CommunityToolkit.Mvvm": "8.4.0",
           "Unity": "5.11.10"
         },
         "compile": {
@@ -18569,6 +18573,7 @@
         "type": "project",
         "framework": ".NETCoreApp,Version=v9.0",
         "dependencies": {
+          "CommunityToolkit.Mvvm": "8.4.0",
           "Unity": "5.11.10"
         },
         "compile": {
@@ -22016,6 +22021,7 @@
         "type": "project",
         "framework": ".NETCoreApp,Version=v9.0",
         "dependencies": {
+          "CommunityToolkit.Mvvm": "8.4.0",
           "Unity": "5.11.10"
         },
         "compile": {
@@ -24939,6 +24945,7 @@
         "type": "project",
         "framework": ".NETCoreApp,Version=v9.0",
         "dependencies": {
+          "CommunityToolkit.Mvvm": "8.4.0",
           "Unity": "5.11.10"
         },
         "compile": {
@@ -26634,6 +26641,7 @@
         "type": "project",
         "framework": ".NETCoreApp,Version=v9.0",
         "dependencies": {
+          "CommunityToolkit.Mvvm": "8.4.0",
           "Unity": "5.11.10"
         },
         "compile": {
@@ -28329,6 +28337,7 @@
         "type": "project",
         "framework": ".NETCoreApp,Version=v9.0",
         "dependencies": {
+          "CommunityToolkit.Mvvm": "8.4.0",
           "Unity": "5.11.10"
         },
         "compile": {
@@ -29976,6 +29985,7 @@
         "type": "project",
         "framework": ".NETCoreApp,Version=v9.0",
         "dependencies": {
+          "CommunityToolkit.Mvvm": "8.4.0",
           "Unity": "5.11.10"
         },
         "compile": {
@@ -31671,6 +31681,7 @@
         "type": "project",
         "framework": ".NETCoreApp,Version=v9.0",
         "dependencies": {
+          "CommunityToolkit.Mvvm": "8.4.0",
           "Unity": "5.11.10"
         },
         "compile": {
@@ -33322,6 +33333,7 @@
         "type": "project",
         "framework": ".NETCoreApp,Version=v9.0",
         "dependencies": {
+          "CommunityToolkit.Mvvm": "8.4.0",
           "Unity": "5.11.10"
         },
         "compile": {
@@ -36245,6 +36257,7 @@
         "type": "project",
         "framework": ".NETCoreApp,Version=v9.0",
         "dependencies": {
+          "CommunityToolkit.Mvvm": "8.4.0",
           "Unity": "5.11.10"
         },
         "compile": {
@@ -37940,6 +37953,7 @@
         "type": "project",
         "framework": ".NETCoreApp,Version=v9.0",
         "dependencies": {
+          "CommunityToolkit.Mvvm": "8.4.0",
           "Unity": "5.11.10"
         },
         "compile": {
@@ -39635,6 +39649,7 @@
         "type": "project",
         "framework": ".NETCoreApp,Version=v9.0",
         "dependencies": {
+          "CommunityToolkit.Mvvm": "8.4.0",
           "Unity": "5.11.10"
         },
         "compile": {
@@ -41282,6 +41297,7 @@
         "type": "project",
         "framework": ".NETCoreApp,Version=v9.0",
         "dependencies": {
+          "CommunityToolkit.Mvvm": "8.4.0",
           "Unity": "5.11.10"
         },
         "compile": {
@@ -42977,6 +42993,7 @@
         "type": "project",
         "framework": ".NETCoreApp,Version=v9.0",
         "dependencies": {
+          "CommunityToolkit.Mvvm": "8.4.0",
           "Unity": "5.11.10"
         },
         "compile": {
@@ -44628,6 +44645,7 @@
         "type": "project",
         "framework": ".NETCoreApp,Version=v9.0",
         "dependencies": {
+          "CommunityToolkit.Mvvm": "8.4.0",
           "Unity": "5.11.10"
         },
         "compile": {
@@ -47761,6 +47779,7 @@
         "type": "project",
         "framework": ".NETCoreApp,Version=v9.0",
         "dependencies": {
+          "CommunityToolkit.Mvvm": "8.4.0",
           "Unity": "5.11.10"
         },
         "compile": {
@@ -49624,6 +49643,7 @@
         "type": "project",
         "framework": ".NETCoreApp,Version=v9.0",
         "dependencies": {
+          "CommunityToolkit.Mvvm": "8.4.0",
           "Unity": "5.11.10"
         },
         "compile": {
@@ -51487,6 +51507,7 @@
         "type": "project",
         "framework": ".NETCoreApp,Version=v9.0",
         "dependencies": {
+          "CommunityToolkit.Mvvm": "8.4.0",
           "Unity": "5.11.10"
         },
         "compile": {
@@ -53302,6 +53323,7 @@
         "type": "project",
         "framework": ".NETCoreApp,Version=v9.0",
         "dependencies": {
+          "CommunityToolkit.Mvvm": "8.4.0",
           "Unity": "5.11.10"
         },
         "compile": {
@@ -55165,6 +55187,7 @@
         "type": "project",
         "framework": ".NETCoreApp,Version=v9.0",
         "dependencies": {
+          "CommunityToolkit.Mvvm": "8.4.0",
           "Unity": "5.11.10"
         },
         "compile": {
@@ -56993,6 +57016,7 @@
         "type": "project",
         "framework": ".NETCoreApp,Version=v9.0",
         "dependencies": {
+          "CommunityToolkit.Mvvm": "8.4.0",
           "Unity": "5.11.10"
         },
         "compile": {

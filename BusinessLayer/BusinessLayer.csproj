@@ -7,6 +7,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="BHoM.Interop.TriangleNet" Version="6.3.0" />
+    <PackageReference Include="Unofficial.Triangle.NET" Version="0.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\DataAccessLayer\DataAccessLayer.csproj" />
     <ProjectReference Include="..\Utility\Utility.csproj" />
   </ItemGroup>
