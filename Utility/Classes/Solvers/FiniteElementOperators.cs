@@ -18,9 +18,9 @@ namespace Utility.Classes.Solvers
 
             foreach (var element in femMesh.Elements)
             {
-                var v1 = element.V1;
-                var v2 = element.V2;
-                var v3 = element.V3;
+                var v1 = element.Vertices[1];
+                var v2 = element.Vertices[2];
+                var v3 = element.Vertices[3];
 
                 // Potentials at the vertices of the element
                 double s1 = scalarField.GetPotential(v1.GlobalId);
@@ -77,9 +77,9 @@ namespace Utility.Classes.Solvers
 
                     // Find the two triangles sharing the edge (i, j)
                     var sharedTriangles = femMesh.Elements.Where(e =>
-                        (e.V1.GlobalId == i && (e.V2.GlobalId == j || e.V3.GlobalId == j)) ||
-                        (e.V2.GlobalId == i && (e.V1.GlobalId == j || e.V3.GlobalId == j)) ||
-                        (e.V3.GlobalId == i && (e.V1.GlobalId == j || e.V2.GlobalId == j))
+                        (e.Vertices[0].GlobalId == i && (e.Vertices[1].GlobalId == j || e.Vertices[2].GlobalId == j)) ||
+                        (e.Vertices[1].GlobalId == i && (e.Vertices[0].GlobalId == j || e.Vertices[2].GlobalId == j)) ||
+                        (e.Vertices[2].GlobalId == i && (e.Vertices[0].GlobalId == j || e.Vertices[1].GlobalId == j))
                     ).ToList();
 
                     double cotAlpha = 0;
@@ -87,16 +87,16 @@ namespace Utility.Classes.Solvers
 
                     if (sharedTriangles.Count > 0)
                     {
-                        var p_k = sharedTriangles[0].V1.GlobalId != i && sharedTriangles[0].V1.GlobalId != j ? sharedTriangles[0].V1 :
-                                  sharedTriangles[0].V2.GlobalId != i && sharedTriangles[0].V2.GlobalId != j ? sharedTriangles[0].V2 :
-                                  sharedTriangles[0].V3;
+                        var p_k = sharedTriangles[0].Vertices[0].GlobalId != i && sharedTriangles[0].Vertices[0].GlobalId != j ? sharedTriangles[0].Vertices[0] :
+                                  sharedTriangles[0].Vertices[1].GlobalId != i && sharedTriangles[0].Vertices[1].GlobalId != j ? sharedTriangles[0].Vertices[1] :
+                                  sharedTriangles[0].Vertices[2];
                         cotAlpha = Cotangent(femMesh.Vertices[i], femMesh.Vertices[j], p_k);
                     }
                     if (sharedTriangles.Count > 1)
                     {
-                        var p_l = sharedTriangles[1].V1.GlobalId != i && sharedTriangles[1].V1.GlobalId != j ? sharedTriangles[1].V1 :
-                                  sharedTriangles[1].V2.GlobalId != i && sharedTriangles[1].V2.GlobalId != j ? sharedTriangles[1].V2 :
-                                  sharedTriangles[1].V3;
+                        var p_l = sharedTriangles[1].Vertices[0].GlobalId != i && sharedTriangles[1].Vertices[0].GlobalId != j ? sharedTriangles[1].Vertices[0] :
+                                  sharedTriangles[1].Vertices[1].GlobalId != i && sharedTriangles[1].Vertices[1].GlobalId != j ? sharedTriangles[1].Vertices[1] :
+                                  sharedTriangles[1].Vertices[2];
                         cotBeta = Cotangent(femMesh.Vertices[i], femMesh.Vertices[j], p_l);
                     }
 
@@ -130,9 +130,9 @@ namespace Utility.Classes.Solvers
             var adjacency = new Dictionary<int, List<int>>();
             foreach (var element in mesh.Elements)
             {
-                AddEdge(adjacency, element.V1.GlobalId, element.V2.GlobalId);
-                AddEdge(adjacency, element.V2.GlobalId, element.V3.GlobalId);
-                AddEdge(adjacency, element.V3.GlobalId, element.V1.GlobalId);
+                AddEdge(adjacency, element.Vertices[0].GlobalId, element.Vertices[1].GlobalId);
+                AddEdge(adjacency, element.Vertices[1].GlobalId, element.Vertices[2].GlobalId);
+                AddEdge(adjacency, element.Vertices[2].GlobalId, element.Vertices[0].GlobalId);
             }
             return adjacency;
         }

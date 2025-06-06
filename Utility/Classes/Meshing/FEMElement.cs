@@ -1,24 +1,29 @@
 ﻿namespace Utility.Classes.Meshing
 {
-    public class FEMElement
+    public sealed class FEMElement : MeshElement
     {
-        public int Id { get; set; }
-        public Vertex V1 { get; set; }
-        public Vertex V2 { get; set; }
-        public Vertex V3 { get; set; }
         public double Area { get; set; }
-        public FEMElement(int id, Vertex v1, Vertex v2, Vertex v3)
+
+        public new List<Vertex> Vertices { get; set; } = [new Vertex(), new Vertex(), new Vertex()];
+
+        public FEMElement(int id, Vertex v1, Vertex v2, Vertex v3) 
         {
             Id = id;
-            V1 = v1;
-            V2 = v2;
-            V3 = v3;
+            Vertices = [v1, v2, v3];
 
             CalculateArea();
         }
 
         private void CalculateArea()
         {
+            if(Vertices.Count == 0)
+                throw new ArgumentNullException(nameof(Vertices));
+
+            Vertex V1 = Vertices[0];
+            Vertex V2 = Vertices[1];
+            Vertex V3 = Vertices[2];
+
+
             Area = Math.Abs(0.5 *
                             (V1.X * (V2.Y - V3.Y) +
                              V2.X * (V3.Y - V1.Y) +

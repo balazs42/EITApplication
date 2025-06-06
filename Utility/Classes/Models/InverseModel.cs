@@ -1,64 +1,99 @@
-﻿using Utility.Classes.ReconstructionParameters;
+﻿using System.Diagnostics;
+using Utility.Classes.ReconstructionParameters;
+using MathNet.Numerics.LinearAlgebra;
 
 namespace Utility.Classes.Models
 {
     public class InverseModel
     {
         private readonly INumericOptimizer _numericOptimizer;
-        private readonly IRegularizer _regulizer;
+        private readonly IRegularizer _regularizer;
         private readonly IErrorMetric _errorMetric;
-        private readonly INumericSolver _numericSolver;
-        private readonly ForwardModel _forwardModel;
-        private readonly EITMeasurement _eITMeasurement;
+        private readonly IDifferentialEquationSolver _deSolver;
+        private readonly IMesh _mesh;
 
-        private const double _convergenceThreshold = 1e-6;
-
-        public InverseModel(INumericOptimizer numericOptimizer, IRegularizer regulizer, IErrorMetric errorMetric, INumericSolver numericSolver, ForwardModel forwardModel, EITMeasurement eITMeasurement)
+        public InverseModel(IMesh mesh, INumericOptimizer numericOptimizer, IRegularizer regularizer, IErrorMetric errorMetric, IDifferentialEquationSolver deSolver)
         {
+            _mesh = mesh;
             _numericOptimizer = numericOptimizer;
-            _regulizer = regulizer;
+            _regularizer = regularizer;
             _errorMetric = errorMetric;
-            _numericSolver = numericSolver;
-            _forwardModel = forwardModel;
-            _eITMeasurement = eITMeasurement;
+            _deSolver = deSolver; 
         }
 
-        public double[] Iterate()
+        public ConductivityDistribution Solve(ConductivityDistribution initialSigma, EITMeasurement measurements, int maxIterations = 50)
         {
-            double convergenceMeasure = 1.0;
+            var currentSigma = initialSigma;
+            var mesh = _mesh;
 
-            while (convergenceMeasure > _convergenceThreshold)
+            Debug.WriteLine($"Starting inverse problem solution using {_deSolver.GetType().Name}...");
+
+            for (int k = 0; k < maxIterations; k++)
             {
-                for (int i = 0; i < 16; i++)
+                var totalGradient = new Dictionary<int, double>();
+                foreach (var id in currentSigma.Conductivities.Keys) 
+                    totalGradient[id] = 0.0;
+
+                double totalMisfit = 0.0;
+
+                for(int i = 0; i < 16; i++)
                 {
-                    // Get next measurement to work with   
-                    double[] currentMeasurement = _eITMeasurement.GetMeasurement(i);
+                    // Get current measurement that we will work with
+                    double[] currentMeasurements = measurements.GetMeasurement(i);
 
-                    // Use the forward model to calculate nodal potentials at the boundary
-                    PotentialDistribution forwardSolution = _forwardModel.ForwardSolve();
+                    // Build boundary conditions based on the measurements array
+                    List<Electrode> electrodes = mesh.GetElectrodes();
+                    BoundaryConditions boundaryConditions = new BoundaryConditions(electrodes, currentMeasurements);
 
-                    // Use the error metric to come up with a measure of error
-                    // TODO: this also should return something
-                    convergenceMeasure = _errorMetric.Evaluate(currentMeasurement, new double[1]/*TODO: calculated*/);
+                    var phi = _deSolver.SolveForward(mesh, currentSigma, boundaryConditions);
 
-                    // Inverse solve step, to calculate the adjoint variable
-                    double[] inverseSolveResult = InverseSolveStep();
+                    var simulatedElectrodePotentials = mesh.GetElectrodePotentials();
 
-                    // TODO: further implementation
+                    totalMisfit += _errorMetric.Evaluate(mesh, currentMeasurements, simulatedElectrodePotentials);
+
+                    // Adjoint solve, error metric produces the rhs vector for the adjoint problem
+                    var adjointSourceRaw = _errorMetric.EvaluateAdjointSource(mesh, currentMeasurements, simulatedElectrodePotentials);
+                    var adjointSourceVector = MapAdjointSourceToMesh(mesh, adjointSourceRaw);
+                    var mu = _deSolver.SolveAdjoint(mesh, currentSigma, boundaryConditions, adjointSourceVector);
+
+                    // Compute gradient
+                    var currentConductivityGradient = _deSolver.ComputeMisfitGradient(mesh, phi, mu);
+
+                    foreach (var kvp in currentConductivityGradient.Conductivities)
+                        totalGradient[kvp.Key] += kvp.Value;
                 }
+
+                // 4. Regularization Gradient (this is already polymorphic)
+                var regGradient = _regularizer.EvaluateGradient(mesh, currentSigma);
+
+                foreach (var kvp in regGradient.Conductivities)
+                    totalGradient[kvp.Key] += kvp.Value;
+
+                // 5. Update Conductivity
+                currentSigma = _numericOptimizer.OptimizationStep(currentSigma, new ConductivityDistribution(totalGradient));
+
+                double totalCost = totalMisfit + _regularizer.EvaluateTerm(mesh, currentSigma);
+                Debug.WriteLine($"Iteration {k + 1}: Total Cost = {totalCost:G4}");
             }
 
-            throw new NotImplementedException();
+            Debug.WriteLine("Inverse problem solution finished.");
+            return currentSigma;
         }
 
-        // TODO: implement
-        private double[] InverseSolveStep()
+        private Vector<double> MapAdjointSourceToMesh(IMesh mesh, double[] sourcePerElectrode)
         {
-            double[] result = new double[1];
+            var sourceVector = Vector<double>.Build.Dense(mesh.GetVertices().Count);
+            var electrodeVertices = mesh.GetElectrodeVertices();
 
-            throw new NotImplementedException();
-            // _numericSolver.SolveLinearSystem();
-
+            foreach (var vertex in electrodeVertices)
+            {
+                if (vertex.ElectrodeId >= 0 && vertex.ElectrodeId < sourcePerElectrode.Length)
+                {
+                    // The negative sign comes from the adjoint equation derivation
+                    sourceVector[vertex.GlobalId] = -sourcePerElectrode[vertex.ElectrodeId];
+                }
+            }
+            return sourceVector;
         }
     }
 }

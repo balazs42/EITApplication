@@ -1,0 +1,448 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ClassDiagram MajorVersion="1" MinorVersion="1">
+  <Class Name="Utility.Classes.BoundaryConditions" Collapsed="true">
+    <Position X="15.25" Y="8" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAgAAAAAAEAAgAAAAAAAAAAAAAAAgAAAAAAA=</HashCode>
+      <FileName>Classes\BoundaryConditions.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Utility.Classes.ConductivityDistribution" Collapsed="true">
+    <Position X="17" Y="9" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>IAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAACAAAAAAA=</HashCode>
+      <FileName>Classes\ConductivityDistribution.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Utility.Classes.EITMeasurement" Collapsed="true">
+    <Position X="18.75" Y="8" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAQAAAAAAAAAAAAAACAAAAQAAAAAAA=</HashCode>
+      <FileName>Classes\EITMeasurement.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Utility.Classes.Electrode" Collapsed="true">
+    <Position X="8" Y="3.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAADAAAAAAAAAAAAAACAAAAAAAAAIAAAAAAAAAAAAAA=</HashCode>
+      <FileName>Classes\Electrode.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Utility.Classes.Mesh" Collapsed="true">
+    <Position X="0.75" Y="3.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>EAAAAAMAQAABAAAAEACQACAAQAABAAAAEAAAAAAgAQA=</HashCode>
+      <FileName>Classes\Meshing\Mesh.cs</FileName>
+    </TypeIdentifier>
+    <Lollipop Position="0.2" />
+  </Class>
+  <Class Name="Utility.Classes.PotentialDistribution" Collapsed="true">
+    <Position X="15.25" Y="9" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAIAAAAAAAAAAAAAAAAAABAAAAAAAAAAAA=</HashCode>
+      <FileName>Classes\PotentialDistribution.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Utility.Classes.ReconstructionResult" Collapsed="true">
+    <Position X="18.75" Y="9" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAgAAA=</HashCode>
+      <FileName>Classes\ReconstructionResult.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Utility.Classes.VectorField" Collapsed="true">
+    <Position X="17" Y="8" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAABAAAA=</HashCode>
+      <FileName>Classes\VectorField.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Utility.Classes.Factories.DifferentialEquationSolverFactory" Collapsed="true">
+    <Position X="13.5" Y="2" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAA=</HashCode>
+      <FileName>Classes\Factories\DifferentialEquationSolverFactory.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Utility.Classes.Factories.ErrorMetricFactory" Collapsed="true">
+    <Position X="11.75" Y="2" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAA=</HashCode>
+      <FileName>Classes\Factories\ErrorMetricFactory.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Utility.Classes.Factories.ForwardModelFactory" Collapsed="true">
+    <Position X="0.75" Y="8" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAA=</HashCode>
+      <FileName>Classes\Factories\ForwardModelFactory.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Utility.Classes.Factories.InverseModelFactory" Collapsed="true">
+    <Position X="2.5" Y="8" Width="1.5" />
+    <Compartments>
+      <Compartment Name="Nested Types" Collapsed="false" />
+    </Compartments>
+    <NestedTypes>
+      <Interface Name="Utility.Classes.Factories.InverseModelFactory.IInverseModel" Collapsed="true">
+        <TypeIdentifier>
+          <NewMemberFileName>Classes\Factories\InverseModelFactory.cs</NewMemberFileName>
+        </TypeIdentifier>
+      </Interface>
+    </NestedTypes>
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAA=</HashCode>
+      <FileName>Classes\Factories\InverseModelFactory.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Utility.Classes.Factories.MeshFactory" Collapsed="true">
+    <Position X="0.75" Y="2" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAA=</HashCode>
+      <FileName>Classes\Factories\MeshFactory.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Utility.Classes.Factories.NumericSolverFactory" Collapsed="true">
+    <Position X="15.25" Y="2" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAA=</HashCode>
+      <FileName>Classes\Factories\NumericSolverFactory.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Utility.Classes.Factories.OptimizerFactory" Collapsed="true">
+    <Position X="18.75" Y="2" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAA=</HashCode>
+      <FileName>Classes\Factories\NumericalOptimizerFactory.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Utility.Classes.Factories.RegularisationFactory" Collapsed="true">
+    <Position X="17" Y="2" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAA=</HashCode>
+      <FileName>Classes\Factories\RegularizationFactory.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Utility.Classes.Meshing.Edge" Collapsed="true">
+    <Position X="4.25" Y="3.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAIAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>Classes\Meshing\Edge.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Utility.Classes.Meshing.FEMElement" Collapsed="true">
+    <Position X="7" Y="4.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAIAAQAAAAA=</HashCode>
+      <FileName>Classes\Meshing\FEMElement.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Utility.Classes.Meshing.FEMMesh" Collapsed="true">
+    <Position X="2.75" Y="4.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>Classes\Meshing\FEMMesh.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Utility.Classes.Meshing.LBMElement" Collapsed="true">
+    <Position X="4.75" Y="4.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAEACAAAAAAAAAAAAAggAAEAAAAAAAAAA=</HashCode>
+      <FileName>Classes\Meshing\LBMElement.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Utility.Classes.Meshing.LBMMesh" Collapsed="true">
+    <Position X="0.75" Y="4.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>ACAAFAAIQAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>Classes\Meshing\LBMMesh.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Utility.Classes.Meshing.MeshElement" Collapsed="true">
+    <Position X="6" Y="3.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAA=</HashCode>
+      <FileName>Classes\Meshing\MeshElement.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Utility.Classes.Meshing.Vertex" Collapsed="true">
+    <Position X="2.5" Y="3.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAEAAECAAAYAE=</HashCode>
+      <FileName>Classes\Meshing\Vertex.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Utility.Classes.Models.ForwardModel" BaseTypeListCollapsed="true">
+    <Position X="0.75" Y="9" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAIgAAABAAhAABAAgAAAgAAAIAAAAAAAAAAAAAA=</HashCode>
+      <FileName>Classes\Models\ForwardModel.cs</FileName>
+    </TypeIdentifier>
+    <Lollipop Position="0.2" Collapsed="true" />
+  </Class>
+  <Class Name="Utility.Classes.Models.InverseModel">
+    <Position X="2.5" Y="9" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAIQAAAAAAAIgAAAAAAEAAAAAAAAQQA=</HashCode>
+      <FileName>Classes\Models\InverseModel.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Utility.Classes.ReconstructionParameters.EITReconstructionParameters" Collapsed="true">
+    <Position X="9.5" Y="5.5" Width="2.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAQAEAAAAAAAACACBAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>Classes\ReconstructionParameters\EITReconstructionParameters.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Utility.Classes.ReconstructionParameters.FiniteElementDESolver" Collapsed="true" BaseTypeListCollapsed="true">
+    <Position X="13.5" Y="3" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAIAAAgABAAAAAAAAAAAAAIAAAAAAAAAAAAAAAAAAI=</HashCode>
+      <FileName>Classes\ReconstructionParameters\DifferentialEquationSolver.cs</FileName>
+    </TypeIdentifier>
+    <Lollipop Position="0.2" Collapsed="true" />
+  </Class>
+  <Class Name="Utility.Classes.ReconstructionParameters.FirstOrderTikhonov" Collapsed="true" BaseTypeListCollapsed="true">
+    <Position X="17" Y="4.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAABAA=</HashCode>
+      <FileName>Classes\ReconstructionParameters\RegularizationTechnique.cs</FileName>
+    </TypeIdentifier>
+    <Lollipop Position="0.2" Collapsed="true" />
+  </Class>
+  <Class Name="Utility.Classes.ReconstructionParameters.GmresSolver" Collapsed="true" BaseTypeListCollapsed="true">
+    <Position X="15.25" Y="5.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAA=</HashCode>
+      <FileName>Classes\ReconstructionParameters\NumericSolver.cs</FileName>
+    </TypeIdentifier>
+    <Lollipop Position="0.2" Collapsed="true" />
+  </Class>
+  <Class Name="Utility.Classes.ReconstructionParameters.GradientBasedOptimizer" Collapsed="true" BaseTypeListCollapsed="true">
+    <Position X="18.75" Y="3" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAYAAAAAA=</HashCode>
+      <FileName>Classes\ReconstructionParameters\NumericOptimizer.cs</FileName>
+    </TypeIdentifier>
+    <Lollipop Position="0.2" Collapsed="true" />
+  </Class>
+  <Class Name="Utility.Classes.ReconstructionParameters.L2ErrorMetric" Collapsed="true" BaseTypeListCollapsed="true">
+    <Position X="11.75" Y="3" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAIAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>Classes\ReconstructionParameters\ErrorMetric.cs</FileName>
+    </TypeIdentifier>
+    <Lollipop Position="0.2" Collapsed="true" />
+  </Class>
+  <Class Name="Utility.Classes.ReconstructionParameters.LaplaceRegularizer" Collapsed="true" BaseTypeListCollapsed="true">
+    <Position X="17" Y="5.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAABAA=</HashCode>
+      <FileName>Classes\ReconstructionParameters\RegularizationTechnique.cs</FileName>
+    </TypeIdentifier>
+    <Lollipop Position="0.2" Collapsed="true" />
+  </Class>
+  <Class Name="Utility.Classes.ReconstructionParameters.LatticeBoltzmannDESolver" Collapsed="true" BaseTypeListCollapsed="true">
+    <Position X="13.5" Y="3.75" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAIAAAAABAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAI=</HashCode>
+      <FileName>Classes\ReconstructionParameters\DifferentialEquationSolver.cs</FileName>
+    </TypeIdentifier>
+    <Lollipop Position="0.2" Collapsed="true" />
+  </Class>
+  <Class Name="Utility.Classes.ReconstructionParameters.LuDecompositionSolver" Collapsed="true" BaseTypeListCollapsed="true">
+    <Position X="15.25" Y="3" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAA=</HashCode>
+      <FileName>Classes\ReconstructionParameters\NumericSolver.cs</FileName>
+    </TypeIdentifier>
+    <Lollipop Position="0.2" Collapsed="true" />
+  </Class>
+  <Class Name="Utility.Classes.ReconstructionParameters.NoRegularizer" Collapsed="true" BaseTypeListCollapsed="true">
+    <Position X="17" Y="3" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAABAA=</HashCode>
+      <FileName>Classes\ReconstructionParameters\RegularizationTechnique.cs</FileName>
+    </TypeIdentifier>
+    <Lollipop Position="0.2" Collapsed="true" />
+  </Class>
+  <Class Name="Utility.Classes.ReconstructionParameters.ParticleSwarmOptimizer" Collapsed="true" BaseTypeListCollapsed="true">
+    <Position X="18.75" Y="3.75" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAAA=</HashCode>
+      <FileName>Classes\ReconstructionParameters\NumericOptimizer.cs</FileName>
+    </TypeIdentifier>
+    <Lollipop Position="0.2" Collapsed="true" />
+  </Class>
+  <Class Name="Utility.Classes.ReconstructionParameters.SVDSolver" Collapsed="true" BaseTypeListCollapsed="true">
+    <Position X="15.25" Y="3.75" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAA=</HashCode>
+      <FileName>Classes\ReconstructionParameters\NumericSolver.cs</FileName>
+    </TypeIdentifier>
+    <Lollipop Position="0.2" Collapsed="true" />
+  </Class>
+  <Class Name="Utility.Classes.ReconstructionParameters.TotalVariationRegularizer" Collapsed="true" BaseTypeListCollapsed="true">
+    <Position X="17" Y="6" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAgAAAAAAAAAAAAAAAAAAAQAAAAQAAAAAAABAA=</HashCode>
+      <FileName>Classes\ReconstructionParameters\RegularizationTechnique.cs</FileName>
+    </TypeIdentifier>
+    <Lollipop Position="0.2" Collapsed="true" />
+  </Class>
+  <Class Name="Utility.Classes.ReconstructionParameters.tSVDSolver" Collapsed="true" BaseTypeListCollapsed="true">
+    <Position X="15.25" Y="4.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAA=</HashCode>
+      <FileName>Classes\ReconstructionParameters\NumericSolver.cs</FileName>
+    </TypeIdentifier>
+    <Lollipop Position="0.2" Collapsed="true" />
+  </Class>
+  <Class Name="Utility.Classes.ReconstructionParameters.Wasserstein2ErrorMetric" Collapsed="true" BaseTypeListCollapsed="true">
+    <Position X="11.75" Y="3.75" Width="1.5" />
+    <Compartments>
+      <Compartment Name="Nested Types" Collapsed="false" />
+    </Compartments>
+    <NestedTypes>
+      <Class Name="Utility.Classes.ReconstructionParameters.Wasserstein2ErrorMetric.OptimalTransportResult" Collapsed="true">
+        <TypeIdentifier>
+          <NewMemberFileName>Classes\ReconstructionParameters\ErrorMetric.cs</NewMemberFileName>
+        </TypeIdentifier>
+      </Class>
+    </NestedTypes>
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAIAAAACAAEAAAAgAAAAAAAAAAAAAAAAAAAEA=</HashCode>
+      <FileName>Classes\ReconstructionParameters\ErrorMetric.cs</FileName>
+    </TypeIdentifier>
+    <Lollipop Position="0.2" Collapsed="true" />
+  </Class>
+  <Class Name="Utility.Classes.ReconstructionParameters.ZeroOrderTikhonov" Collapsed="true" BaseTypeListCollapsed="true">
+    <Position X="17" Y="3.75" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAgAAAAAAAAAAIAAAAAAAAAAAAAQAAAAAAABAA=</HashCode>
+      <FileName>Classes\ReconstructionParameters\RegularizationTechnique.cs</FileName>
+    </TypeIdentifier>
+    <Lollipop Position="0.2" Collapsed="true" />
+  </Class>
+  <Class Name="Utility.Classes.Solvers.FiniteElementOperators">
+    <Position X="10.5" Y="7.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAABAAAAAAAAAAACgAAAAAAAAEAAAAAABAAAAAAAAA=</HashCode>
+      <FileName>Classes\Solvers\FiniteElementOperators.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Utility.Classes.Solvers.FiniteElementSolver">
+    <Position X="10.5" Y="9.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAQAIAAgAAAECAABAIAAAAAIAAAgAAAAAACAAEAAAAA=</HashCode>
+      <FileName>Classes\Solvers\FiniteElementSolver.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Utility.Classes.Solvers.LatticeBoltzmannOperators">
+    <Position X="8.75" Y="7.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAgAgAAAAAAAAAAAAAAAAAAAAAAg=</HashCode>
+      <FileName>Classes\Solvers\LatticeBoltzmannOperators.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Utility.Classes.Solvers.LatticeBoltzmannSolver" BaseTypeListCollapsed="true">
+    <Position X="8.75" Y="9" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAgAFCUQAEAAByBCAABAAAACAAAAAECIIAgIAAAAAAI=</HashCode>
+      <FileName>Classes\Solvers\LatticeBoltzmannSolver.cs</FileName>
+    </TypeIdentifier>
+    <Lollipop Position="0.2" Collapsed="true" />
+  </Class>
+  <Interface Name="Utility.Classes.IMesh" Collapsed="true">
+    <Position X="0.75" Y="1.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>EAAAAAMAAAABAAAAAACAACAAQAABAAAAAAAAAAAAAQA=</HashCode>
+      <FileName>Classes\Meshing\Mesh.cs</FileName>
+    </TypeIdentifier>
+  </Interface>
+  <Interface Name="Utility.Classes.Models.IForwardModel" Collapsed="true">
+    <Position X="0.75" Y="7.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>Classes\Models\ForwardModel.cs</FileName>
+    </TypeIdentifier>
+  </Interface>
+  <Interface Name="Utility.Classes.ReconstructionParameters.IDifferentialEquationSolver" Collapsed="true">
+    <Position X="13.5" Y="1.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAIAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAI=</HashCode>
+      <FileName>Classes\ReconstructionParameters\DifferentialEquationSolver.cs</FileName>
+    </TypeIdentifier>
+  </Interface>
+  <Interface Name="Utility.Classes.ReconstructionParameters.IErrorMetric" Collapsed="true">
+    <Position X="11.75" Y="1.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAIAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>Classes\ReconstructionParameters\ErrorMetric.cs</FileName>
+    </TypeIdentifier>
+  </Interface>
+  <Interface Name="Utility.Classes.ReconstructionParameters.INumericOptimizer" Collapsed="true">
+    <Position X="18.75" Y="1.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAAA=</HashCode>
+      <FileName>Classes\ReconstructionParameters\NumericOptimizer.cs</FileName>
+    </TypeIdentifier>
+  </Interface>
+  <Interface Name="Utility.Classes.ReconstructionParameters.INumericSolver" Collapsed="true">
+    <Position X="15.25" Y="1.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAA=</HashCode>
+      <FileName>Classes\ReconstructionParameters\NumericSolver.cs</FileName>
+    </TypeIdentifier>
+  </Interface>
+  <Interface Name="Utility.Classes.ReconstructionParameters.IRegularizer" Collapsed="true">
+    <Position X="17" Y="1.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAABAA=</HashCode>
+      <FileName>Classes\ReconstructionParameters\RegularizationTechnique.cs</FileName>
+    </TypeIdentifier>
+  </Interface>
+  <Enum Name="Utility.Classes.Meshing.MeshType" Collapsed="true">
+    <Position X="0.75" Y="0.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAA=</HashCode>
+      <FileName>Classes\Meshing\MeshType.cs</FileName>
+    </TypeIdentifier>
+  </Enum>
+  <Enum Name="Utility.Classes.ReconstructionParameters.DifferentialEquationSolver" Collapsed="true">
+    <Position X="13.5" Y="0.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAQAA=</HashCode>
+      <FileName>Classes\ReconstructionParameters\DifferentialEquationSolver.cs</FileName>
+    </TypeIdentifier>
+  </Enum>
+  <Enum Name="Utility.Classes.ReconstructionParameters.ErrorMetric" Collapsed="true">
+    <Position X="11.75" Y="0.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>BAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>Classes\ReconstructionParameters\ErrorMetric.cs</FileName>
+    </TypeIdentifier>
+  </Enum>
+  <Enum Name="Utility.Classes.ReconstructionParameters.NumericOptimizer" Collapsed="true">
+    <Position X="18.75" Y="0.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAEAAAAAA=</HashCode>
+      <FileName>Classes\ReconstructionParameters\NumericOptimizer.cs</FileName>
+    </TypeIdentifier>
+  </Enum>
+  <Enum Name="Utility.Classes.ReconstructionParameters.NumericSolver" Collapsed="true">
+    <Position X="15.25" Y="0.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAABAAAAAAAAAAAAAAAAAEAAAAAAACAAgAAAAAAA=</HashCode>
+      <FileName>Classes\ReconstructionParameters\NumericSolver.cs</FileName>
+    </TypeIdentifier>
+  </Enum>
+  <Enum Name="Utility.Classes.ReconstructionParameters.RegularizationTechnique" Collapsed="true">
+    <Position X="17" Y="0.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AQAAAAAAAAAAAgAAAAAAACAAAAAAAAAAAAAAAAEAAAI=</HashCode>
+      <FileName>Classes\ReconstructionParameters\RegularizationTechnique.cs</FileName>
+    </TypeIdentifier>
+  </Enum>
+  <Font Name="Segoe UI" Size="9" />
+</ClassDiagram>

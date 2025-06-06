@@ -5,10 +5,14 @@
     public sealed class BoundaryConditions
     {
         public IReadOnlyList<Electrode> Electrodes { get; }
+        public double[] AssociatedMeasurements { get; set; }
+        public BoundaryConditions(IEnumerable<Electrode> electrodes, double[]? associatedMeasurements)
+        {
+            Electrodes = electrodes.ToArray();
 
-        public BoundaryConditions(IEnumerable<Electrode> electrodes)
-            => Electrodes = electrodes.ToArray();
-
+            if(associatedMeasurements != null) 
+                AssociatedMeasurements = associatedMeasurements;
+        }
         /* ─────────────── pre-built drive patterns ──────────────── */
 
         // Adjacent driving: electrode k sources +I, k+1 sinks –I,
@@ -27,7 +31,7 @@
 
                     list.Add(new Electrode(e, electrodeVertices[e], I, zContact));
                 }
-                yield return new BoundaryConditions(list);
+                yield return new BoundaryConditions(list, null);
             }
         }
 
@@ -48,7 +52,7 @@
                                (e == sink) ? -driveCurrent : 0.0;
                     list.Add(new Electrode(e, electrodeVertices[e], I, zContact));
                 }
-                yield return new BoundaryConditions(list);
+                yield return new BoundaryConditions(list, null);
             }
         }
     }

@@ -8,12 +8,18 @@ namespace Utility.Classes
         public ConductivityDistribution GetConductivityDistribution();
         public PotentialDistribution GetPotentialDistribution();
         public Mesh GetMesh();
+        public List<Electrode> GetElectrodes();
+        public List<Vertex> GetVertices();
+        public List<MeshElement> GetElements();
+        public double[] GetElectrodePotentials();
         public List<Vertex> GetElectrodeVertices();
     }
 
     public abstract class Mesh : IMesh
     {
         public List<Vertex> Vertices;
+        public List<Electrode> Electrodes;
+        public List<MeshElement> Elements;
         public ConductivityDistribution ConductivityDistribution;
         public PotentialDistribution PotentialDistribution;
 
@@ -43,6 +49,9 @@ namespace Utility.Classes
         public ConductivityDistribution GetConductivityDistribution() => ConductivityDistribution;
         public PotentialDistribution GetPotentialDistribution() => PotentialDistribution;
         public Mesh GetMesh() => this;
+        public List<Electrode> GetElectrodes() => Electrodes;
+        public List<Vertex> GetVertices() => Vertices;
+        public List<MeshElement> GetElements() => Elements;
         public double[] GetElectrodePotentials()
         {
             // First, find all electrode vertices
