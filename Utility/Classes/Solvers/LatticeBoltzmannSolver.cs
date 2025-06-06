@@ -1,22 +1,26 @@
-﻿namespace Utility.Classes.Solvers
+﻿using Utility.Classes.Meshing;
+using Utility.Classes.Models;
+using Utility.Classes.ReconstructionParameters;
+
+namespace Utility.Classes.Solvers
 {
-    public static class LatticeBoltzmannSolver
+    public sealed class LatticeBoltzmannSolver : IDifferentialEquationSolver
     {
         private static int Nx = 50;
         private static int Ny = 50;
+        private static int _iterations = 10000;
 
-
-        private static readonly (int cx, int cy)[] c =
+        private  readonly (int cx, int cy)[] c =
         {
             ( 0,  0), ( 1,  0), ( 0,  1), (-1,  0), ( 0, -1),
             ( 1,  1), (-1,  1), (-1,-1), ( 1, -1)
         };
 
         // index of opposite direction 0↔0, 1↔3, 2↔4, 5↔7, 6↔8
-        private static readonly int[] opp = { 0, 3, 4, 1, 2, 7, 8, 5, 6 };
+        private  readonly int[] opp = { 0, 3, 4, 1, 2, 7, 8, 5, 6 };
 
 
-        private static readonly double[] w =
+        private  readonly double[] w =
         {
             4.0 / 9.0,  1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0,
             1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0
@@ -24,9 +28,9 @@
 
 
         // -------- Dirichlet (constant‑potential) nodes -----------------------------
-        private static bool[,] isPinned = new bool[Nx, Ny];
-        private static double[,] pinValue = new double[Nx, Ny];
-        public static void PinNode(int x, int y, double value)
+        private  bool[,] isPinned = new bool[Nx, Ny];
+        private  double[,] pinValue = new double[Nx, Ny];
+        public  void PinNode(int x, int y, double value)
         {
             isPinned[x, y] = true;
             pinValue[x, y] = value;
@@ -35,7 +39,7 @@
         // ==========================================================================
         // INTERNAL OBSTACLE (bounce‑back wall)
         // ==========================================================================
-        private static bool[,] isSolid = new bool[Nx, Ny];
+        private  bool[,] isSolid = new bool[Nx, Ny];
 
 
         // --- relaxation time (pick τ > 0.5 for stability) --------------------
@@ -43,17 +47,17 @@
         private const double omega = 1.0 / tau;    // BGK collision rate
 
         // --- distribution functions g[i,j,k] ---------------------------------
-        private static double[,,] g = new double[Nx, Ny, 9];
-        private static double[,,] gNext = new double[Nx, Ny, 9];
+        private  double[,,] g = new double[Nx, Ny, 9];
+        private  double[,,] gNext = new double[Nx, Ny, 9];
 
         // --- macroscopic scalar field ----------------------------------------
-        private static double[,] phi = new double[Nx, Ny];
+        private  double[,] phi = new double[Nx, Ny];
 
         // ---------------------------------------------------------------------
         // INITIALISATION
         // ---------------------------------------------------------------------
         /// <paramname="init">User routine giving the initial φ value at (x,y)
-        public static void Initialize(Func<int, int, double> init)
+        public  void Initialize(Func<int, int, double> init)
         {
             for (int x = 0; x < Nx; ++x)
                 for (int y = 0; y < Ny; ++y)
@@ -66,7 +70,7 @@
                 }
         }
 
-        public static void Configure(int nx, int ny)
+        public  void Configure(int nx, int ny)
         {
             Nx = nx; Ny = ny;
 
@@ -78,11 +82,11 @@
             phi = new double[Nx, Ny];
         }
 
-        public static void Reset() => Configure(Nx, Ny);
+        public  void Reset() => Configure(Nx, Ny);
 
 
         // Pin every 5‑th boundary node to the given potential (default 1.0)
-        public static void PinEveryFifthBoundaryNode(double value = 1.0)
+        public  void PinEveryFifthBoundaryNode(double value = 1.0)
         {
             int counter = 0;
 
@@ -104,7 +108,7 @@
         }
 
         // Put a square obstacle in the centre covering 1/5 of the domain
-        public static void AddCentralSquareObstacle()
+        public  void AddCentralSquareObstacle()
         {
             int side = Math.Min(Nx, Ny) / 5;          // 1/5 of lattice length
             int x0 = Nx / 2 - side / 2;
@@ -118,7 +122,7 @@
         // ---------------------------------------------------------------------
         // ONE LBM TIME STEP
         // ---------------------------------------------------------------------
-        private static void Step()
+        private  void Step()
         {
             // -------- Collision + macro update --------------------------------
             for (int x = 0; x < Nx; ++x)
@@ -186,7 +190,7 @@
                 }
         }
 
-        public static void SetRelaxationTime(int x, int y, double tauXY) 
+        public  void SetRelaxationTime(int x, int y, double tauXY) 
         { 
         
         }
@@ -197,10 +201,59 @@
         // ---------------------------------------------------------------------
 
         // Run nSteps LBM iterations and return the scalar field φ.        
-        public static double[,] Run(int nSteps)
+        public  double[,] Run(int nSteps)
         {
-            for (int t = 0; t < nSteps; ++t) Step();
+            for (int t = 0; t < nSteps; ++t)
+                Step();
             return phi;
+        }
+
+        public PotentialDistribution ForwardSolve(IMesh mesh, ConductivityDistribution conductivityDistribution, BoundaryConditions boundaryConditions)
+        {
+            if (mesh is not LBMMesh grid)
+                throw new InvalidDataException($"Can not perform forward solve, mesh type mismatch, check code! Nameof(mesh) = {nameof(mesh)}.");
+
+            /* ---------------- set up the legacy solver ------------------- */
+            Configure(Nx, Ny);
+            Initialize((x, y) => 0.0);   // cold start
+
+            /* ----- electrodes become constant-potential pins ------------- */
+            foreach (var e in boundaryConditions.Electrodes)
+            {
+                // crude approach: pin *all* vertices of that electrode
+                double V = e.Current == 0 ? 0.0 : 1.0;          // demo only!
+                foreach (int vid in e.VertexIds)
+                {
+                    var (x, y) = grid.ToLattice(vid);
+                    PinNode(x, y, V);
+                }
+            }
+
+            // optional: obstacles
+            // LatticeBoltzmannSolver.AddCentralSquareObstacle();
+
+            /* ---------------- run BGK iterations ------------------------- */
+            var field = Run(_iterations);
+
+            /* ---------------- collect electrode voltages ----------------- */
+            double[] electrodeV = boundaryConditions.Electrodes
+                .Select(e =>
+                    e.VertexIds
+                     .Select(id =>
+                     {
+                         var (x, y) = grid.ToLattice(id);
+                         return field[x, y];
+                     })
+                     .Average())
+                .ToArray();
+
+            /* ---------------- pack result ------------------------------- */
+            double[] nodePot = new double[field.Length];
+            for (int y = 0; y < Ny; ++y)
+                for (int x = 0; x < Nx; ++x)
+                    nodePot[grid.ToVertexId(x, y)] = field[x, y];
+
+            return grid;
         }
     }
 }

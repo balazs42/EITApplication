@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "ZwFnhOnIIqg=",
+  "dgSpecHash": "IbmqtUiCVNw=",
   "success": true,
   "projectFilePath": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ServiceLayer\\ServiceLayer.csproj",
   "expectedPackageFiles": [
@@ -9,6 +9,14 @@
     "C:\\Users\\Bazsi\\.nuget\\packages\\bhom.interop.trianglenet\\6.3.0\\bhom.interop.trianglenet.6.3.0.nupkg.sha512",
     "C:\\Users\\Bazsi\\.nuget\\packages\\communitytoolkit.mvvm\\8.4.0\\communitytoolkit.mvvm.8.4.0.nupkg.sha512",
     "C:\\Users\\Bazsi\\.nuget\\packages\\comparenetobjects\\4.67.0\\comparenetobjects.4.67.0.nupkg.sha512",
+    "C:\\Users\\Bazsi\\.nuget\\packages\\google.ortools\\9.12.4544\\google.ortools.9.12.4544.nupkg.sha512",
+    "C:\\Users\\Bazsi\\.nuget\\packages\\google.ortools.runtime.linux-arm64\\9.12.4544\\google.ortools.runtime.linux-arm64.9.12.4544.nupkg.sha512",
+    "C:\\Users\\Bazsi\\.nuget\\packages\\google.ortools.runtime.linux-x64\\9.12.4544\\google.ortools.runtime.linux-x64.9.12.4544.nupkg.sha512",
+    "C:\\Users\\Bazsi\\.nuget\\packages\\google.ortools.runtime.osx-arm64\\9.12.4544\\google.ortools.runtime.osx-arm64.9.12.4544.nupkg.sha512",
+    "C:\\Users\\Bazsi\\.nuget\\packages\\google.ortools.runtime.osx-x64\\9.12.4544\\google.ortools.runtime.osx-x64.9.12.4544.nupkg.sha512",
+    "C:\\Users\\Bazsi\\.nuget\\packages\\google.ortools.runtime.win-x64\\9.12.4544\\google.ortools.runtime.win-x64.9.12.4544.nupkg.sha512",
+    "C:\\Users\\Bazsi\\.nuget\\packages\\google.protobuf\\3.29.3\\google.protobuf.3.29.3.nupkg.sha512",
+    "C:\\Users\\Bazsi\\.nuget\\packages\\mathnet.numerics\\5.0.0\\mathnet.numerics.5.0.0.nupkg.sha512",
     "C:\\Users\\Bazsi\\.nuget\\packages\\microsoft.csharp\\4.7.0\\microsoft.csharp.4.7.0.nupkg.sha512",
     "C:\\Users\\Bazsi\\.nuget\\packages\\microsoft.netcore.platforms\\5.0.1\\microsoft.netcore.platforms.5.0.1.nupkg.sha512",
     "C:\\Users\\Bazsi\\.nuget\\packages\\microsoft.win32.registry\\5.0.0\\microsoft.win32.registry.5.0.0.nupkg.sha512",

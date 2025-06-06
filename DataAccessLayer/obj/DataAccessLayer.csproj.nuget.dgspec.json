@@ -131,6 +131,14 @@
               "target": "Package",
               "version": "[8.4.0, )"
             },
+            "Google.OrTools": {
+              "target": "Package",
+              "version": "[9.12.4544, )"
+            },
+            "MathNet.Numerics": {
+              "target": "Package",
+              "version": "[5.0.0, )"
+            },
             "Unity": {
               "target": "Package",
               "version": "[5.11.10, )"

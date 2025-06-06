@@ -6,12 +6,12 @@
         ParticleSwarm = 2
     };
 
-    public interface IOptimizer
+    public interface INumericOptimizer
     {
         double[] Optimize(Func<double[], double> objective, double[] initialGuess);
     }
 
-    public sealed class GradientBasedOptimizer : IOptimizer
+    public sealed class GradientBasedOptimizer : INumericOptimizer
     {
         public double[] Optimize(Func<double[], double> obj, double[] guess)
         {
@@ -20,22 +20,12 @@
         }
     }
 
-    public sealed class ParticleSwarmOptimizer : IOptimizer 
+    public sealed class ParticleSwarmOptimizer : INumericOptimizer
     {
         public double[] Optimize(Func<double[], double> obj, double[] guess)
         {
             // TODO: particvel swarm implementation
             return guess;
         }
-    }
-
-    public static class OptimizerFactory
-    {
-        public static IOptimizer Create(NumericOptimizer no) => no switch
-        {
-            NumericOptimizer.GradientBased => new GradientBasedOptimizer(),
-            NumericOptimizer.ParticleSwarm => new ParticleSwarmOptimizer(),
-            _ => throw new NotSupportedException()
-        };
     }
 }
