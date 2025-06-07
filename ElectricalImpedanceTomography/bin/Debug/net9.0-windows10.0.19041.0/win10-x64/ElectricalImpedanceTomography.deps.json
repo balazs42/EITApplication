@@ -308,6 +308,62 @@
           }
         }
       },
+      "Google.OrTools/9.12.4544": {
+        "dependencies": {
+          "Google.OrTools.runtime.linux-arm64": "9.12.4544",
+          "Google.OrTools.runtime.linux-x64": "9.12.4544",
+          "Google.OrTools.runtime.osx-arm64": "9.12.4544",
+          "Google.OrTools.runtime.osx-x64": "9.12.4544",
+          "Google.OrTools.runtime.win-x64": "9.12.4544",
+          "Google.Protobuf": "3.29.3"
+        },
+        "runtime": {
+          "lib/net6.0/Google.OrTools.dll": {
+            "assemblyVersion": "9.12.4544.0",
+            "fileVersion": "9.12.4544.0"
+          }
+        }
+      },
+      "Google.OrTools.runtime.linux-arm64/9.12.4544": {},
+      "Google.OrTools.runtime.linux-x64/9.12.4544": {},
+      "Google.OrTools.runtime.osx-arm64/9.12.4544": {},
+      "Google.OrTools.runtime.osx-x64/9.12.4544": {},
+      "Google.OrTools.runtime.win-x64/9.12.4544": {
+        "native": {
+          "runtimes/win-x64/native/abseil_dll.dll": {
+            "fileVersion": "0.0.0.0"
+          },
+          "runtimes/win-x64/native/google-ortools-native.dll": {
+            "fileVersion": "0.0.0.0"
+          },
+          "runtimes/win-x64/native/highs.dll": {
+            "fileVersion": "1.9.0.0"
+          },
+          "runtimes/win-x64/native/libprotobuf.dll": {
+            "fileVersion": "29.3.0.0"
+          },
+          "runtimes/win-x64/native/ortools.dll": {
+            "fileVersion": "0.0.0.0"
+          },
+          "runtimes/win-x64/native/re2.dll": {
+            "fileVersion": "0.0.0.0"
+          },
+          "runtimes/win-x64/native/utf8_validity.dll": {
+            "fileVersion": "0.0.0.0"
+          },
+          "runtimes/win-x64/native/zlib1.dll": {
+            "fileVersion": "1.3.1.0"
+          }
+        }
+      },
+      "Google.Protobuf/3.29.3": {
+        "runtime": {
+          "lib/net5.0/Google.Protobuf.dll": {
+            "assemblyVersion": "3.29.3.0",
+            "fileVersion": "3.29.3.0"
+          }
+        }
+      },
       "HarfBuzzSharp/8.3.0.1": {
         "dependencies": {
           "HarfBuzzSharp.NativeAssets.Win32": "8.3.0.1"
@@ -323,6 +379,14 @@
         "native": {
           "runtimes/win-x64/native/libHarfBuzzSharp.dll": {
             "fileVersion": "0.0.0.0"
+          }
+        }
+      },
+      "MathNet.Numerics/5.0.0": {
+        "runtime": {
+          "lib/net6.0/MathNet.Numerics.dll": {
+            "assemblyVersion": "5.0.0.0",
+            "fileVersion": "5.0.0.0"
           }
         }
       },
@@ -1504,6 +1568,8 @@
       "Utility/1.0.0": {
         "dependencies": {
           "CommunityToolkit.Mvvm": "8.4.0",
+          "Google.OrTools": "9.12.4544",
+          "MathNet.Numerics": "5.0.0",
           "Unity": "5.11.10"
         },
         "runtime": {
@@ -1569,6 +1635,55 @@
       "path": "comparenetobjects/4.67.0",
       "hashPath": "comparenetobjects.4.67.0.nupkg.sha512"
     },
+    "Google.OrTools/9.12.4544": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-knKqAkgDYU4WaKMDa9Ws8095oSZ5h34ZZuSRwJxuN3VfXbyLpUHUDIOU9YNzeqJUfPfZAZdagN/ga3D8LcNBEA==",
+      "path": "google.ortools/9.12.4544",
+      "hashPath": "google.ortools.9.12.4544.nupkg.sha512"
+    },
+    "Google.OrTools.runtime.linux-arm64/9.12.4544": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-uy+/dHt1/6Ya1BrwEl/w6wnCE53nacSeXZNhL0lxEkAZMEyOVvOz9RrnsEBH292U/fK4dbCzZi/g+PmX9lt5dA==",
+      "path": "google.ortools.runtime.linux-arm64/9.12.4544",
+      "hashPath": "google.ortools.runtime.linux-arm64.9.12.4544.nupkg.sha512"
+    },
+    "Google.OrTools.runtime.linux-x64/9.12.4544": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-XbP1qGmWEtvylMwsnvZGu+ezvAy+8RFc33TLkFj5eXxe6jEGawpMklsNZawWiReiBDOy0iV71iryaFkiYkrvbA==",
+      "path": "google.ortools.runtime.linux-x64/9.12.4544",
+      "hashPath": "google.ortools.runtime.linux-x64.9.12.4544.nupkg.sha512"
+    },
+    "Google.OrTools.runtime.osx-arm64/9.12.4544": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-rOeb2cNqVlTR8RsTFonuLL/9Xw6MKHrivPnJeoDHPYpYuyYECoTLfbk962DtGqFNq5EB9euWZ5VAu4+GlZF9aw==",
+      "path": "google.ortools.runtime.osx-arm64/9.12.4544",
+      "hashPath": "google.ortools.runtime.osx-arm64.9.12.4544.nupkg.sha512"
+    },
+    "Google.OrTools.runtime.osx-x64/9.12.4544": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-ZBpNymftPoBIghMU9DZS8yWSq3MwLaW/ulIPcX4JOKsd0zWk9Bkfk8Ty8tCKA+ptFqKCwoJNOiiIWxVRVwssSw==",
+      "path": "google.ortools.runtime.osx-x64/9.12.4544",
+      "hashPath": "google.ortools.runtime.osx-x64.9.12.4544.nupkg.sha512"
+    },
+    "Google.OrTools.runtime.win-x64/9.12.4544": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-WeYUfkWVuMurRf7ZJQjLwovNs9b77nYqBRzonan0JIOFFau5WJLtkzgjCimUJ2i1yXTFvBFr5o1XWkMt7nwEPw==",
+      "path": "google.ortools.runtime.win-x64/9.12.4544",
+      "hashPath": "google.ortools.runtime.win-x64.9.12.4544.nupkg.sha512"
+    },
+    "Google.Protobuf/3.29.3": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-t7nZFFUFwigCwZ+nIXHDLweXvwIpsOXi+P7J7smPT/QjI3EKxnCzTQOhBqyEh6XEzc/pNH+bCFOOSjatrPt6Tw==",
+      "path": "google.protobuf/3.29.3",
+      "hashPath": "google.protobuf.3.29.3.nupkg.sha512"
+    },
     "HarfBuzzSharp/8.3.0.1": {
       "type": "package",
       "serviceable": true,
@@ -1582,6 +1697,13 @@
       "sha512": "sha512-ow0DtGEUjo65qhiI22of7qiVbN1xDFsZ5P5xJljRmGZ5WSxNy+1batLNJFGxahqhB1MTHYV8kAXf0GqC8WaevQ==",
       "path": "harfbuzzsharp.nativeassets.win32/8.3.0.1",
       "hashPath": "harfbuzzsharp.nativeassets.win32.8.3.0.1.nupkg.sha512"
+    },
+    "MathNet.Numerics/5.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-pg1W2VwaEQMAiTpGK840hZgzavnqjlCMTVSbtVCXVyT+7AX4mc1o89SPv4TBlAjhgCOo9c1Y+jZ5m3ti2YgGgA==",
+      "path": "mathnet.numerics/5.0.0",
+      "hashPath": "mathnet.numerics.5.0.0.nupkg.sha512"
     },
     "Microsoft.CSharp/4.7.0": {
       "type": "package",

@@ -2,6 +2,9 @@
 
 namespace Utility.Classes
 {
+    /// <summary>
+    /// Basic interface for a Mesh type later on. This helps the meshes to be a generic type.
+    /// </summary>
     public interface IMesh
     {
         public void LogMesh();
@@ -15,6 +18,10 @@ namespace Utility.Classes
         public List<Vertex> GetElectrodeVertices();
     }
 
+    /// <summary>
+    /// All mesh types have to inherit from ths Mesh abstract class. 
+    /// This implements basic mesh functionality, like holding vertex, electrode, etc. data.
+    /// </summary>
     public abstract class Mesh : IMesh
     {
         public List<Vertex> Vertices;
@@ -46,6 +53,10 @@ namespace Utility.Classes
 
         }
 
+        /// <summary>
+        /// Gets the current conductivtiy distribution present on the mesh.
+        /// </summary>
+        /// <returns></returns>
         public ConductivityDistribution GetConductivityDistribution() => ConductivityDistribution;
         public PotentialDistribution GetPotentialDistribution() => PotentialDistribution;
         public Mesh GetMesh() => this;

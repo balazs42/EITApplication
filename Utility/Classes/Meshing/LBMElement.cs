@@ -33,7 +33,7 @@
         public LBMElement(List<Vertex> vertices, double[] fi, bool isWall, bool isPinned, double conductivity)
         {
             Vertices = vertices;
-            this.fi = fi;
+            this.Fi = fi;
             IsWall = isWall;
             IsPinned = isPinned;
             Conductivity = conductivity;

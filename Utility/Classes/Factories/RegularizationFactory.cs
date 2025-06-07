@@ -4,13 +4,13 @@ namespace Utility.Classes.Factories
 {
     public static class RegularisationFactory
     {
-        public static IRegularisation Create(RegularizationTechnique rt) => rt switch
+        public static IRegularizer Create(RegularizationTechnique rt, IMesh mesh) => rt switch
         {
-            RegularizationTechnique.None => new NoRegularisation(),
-            RegularizationTechnique.ZeroOrderTikhonov => new ZeroOrderTikhonov(),
+            RegularizationTechnique.None => new NoRegularizer(),
+            RegularizationTechnique.ZeroOrderTikhonov => new ZeroOrderTikhonov(PriorConductivityDistributionGenerator.GenerateHomogeneousDistribution(mesh)),
             RegularizationTechnique.FirstOrderTikhonov => new FirstOrderTikhonov(),
-            RegularizationTechnique.Laplace => new Laplace(),
-            RegularizationTechnique.TotalVariation => new TotalVariaion(),
+            RegularizationTechnique.Laplace => new LaplaceRegularizer(),
+            RegularizationTechnique.TotalVariation => new TotalVariationRegularizer(),
             _ => throw new NotSupportedException()
         };
     }

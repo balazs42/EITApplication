@@ -122,7 +122,7 @@ namespace BusinessLayer
             // share vertex instances between elements
             var femVertices = triMesh.Vertices.ToDictionary(
                 v => v.ID,
-                v => new MVertex { Id = v.ID, X = v.X, Y = v.Y });
+                v => new MVertex { GlobalId = v.ID, X = v.X, Y = v.Y });
 
             var femElements = new List<FEMElement>();
             int elemId = 0;

@@ -53,8 +53,10 @@
     {
         public ConductivityDistribution OptimizationStep(ConductivityDistribution currentSigma, ConductivityDistribution totalGradient)
         {
+            throw new NotImplementedException();
+
             // TODO: particvel swarm implementation
-            return guess;
+            // return guess;
         }
     }
 }

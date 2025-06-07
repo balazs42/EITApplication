@@ -2,7 +2,7 @@
 {
     public class FEMMesh : Mesh
     {
-        public List<FEMElement> Elements { get; set; } = [];
+        public new List<FEMElement> Elements { get; set; } = [];
 
         public FEMMesh(List<Vertex> vertices, List<FEMElement> elements)
         {

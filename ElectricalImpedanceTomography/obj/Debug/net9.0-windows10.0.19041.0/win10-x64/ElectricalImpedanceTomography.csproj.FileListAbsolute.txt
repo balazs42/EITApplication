@@ -1060,3 +1060,14 @@ C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\bin\Debug\
 C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\SkiaSharp.Views.WinUI.Native.winmd
 C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\libEGL.dll
 C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\libGLESv2.dll
+C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\Google.OrTools.dll
+C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\Google.Protobuf.dll
+C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\MathNet.Numerics.dll
+C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\abseil_dll.dll
+C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\google-ortools-native.dll
+C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\highs.dll
+C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\libprotobuf.dll
+C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\ortools.dll
+C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\re2.dll
+C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\utf8_validity.dll
+C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\zlib1.dll

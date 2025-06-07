@@ -1,6 +1,5 @@
 ﻿using Utility.Classes.Meshing;
 using MathNet.Numerics.LinearAlgebra;
-using Utility.Classes.ReconstructionParameters;
 
 namespace Utility.Classes.Solvers
 {
@@ -117,7 +116,8 @@ namespace Utility.Classes.Solvers
                 for (int x = 0; x < mesh.Nx; x++)
                 {
                     var element = mesh.GetElementAt(x, y);
-                    if (element.IsWall) continue;
+                    if (element.IsWall)
+                        continue;
                     for (int k = 0; k < 9; ++k)
                         element.Fi[k] = gNext[x, y, k];
 
@@ -130,7 +130,9 @@ namespace Utility.Classes.Solvers
 
         private double[,] MapSourceToGrid(LBMMesh mesh, Vector<double> source)
         {
-            if (source == null) return null;
+            if (source == null) 
+                return null;
+
             var sourceField = new double[mesh.Nx, mesh.Ny];
             for (int i = 0; i < source.Count; ++i)
             {
@@ -138,6 +140,7 @@ namespace Utility.Classes.Solvers
                 if (x >= 0 && x < mesh.Nx && y >= 0 && y < mesh.Ny)
                     sourceField[x, y] = source[i];
             }
+
             return sourceField;
         }
 
@@ -145,11 +148,13 @@ namespace Utility.Classes.Solvers
         {
             var potentials = new Dictionary<int, double>();
             for (int y = 0; y < lbmMesh.Ny; ++y)
+            {
                 for (int x = 0; x < lbmMesh.Nx; ++x)
                 {
                     var element = lbmMesh.GetElementAt(x, y);
                     potentials[element.Id] = element.Fi.Sum();
                 }
+            }
             return new PotentialDistribution(potentials);
         }
         #endregion

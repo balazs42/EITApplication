@@ -40,13 +40,13 @@ namespace Utility.Classes.ReconstructionParameters
         // This method was previously named 'Solve'
         public PotentialDistribution SolveForward(IMesh mesh, ConductivityDistribution sigma, BoundaryConditions bc)
         {
-            return _solver.SolveSystem(mesh, sigma, bc, null);
+            return Solve(mesh, sigma, bc);
         }
 
         public PotentialDistribution SolveAdjoint(IMesh mesh, ConductivityDistribution sigma, BoundaryConditions bc, Vector<double> adjointSource)
         {
             var homogeneousBC = new BoundaryConditions(bc.Electrodes.Select(e => new Electrode(e.Id, e.VertexIds, 0.0, e.ZContact)), null);
-            return _solver.SolveSystem(mesh, sigma, homogeneousBC, adjointSource);
+            return Solve(mesh, sigma, bc, adjointSource);
         }
 
         public ConductivityDistribution ComputeMisfitGradient(IMesh mesh, PotentialDistribution phi, PotentialDistribution mu)
@@ -81,14 +81,19 @@ namespace Utility.Classes.ReconstructionParameters
 
         public PotentialDistribution SolveForward(IMesh mesh, ConductivityDistribution sigma, BoundaryConditions bc)
         {
-            if (mesh is not LBMMesh lbmMesh) throw new ArgumentException("LBM requires an LBMMesh.");
+            if (mesh is not LBMMesh lbmMesh) 
+                throw new ArgumentException("LBM requires an LBMMesh.");
+
             return _solver.RunSimulation(lbmMesh, sigma, bc, _iterations, null);
         }
 
         public PotentialDistribution SolveAdjoint(IMesh mesh, ConductivityDistribution sigma, BoundaryConditions bc, Vector<double> adjointSource)
         {
-            if (mesh is not LBMMesh lbmMesh) throw new ArgumentException("LBM requires an LBMMesh.");
+            if (mesh is not LBMMesh lbmMesh) 
+                throw new ArgumentException("LBM requires an LBMMesh.");
+
             var homogeneousBC = new BoundaryConditions(new List<Electrode>(), null);
+
             return _solver.RunSimulation(lbmMesh, sigma, homogeneousBC, _iterations, adjointSource);
         }
 

@@ -3,56 +3,24 @@
   "WorkspaceRootPath": "C:\\Users\\Bazsi\\Documents\\EITApplication\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\meshing\\lbmelement.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\meshing\\lbmelement.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{0239C9A6-B7D7-D33F-C2D5-F469C95A9F18}|BusinessLayer\\BusinessLayer.csproj|c:\\users\\bazsi\\documents\\eitapplication\\businesslayer\\meshpersistence.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0239C9A6-B7D7-D33F-C2D5-F469C95A9F18}|BusinessLayer\\BusinessLayer.csproj|solutionrelative:businesslayer\\meshpersistence.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\meshing\\lbmmesh.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\meshing\\lbmmesh.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\solvers\\latticeboltzmannsolver.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\solvers\\latticeboltzmannsolver.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\solvers\\finiteelementoperators.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\solvers\\finiteelementoperators.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\solvers\\finiteelementsolver.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\solvers\\finiteelementsolver.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\meshing\\femelement.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\meshing\\femelement.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\meshing\\meshelement.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\meshing\\meshelement.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\meshing\\femmesh.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\meshing\\femmesh.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\meshing\\mesh.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\meshing\\mesh.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{0239C9A6-B7D7-D33F-C2D5-F469C95A9F18}|BusinessLayer\\BusinessLayer.csproj|c:\\users\\bazsi\\documents\\eitapplication\\businesslayer\\reconstructionpersistence.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0239C9A6-B7D7-D33F-C2D5-F469C95A9F18}|BusinessLayer\\BusinessLayer.csproj|solutionrelative:businesslayer\\reconstructionpersistence.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\models\\inversemodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\models\\inversemodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\boundaryconditions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\boundaryconditions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\models\\forwardmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\models\\forwardmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\potentialdistribution.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\potentialdistribution.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\eitmeasurement.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\eitmeasurement.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\meshing\\lbmmesh.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\meshing\\lbmmesh.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\reconstructionparameters\\differentialequationsolver.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
@@ -63,8 +31,72 @@
       "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\reconstructionparameters\\numericoptimizer.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
+      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\factories\\differentialequationsolverfactory.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\factories\\differentialequationsolverfactory.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\factories\\inversemodelfactory.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\factories\\inversemodelfactory.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\factories\\regularizationfactory.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\factories\\regularizationfactory.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\conductivitydistribution.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\conductivitydistribution.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\meshing\\mesh.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\meshing\\mesh.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\meshing\\lbmelement.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\meshing\\lbmelement.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\meshing\\femmesh.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\meshing\\femmesh.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\solvers\\latticeboltzmannsolver.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\solvers\\latticeboltzmannsolver.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\meshing\\edge.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\meshing\\edge.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\vectorfield.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\vectorfield.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\solvers\\finiteelementoperators.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\solvers\\finiteelementoperators.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\potentialdistribution.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\potentialdistribution.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\boundaryconditions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\boundaryconditions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\solvers\\finiteelementsolver.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\solvers\\finiteelementsolver.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\meshing\\meshelement.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\meshing\\meshelement.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\meshing\\femelement.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\meshing\\femelement.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\eitmeasurement.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\eitmeasurement.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\reconstructionparameters\\regularizationtechnique.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
@@ -73,14 +105,6 @@
     {
       "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\reconstructionparameters\\numericsolver.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\reconstructionparameters\\numericsolver.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\factories\\inversemodelfactory.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\factories\\inversemodelfactory.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\factories\\differentialequationsolverfactory.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\factories\\differentialequationsolverfactory.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\utility.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}",
@@ -142,7 +166,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 4,
+          "SelectedChildIndex": 1,
           "Children": [
             {
               "$type": "Bookmark",
@@ -150,7 +174,202 @@
             },
             {
               "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "MeshPersistence.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\BusinessLayer\\MeshPersistence.cs",
+              "RelativeDocumentMoniker": "BusinessLayer\\MeshPersistence.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\BusinessLayer\\MeshPersistence.cs",
+              "RelativeToolTip": "BusinessLayer\\MeshPersistence.cs",
+              "ViewState": "AgIAAIwAAAAAAAAAAAAqwHsAAAAaAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-06-07T09:25:45.426Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "ReconstructionPersistence.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\BusinessLayer\\ReconstructionPersistence.cs",
+              "RelativeDocumentMoniker": "BusinessLayer\\ReconstructionPersistence.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\BusinessLayer\\ReconstructionPersistence.cs",
+              "RelativeToolTip": "BusinessLayer\\ReconstructionPersistence.cs",
+              "ViewState": "AgIAAAEAAAAAAAAAAAAAACIAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-06-07T09:22:15.835Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
               "DocumentIndex": 3,
+              "Title": "ForwardModel.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Models\\ForwardModel.cs",
+              "RelativeDocumentMoniker": "Utility\\Classes\\Models\\ForwardModel.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Models\\ForwardModel.cs",
+              "RelativeToolTip": "Utility\\Classes\\Models\\ForwardModel.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAB0AAAAJAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-06-07T09:21:34.114Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
+              "Title": "RegularizationFactory.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Factories\\RegularizationFactory.cs",
+              "RelativeDocumentMoniker": "Utility\\Classes\\Factories\\RegularizationFactory.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Factories\\RegularizationFactory.cs",
+              "RelativeToolTip": "Utility\\Classes\\Factories\\RegularizationFactory.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAwAAABTAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-06-07T09:10:11.243Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 12,
+              "Title": "LBMElement.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\LBMElement.cs",
+              "RelativeDocumentMoniker": "Utility\\Classes\\Meshing\\LBMElement.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\LBMElement.cs",
+              "RelativeToolTip": "Utility\\Classes\\Meshing\\LBMElement.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAACgAAAAFAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-06-06T15:19:46.92Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 11,
+              "Title": "Mesh.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\Mesh.cs",
+              "RelativeDocumentMoniker": "Utility\\Classes\\Meshing\\Mesh.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\Mesh.cs",
+              "RelativeToolTip": "Utility\\Classes\\Meshing\\Mesh.cs",
+              "ViewState": "AgIAABsAAAAAAAAAAAAkwDoAAAAdAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-06-06T13:58:48.071Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 10,
+              "Title": "ConductivityDistribution.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ConductivityDistribution.cs",
+              "RelativeDocumentMoniker": "Utility\\Classes\\ConductivityDistribution.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ConductivityDistribution.cs",
+              "RelativeToolTip": "Utility\\Classes\\ConductivityDistribution.cs",
+              "ViewState": "AgIAAAYAAAAAAAAAAAAywCUAAABIAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-06-06T13:38:56.939Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 8,
+              "Title": "InverseModelFactory.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Factories\\InverseModelFactory.cs",
+              "RelativeDocumentMoniker": "Utility\\Classes\\Factories\\InverseModelFactory.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Factories\\InverseModelFactory.cs",
+              "RelativeToolTip": "Utility\\Classes\\Factories\\InverseModelFactory.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABEAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-06-06T13:34:38.276Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "InverseModel.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Models\\InverseModel.cs",
+              "RelativeDocumentMoniker": "Utility\\Classes\\Models\\InverseModel.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Models\\InverseModel.cs",
+              "RelativeToolTip": "Utility\\Classes\\Models\\InverseModel.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABYAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-06-06T13:44:54.953Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "DifferentialEquationSolverFactory.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Factories\\DifferentialEquationSolverFactory.cs",
+              "RelativeDocumentMoniker": "Utility\\Classes\\Factories\\DifferentialEquationSolverFactory.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Factories\\DifferentialEquationSolverFactory.cs",
+              "RelativeToolTip": "Utility\\Classes\\Factories\\DifferentialEquationSolverFactory.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAkAAABgAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-06-06T13:34:38.205Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "DifferentialEquationSolver.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ReconstructionParameters\\DifferentialEquationSolver.cs",
+              "RelativeDocumentMoniker": "Utility\\Classes\\ReconstructionParameters\\DifferentialEquationSolver.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ReconstructionParameters\\DifferentialEquationSolver.cs",
+              "RelativeToolTip": "Utility\\Classes\\ReconstructionParameters\\DifferentialEquationSolver.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAFwAAABIAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-06-06T13:49:27.921Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 13,
+              "Title": "FEMMesh.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\FEMMesh.cs",
+              "RelativeDocumentMoniker": "Utility\\Classes\\Meshing\\FEMMesh.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\FEMMesh.cs",
+              "RelativeToolTip": "Utility\\Classes\\Meshing\\FEMMesh.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAYAAAA5AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-06-06T15:28:35.321Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 15,
+              "Title": "Edge.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\Edge.cs",
+              "RelativeDocumentMoniker": "Utility\\Classes\\Meshing\\Edge.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\Edge.cs",
+              "RelativeToolTip": "Utility\\Classes\\Meshing\\Edge.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA0AAAAjAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-06-07T09:04:54.615Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "NumericOptimizer.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ReconstructionParameters\\NumericOptimizer.cs",
+              "RelativeDocumentMoniker": "Utility\\Classes\\ReconstructionParameters\\NumericOptimizer.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ReconstructionParameters\\NumericOptimizer.cs",
+              "RelativeToolTip": "Utility\\Classes\\ReconstructionParameters\\NumericOptimizer.cs",
+              "ViewState": "AgIAABsAAAAAAAAAAAAAADoAAAAPAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-06-06T13:41:46.163Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 16,
+              "Title": "VectorField.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\VectorField.cs",
+              "RelativeDocumentMoniker": "Utility\\Classes\\VectorField.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\VectorField.cs",
+              "RelativeToolTip": "Utility\\Classes\\VectorField.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAwAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-06-06T20:06:59.648Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 17,
               "Title": "FiniteElementOperators.cs",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Solvers\\FiniteElementOperators.cs",
               "RelativeDocumentMoniker": "Utility\\Classes\\Solvers\\FiniteElementOperators.cs",
@@ -163,7 +382,33 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 5,
+              "DocumentIndex": 19,
+              "Title": "BoundaryConditions.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\BoundaryConditions.cs",
+              "RelativeDocumentMoniker": "Utility\\Classes\\BoundaryConditions.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\BoundaryConditions.cs",
+              "RelativeToolTip": "Utility\\Classes\\BoundaryConditions.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA0AAAAQAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-06-06T14:35:24.801Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 21,
+              "Title": "MeshElement.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\MeshElement.cs",
+              "RelativeDocumentMoniker": "Utility\\Classes\\Meshing\\MeshElement.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\MeshElement.cs",
+              "RelativeToolTip": "Utility\\Classes\\Meshing\\MeshElement.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA8AAAAzAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-06-06T15:18:20.586Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 22,
               "Title": "FEMElement.cs",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\FEMElement.cs",
               "RelativeDocumentMoniker": "Utility\\Classes\\Meshing\\FEMElement.cs",
@@ -176,72 +421,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 7,
-              "Title": "FEMMesh.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\FEMMesh.cs",
-              "RelativeDocumentMoniker": "Utility\\Classes\\Meshing\\FEMMesh.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\FEMMesh.cs",
-              "RelativeToolTip": "Utility\\Classes\\Meshing\\FEMMesh.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-06-06T15:28:35.321Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 0,
-              "Title": "LBMElement.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\LBMElement.cs",
-              "RelativeDocumentMoniker": "Utility\\Classes\\Meshing\\LBMElement.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\LBMElement.cs",
-              "RelativeToolTip": "Utility\\Classes\\Meshing\\LBMElement.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABUAAAAJAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-06-06T15:19:46.92Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 6,
-              "Title": "MeshElement.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\MeshElement.cs",
-              "RelativeDocumentMoniker": "Utility\\Classes\\Meshing\\MeshElement.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\MeshElement.cs",
-              "RelativeToolTip": "Utility\\Classes\\Meshing\\MeshElement.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAYAAAAFAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-06-06T15:18:20.586Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 10,
-              "Title": "BoundaryConditions.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\BoundaryConditions.cs",
-              "RelativeDocumentMoniker": "Utility\\Classes\\BoundaryConditions.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\BoundaryConditions.cs",
-              "RelativeToolTip": "Utility\\Classes\\BoundaryConditions.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAwAAAAJAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-06-06T14:35:24.801Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 8,
-              "Title": "Mesh.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\Mesh.cs",
-              "RelativeDocumentMoniker": "Utility\\Classes\\Meshing\\Mesh.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\Mesh.cs",
-              "RelativeToolTip": "Utility\\Classes\\Meshing\\Mesh.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAADUAAAA7AAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-06-06T13:58:48.071Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 11,
+              "DocumentIndex": 18,
               "Title": "PotentialDistribution.cs",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\PotentialDistribution.cs",
               "RelativeDocumentMoniker": "Utility\\Classes\\PotentialDistribution.cs",
@@ -254,72 +434,20 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 13,
-              "Title": "DifferentialEquationSolver.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ReconstructionParameters\\DifferentialEquationSolver.cs",
-              "RelativeDocumentMoniker": "Utility\\Classes\\ReconstructionParameters\\DifferentialEquationSolver.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ReconstructionParameters\\DifferentialEquationSolver.cs",
-              "RelativeToolTip": "Utility\\Classes\\ReconstructionParameters\\DifferentialEquationSolver.cs",
-              "ViewState": "AgIAAHUAAAAAAAAAAAAuwF0AAAAxAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-06-06T13:49:27.921Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 4,
+              "DocumentIndex": 20,
               "Title": "FiniteElementSolver.cs",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Solvers\\FiniteElementSolver.cs",
               "RelativeDocumentMoniker": "Utility\\Classes\\Solvers\\FiniteElementSolver.cs",
               "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Solvers\\FiniteElementSolver.cs",
               "RelativeToolTip": "Utility\\Classes\\Solvers\\FiniteElementSolver.cs",
-              "ViewState": "AgIAANIAAAAAAAAAAAAiwOcAAABdAAAAAAAAAA==",
+              "ViewState": "AgIAAMsAAAAAAAAAAADwv88AAAAUAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-06-06T13:45:30.518Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 9,
-              "Title": "InverseModel.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Models\\InverseModel.cs",
-              "RelativeDocumentMoniker": "Utility\\Classes\\Models\\InverseModel.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Models\\InverseModel.cs*",
-              "RelativeToolTip": "Utility\\Classes\\Models\\InverseModel.cs*",
-              "ViewState": "AgIAACEAAAAAAAAAAAAowDoAAAAnAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-06-06T13:44:54.953Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 14,
-              "Title": "NumericOptimizer.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ReconstructionParameters\\NumericOptimizer.cs",
-              "RelativeDocumentMoniker": "Utility\\Classes\\ReconstructionParameters\\NumericOptimizer.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ReconstructionParameters\\NumericOptimizer.cs",
-              "RelativeToolTip": "Utility\\Classes\\ReconstructionParameters\\NumericOptimizer.cs",
-              "ViewState": "AgIAAAsAAAAAAAAAAAAQwC4AAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-06-06T13:41:46.163Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 15,
-              "Title": "ConductivityDistribution.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ConductivityDistribution.cs",
-              "RelativeDocumentMoniker": "Utility\\Classes\\ConductivityDistribution.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ConductivityDistribution.cs",
-              "RelativeToolTip": "Utility\\Classes\\ConductivityDistribution.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-06-06T13:38:56.939Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 17,
+              "DocumentIndex": 25,
               "Title": "NumericSolver.cs",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ReconstructionParameters\\NumericSolver.cs",
               "RelativeDocumentMoniker": "Utility\\Classes\\ReconstructionParameters\\NumericSolver.cs",
@@ -332,46 +460,19 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 18,
-              "Title": "InverseModelFactory.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Factories\\InverseModelFactory.cs",
-              "RelativeDocumentMoniker": "Utility\\Classes\\Factories\\InverseModelFactory.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Factories\\InverseModelFactory.cs",
-              "RelativeToolTip": "Utility\\Classes\\Factories\\InverseModelFactory.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-06-06T13:34:38.276Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 19,
-              "Title": "DifferentialEquationSolverFactory.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Factories\\DifferentialEquationSolverFactory.cs",
-              "RelativeDocumentMoniker": "Utility\\Classes\\Factories\\DifferentialEquationSolverFactory.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Factories\\DifferentialEquationSolverFactory.cs",
-              "RelativeToolTip": "Utility\\Classes\\Factories\\DifferentialEquationSolverFactory.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-06-06T13:34:38.205Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 20,
-              "Title": "Utility",
+              "DocumentIndex": 26,
+              "Title": "Utility.csproj",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Utility.csproj",
               "RelativeDocumentMoniker": "Utility\\Utility.csproj",
               "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Utility.csproj",
               "RelativeToolTip": "Utility\\Utility.csproj",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
-              "WhenOpened": "2025-06-06T13:34:38.096Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-06-06T13:34:38.096Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 21,
+              "DocumentIndex": 27,
               "Title": "NumericSolverFactory.cs",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Factories\\NumericSolverFactory.cs",
               "RelativeDocumentMoniker": "Utility\\Classes\\Factories\\NumericSolverFactory.cs",
@@ -384,7 +485,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 12,
+              "DocumentIndex": 23,
               "Title": "EITMeasurement.cs",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\EITMeasurement.cs",
               "RelativeDocumentMoniker": "Utility\\Classes\\EITMeasurement.cs",
@@ -397,7 +498,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 24,
+              "DocumentIndex": 30,
               "Title": "DAQPageViewModel.cs",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\ViewModels\\DAQPageViewModel.cs",
               "RelativeDocumentMoniker": "ElectricalImpedanceTomography\\ViewModels\\DAQPageViewModel.cs",
@@ -409,7 +510,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 23,
+              "DocumentIndex": 29,
               "Title": "IDAQRepository.cs",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\DataAccessLayer\\IDAQRepository.cs",
               "RelativeDocumentMoniker": "DataAccessLayer\\IDAQRepository.cs",
@@ -421,7 +522,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 22,
+              "DocumentIndex": 28,
               "Title": "DAQRepositroy.cs",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\DataAccessLayer\\DAQRepositroy.cs",
               "RelativeDocumentMoniker": "DataAccessLayer\\DAQRepositroy.cs",
@@ -429,12 +530,11 @@
               "RelativeToolTip": "DataAccessLayer\\DAQRepositroy.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAC4AAAA3AAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-15T14:44:09.524Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-05-15T14:44:09.524Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 25,
+              "DocumentIndex": 31,
               "Title": "DAQPersistence.cs",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\BusinessLayer\\DAQPersistence.cs",
               "RelativeDocumentMoniker": "BusinessLayer\\DAQPersistence.cs",
@@ -446,7 +546,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 26,
+              "DocumentIndex": 32,
               "Title": "IDAQPersistence.cs",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\BusinessLayer\\IDAQPersistence.cs",
               "RelativeDocumentMoniker": "BusinessLayer\\IDAQPersistence.cs",
@@ -458,7 +558,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 27,
+              "DocumentIndex": 33,
               "Title": "EnumDescriptionConverter.cs",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\Converters\\EnumDescriptionConverter.cs",
               "RelativeDocumentMoniker": "ElectricalImpedanceTomography\\Converters\\EnumDescriptionConverter.cs",
@@ -470,7 +570,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 32,
+              "DocumentIndex": 38,
               "Title": "InverseSolver.cs",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Solvers\\InverseSolver.cs",
               "RelativeDocumentMoniker": "Utility\\Classes\\Solvers\\InverseSolver.cs",
@@ -482,7 +582,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 16,
+              "DocumentIndex": 24,
               "Title": "RegularizationTechnique.cs",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ReconstructionParameters\\RegularizationTechnique.cs",
               "RelativeDocumentMoniker": "Utility\\Classes\\ReconstructionParameters\\RegularizationTechnique.cs",
@@ -495,7 +595,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 29,
+              "DocumentIndex": 35,
               "Title": "ReconstructionService.cs",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ServiceLayer\\ReconstructionService.cs",
               "RelativeDocumentMoniker": "ServiceLayer\\ReconstructionService.cs",
@@ -507,7 +607,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 28,
+              "DocumentIndex": 34,
               "Title": "ReconstructionPage.xaml.cs",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\Views\\ReconstructionPage.xaml.cs",
               "RelativeDocumentMoniker": "ElectricalImpedanceTomography\\Views\\ReconstructionPage.xaml.cs",
@@ -519,7 +619,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 30,
+              "DocumentIndex": 36,
               "Title": "ReconstructionPage.xaml",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\Views\\ReconstructionPage.xaml",
               "RelativeDocumentMoniker": "ElectricalImpedanceTomography\\Views\\ReconstructionPage.xaml",
@@ -531,7 +631,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 31,
+              "DocumentIndex": 37,
               "Title": "ReconstructionPageViewModel.cs",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\ViewModels\\ReconstructionPageViewModel.cs",
               "RelativeDocumentMoniker": "ElectricalImpedanceTomography\\ViewModels\\ReconstructionPageViewModel.cs",
@@ -549,26 +649,26 @@
           "Children": [
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 4,
               "Title": "LBMMesh.cs",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\LBMMesh.cs",
               "RelativeDocumentMoniker": "Utility\\Classes\\Meshing\\LBMMesh.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\LBMMesh.cs*",
-              "RelativeToolTip": "Utility\\Classes\\Meshing\\LBMMesh.cs*",
-              "ViewState": "AgIAAAoAAAAAAAAAAAA9wCAAAAAQAAAAAAAAAA==",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Meshing\\LBMMesh.cs",
+              "RelativeToolTip": "Utility\\Classes\\Meshing\\LBMMesh.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABoAAAAtAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-06-06T16:49:02.08Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 14,
               "Title": "LatticeBoltzmannSolver.cs",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Solvers\\LatticeBoltzmannSolver.cs",
               "RelativeDocumentMoniker": "Utility\\Classes\\Solvers\\LatticeBoltzmannSolver.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Solvers\\LatticeBoltzmannSolver.cs*",
-              "RelativeToolTip": "Utility\\Classes\\Solvers\\LatticeBoltzmannSolver.cs*",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABEAAAAAAAAAAAAAAA==",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Solvers\\LatticeBoltzmannSolver.cs",
+              "RelativeToolTip": "Utility\\Classes\\Solvers\\LatticeBoltzmannSolver.cs",
+              "ViewState": "AgIAAH8AAAAAAAAAAAAcwJoAAAA+AAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-06-06T13:52:46.127Z",
               "EditorCaption": ""
