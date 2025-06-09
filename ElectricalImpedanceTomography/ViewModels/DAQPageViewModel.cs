@@ -1,10 +1,11 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
+using MathNet.Numerics.Statistics;
 using OxyPlot;
 using OxyPlot.Axes;
 using OxyPlot.Series;
 using ServiceLayer;
 using System.Collections.ObjectModel;
-using Utility.Classes;
+using Utility.Classes.Measurement;
 
 namespace ElectricalImpedanceTomography.ViewModels
 {
@@ -28,9 +29,9 @@ namespace ElectricalImpedanceTomography.ViewModels
             InitializePlots();
         }
 
-        private void OnMeasurementReceived(EITMeasurement m)
+        private void OnMeasurementReceived(EITMeasurements m)
         {
-            if (m is EITMeasurement eitMeasurement)
+            if (m is EITMeasurements eitMeasurement)
                 UpdatePlots(eitMeasurement);
         }
 
@@ -101,13 +102,16 @@ namespace ElectricalImpedanceTomography.ViewModels
          *
          */
 
-        private void UpdatePlots(EITMeasurement data)
+        private void UpdatePlots(EITMeasurements measurements)
         {
-            // each plot = channel k vs (k+1)%16
-            for (int k = 0; k < 16; k++)
+            for(int i = 0; i < 16; i++)
             {
-                double value = data.Measurements[k, (k + 1) % 16];
-                AppendDataPoint(PlotModels[k], DateTime.UtcNow, value);
+                SixteenElectrodeMeasurement currentMeasurement = measurements.GetMeasurement(i);
+                double[] currentData = currentMeasurement.Measurement;
+
+                for(int j = 0; j < 16; j++)
+                    if (currentData[j] != double.NaN)
+                        AppendDataPoint(PlotModels[j], DateTime.Now, currentData[j]);
             }
 
             InvalidatePlots();

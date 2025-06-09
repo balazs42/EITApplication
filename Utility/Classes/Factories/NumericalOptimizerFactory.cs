@@ -2,7 +2,7 @@
 
 namespace Utility.Classes.Factories
 {
-    public static class OptimizerFactory
+    public static class NumericOptimizerFactory
     {
         public static INumericOptimizer Create(NumericOptimizer no) => no switch
         {

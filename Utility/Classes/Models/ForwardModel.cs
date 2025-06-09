@@ -1,4 +1,5 @@
-﻿using Utility.Classes.ReconstructionParameters;
+﻿using Utility.Classes.Measurement;
+using Utility.Classes.ReconstructionParameters;
 
 namespace Utility.Classes.Models
 {

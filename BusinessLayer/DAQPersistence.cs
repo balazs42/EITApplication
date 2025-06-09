@@ -1,5 +1,5 @@
 ﻿using DataAccessLayer;
-using Utility.Classes;
+using Utility.Classes.Measurement;
 
 namespace BusinessLayer
 {
@@ -12,7 +12,7 @@ namespace BusinessLayer
             _daqRepository = daqRepository;
         }
 
-        public EITMeasurement GetEITMeasurement()
+        public EITMeasurements GetEITMeasurement()
         {
             return _daqRepository.GetEITMeasurement();
         }

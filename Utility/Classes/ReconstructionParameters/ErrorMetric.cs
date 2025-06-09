@@ -47,6 +47,9 @@ namespace Utility.Classes.ReconstructionParameters
             double sumOfSquares = 0.0;
             for (int i = 0; i < measured.Length; i++)
             {
+                // If either value is NaN, this point doesn't contribute to the error.
+                if (double.IsNaN(measured[i]) || double.IsNaN(simulated[i])) continue;
+                
                 double residual = simulated[i] - measured[i];
                 sumOfSquares += residual * residual;
             }
@@ -61,9 +64,18 @@ namespace Utility.Classes.ReconstructionParameters
             double[] residual = new double[measured.Length];
             for (int i = 0; i < measured.Length; i++)
             {
+
+                // If a value is NaN, the residual (the source for the adjoint) should be zero.
+                if (double.IsNaN(measured[i]) || double.IsNaN(simulated[i]))
+                {
+                    residual[i] = 0.0;
+                }
                 // This is the (Sφ - d_observed) term. The negative sign and S*
                 // are handled by the adjoint solver itself.
-                residual[i] = simulated[i] - measured[i];
+                else
+                {
+                    residual[i] = simulated[i] - measured[i];
+                }
             }
             return residual;
         }

@@ -1,5 +1,8 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using ServiceLayer;
+using System.Collections.ObjectModel;
+using Utility.Classes;
 using Utility.Classes.Meshing;
 using Utility.Classes.ReconstructionParameters;
 
@@ -33,17 +36,59 @@ namespace ElectricalImpedanceTomography.ViewModels
         [ObservableProperty]
         private EITReconstructionParameters reconstructionParameters;
 
+        public LBMMesh? LbmMesh { get; private set; } = null;
+
+        // TODO: Implementation of this mesh type
+        public FEMMesh? FemMesh { get; private set; } = null;
+
+        [ObservableProperty]
+        private int gridSizeNx = 15;
+
+        [ObservableProperty]
+        private int gridSizeNy = 15;
+
         public ReconstructionPageViewModel(IReconstructionService reconstructionService)
         {
             _reconstructionService = reconstructionService;
 
             ReconstructionParameters = new EITReconstructionParameters();
+
+            GenerateLbmMesh();
+        }
+
+        private void GenerateLbmMesh()
+        {
+            // Create the underlying data model
+            LbmMesh = new LBMMesh(GridSizeNx, GridSizeNy);
+        }
+
+        [RelayCommand]
+        private void ToggleWallState(object cellInfo)
+        {
+            if (cellInfo is (int x, int y))
+            {
+                var element = LbmMesh.GetElementAt(x, y);
+                if (element != null)
+                    element.IsWall = !element.IsWall;
+            }
+        }
+
+        [RelayCommand]
+        private void ToggleElectrodeState(object cellInfo)
+        {
+            if (cellInfo is (int x, int y))
+            {
+                var element = LbmMesh.GetElementAt(x, y);
+                if (element != null && !element.IsWall) // Can't place an electrode on a wall
+                    element.IsElectrode = !element.IsElectrode;
+            }
         }
 
 
         public async void OnStartReconstructionClicked(object sender, EventArgs e)
         {
-            _reconstructionService.StartReconstruction(ReconstructionParameters);
+            IMesh mesh = GetCurrentMesh();
+            _reconstructionService.InitializeReconstruction(mesh, ReconstructionParameters);
 
             var result = await _reconstructionService.GetReconstructionResult();
         }
@@ -69,10 +114,26 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
         }
 
+        private IMesh GetCurrentMesh()
+        {
+            IMesh? mesh = null;
+
+            if (FemMesh != null)
+                mesh = FemMesh;
+            else if (LbmMesh != null)
+                mesh = LbmMesh;
+
+            if (mesh == null)
+                throw new NullReferenceException("Cannot initialize reconstruciton, with LbmMesh and FemMesh being null, check code!");
+
+            return mesh;
+        }
+
         private async void SetupLBMReconstruction()
         {
-            var mesh = new LBMMesh(nx: 64, ny: 64);          // or read from file
-            var prms = new EITReconstructionParameters
+            IMesh mesh = GetCurrentMesh();
+
+            var parameters = new EITReconstructionParameters
             {
                 DifferentialEquationSolver = DifferentialEquationSolver.LatticeBoltzmannMethod,
                 ErrorMetric = ErrorMetric.L2,
@@ -81,7 +142,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 NumericOptimizer = NumericOptimizer.GradientBased
             };
 
-            _reconstructionService.StartReconstruction(prms);
+            _reconstructionService.InitializeReconstruction(mesh, parameters);
             var result = await _reconstructionService.GetReconstructionResult();
         }
     }

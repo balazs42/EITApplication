@@ -18,7 +18,7 @@
         /// <param name="currentSigma">The current conductivity distribution.</param>
         /// <param name="totalGradient">The total gradient of the cost function.</param>
         /// <returns>The updated conductivity distribution for the next iteration.</returns>
-        ConductivityDistribution OptimizationStep(ConductivityDistribution currentSigma, ConductivityDistribution totalGradient);
+        ConductivityDistribution OptimizationStep(ConductivityDistribution currentSigma, ConductivityDistribution totalGradient, double stepSize);
     }
 
     public sealed class GradientBasedOptimizer : INumericOptimizer
@@ -26,32 +26,28 @@
         // TODO: Adaptive step size
         private readonly double _stepSize;
 
-        public GradientBasedOptimizer(double stepSize = 1e-5)
+        public GradientBasedOptimizer(double stepSize = 1e-3)
         {
             _stepSize = stepSize;
         }
 
-        public ConductivityDistribution OptimizationStep(ConductivityDistribution currentSigma, ConductivityDistribution totalGradient)
+        public ConductivityDistribution OptimizationStep(ConductivityDistribution currentSigma, ConductivityDistribution totalGradient, double stepSize)
         {
             var nextSigmaDict = new Dictionary<int, double>();
-
             foreach (var kvp in currentSigma.Conductivities)
             {
                 int key = kvp.Key;
                 double currentVal = kvp.Value;
-                double gradVal = totalGradient.GetConductivity(key); // Assumes GetConductivity returns 0 if key not found
-
-                // \gamma^{i+1} = \gamma^{i} - \beta * (\nabla \gamma)
-                nextSigmaDict[key] = currentVal - _stepSize * gradVal;
+                double gradVal = totalGradient.GetConductivity(key);
+                nextSigmaDict[key] = currentVal - stepSize * gradVal;
             }
-
             return new ConductivityDistribution(nextSigmaDict);
         }
     }
 
     public sealed class ParticleSwarmOptimizer : INumericOptimizer
     {
-        public ConductivityDistribution OptimizationStep(ConductivityDistribution currentSigma, ConductivityDistribution totalGradient)
+        public ConductivityDistribution OptimizationStep(ConductivityDistribution currentSigma, ConductivityDistribution totalGradient, double stepSize)
         {
             throw new NotImplementedException();
 

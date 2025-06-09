@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="ElectricalImpedanceTomography.Views.ReconstructionPage"
              xmlns:viewmodels="clr-namespace:ElectricalImpedanceTomography.ViewModels"
+             xmlns:skia="clr-namespace:SkiaSharp.Views.Maui.Controls;assembly=SkiaSharp.Views.Maui.Controls"
              xmlns:controls="clr-namespace:ElectricalImpedanceTomography.Controls"
              xmlns:converters="clr-namespace:ElectricalImpedanceTomography.Converters"
              x:DataType="viewmodels:ReconstructionPageViewModel"          
@@ -61,6 +62,19 @@
                         Text="Start Reconstruction"
                         Clicked="OnStartReconstruction"/>
             </Grid>
+            <Border Grid.Row="2" 
+                    Stroke="DarkGray" 
+                    StrokeThickness="2"
+                    Margin="10"
+                    HorizontalOptions="Center" VerticalOptions="Center">
+                <skia:SKCanvasView x:Name="canvasView"
+                               WidthRequest="512" 
+                               HeightRequest="512"
+                               PaintSurface="OnCanvasViewPaintSurface"
+                               EnableTouchEvents="True"
+                               Touch="OnCanvasTouch">
+                </skia:SKCanvasView>
+            </Border>
         </Grid>
     </Grid>
 </ContentPage>

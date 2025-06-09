@@ -39,22 +39,23 @@ namespace Utility.Classes
     /// </summary>
     public static class PriorConductivityDistributionGenerator
     {
-        public static ConductivityDistribution GenerateHomogeneousDistribution(IMesh mesh)
+        /// <summary>
+        /// Generates a homogeneous conductivity distribution where every element has the same value.
+        /// </summary>
+        /// <param name="mesh">The mesh to generate the distribution for.</param>
+        /// <param name="defaultValue">The homogeneous conductivity value to assign to every element.</param>
+        /// <returns>A new ConductivityDistribution.</returns>
+        public static ConductivityDistribution GenerateHomogeneousDistribution(IMesh mesh, double defaultValue = 1.0)
         {
-            if (mesh is not LBMMesh || mesh is not FEMMesh)
-                throw new InvalidDataException("Cannot create prior distribution, if mesh type is not specified. Check code!");
+            if (mesh?.GetElements() == null)
+                throw new ArgumentNullException(nameof(mesh), "Mesh and its elements cannot be null.");
 
-            // Get current distribution
-            var currentConductivity = mesh.GetConductivityDistribution();
+            // Create a new dictionary from the mesh elements,
+            // assigning the default value to each one.
+            var conductivityDict = mesh.GetElements()
+                                       .ToDictionary(element => element.Id, element => defaultValue);
 
-            // Create new distribution object to return
-            ConductivityDistribution newConductivityDistribution = new(currentConductivity.Conductivities);
-
-            // All conduncitivites will be set to 1.0
-            foreach (var kvp in newConductivityDistribution.Conductivities)
-                newConductivityDistribution.Conductivities[kvp.Key] = 1.0;
-
-            return newConductivityDistribution;
-        }        
+            return new ConductivityDistribution(conductivityDict);
+        }
     }
 }

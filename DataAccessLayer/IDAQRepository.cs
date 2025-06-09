@@ -1,9 +1,9 @@
-﻿using Utility.Classes;
+﻿using Utility.Classes.Measurement;
 
 namespace DataAccessLayer
 {
     public interface IDAQRepository
     {
-        public EITMeasurement GetEITMeasurement();
+        public EITMeasurements GetEITMeasurement();
     }
 }

@@ -6,6 +6,6 @@ namespace BusinessLayer
     public interface IReconstructionPersistence
     {
         public Task<ReconstructionResult> GetReconstructionResult();
-        public void StartReconstruction(EITReconstructionParameters reconstructionParameters);
+        public void InitializeReconstruction(IMesh mesh, EITReconstructionParameters parameters);
     }
 }

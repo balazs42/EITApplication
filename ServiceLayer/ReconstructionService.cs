@@ -30,11 +30,11 @@ namespace ServiceLayer
             }
         }
 
-        public void StartReconstruction(EITReconstructionParameters reconstructionParameters)
+        public void InitializeReconstruction(IMesh mesh, EITReconstructionParameters parameters)
         {
             try
             {
-                _reconstructionPersistence.StartReconstruction(reconstructionParameters);
+                _reconstructionPersistence.InitializeReconstruction(mesh, parameters);
             }
             catch(Exception ex)
             {

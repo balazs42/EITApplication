@@ -24,11 +24,11 @@ namespace Utility.Classes
     /// </summary>
     public abstract class Mesh : IMesh
     {
-        public List<Vertex> Vertices;
-        public List<Electrode> Electrodes;
-        public List<MeshElement> Elements;
-        public ConductivityDistribution ConductivityDistribution;
-        public PotentialDistribution PotentialDistribution;
+        public List<Vertex> Vertices { get; protected set; }
+        public List<MeshElement> Elements { get; protected set; }
+        public List<Electrode> Electrodes { get; set; }
+        public ConductivityDistribution ConductivityDistribution { get; set; }
+        public PotentialDistribution PotentialDistribution { get; set; }
 
         public Mesh(int numVertices)
         {
@@ -53,31 +53,18 @@ namespace Utility.Classes
 
         }
 
-        /// <summary>
-        /// Gets the current conductivtiy distribution present on the mesh.
-        /// </summary>
-        /// <returns></returns>
         public ConductivityDistribution GetConductivityDistribution() => ConductivityDistribution;
         public PotentialDistribution GetPotentialDistribution() => PotentialDistribution;
         public Mesh GetMesh() => this;
         public List<Electrode> GetElectrodes() => Electrodes;
         public List<Vertex> GetVertices() => Vertices;
         public List<MeshElement> GetElements() => Elements;
-        public double[] GetElectrodePotentials()
-        {
-            // First, find all electrode vertices
-            var electrodeVertices = Vertices.Where(v => v.IsElectrode)
-                                           .OrderBy(v => v.ElectrodeId)
-                                           .ToList();
 
-            double[] electrodePotentials = new double[electrodeVertices.Count];
-
-            // Direct, fast lookup using the vertex ID
-            for (int i = 0; i < electrodeVertices.Count; i++)
-                electrodePotentials[i] = PotentialDistribution.GetPotential(electrodeVertices[i].GlobalId);
-
-            return electrodePotentials;
-        }
+        /// <summary>
+        /// Finds all electrode nodes, and extracts the potential values of the PotentialDistributon.
+        /// </summary>
+        /// <returns>The array of electrode potentials.</returns>
+        public abstract double[] GetElectrodePotentials();
 
         public List<Vertex> GetElectrodeVertices()
         {

@@ -3,9 +3,32 @@ using System.Globalization;
 using System.IO.Ports;
 using System.Text.Json;
 using Utility.Classes;
+using Utility.Classes.Measurement;
 
 namespace DataAccessLayer
 {
+    // Example measurement data:
+    /*     1.  |   2.   |    3.  |    4.  |    5.  |    6.  |    7.  |    8.  |    9.  |   10.  |   11.  |   12.  |   13.  |   14.  |   15.  |   16.  |
+     *    NAN  |  NAN   | +0.014 | +0.012 | +0.012 | +0.012 | +0.013 | +0.010 | +0.013 | +0.012 | +0.012 | +0.014 | +0.014 | +0.014 | +0.013 |   NAN  |  
+     *    NAN  |  NAN   |   NAN  | +0.014 | +0.012 | +0.011 | +0.013 | +0.012 | +0.010 | +0.014 | +0.013 | +0.013 | +0.012 | +0.012 | +0.012 | +0.014 | 
+     *  +0.014 |  NAN   |   NAN  |   NAN  | +0.010 | +0.010 | +0.012 | +0.012 | +0.013 | +0.014 | +0.015 | +0.014 | +0.013 | +0.014 | +0.012 | +0.014 |
+     *  +0.013 | +0.013 |   NAN  |   NAN  |   NAN  | +0.011 | +0.013 | +0.013 | +0.012 | +0.013 | +0.013 | +0.012 | +0.014 | +0.013 | +0.014 | +0.014 | 
+     *  +0.014 | +0.014 | +0.013 |   NAN  |   NAN  |   NAN  | +0.010 | +0.013 | +0.011 | +0.013 | +0.013 | +0.013 | +0.013 | +0.013 | +0.012 | +0.011 |
+     *  +0.014 | +0.012 | +0.014 | +0.013 |   NAN  |   NAN  |   NAN  | +0.011 | +0.013 | +0.012 | +0.015 | +0.013 | +0.014 | +0.013 | +0.014 | +0.015 | 
+     *  +0.012 | +0.012 | +0.012 | +0.012 | +0.013 |   NAN  |   NAN  |   NAN  | +0.012 | +0.014 | +0.012 | +0.013 | +0.013 | +0.013 | +0.013 | +0.013 | 
+     *  +0.013 | +0.013 | +0.012 | +0.010 | +0.011 | +0.014 |   NAN  |   NAN  |   NAN  | +0.013 | +0.012 | +0.016 | +0.015 | +0.012 | +0.013 | +0.014 |
+     *  +0.013 | +0.012 | +0.014 | +0.013 | +0.013 | +0.012 | +0.012 |   NAN  |   NAN  |   NAN  | +0.015 | +0.014 | +0.014 | +0.013 | +0.012 | +0.014 | 
+     *  +0.012 | +0.012 | +0.014 | +0.013 | +0.012 | +0.010 | +0.014 | +0.013 |   NAN  |   NAN  |   NAN  | +0.015 | +0.012 | +0.012 | +0.014 | +0.013 | 
+     *  +0.011 | +0.012 | +0.011 | +0.013 | +0.015 | +0.010 | +0.012 | +0.015 | +0.014 |   NAN  |   NAN  |   NAN  | +0.013 | +0.013 | +0.012 | +0.012 |
+     *  +0.011 | +0.012 | +0.012 | +0.012 | +0.014 | +0.013 | +0.013 | +0.013 | +0.012 | +0.014 |   NAN  |   NAN  |   NAN  | +0.013 | +0.013 | +0.012 | 
+     *  +0.012 | +0.011 | +0.013 | +0.012 | +0.010 | +0.016 | +0.013 | +0.014 | +0.013 | +0.015 | +0.013 |   NAN  |   NAN  |   NAN  | +0.012 | +0.014 | 
+     *  +0.013 | +0.011 | +0.012 | +0.015 | +0.013 | +0.014 | +0.012 | +0.014 | +0.013 | +0.014 | +0.014 | +0.013 |   NAN  |   NAN  |   NAN  | +0.013 |
+     *  +0.013 | +0.013 | +0.014 | +0.012 | +0.013 | +0.014 | +0.012 | +0.014 | +0.012 | +0.013 | +0.013 | +0.014 | +0.012 |   NAN  |   NAN  |   NAN  |  
+     *
+     *  1. = NaN & 2. = NaN means 1 = GND & 2 = VCC -> 3. means measurement between 3.-4. electodes. 4. meash measurement between 4.-5. ... 
+     *  15. means measurement between 15.-16. 16. = NaN since 16. = 16.-1. and 1. is used for excitation.
+     */
+
     public class DAQRepository : IDAQRepository
     {
         // --- Serial Port Configuration ---
@@ -22,14 +45,15 @@ namespace DataAccessLayer
         private readonly Task _backgroundTask;
 
         // --- Event To Invoke When a Measurement is Received ---
-        public event EventHandler<EITMeasurement>? MeasurementReceived;
+        public event EventHandler<EITMeasurements>? MeasurementReceived;
 
         public DAQRepository()
         {
             // Load Serial Port Configuration from default path
             _ = LoadConfigurationFromJson();
 
-            _backgroundTask = Task.Run(() => SerialLoopAsync(_cts.Token));
+            // TODO: Exit condition
+            //_backgroundTask = Task.Run(() => SerialLoopAsync(_cts.Token));
         }
 
         /* ===================================================================
@@ -42,9 +66,12 @@ namespace DataAccessLayer
                 try
                 {
                     var meas = ReadBlock();
-                    if (meas == null) continue;
+                    if (meas == null) 
+                        continue;
 
-                    await SaveToJsonAsync(meas, token);
+                    for(int i = 0; i < 16; i++)
+                        await SaveToJsonAsync(meas, token);
+
                     MeasurementReceived?.Invoke(this, meas);
                 }
                 catch (OperationCanceledException) { break; }
@@ -56,10 +83,10 @@ namespace DataAccessLayer
             }
         }
 
-        public EITMeasurement GetEITMeasurement()
+        public EITMeasurements GetEITMeasurement()
             => ReadBlock() ?? throw new InvalidOperationException("No data received");
 
-        private EITMeasurement? ReadBlock()
+        private EITMeasurements? ReadBlock()
         {
             using var port = new SerialPort(_portName, _baudRate, _parity,
                                             _dataBits, _stopBits)
@@ -92,7 +119,7 @@ namespace DataAccessLayer
                 if (!line.StartsWith("End of measurements", StringComparison.OrdinalIgnoreCase))
                     throw new InvalidDataException("Missing end marker.");
 
-                return new EITMeasurement(vals);
+                return new EITMeasurements(vals);
             }
             catch (TimeoutException) { return null; }
             catch (Exception ex)
@@ -126,7 +153,7 @@ namespace DataAccessLayer
         /*───────────────────────────────────────────────────────────────────
          *  Persist measurement to disk (jagged JSON)
          *──────────────────────────────────────────────────────────────────*/
-        private static async Task SaveToJsonAsync(EITMeasurement m, CancellationToken ct)
+        private static async Task SaveToJsonAsync(EITMeasurements m, CancellationToken ct)
         {
             string dir = Path.Combine(AppContext.BaseDirectory, "Measurements");
             Directory.CreateDirectory(dir);
@@ -134,13 +161,14 @@ namespace DataAccessLayer
             string file = Path.Combine(dir,
                 $"EIT_{DateTime.UtcNow:yyyyMMdd_HHmmss_fff}.json");
 
-            int r = m.Measurements.GetLength(0);
-            int c = m.Measurements.GetLength(1);
-            var jagged = new double[r][];
-            for (int i = 0; i < r; ++i)
+            var jagged = new double[16][];
+            for (int i = 0; i < 16; ++i)
             {
-                jagged[i] = new double[c];
-                for (int j = 0; j < c; ++j) jagged[i][j] = m.Measurements[i, j];
+                jagged[i] = new double[16];
+                SixteenElectrodeMeasurement measurement = m.GetMeasurement(i);
+                
+                for (int j = 0; j < 16; ++j)
+                    jagged[i][j] = measurement.Measurement[j];
             }
 
             var opts = new JsonSerializerOptions { WriteIndented = true };
@@ -148,7 +176,7 @@ namespace DataAccessLayer
         }
 
         /*───────────────────────────────────────────────────────────────────
-         *  Serial-port config loader (unchanged)
+         *  Serial-port config loader
          *──────────────────────────────────────────────────────────────────*/
         public async Task LoadConfigurationFromJson(string path = "config.json")
         {

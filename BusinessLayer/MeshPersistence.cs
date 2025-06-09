@@ -4,7 +4,7 @@ using Utility.Classes.Meshing;
 
 using TVertex = TriangleNet.Geometry.Vertex;        // third-party vertex
 using TSegment = TriangleNet.Geometry.Segment;
-using MVertex = Utility.Classes.Meshing.Vertex;     // your own vertex class
+using MVertex = Utility.Classes.Meshing.Vertex;     // own vertex class
 
 namespace BusinessLayer
 {

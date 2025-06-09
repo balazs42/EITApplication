@@ -3,114 +3,126 @@
 namespace Utility.Classes.Solvers
 {
     /// <summary>
-    /// Contains helper methods for applying differential operators to fields
-    /// defined on a structured Lattice-Boltzmann grid using finite differences.
+    /// Contains helper methods for applying discrete differential operators to fields
+    /// defined on a structured Lattice-Boltzmann grid.
+    /// This implementation is "element-centric", meaning it uses the neighbor-linking
+    /// of the LBMElement class rather than coordinate-based lookups.
     /// </summary>
     public static class LatticeBoltzmannOperators
     {
         /// <summary>
-        /// Calculates the gradient of a scalar field (potential/conductivity) on the LBM grid.
-        /// Uses central differences for interior nodes and forward/backward differences at boundaries.
+        /// Calculates the gradient of a scalar field (∇φ) on the LBM grid.
+        /// The gradient is a vector field, where each element has a (Gx, Gy) vector.
+        /// It uses central differences for interior nodes and less accurate
+        /// forward/backward differences at boundaries where a neighbor is missing.
         /// </summary>
-        /// <param name="mesh">The LBM mesh.</param>
-        /// <param name="scalarField">The scalar field (e.g., a PotentialDistribution).</param>
+        /// <param name="mesh">The LBM mesh, with linked neighbors.</param>
+        /// <param name="scalarField">The scalar field (e.g., a PotentialDistribution) to differentiate.</param>
         /// <returns>A VectorField representing the gradient.</returns>
         public static VectorField CalculateGradient(LBMMesh mesh, PotentialDistribution scalarField)
         {
             var gradientData = new Dictionary<int, (double Gx, double Gy)>();
 
-            for (int y = 0; y < mesh.Ny; y++)
+            // Iterate over every element in the mesh directly.
+            foreach (var element in mesh.Elements.Cast<LBMElement>())
             {
-                for (int x = 0; x < mesh.Nx; x++)
-                {
-                    double gx, gy;
-                    int currentId = mesh.ToVertexId(x, y);
+                // Get the neighbors in the cardinal directions from the pre-linked array.
+                var right = element.Neighbors[1];
+                var top = element.Neighbors[2];
+                var left = element.Neighbors[3];
+                var bottom = element.Neighbors[4];
 
-                    // Gradient in X
-                    if (x == 0) // Forward difference at left edge
-                        gx = scalarField.GetPotential(mesh.ToVertexId(x + 1, y)) - scalarField.GetPotential(currentId);
-                    else if (x == mesh.Nx - 1) // Backward difference at right edge
-                        gx = scalarField.GetPotential(currentId) - scalarField.GetPotential(mesh.ToVertexId(x - 1, y));
-                    else // Central difference in interior
-                        gx = (scalarField.GetPotential(mesh.ToVertexId(x + 1, y)) - scalarField.GetPotential(mesh.ToVertexId(x - 1, y))) / 2.0;
+                // Get the potential (phi) value for the center and neighboring cells.
+                double phi_i = scalarField.GetPotential(element.Id);
 
-                    // Gradient in Y
-                    if (y == 0) // Forward difference at bottom edge
-                        gy = scalarField.GetPotential(mesh.ToVertexId(x, y + 1)) - scalarField.GetPotential(currentId);
-                    else if (y == mesh.Ny - 1) // Backward difference at top edge
-                        gy = scalarField.GetPotential(currentId) - scalarField.GetPotential(mesh.ToVertexId(x, y - 1));
-                    else // Central difference in interior
-                        gy = (scalarField.GetPotential(mesh.ToVertexId(x, y + 1)) - scalarField.GetPotential(mesh.ToVertexId(x, y - 1))) / 2.0;
+                // If a neighbor is null (i.e., we are at a boundary), use the center
+                // point's value. This results in a zero gradient contribution from that side.
+                double phi_r = right != null ? scalarField.GetPotential(right.Id) : phi_i;
+                double phi_l = left != null ? scalarField.GetPotential(left.Id) : phi_i;
+                double phi_t = top != null ? scalarField.GetPotential(top.Id) : phi_i;
+                double phi_b = bottom != null ? scalarField.GetPotential(bottom.Id) : phi_i;
 
-                    gradientData[currentId] = (gx, gy);
-                }
+                // Calculate the partial derivative ∂φ/∂x using finite differences.
+                // If both neighbors exist, use central difference: (f(x+h) - f(x-h)) / 2h.
+                // If one is missing, use forward/backward difference: (f(x+h) - f(x)) / h.
+                // We assume grid spacing h=1.
+                double gx = (phi_r - phi_l) / (right != null && left != null ? 2.0 : 1.0);
+                double gy = (phi_t - phi_b) / (top != null && bottom != null ? 2.0 : 1.0);
+
+                gradientData[element.Id] = (gx, gy);
             }
             return new VectorField(gradientData);
         }
 
         /// <summary>
-        /// Calculates the Laplacian of a scalar field on the LBM grid using the 5-point stencil.
+        /// Calculates the Laplacian of a scalar field (Δφ) on the LBM grid.
+        /// The Laplacian is a scalar field, representing the divergence of the gradient.
+        /// It uses the standard 5-point finite difference stencil.
         /// </summary>
-        /// <param name="mesh">The LBM mesh.</param>
-        /// <param name="scalarField">The scalar field (e.g., a PotentialDistribution).</param>
-        /// <returns>A scalar field representing the Laplacian.</returns>
+        /// <param name="mesh">The LBM mesh, with linked neighbors.</param>
+        /// <param name="scalarField">The scalar field to apply the operator to.</param>
+        /// <returns>A scalar field (PotentialDistribution) representing the Laplacian.</returns>
         public static PotentialDistribution CalculateLaplacian(LBMMesh mesh, PotentialDistribution scalarField)
         {
             var laplacianData = new Dictionary<int, double>();
 
-            for (int y = 0; y < mesh.Ny; y++)
+            // Iterate over every element in the mesh.
+            foreach (var element in mesh.Elements.Cast<LBMElement>())
             {
-                for (int x = 0; x < mesh.Nx; x++)
-                {
-                    int currentId = mesh.ToVertexId(x, y);
+                var right = element.Neighbors[1];
+                var top = element.Neighbors[2];
+                var left = element.Neighbors[3];
+                var bottom = element.Neighbors[4];
 
-                    // Use zero for neighbors outside the boundary
-                    double up = (y < mesh.Ny - 1) ? scalarField.GetPotential(mesh.ToVertexId(x, y + 1)) : 0;
-                    double down = (y > 0) ? scalarField.GetPotential(mesh.ToVertexId(x, y - 1)) : 0;
-                    double left = (x > 0) ? scalarField.GetPotential(mesh.ToVertexId(x - 1, y)) : 0;
-                    double right = (x < mesh.Nx - 1) ? scalarField.GetPotential(mesh.ToVertexId(x + 1, y)) : 0;
-                    double center = scalarField.GetPotential(currentId);
+                // Get potential values, using the center value for any missing boundary neighbors.
+                double phi_i = scalarField.GetPotential(element.Id);
+                double phi_r = right != null ? scalarField.GetPotential(right.Id) : phi_i;
+                double phi_l = left != null ? scalarField.GetPotential(left.Id) : phi_i;
+                double phi_t = top != null ? scalarField.GetPotential(top.Id) : phi_i;
+                double phi_b = bottom != null ? scalarField.GetPotential(bottom.Id) : phi_i;
 
-                    // 5-point stencil for discrete Laplacian (assuming h=1 grid spacing)
-                    laplacianData[currentId] = right + left + up + down - 4 * center;
-                }
+                // Apply the 5-point stencil for the discrete Laplacian: Δφ ≈ φ_r + φ_l + φ_t + φ_b - 4φ_i
+                // (Assuming grid spacing h=1).
+                laplacianData[element.Id] = phi_r + phi_l + phi_t + phi_b - 4 * phi_i;
             }
             return new PotentialDistribution(laplacianData);
         }
 
         /// <summary>
-        /// Calculates the divergence of a vector field on the LBM grid.
+        /// Calculates the divergence of a vector field (∇·F) on the LBM grid.
+        /// The divergence of a vector field is a scalar field: ∇·F = ∂Fx/∂x + ∂Fy/∂y.
         /// </summary>
-        /// <param name="mesh">The LBM mesh.</param>
+        /// <param name="mesh">The LBM mesh, with linked neighbors.</param>
         /// <param name="vectorField">The vector field to compute the divergence of.</param>
-        /// <returns>A scalar field representing the divergence.</returns>
+        /// <returns>A scalar field (PotentialDistribution) representing the divergence.</returns>
         public static PotentialDistribution CalculateDivergence(LBMMesh mesh, VectorField vectorField)
         {
             var divergenceData = new Dictionary<int, double>();
-            for (int y = 0; y < mesh.Ny; y++)
+
+            // Iterate over every element in the mesh.
+            foreach (var element in mesh.Elements.Cast<LBMElement>())
             {
-                for (int x = 0; x < mesh.Nx; x++)
-                {
-                    // dFx/dx component
-                    double dFx_dx;
-                    if (x == 0)
-                        dFx_dx = vectorField.GetVector(mesh.ToVertexId(x + 1, y)).X - vectorField.GetVector(mesh.ToVertexId(x, y)).X;
-                    else if (x == mesh.Nx - 1)
-                        dFx_dx = vectorField.GetVector(mesh.ToVertexId(x, y)).X - vectorField.GetVector(mesh.ToVertexId(x - 1, y)).X;
-                    else
-                        dFx_dx = (vectorField.GetVector(mesh.ToVertexId(x + 1, y)).X - vectorField.GetVector(mesh.ToVertexId(x - 1, y)).X) / 2.0;
+                // Get neighbors in the cardinal directions.
+                var right = element.Neighbors[1];
+                var top = element.Neighbors[2];
+                var left = element.Neighbors[3];
+                var bottom = element.Neighbors[4];
 
-                    // dFy/dy component
-                    double dFy_dy;
-                    if (y == 0)
-                        dFy_dy = vectorField.GetVector(mesh.ToVertexId(x, y + 1)).Y - vectorField.GetVector(mesh.ToVertexId(x, y)).Y;
-                    else if (y == mesh.Ny - 1)
-                        dFy_dy = vectorField.GetVector(mesh.ToVertexId(x, y)).Y - vectorField.GetVector(mesh.ToVertexId(x, y - 1)).Y;
-                    else
-                        dFy_dy = (vectorField.GetVector(mesh.ToVertexId(x, y + 1)).Y - vectorField.GetVector(mesh.ToVertexId(x, y - 1)).Y) / 2.0;
+                // Get the vector F = (Fx, Fy) for the center and neighboring cells.
+                var F_i = vectorField.GetVector(element.Id);
+                var F_r = right != null ? vectorField.GetVector(right.Id) : F_i;
+                var F_l = left != null ? vectorField.GetVector(left.Id) : F_i;
+                var F_t = top != null ? vectorField.GetVector(top.Id) : F_i;
+                var F_b = bottom != null ? vectorField.GetVector(bottom.Id) : F_i;
 
-                    divergenceData[mesh.ToVertexId(x, y)] = dFx_dx + dFy_dy;
-                }
+                // Calculate the partial derivative ∂Fx/∂x using the X-components of the vectors.
+                double dFx_dx = (F_r.X - F_l.X) / (right != null && left != null ? 2.0 : 1.0);
+
+                // Calculate the partial derivative ∂Fy/∂y using the Y-components of the vectors.
+                double dFy_dy = (F_t.Y - F_b.Y) / (top != null && bottom != null ? 2.0 : 1.0);
+
+                // The divergence is the sum of the partial derivatives.
+                divergenceData[element.Id] = dFx_dx + dFy_dy;
             }
             return new PotentialDistribution(divergenceData);
         }

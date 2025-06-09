@@ -1,4 +1,5 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
+using Utility.Classes.Meshing;
 
 namespace Utility.Classes.ReconstructionParameters
 {
@@ -15,6 +16,8 @@ namespace Utility.Classes.ReconstructionParameters
         [ObservableProperty] 
         private NumericOptimizer numericOptimizer = NumericOptimizer.GradientBased;
 
+        public MeshType Mesh = MeshType.FEM;
+
         public EITReconstructionParameters()
         {
             DifferentialEquationSolver = DifferentialEquationSolver.FiniteElementMethod;
@@ -22,6 +25,7 @@ namespace Utility.Classes.ReconstructionParameters
             ErrorMetric = ErrorMetric.L2;
             NumericSolver = NumericSolver.LUDecomposition;
             NumericOptimizer = NumericOptimizer.GradientBased;
+            Mesh = MeshType.FEM;
         }
 
         public EITReconstructionParameters(DifferentialEquationSolver differentialEquationSolver, 
@@ -35,6 +39,8 @@ namespace Utility.Classes.ReconstructionParameters
             ErrorMetric = errorMetric;
             NumericSolver = numericSolver;
             NumericOptimizer = numericOptimizer;
+
+            Mesh = (differentialEquationSolver == DifferentialEquationSolver.FiniteElementMethod) ? MeshType.FEM : MeshType.LBM;
         }
     }
 }

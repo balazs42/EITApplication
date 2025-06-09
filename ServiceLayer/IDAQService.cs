@@ -1,9 +1,9 @@
-﻿using Utility.Classes;
+﻿using Utility.Classes.Measurement;
 
 namespace ServiceLayer
 {
     public interface IDAQService
     {
-        public EITMeasurement GetEITMeasurement();
+        public EITMeasurements GetEITMeasurement();
     }
 }

@@ -10,11 +10,44 @@
         <member name="P:ElectricalImpedanceTomography.ViewModels.DAQPageViewModel.PlotModels">
             <inheritdoc cref="F:ElectricalImpedanceTomography.ViewModels.DAQPageViewModel.plotModels"/>
         </member>
+        <member name="T:ElectricalImpedanceTomography.ViewModels.LBMCellViewModel">
+            <inheritdoc/>
+            <inheritdoc/>
+        </member>
+        <member name="P:ElectricalImpedanceTomography.ViewModels.LBMCellViewModel.IsWallProxy">
+            <inheritdoc cref="F:ElectricalImpedanceTomography.ViewModels.LBMCellViewModel._isWallProxy"/>
+        </member>
+        <member name="F:ElectricalImpedanceTomography.ViewModels.LBMCellViewModel.toggleWallCommand">
+            <summary>The backing field for <see cref="P:ElectricalImpedanceTomography.ViewModels.LBMCellViewModel.ToggleWallCommand"/>.</summary>
+        </member>
+        <member name="P:ElectricalImpedanceTomography.ViewModels.LBMCellViewModel.ToggleWallCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:ElectricalImpedanceTomography.ViewModels.LBMCellViewModel.ToggleWall"/>.</summary>
+        </member>
         <member name="T:ElectricalImpedanceTomography.ViewModels.ReconstructionPageViewModel">
+            <inheritdoc/>
+            <inheritdoc/>
             <inheritdoc/>
         </member>
         <member name="P:ElectricalImpedanceTomography.ViewModels.ReconstructionPageViewModel.ReconstructionParameters">
             <inheritdoc cref="F:ElectricalImpedanceTomography.ViewModels.ReconstructionPageViewModel.reconstructionParameters"/>
+        </member>
+        <member name="P:ElectricalImpedanceTomography.ViewModels.ReconstructionPageViewModel.GridSizeNx">
+            <inheritdoc cref="F:ElectricalImpedanceTomography.ViewModels.ReconstructionPageViewModel.gridSizeNx"/>
+        </member>
+        <member name="P:ElectricalImpedanceTomography.ViewModels.ReconstructionPageViewModel.GridSizeNy">
+            <inheritdoc cref="F:ElectricalImpedanceTomography.ViewModels.ReconstructionPageViewModel.gridSizeNy"/>
+        </member>
+        <member name="F:ElectricalImpedanceTomography.ViewModels.ReconstructionPageViewModel.toggleWallStateCommand">
+            <summary>The backing field for <see cref="P:ElectricalImpedanceTomography.ViewModels.ReconstructionPageViewModel.ToggleWallStateCommand"/>.</summary>
+        </member>
+        <member name="P:ElectricalImpedanceTomography.ViewModels.ReconstructionPageViewModel.ToggleWallStateCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand`1"/> instance wrapping <see cref="M:ElectricalImpedanceTomography.ViewModels.ReconstructionPageViewModel.ToggleWallState(System.Object)"/>.</summary>
+        </member>
+        <member name="F:ElectricalImpedanceTomography.ViewModels.ReconstructionPageViewModel.toggleElectrodeStateCommand">
+            <summary>The backing field for <see cref="P:ElectricalImpedanceTomography.ViewModels.ReconstructionPageViewModel.ToggleElectrodeStateCommand"/>.</summary>
+        </member>
+        <member name="P:ElectricalImpedanceTomography.ViewModels.ReconstructionPageViewModel.ToggleElectrodeStateCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand`1"/> instance wrapping <see cref="M:ElectricalImpedanceTomography.ViewModels.ReconstructionPageViewModel.ToggleElectrodeState(System.Object)"/>.</summary>
         </member>
         <member name="T:ElectricalImpedanceTomography.Resource">
             <summary>
@@ -31,8 +64,20 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.PlotModels">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "PlotModels" generated properties.</summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.IsWallProxy">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "IsWallProxy" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.IsWall">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "IsWall" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ReconstructionParameters">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ReconstructionParameters" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.GridSizeNx">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "GridSizeNx" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.GridSizeNy">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "GridSizeNy" generated properties.</summary>
         </member>
         <member name="T:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs">
             <summary>
@@ -43,8 +88,20 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.PlotModels">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "PlotModels" generated properties.</summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.IsWallProxy">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "IsWallProxy" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.IsWall">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "IsWall" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ReconstructionParameters">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ReconstructionParameters" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.GridSizeNx">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "GridSizeNx" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.GridSizeNy">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "GridSizeNy" generated properties.</summary>
         </member>
     </members>
 </doc>

@@ -1,6 +1,8 @@
 ﻿using Utility.Classes.Meshing;
 using Utility.Classes.Solvers;
 using MathNet.Numerics.LinearAlgebra;
+using Utility.Classes.Measurement;
+using Utility.Classes.Factories;
 
 namespace Utility.Classes.ReconstructionParameters
 {
@@ -36,8 +38,7 @@ namespace Utility.Classes.ReconstructionParameters
         {
             _solver = new FiniteElementSolver(numericSolver);
         }
-
-        // This method was previously named 'Solve'
+        
         public PotentialDistribution SolveForward(IMesh mesh, ConductivityDistribution sigma, BoundaryConditions bc)
         {
             return Solve(mesh, sigma, bc);
@@ -45,7 +46,7 @@ namespace Utility.Classes.ReconstructionParameters
 
         public PotentialDistribution SolveAdjoint(IMesh mesh, ConductivityDistribution sigma, BoundaryConditions bc, Vector<double> adjointSource)
         {
-            var homogeneousBC = new BoundaryConditions(bc.Electrodes.Select(e => new Electrode(e.Id, e.VertexIds, 0.0, e.ZContact)), null);
+            //var homogeneousBC = new BoundaryConditions(bc.Electrodes.Select(e => new Electrode(e.Id, e.VertexIds, 0.0, e.ZContact)), null);
             return Solve(mesh, sigma, bc, adjointSource);
         }
 
@@ -84,7 +85,13 @@ namespace Utility.Classes.ReconstructionParameters
             if (mesh is not LBMMesh lbmMesh) 
                 throw new ArgumentException("LBM requires an LBMMesh.");
 
-            return _solver.RunSimulation(lbmMesh, sigma, bc, _iterations, null);
+            var homogeneousBoundaryConditions = BoundaryConditionFactory.CreateHomogeneous(mesh);
+
+            return _solver.RunSimulation(lbmMesh, 
+                                         sigma, 
+                                         homogeneousBoundaryConditions, 
+                                         _iterations, 
+                                         null);
         }
 
         public PotentialDistribution SolveAdjoint(IMesh mesh, ConductivityDistribution sigma, BoundaryConditions bc, Vector<double> adjointSource)
@@ -92,14 +99,19 @@ namespace Utility.Classes.ReconstructionParameters
             if (mesh is not LBMMesh lbmMesh) 
                 throw new ArgumentException("LBM requires an LBMMesh.");
 
-            var homogeneousBC = new BoundaryConditions(new List<Electrode>(), null);
-
-            return _solver.RunSimulation(lbmMesh, sigma, homogeneousBC, _iterations, adjointSource);
+            // Run simulation with dummy boundary conditions 
+            return _solver.RunSimulation(lbmMesh,
+                                         sigma, 
+                                         bc,
+                                         _iterations, 
+                                         adjointSource);
         }
 
         public ConductivityDistribution ComputeMisfitGradient(IMesh mesh, PotentialDistribution phi, PotentialDistribution mu)
         {
-            if (mesh is not LBMMesh lbmMesh) throw new ArgumentException("LBM requires an LBMMesh.");
+            if (mesh is not LBMMesh lbmMesh)
+                throw new ArgumentException("LBM requires an LBMMesh.");
+
             return _solver.ComputeGradient(lbmMesh, phi, mu);
         }
     }

@@ -1,5 +1,5 @@
 ﻿using BusinessLayer;
-using Utility.Classes;
+using Utility.Classes.Measurement;
 using Utility.Logger;
 
 namespace ServiceLayer
@@ -15,7 +15,7 @@ namespace ServiceLayer
             _logger = logger;
         }
 
-        public EITMeasurement GetEITMeasurement()
+        public EITMeasurements GetEITMeasurement()
         {
             try
             {
