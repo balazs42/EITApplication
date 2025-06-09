@@ -1,4 +1,5 @@
-﻿using Utility.Classes.Meshing;
+﻿using System.Diagnostics;
+using Utility.Classes.Meshing;
 
 namespace Utility.Classes
 {
@@ -31,6 +32,16 @@ namespace Utility.Classes
         public PotentialDistribution ToPotentialDistribution()
         {
             return new PotentialDistribution(this.Conductivities);
+        }
+
+        public void LogDistribution(int nx = 15, int ny = 15)
+        {
+            for (int i = 0; i < nx; i++)
+            {
+                for (int j = 0; j < ny - 1; j++)
+                    Debug.Write($"{Conductivities[i * nx + j].ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture)},");
+                Debug.Write($"{Conductivities[i * nx + ny - 1].ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture)};\n");
+            }
         }
     }
 

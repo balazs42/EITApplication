@@ -3,10 +3,6 @@
   "WorkspaceRootPath": "C:\\Users\\Bazsi\\Documents\\EITApplication\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\reconstructionparameters\\numericoptimizer.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\reconstructionparameters\\numericoptimizer.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\models\\inversemodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\models\\inversemodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
@@ -19,8 +15,12 @@
       "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\conductivitydistribution.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\reconstructionparameters\\errormetric.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\reconstructionparameters\\errormetric.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\potentialdistribution.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\potentialdistribution.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\reconstructionparameters\\numericoptimizer.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\reconstructionparameters\\numericoptimizer.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\reconstructionparameters\\differentialequationsolver.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
@@ -31,24 +31,24 @@
       "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\factories\\boundaryconditionfactory.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\measurement\\eitmeasurement.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\measurement\\eitmeasurement.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{0239C9A6-B7D7-D33F-C2D5-F469C95A9F18}|BusinessLayer\\BusinessLayer.csproj|c:\\users\\bazsi\\documents\\eitapplication\\businesslayer\\reconstructionpersistence.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0239C9A6-B7D7-D33F-C2D5-F469C95A9F18}|BusinessLayer\\BusinessLayer.csproj|solutionrelative:businesslayer\\reconstructionpersistence.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\reconstructionparameters\\regularizationtechnique.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\reconstructionparameters\\regularizationtechnique.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\potentialdistribution.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\potentialdistribution.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\reconstructionparameters\\errormetric.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\reconstructionparameters\\errormetric.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\measurement\\eitmeasurement.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|solutionrelative:utility\\classes\\measurement\\eitmeasurement.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|c:\\users\\bazsi\\documents\\eitapplication\\electricalimpedancetomography\\viewmodels\\reconstructionpageviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{FE54E043-4CF6-4234-8E5E-6D8F25DDC0DB}|ElectricalImpedanceTomography\\ElectricalImpedanceTomography.csproj|solutionrelative:electricalimpedancetomography\\viewmodels\\reconstructionpageviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{0239C9A6-B7D7-D33F-C2D5-F469C95A9F18}|BusinessLayer\\BusinessLayer.csproj|c:\\users\\bazsi\\documents\\eitapplication\\businesslayer\\reconstructionpersistence.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{0239C9A6-B7D7-D33F-C2D5-F469C95A9F18}|BusinessLayer\\BusinessLayer.csproj|solutionrelative:businesslayer\\reconstructionpersistence.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{D05EAEAA-E770-A1AF-0572-A69790788D2D}|Utility\\Utility.csproj|c:\\users\\bazsi\\documents\\eitapplication\\utility\\classes\\solvers\\latticeboltzmannoperators.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
@@ -194,37 +194,11 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 7,
+          "SelectedChildIndex": 3,
           "Children": [
             {
               "$type": "Bookmark",
               "Name": "ST:0:0:{aa2115a1-9712-457b-9047-dbb71ca2cdd2}"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 4,
-              "Title": "ErrorMetric.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ReconstructionParameters\\ErrorMetric.cs",
-              "RelativeDocumentMoniker": "Utility\\Classes\\ReconstructionParameters\\ErrorMetric.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ReconstructionParameters\\ErrorMetric.cs",
-              "RelativeToolTip": "Utility\\Classes\\ReconstructionParameters\\ErrorMetric.cs",
-              "ViewState": "AgIAAC8AAAAAAAAAAAAUwFAAAAAIAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-06-08T22:00:21.818Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 8,
-              "Title": "RegularizationTechnique.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ReconstructionParameters\\RegularizationTechnique.cs",
-              "RelativeDocumentMoniker": "Utility\\Classes\\ReconstructionParameters\\RegularizationTechnique.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ReconstructionParameters\\RegularizationTechnique.cs",
-              "RelativeToolTip": "Utility\\Classes\\ReconstructionParameters\\RegularizationTechnique.cs",
-              "ViewState": "AgIAABkAAAAAAAAAAAAmwDAAAAAIAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-05-15T14:33:21.199Z",
-              "EditorCaption": ""
             },
             {
               "$type": "Document",
@@ -234,7 +208,7 @@
               "RelativeDocumentMoniker": "Utility\\Classes\\ReconstructionParameters\\DifferentialEquationSolver.cs",
               "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ReconstructionParameters\\DifferentialEquationSolver.cs",
               "RelativeToolTip": "Utility\\Classes\\ReconstructionParameters\\DifferentialEquationSolver.cs",
-              "ViewState": "AgIAAAIAAAAAAAAAAAAAwBcAAAAeAAAAAAAAAA==",
+              "ViewState": "AgIAAEIAAAAAAAAAAAAowFsAAABGAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-06-06T13:49:27.921Z",
               "EditorCaption": ""
@@ -254,46 +228,98 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 0,
               "Title": "InverseModel.cs",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Models\\InverseModel.cs",
               "RelativeDocumentMoniker": "Utility\\Classes\\Models\\InverseModel.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Models\\InverseModel.cs",
-              "RelativeToolTip": "Utility\\Classes\\Models\\InverseModel.cs",
-              "ViewState": "AgIAACYAAAAAAAAAAAAqwGYAAAANAAAAAAAAAA==",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Models\\InverseModel.cs*",
+              "RelativeToolTip": "Utility\\Classes\\Models\\InverseModel.cs*",
+              "ViewState": "AgIAACEAAAAAAAAAAAAcwDsAAAAnAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-06-06T13:44:54.953Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 3,
+              "DocumentIndex": 2,
               "Title": "ConductivityDistribution.cs",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ConductivityDistribution.cs",
               "RelativeDocumentMoniker": "Utility\\Classes\\ConductivityDistribution.cs",
               "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ConductivityDistribution.cs",
               "RelativeToolTip": "Utility\\Classes\\ConductivityDistribution.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAsAAAAIAAAAAAAAAA==",
+              "ViewState": "AgIAAAQAAAAAAAAAAAAYwCoAAAAtAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-06-06T13:38:56.939Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 4,
               "Title": "NumericOptimizer.cs",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ReconstructionParameters\\NumericOptimizer.cs",
               "RelativeDocumentMoniker": "Utility\\Classes\\ReconstructionParameters\\NumericOptimizer.cs",
               "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ReconstructionParameters\\NumericOptimizer.cs",
               "RelativeToolTip": "Utility\\Classes\\ReconstructionParameters\\NumericOptimizer.cs",
-              "ViewState": "AgIAABYAAAAAAAAAAAAgwBwAAAA8AAAAAAAAAA==",
+              "ViewState": "AgIAABMAAAAAAAAAAAAgwCIAAAAJAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-06-06T13:41:46.163Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 10,
+              "DocumentIndex": 7,
+              "Title": "ReconstructionPersistence.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\BusinessLayer\\ReconstructionPersistence.cs",
+              "RelativeDocumentMoniker": "BusinessLayer\\ReconstructionPersistence.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\BusinessLayer\\ReconstructionPersistence.cs",
+              "RelativeToolTip": "BusinessLayer\\ReconstructionPersistence.cs",
+              "ViewState": "AgIAAAoAAAAAAAAAAAAwwDEAAAAMAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-06-07T09:22:15.835Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
+              "Title": "ErrorMetric.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ReconstructionParameters\\ErrorMetric.cs",
+              "RelativeDocumentMoniker": "Utility\\Classes\\ReconstructionParameters\\ErrorMetric.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ReconstructionParameters\\ErrorMetric.cs",
+              "RelativeToolTip": "Utility\\Classes\\ReconstructionParameters\\ErrorMetric.cs",
+              "ViewState": "AgIAAC8AAAAAAAAAAAAUwFAAAAAIAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-06-08T22:00:21.818Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "PotentialDistribution.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\PotentialDistribution.cs",
+              "RelativeDocumentMoniker": "Utility\\Classes\\PotentialDistribution.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\PotentialDistribution.cs",
+              "RelativeToolTip": "Utility\\Classes\\PotentialDistribution.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABUAAAALAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-06-06T13:58:43.316Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 8,
+              "Title": "RegularizationTechnique.cs",
+              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ReconstructionParameters\\RegularizationTechnique.cs",
+              "RelativeDocumentMoniker": "Utility\\Classes\\ReconstructionParameters\\RegularizationTechnique.cs",
+              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\ReconstructionParameters\\RegularizationTechnique.cs",
+              "RelativeToolTip": "Utility\\Classes\\ReconstructionParameters\\RegularizationTechnique.cs",
+              "ViewState": "AgIAABkAAAAAAAAAAAA7wBkAAAAPAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-15T14:33:21.199Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 11,
               "Title": "ReconstructionPageViewModel.cs",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\ElectricalImpedanceTomography\\ViewModels\\ReconstructionPageViewModel.cs",
               "RelativeDocumentMoniker": "ElectricalImpedanceTomography\\ViewModels\\ReconstructionPageViewModel.cs",
@@ -306,7 +332,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 7,
+              "DocumentIndex": 10,
               "Title": "EITMeasurement.cs",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Measurement\\EITMeasurement.cs",
               "RelativeDocumentMoniker": "Utility\\Classes\\Measurement\\EITMeasurement.cs",
@@ -332,19 +358,6 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 9,
-              "Title": "PotentialDistribution.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\PotentialDistribution.cs",
-              "RelativeDocumentMoniker": "Utility\\Classes\\PotentialDistribution.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\PotentialDistribution.cs",
-              "RelativeToolTip": "Utility\\Classes\\PotentialDistribution.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABcAAAAwAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-06-06T13:58:43.316Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
               "DocumentIndex": 15,
               "Title": "Electrode.cs",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Electrode.cs",
@@ -354,19 +367,6 @@
               "ViewState": "AgIAAAIAAAAAAAAAAAAxwCMAAAAJAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-06-08T16:02:33.416Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 11,
-              "Title": "ReconstructionPersistence.cs",
-              "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\BusinessLayer\\ReconstructionPersistence.cs",
-              "RelativeDocumentMoniker": "BusinessLayer\\ReconstructionPersistence.cs",
-              "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\BusinessLayer\\ReconstructionPersistence.cs",
-              "RelativeToolTip": "BusinessLayer\\ReconstructionPersistence.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAlwCsAAAAcAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-06-07T09:22:15.835Z",
               "EditorCaption": ""
             },
             {
@@ -783,13 +783,13 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 1,
               "Title": "LatticeBoltzmannSolver.cs",
               "DocumentMoniker": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Solvers\\LatticeBoltzmannSolver.cs",
               "RelativeDocumentMoniker": "Utility\\Classes\\Solvers\\LatticeBoltzmannSolver.cs",
               "ToolTip": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Classes\\Solvers\\LatticeBoltzmannSolver.cs",
               "RelativeToolTip": "Utility\\Classes\\Solvers\\LatticeBoltzmannSolver.cs",
-              "ViewState": "AgIAAHsAAAAAAAAAAAAkwIwAAAAmAAAAAAAAAA==",
+              "ViewState": "AgIAAIIAAAAAAAAAAAAcwJsAAAAfAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-06-06T13:52:46.127Z",
               "EditorCaption": ""

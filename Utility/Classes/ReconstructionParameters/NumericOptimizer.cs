@@ -25,6 +25,7 @@
     {
         // TODO: Adaptive step size
         private readonly double _stepSize;
+        private const double MinimumConductivity = 1e-6;
 
         public GradientBasedOptimizer(double stepSize = 1e-3)
         {
@@ -39,7 +40,10 @@
                 int key = kvp.Key;
                 double currentVal = kvp.Value;
                 double gradVal = totalGradient.GetConductivity(key);
-                nextSigmaDict[key] = currentVal - stepSize * gradVal;
+                double nextVal = currentVal - stepSize * gradVal;
+
+                // Use Math.Max to ensure the conductivity never drops below the minimum threshold.
+                nextSigmaDict[key] = Math.Max(MinimumConductivity, nextVal);
             }
             return new ConductivityDistribution(nextSigmaDict);
         }

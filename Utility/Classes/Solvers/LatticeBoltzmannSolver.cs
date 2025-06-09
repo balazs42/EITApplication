@@ -140,82 +140,71 @@ namespace Utility.Classes.Solvers
         {
             var elements = mesh.Elements.Cast<LBMElement>();
 
-            // --- Collision Step ---
-            // In this step, we calculate how particle populations in each cell relax towards a local equilibrium.
-            foreach (var element in elements)
+            // --- 1. Collision Step (Parallelized) ---
+            // This loop is "embarrassingly parallel" because the collision calculation
+            // for each element only depends on its own state.
+            Parallel.ForEach(elements, element =>
             {
-                if (element.IsWall)
-                    continue;
+                if (element.IsWall) return; // Note: 'continue' is not allowed in a lambda, use 'return'.
 
                 // The macroscopic variable (potential) is the sum of the distribution functions.
-                double localPhi = element.Fi.Sum();
+                double localPhi = 0;
+                for (int k = 0; k < 9; ++k) localPhi += element.Fi[k];
 
                 // The relaxation time tau is determined by the local conductivity (diffusion coefficient).
-                double tau = (element.Conductivity / (1.0 / 3.0)) + 0.5; // D = c_s^2 * (tau - 0.5)
+                double tau = (element.Conductivity / (1.0 / 3.0)) + 0.5;
+                if (tau < 0.5) throw new InvalidDataException("The relaxation time cannot be smaller than 0.5.");
 
-                if (tau < 0.5)
-                    throw new InvalidDataException("The relaxation time can not be smaller then 0.5, check code!");
-
-                // The relaxation frequency is the inverse of the relaxation time
                 double omega = 1.0 / tau;
-
-                // The source term is used for the adjoint problem. For the forward problem, it's zero.
                 double source = sourceField?.GetValueOrDefault(element.Id, 0.0) ?? 0.0;
 
-                // For each of the 9 directions
                 for (int k = 0; k < 9; k++)
                 {
-                    // Calculate the equilibrium distribution for this direction.
                     double geq = _w[k] * localPhi;
-
-                    // Apply the BGK collision rule: relax towards equilibrium and add the source term.
                     element.Fi[k] += -omega * (element.Fi[k] - geq) + _w[k] * source;
                 }
-            }
+            });
 
-            // --- Streaming Step ---
-            // This step simulates the movement of the particle populations to neighboring cells.
-            // It is NOT done in-place; we stream from the main `Fi` array to the `Fi_next` buffer.
-            foreach (var element in elements)
+            // --- 2. Streaming Step (Parallelized) ---
+            // This loop is also safe to parallelize because all threads read from the `Fi` arrays
+            // and write to the separate `Fi_next` buffers, preventing race conditions.
+            Parallel.ForEach(elements, element =>
             {
-                if (element.IsWall) 
-                    continue;
+                if (element.IsWall) return;
 
-                // For each of the 9 directions
                 for (int k = 0; k < 9; k++)
                 {
-                    // Get the neighbor in this direction. The link was set up in the LBMMesh constructor.
                     var neighbor = element.Neighbors[k];
-
-                    // If the neighbor is a valid, open cell
                     if (neighbor != null && !neighbor.IsWall)
-                        neighbor.Fi_next[k] = element.Fi[k];    // The population Fi[k] from the current element streams to the neighbor's buffer.
+                    {
+                        neighbor.Fi_next[k] = element.Fi[k]; // Stream to neighbor
+                    }
                     else
-                        element.Fi_next[_opp[k]] = element.Fi[k];  // Otherwise, it hits a wall or the domain edge. It "bounces back". The population is placed back into the CURRENT element's buffer, but in the OPPOSITE direction.
+                    {
+                        element.Fi_next[_opp[k]] = element.Fi[k]; // Bounce back
+                    }
                 }
-            }
+            });
 
-            // --- Update and Boundary Conditions ---
-            // This step commits the results of the streaming step and enforces fixed potentials.
-            foreach (var element in elements)
+            // --- 3. Update and Boundary Conditions (Parallelized) ---
+            // This final step is also independent for each element.
+            Parallel.ForEach(elements, element =>
             {
-                if (element.IsWall) continue;
+                if (element.IsWall) return;
 
-                // Copy the streamed values from the temporary buffer back to the main array.
+                // Copy the temporary buffer back to the main distribution function array.
                 Array.Copy(element.Fi_next, element.Fi, 9);
-
                 // Clear the buffer for the next time step.
                 Array.Clear(element.Fi_next, 0, 9);
 
-                // If this element is an electrode pinned to a fixed value
+                // If this element is an electrode pinned to a fixed value...
                 if (element.IsPinned)
                 {
                     // Overwrite its distribution functions with the equilibrium state for that fixed potential.
-                    // This forces the macroscopic potential (phi) in this cell to the desired PinValue.
                     for (int k = 0; k < 9; k++)
                         element.Fi[k] = _w[k] * element.PinValue;
                 }
-            }
+            });
         }
 
         private Dictionary<int, double> MapSourceToElements(LBMMesh mesh, Vector<double> source)

@@ -56,8 +56,8 @@ namespace Utility.Classes.Models
                 // STEP 2: FIND STEP SIZE (Line Search)
                 // Determine how far to step in the gradient direction. A good step size
                 // ensures that we actually decrease the cost function and don't diverge.
-                double stepSize = FindOptimalStepSize(mesh, currentSigma, measurements, totalGradient, lastCost);
-
+                //double stepSize = FindOptimalStepSize(mesh, currentSigma, measurements, totalGradient, lastCost);
+                double stepSize = 1e-3;
                 // STEP 3: UPDATE CONDUCTIVITY
                 // Take the step to get the next conductivity estimate: σ_{k+1} = σ_k - β * ∇J
                 currentSigma = _numericOptimizer.OptimizationStep(currentSigma, totalGradient, stepSize);
@@ -76,6 +76,9 @@ namespace Utility.Classes.Models
             }
 
             Debug.WriteLine("Inverse problem solution finished.");
+
+            currentSigma.LogDistribution();
+
             return currentSigma;
         }
 
