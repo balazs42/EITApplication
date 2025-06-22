@@ -49,7 +49,7 @@ namespace Utility.Classes.Measurement
             Measurement = measurement;
 
             List<int> nanPositions = [];
-            for (int i = 0; i < 16; i++)
+            for (int i = 0; i < Measurement.Length; i++)
                 if (double.IsNaN(Measurement[i]))
                     nanPositions.Add(i);
 

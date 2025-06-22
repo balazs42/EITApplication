@@ -98,6 +98,7 @@
 
                 // Mark the element as an electrode
                 electrodeElement.IsElectrode = true;
+                electrodeElement.IsWall = false;
 
                 // Create the corresponding high-level Electrode object.
                 // For LBM, one element corresponds to one measurement point.

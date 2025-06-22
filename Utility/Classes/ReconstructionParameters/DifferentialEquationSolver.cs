@@ -72,11 +72,16 @@ namespace Utility.Classes.ReconstructionParameters
     public sealed class LatticeBoltzmannDESolver : IDifferentialEquationSolver
     {
         private readonly LatticeBoltzmannSolver _solver;
-        private readonly int _iterations;
+        private readonly int _maxIterations;
+        private readonly double _convergenceThreshold;
+        private readonly int _checkInterval;
 
-        public LatticeBoltzmannDESolver(int iterations = 10000)
+        public LatticeBoltzmannDESolver(int maxIterations = 20000, double convergenceThreshold = 1e-7, int checkInterval = 100)
         {
-            _iterations = iterations;
+            _maxIterations = maxIterations;
+            _convergenceThreshold = convergenceThreshold;
+            _checkInterval = checkInterval;
+
             _solver = new LatticeBoltzmannSolver();
         }
 
@@ -85,12 +90,12 @@ namespace Utility.Classes.ReconstructionParameters
             if (mesh is not LBMMesh lbmMesh) 
                 throw new ArgumentException("LBM requires an LBMMesh.");
 
-            var homogeneousBoundaryConditions = BoundaryConditionFactory.CreateHomogeneous(mesh);
-
             return _solver.RunSimulation(lbmMesh, 
                                          sigma, 
-                                         homogeneousBoundaryConditions, 
-                                         _iterations, 
+                                         bc, 
+                                         _maxIterations, 
+                                         _convergenceThreshold, 
+                                         _checkInterval, 
                                          null);
         }
 
@@ -99,11 +104,15 @@ namespace Utility.Classes.ReconstructionParameters
             if (mesh is not LBMMesh lbmMesh) 
                 throw new ArgumentException("LBM requires an LBMMesh.");
 
+            var homogeneousBC = BoundaryConditionFactory.CreateHomogeneous(mesh);
+
             // Run simulation with dummy boundary conditions 
-            return _solver.RunSimulation(lbmMesh,
+            return _solver.RunSimulation(lbmMesh, 
                                          sigma, 
-                                         bc,
-                                         _iterations, 
+                                         homogeneousBC, 
+                                         _maxIterations, 
+                                         _convergenceThreshold, 
+                                         _checkInterval, 
                                          adjointSource);
         }
 

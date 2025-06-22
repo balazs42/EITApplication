@@ -35,12 +35,12 @@ namespace Utility.Classes.Solvers
                 // Get the potential (phi) value for the center and neighboring cells.
                 double phi_i = scalarField.GetPotential(element.Id);
 
-                // If a neighbor is null (i.e., we are at a boundary), use the center
-                // point's value. This results in a zero gradient contribution from that side.
-                double phi_r = right != null ? scalarField.GetPotential(right.Id) : phi_i;
-                double phi_l = left != null ? scalarField.GetPotential(left.Id) : phi_i;
-                double phi_t = top != null ? scalarField.GetPotential(top.Id) : phi_i;
-                double phi_b = bottom != null ? scalarField.GetPotential(bottom.Id) : phi_i;
+                // If a neighbor is null OR a wall, use the center point's value.
+                // This correctly implements a zero-flux (Neumann) boundary condition at the walls.
+                double phi_r = (right != null && !right.IsWall) ? scalarField.GetPotential(right.Id) : phi_i;
+                double phi_l = (left != null && !left.IsWall) ? scalarField.GetPotential(left.Id) : phi_i;
+                double phi_t = (top != null && !top.IsWall) ? scalarField.GetPotential(top.Id) : phi_i;
+                double phi_b = (bottom != null && !bottom.IsWall) ? scalarField.GetPotential(bottom.Id) : phi_i;
 
                 // Calculate the partial derivative ∂φ/∂x using finite differences.
                 // If both neighbors exist, use central difference: (f(x+h) - f(x-h)) / 2h.
@@ -76,10 +76,10 @@ namespace Utility.Classes.Solvers
 
                 // Get potential values, using the center value for any missing boundary neighbors.
                 double phi_i = scalarField.GetPotential(element.Id);
-                double phi_r = right != null ? scalarField.GetPotential(right.Id) : phi_i;
-                double phi_l = left != null ? scalarField.GetPotential(left.Id) : phi_i;
-                double phi_t = top != null ? scalarField.GetPotential(top.Id) : phi_i;
-                double phi_b = bottom != null ? scalarField.GetPotential(bottom.Id) : phi_i;
+                double phi_r = (right != null && !right.IsWall) ? scalarField.GetPotential(right.Id) : phi_i;
+                double phi_l = (left != null && !left.IsWall) ? scalarField.GetPotential(left.Id) : phi_i;
+                double phi_t = (top != null && !top.IsWall) ? scalarField.GetPotential(top.Id) : phi_i;
+                double phi_b = (bottom != null && !bottom.IsWall) ? scalarField.GetPotential(bottom.Id) : phi_i;
 
                 // Apply the 5-point stencil for the discrete Laplacian: Δφ ≈ φ_r + φ_l + φ_t + φ_b - 4φ_i
                 // (Assuming grid spacing h=1).

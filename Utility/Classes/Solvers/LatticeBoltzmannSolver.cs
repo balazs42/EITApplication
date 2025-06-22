@@ -1,6 +1,7 @@
-﻿using Utility.Classes.Meshing;
-using MathNet.Numerics.LinearAlgebra;
+﻿using MathNet.Numerics.LinearAlgebra;
+using System.Diagnostics;
 using Utility.Classes.Measurement;
+using Utility.Classes.Meshing;
 
 namespace Utility.Classes.Solvers
 {
@@ -24,7 +25,19 @@ namespace Utility.Classes.Solvers
         // The lattice weights for each direction, used to calculate the equilibrium distribution.
         private readonly double[] _w = { 4.0 / 9, 1.0 / 9, 1.0 / 9, 1.0 / 9, 1.0 / 9, 1.0 / 36, 1.0 / 36, 1.0 / 36, 1.0 / 36 };
 
-        public PotentialDistribution RunSimulation(LBMMesh mesh, ConductivityDistribution sigma, BoundaryConditions bc, int iterations, Vector<double> source = null)
+
+        /// <summary>
+        /// Runs a full LBM simulation until it either converges or reaches the maximum number of iterations.
+        /// </summary>
+        /// <param name="mesh">The LBM mesh, with elements and linked neighbors.</param>
+        /// <param name="sigma">The conductivity distribution defined on the mesh elements.</param>
+        /// <param name="bc">The boundary conditions specifying driving and measuring electrodes.</param>
+        /// <param name="maxIterations">The maximum number of steps to run as a safety limit.</param>
+        /// <param name="convergenceThreshold">The small tolerance (epsilon) for the convergence check.</param>
+        /// <param name="checkInterval">How often (in iterations) to check for convergence.</param>
+        /// <param name="source">An optional source term, used for solving the adjoint problem.</param>
+        /// <returns>A PotentialDistribution representing the final, steady-state potential field.</returns>
+        public PotentialDistribution RunSimulation(LBMMesh mesh, ConductivityDistribution sigma, BoundaryConditions bc, int maxIterations, double convergenceThreshold, int checkInterval, Vector<double> source = null)
         {
             // Prepare the mesh with initial values for this simulation run.
             Initialize(mesh, sigma);
@@ -36,11 +49,50 @@ namespace Utility.Classes.Solvers
             // Convert the source vector into a more easily accessible format.
             var sourceField = MapSourceToElements(mesh, source);
 
-            // Run the main simulation loop for a fixed number of iterations.
-            for (int t = 0; t < iterations; t++)
+            // This array stores the potential field from the previous check.
+            var phi_prev = new double[mesh.Elements.Count];
+
+            for (int t = 1; t <= maxIterations; t++)
+            {
                 Step(mesh, sourceField);
 
-            // Extract the macroscopic potential from the final distribution functions.
+                // Periodically check if the solution has stabilized.
+                if (t % checkInterval == 0)
+                {
+                    var phi_new = mesh.Elements.Cast<LBMElement>().Select(el => el.Fi.Sum()).ToArray();
+
+                    // Calculate the L2 norm of the difference and the new field.
+                    double sumSqDiff = 0.0;
+                    double sumSqNew = 0.0;
+                    for (int i = 0; i < phi_new.Length; i++)
+                    {
+                        double diff = phi_new[i] - phi_prev[i];
+                        sumSqDiff += diff * diff;
+                        sumSqNew += phi_new[i] * phi_new[i];
+                    }
+
+                    // Avoid division by zero if the field is all zeros.
+                    if (sumSqNew < 1e-20)
+                    {
+                        Debug.WriteLine($"LBM converged at iteration {t} because the field is zero.");
+                        break;
+                    }
+
+                    // Calculate the relative change.
+                    double relativeChange = Math.Sqrt(sumSqDiff) / Math.Sqrt(sumSqNew);
+
+                    // If the change is below our tolerance, we can exit early.
+                    if (relativeChange < convergenceThreshold)
+                    {
+                        //Debug.WriteLine($"LBM converged at iteration {t} with relative change: {relativeChange:E2}");
+                        break;
+                    }
+
+                    // If not converged, store the current state for the next check.
+                    Array.Copy(phi_new, phi_prev, phi_new.Length);
+                }
+            }
+
             return PackResult(mesh);
         }
 
@@ -140,71 +192,82 @@ namespace Utility.Classes.Solvers
         {
             var elements = mesh.Elements.Cast<LBMElement>();
 
-            // --- 1. Collision Step (Parallelized) ---
-            // This loop is "embarrassingly parallel" because the collision calculation
-            // for each element only depends on its own state.
-            Parallel.ForEach(elements, element =>
+            // --- Collision Step ---
+            // In this step, we calculate how particle populations in each cell relax towards a local equilibrium.
+            foreach (var element in elements)
             {
-                if (element.IsWall) return; // Note: 'continue' is not allowed in a lambda, use 'return'.
+                if (element.IsWall)
+                    continue;
 
                 // The macroscopic variable (potential) is the sum of the distribution functions.
-                double localPhi = 0;
-                for (int k = 0; k < 9; ++k) localPhi += element.Fi[k];
+                double localPhi = element.Fi.Sum();
 
                 // The relaxation time tau is determined by the local conductivity (diffusion coefficient).
-                double tau = (element.Conductivity / (1.0 / 3.0)) + 0.5;
-                if (tau < 0.5) throw new InvalidDataException("The relaxation time cannot be smaller than 0.5.");
+                double tau = element.Conductivity / (1.0 / 3.0) + 0.5;  // D = c_s^2 * (tau - 0.5)
 
+                if (tau < 0.5)
+                    throw new InvalidDataException("The relaxation time can not be smaller then 0.5, check code!");
+
+                // The relaxation frequency is the inverse of the relaxation time
                 double omega = 1.0 / tau;
+
+                // The source term is used for the adjoint problem. For the forward problem, it's zero.
                 double source = sourceField?.GetValueOrDefault(element.Id, 0.0) ?? 0.0;
 
+                // For each of the 9 directions
                 for (int k = 0; k < 9; k++)
                 {
+                    // Calculate the equilibrium distribution for this direction.
                     double geq = _w[k] * localPhi;
+
+                    // Apply the BGK collision rule: relax towards equilibrium and add the source term.
                     element.Fi[k] += -omega * (element.Fi[k] - geq) + _w[k] * source;
                 }
-            });
+            }
 
-            // --- 2. Streaming Step (Parallelized) ---
-            // This loop is also safe to parallelize because all threads read from the `Fi` arrays
-            // and write to the separate `Fi_next` buffers, preventing race conditions.
-            Parallel.ForEach(elements, element =>
+            // --- Streaming Step ---
+            // This step simulates the movement of the particle populations to neighboring cells.
+            // It is NOT done in-place; we stream from the main `Fi` array to the `Fi_next` buffer.
+            foreach (var element in elements)
             {
-                if (element.IsWall) return;
+                if (element.IsWall) 
+                    continue;
 
+                // For each of the 9 directions
                 for (int k = 0; k < 9; k++)
                 {
+                    // Get the neighbor in this direction. The link was set up in the LBMMesh constructor.
                     var neighbor = element.Neighbors[k];
+
+                    // If the neighbor is a valid, open cell
                     if (neighbor != null && !neighbor.IsWall)
-                    {
-                        neighbor.Fi_next[k] = element.Fi[k]; // Stream to neighbor
-                    }
+                        neighbor.Fi_next[k] = element.Fi[k];    // The population Fi[k] from the current element streams to the neighbor's buffer.
                     else
-                    {
-                        element.Fi_next[_opp[k]] = element.Fi[k]; // Bounce back
-                    }
+                        element.Fi_next[_opp[k]] = element.Fi[k];  // Otherwise, it hits a wall or the domain edge. It "bounces back". The population is placed back into the CURRENT element's buffer, but in the OPPOSITE direction.
                 }
-            });
+            }
 
-            // --- 3. Update and Boundary Conditions (Parallelized) ---
-            // This final step is also independent for each element.
-            Parallel.ForEach(elements, element =>
+            // --- Update and Boundary Conditions ---
+            // This step commits the results of the streaming step and enforces fixed potentials.
+            foreach (var element in elements)
             {
-                if (element.IsWall) return;
+                if (element.IsWall) continue;
 
-                // Copy the temporary buffer back to the main distribution function array.
+                // Copy the streamed values from the temporary buffer back to the main array.
                 Array.Copy(element.Fi_next, element.Fi, 9);
+
                 // Clear the buffer for the next time step.
                 Array.Clear(element.Fi_next, 0, 9);
 
-                // If this element is an electrode pinned to a fixed value...
+                // If this element is an electrode pinned to a fixed value
                 if (element.IsPinned)
                 {
                     // Overwrite its distribution functions with the equilibrium state for that fixed potential.
+                    // This forces the macroscopic potential (phi) in this cell to the desired PinValue.
                     for (int k = 0; k < 9; k++)
                         element.Fi[k] = _w[k] * element.PinValue;
                 }
-            });
+            }
         }
 
         private Dictionary<int, double> MapSourceToElements(LBMMesh mesh, Vector<double> source)

@@ -1,8 +1,9 @@
-﻿using System.Diagnostics;
-using Utility.Classes.ReconstructionParameters;
-using MathNet.Numerics.LinearAlgebra;
-using Utility.Classes.Measurement;
+﻿using MathNet.Numerics.LinearAlgebra;
+using System.Diagnostics;
 using Utility.Classes.Factories;
+using Utility.Classes.Measurement;
+using Utility.Classes.Meshing;
+using Utility.Classes.ReconstructionParameters;
 
 namespace Utility.Classes.Models
 {
@@ -56,8 +57,8 @@ namespace Utility.Classes.Models
                 // STEP 2: FIND STEP SIZE (Line Search)
                 // Determine how far to step in the gradient direction. A good step size
                 // ensures that we actually decrease the cost function and don't diverge.
-                //double stepSize = FindOptimalStepSize(mesh, currentSigma, measurements, totalGradient, lastCost);
-                double stepSize = 1e-3;
+                double stepSize = FindOptimalStepSize(mesh, currentSigma, measurements, totalGradient, lastCost);
+                //double stepSize = 1e-2;
                 // STEP 3: UPDATE CONDUCTIVITY
                 // Take the step to get the next conductivity estimate: σ_{k+1} = σ_k - β * ∇J
                 currentSigma = _numericOptimizer.OptimizationStep(currentSigma, totalGradient, stepSize);
@@ -128,7 +129,9 @@ namespace Utility.Classes.Models
             foreach (var kvp in regGradient.Conductivities)
                 totalGradientDict[kvp.Key] += kvp.Value;
 
-            return new ConductivityDistribution(totalGradientDict);
+            ConductivityDistribution gradientDistribution = new ConductivityDistribution(totalGradientDict);
+
+            return gradientDistribution;
         }
 
         /// <summary>
@@ -234,7 +237,7 @@ namespace Utility.Classes.Models
                 {
                     // Place the source term at the correct element location.
                     // The negative sign comes from the adjoint PDE formula: Source = -S*(Sφ - d)
-                    sourceVector[elementId] = -sourcePerElectrode[electrodeIndex];
+                    sourceVector[elementId] = sourcePerElectrode[electrodeIndex];
                 }
             }
 

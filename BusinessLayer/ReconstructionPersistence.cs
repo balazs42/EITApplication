@@ -1,10 +1,11 @@
-﻿using Utility.Classes;
-using Utility.Classes.ReconstructionParameters;
-using Utility.Classes.Models;
+﻿using DataAccessLayer;
+using System.Diagnostics;
+using Utility.Classes;
 using Utility.Classes.Factories;
-using Utility.Classes.Meshing;
-using DataAccessLayer;
 using Utility.Classes.Measurement;
+using Utility.Classes.Meshing;
+using Utility.Classes.Models;
+using Utility.Classes.ReconstructionParameters;
 
 namespace BusinessLayer
 {
@@ -41,7 +42,7 @@ namespace BusinessLayer
 
             EITMeasurements measurement = SimulateMeasurement();
 
-            _inverseModel.Solve(initialDistribution, measurement, 50);
+            _inverseModel.Solve(initialDistribution, measurement, 100);
 
             /* supply real data, mesh, and initial σ */
             //var result = await Task.Run(() => 
@@ -65,8 +66,76 @@ namespace BusinessLayer
 
             _inverseModel = InverseModelFactory.Create(_mesh, _numericOptimizer, _regularizer, _errorMetric, _differentialEquationSolver);
         }
-
+        /// <summary>
+        /// Creates a realistic, synthetic EIT measurement by simulating the physics
+        /// on a known "ground truth" conductivity map.
+        /// </summary>
         private EITMeasurements SimulateMeasurement()
+        {
+            Debug.WriteLine("Simulating measurement data from phantom...");
+
+            // --- Step 1: Create the Ground Truth Phantom ---
+            // We use an LBMMesh for the simulation.
+            var groundTruthMesh = new LBMMesh(15, 15);
+
+            // Create a custom conductivity map with a high-conductivity rectangle inside.
+            var conductivityDict = new Dictionary<int, double>();
+            int centerX = groundTruthMesh.Nx / 2;
+            int centerY = groundTruthMesh.Ny / 2;
+            int featureSize = 3;
+            foreach (var element in groundTruthMesh.Elements.Cast<LBMElement>())
+            {
+                var (x, y) = groundTruthMesh.ToLattice(element.Id);
+                bool isFeature = Math.Abs(x - centerX) < featureSize && Math.Abs(y - centerY) < featureSize;
+                conductivityDict[element.Id] = isFeature ? 0.001 : 1.0;
+            }
+            var groundTruthConductivity = new ConductivityDistribution(conductivityDict);
+
+            groundTruthMesh.ConductivityDistribution = groundTruthConductivity;
+
+            // --- Step 2: Simulate the 16 Drive Patterns ---
+            const int numElectrodes = 16;
+            var measurementMatrix = new double[numElectrodes, numElectrodes];
+
+            // Get the list of physical electrodes that were created with the mesh.
+            var physicalElectrodes = groundTruthMesh.GetElectrodes();
+
+            for (int i = 0; i < numElectrodes; i++)
+            {
+                // For each drive pattern, we need to configure the specific currents.
+                int sourceId = i;
+                int sinkId = (i + 1) % numElectrodes;
+
+                var dummyMeas = SimulateDummyMeasurement().GetMeasurement(i);
+
+                var bc = new BoundaryConditions(physicalElectrodes, dummyMeas);
+
+                // Run the LBM forward solver using the ground truth conductivity and this drive pattern.
+                var potentialDistribution = _differentialEquationSolver.SolveForward(groundTruthMesh, groundTruthConductivity, bc);
+
+                // After the solve, the GetElectrodePotentials method will return the calculated
+                // potentials, including NaNs for the driving electrodes.
+                double[] resultingPotentials = groundTruthMesh.GetElectrodePotentials();
+
+                // Copy this result into the correct row of our final 16x16 matrix.
+                for (int j = 0; j < numElectrodes; j++)
+                {
+                    measurementMatrix[i, j] = resultingPotentials[j];
+                }
+
+                Debug.WriteLine("Calculated Potential Field:");
+                potentialDistribution.LogDistribution();
+                Debug.WriteLine("---------------------------");
+            }
+
+            Debug.WriteLine("Finished simulating measurement data.");
+
+            // --- Step 3: Wrap the final matrix in the EITMeasurement object ---
+            return new EITMeasurements(measurementMatrix);
+        }
+
+
+        private EITMeasurements SimulateDummyMeasurement()
         {
             const int size = 16;
 
