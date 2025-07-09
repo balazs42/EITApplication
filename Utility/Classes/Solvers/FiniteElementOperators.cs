@@ -18,9 +18,9 @@ namespace Utility.Classes.Solvers
 
             foreach (var element in femMesh.Elements)
             {
-                var v1 = element.Vertices[1];
-                var v2 = element.Vertices[2];
-                var v3 = element.Vertices[3];
+                var v1 = element.Vertices[0];
+                var v2 = element.Vertices[1];
+                var v3 = element.Vertices[2];
 
                 // Potentials at the vertices of the element
                 double s1 = scalarField.GetPotential(v1.GlobalId);

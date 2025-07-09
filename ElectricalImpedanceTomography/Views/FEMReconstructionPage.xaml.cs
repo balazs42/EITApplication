@@ -39,11 +39,14 @@ public partial class FEMReconstructionPage : ContentPage
 
 		BindingContext = _viewModel;
 
-        _mesh = _viewModel.GenerateMesh();
-        _reconstructedMesh = _mesh;
+        _mesh = _viewModel.GetMesh();
+        _reconstructedMesh = _viewModel.GetReconstructionMesh();
 
         InitializeComponent();
 	}
+
+    #region CANVAS RELATED 
+
     // ---- MESH & RANGE SETUP ----
     void ComputeBoundsAndRanges(SKImageInfo info)
     {
@@ -258,14 +261,13 @@ public partial class FEMReconstructionPage : ContentPage
     }
 
     private void OnReconstructionPaintSurface(object sender, SKPaintSurfaceEventArgs e)
-    {
-        OnConductivityPaintSurface(sender, e, false);
-    }
+    => OnConductivityPaintSurface(sender, e, conductivtiyCanvas: false);
 
     private void OnReconstructionColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
-    {
-        OnConductivityColorbarPaintSurface(sender, e, false);
-    }
+        => OnConductivityColorbarPaintSurface(sender, e, false);
+
+    private void OnReconstructionTouch(object sender, SKTouchEventArgs e)
+        => OnConductivityCanvasTouch(sender, e, false);
 
     private void OnConductivityPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
@@ -280,11 +282,6 @@ public partial class FEMReconstructionPage : ContentPage
     private void OnConductivityCanvasTouch(object sender, SKTouchEventArgs e)
     {
         OnConductivityCanvasTouch(sender, e, true);
-    }
-
-    private void OnReconstructionTouch(object sender, SKTouchEventArgs e)
-    {
-        OnConductivityCanvasTouch(sender, e, false);
     }
 
 
@@ -429,28 +426,32 @@ public partial class FEMReconstructionPage : ContentPage
         canvas.DrawText(maxTxt, rect.Right - w - 2, textY, txt);
     }
 
+    #endregion
 
     // ---- BUTTON HANDLERS ----
     private void OnGenerateMeshClicked(object s, EventArgs e)
     {
         _mesh = _viewModel.GenerateMesh();
+        _reconstructedMesh = _viewModel.GenerateMesh();
         PotentialCanvas.InvalidateSurface();
         PotentialColorbar.InvalidateSurface();
         ConductivityCanvas.InvalidateSurface();
         ConductivityColorbar.InvalidateSurface();
+        ReconstructionCanvas.InvalidateSurface();
+        ReconstructionColorbar.InvalidateSurface();
     }
 
     private void OnSolveForwardClicked(object s, EventArgs e)
     {
-        _mesh = _viewModel.SolveForward();
+        _mesh = _viewModel.SolveForward(_mesh);
         PotentialCanvas.InvalidateSurface();
         PotentialColorbar.InvalidateSurface();
     }
 
     private void OnSolveInverseClicked(object s, EventArgs e)
     {
-        _reconstructedMesh = _viewModel.SolveInverse();
-        ConductivityCanvas.InvalidateSurface();
-        ConductivityColorbar.InvalidateSurface();
+        _reconstructedMesh = _viewModel.SolveInverse(_reconstructedMesh);
+        ReconstructionCanvas.InvalidateSurface();
+        ReconstructionColorbar.InvalidateSurface();
     }
 }

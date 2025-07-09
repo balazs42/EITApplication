@@ -6,9 +6,9 @@ namespace Utility.Classes.Factories
 {
     public static class ForwardModelFactory
     {
-        public static IForwardModel Create(INumericSolver ns, IDifferentialEquationSolver des, IMesh mesh, ConductivityDistribution conductivityDistribution, BoundaryConditions boundaryConditions)
+        public static IForwardModel Create(INumericSolver ns, IDifferentialEquationSolver des, IMesh mesh, ConductivityDistribution conductivityDistribution, BoundaryCondition boundaryCondition)
         {
-            return new ForwardModel(ns, des, mesh, conductivityDistribution, boundaryConditions);
+            return new ForwardModel(ns, des, mesh, conductivityDistribution, boundaryCondition);
         }
     }
 }

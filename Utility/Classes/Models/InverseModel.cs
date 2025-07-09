@@ -1,5 +1,6 @@
 ﻿using MathNet.Numerics.LinearAlgebra;
 using System.Diagnostics;
+using System.Numerics;
 using Utility.Classes.Factories;
 using Utility.Classes.Measurement;
 using Utility.Classes.Meshing;
@@ -96,12 +97,12 @@ namespace Utility.Classes.Models
             for (int i = 0; i < 16; i++)
             {
                 SixteenElectrodeMeasurement measurement = measurements.GetMeasurement(i);
-                BoundaryConditions bc = new BoundaryConditions(mesh.GetElectrodes(), measurement);
+                BoundaryCondition bc = new BoundaryCondition(mesh.GetElectrodes());
 
                 // === Misfit Gradient Calculation for one drive pattern ===
 
                 // STEP 1: Solve the forward problem to get simulated potentials (φ) for the current sigma.
-                var phi = _deSolver.SolveForward(mesh, sigma, bc);
+                var phi = _deSolver.SolveForward(mesh, bc);
                 var simulatedPotentials = mesh.GetElectrodePotentials();
 
                 // STEP 2: Clean NaN values from the potential vectors before computing the error.
@@ -174,8 +175,8 @@ namespace Utility.Classes.Models
             for (int i = 0; i < 16; i++)
             {
                 SixteenElectrodeMeasurement measurement = measurements.GetMeasurement(i);
-                BoundaryConditions bc = new BoundaryConditions(mesh.GetElectrodes(), measurement);
-                PotentialDistribution phi = _deSolver.SolveForward(mesh, sigma, bc);
+                BoundaryCondition bc = new BoundaryCondition(mesh.GetElectrodes());
+                PotentialDistribution phi = _deSolver.SolveForward(mesh, bc);
 
                 var simulated = mesh.GetElectrodePotentials();
                 var cleaned = CleanPotentials(simulated, measurement.Measurement);
@@ -214,10 +215,10 @@ namespace Utility.Classes.Models
         /// <param name="mesh">The mesh (FEM or LBM) being used.</param>
         /// <param name="sourcePerElectrode">The raw residual vector from the error metric (size 16).</param>
         /// <returns>A source vector defined for every element in the mesh.</returns>
-        private Vector<double> MapAdjointSourceToMesh(IMesh mesh, double[] sourcePerElectrode)
+        private Complex[] MapAdjointSourceToMesh(IMesh mesh, double[] sourcePerElectrode)
         {
             // The source vector must match the number of elements in the grid.
-            var sourceVector = Vector<double>.Build.Dense(mesh.GetElements().Count);
+            var sourceVector = new Complex[mesh.GetElements().Count];
 
             // We iterate through the physical electrodes that are defined on the mesh.
             var electrodesOnMesh = mesh.GetElectrodes();
@@ -233,7 +234,7 @@ namespace Utility.Classes.Models
                 // This is the index in our full sourceVector.
                 int elementId = electrode.MeshId;
 
-                if (electrodeIndex < sourcePerElectrode.Length && elementId < sourceVector.Count)
+                if (electrodeIndex < sourcePerElectrode.Length && elementId < sourceVector.Length)
                 {
                     // Place the source term at the correct element location.
                     // The negative sign comes from the adjoint PDE formula: Source = -S*(Sφ - d)

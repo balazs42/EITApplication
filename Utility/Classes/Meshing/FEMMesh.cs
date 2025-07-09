@@ -1,4 +1,6 @@
-﻿namespace Utility.Classes.Meshing
+﻿using Utility.Classes.Factories;
+
+namespace Utility.Classes.Meshing
 {
     public class FEMMesh : Mesh
     {
@@ -14,7 +16,7 @@
             base.Elements = elements.Cast<MeshElement>().ToList();
 
             // Initialize with a homogeneous conductivity distribution
-            this.ConductivityDistribution = PriorConductivityDistributionGenerator.GenerateHomogeneousDistribution(this, 1.0);
+            this.ConductivityDistribution = ConductivityDistributionFactory.FromFEMMesh(this);
         }
 
         public FEMMesh()
@@ -36,12 +38,111 @@
 
         public override double[] GetElectrodePotentials()
         {
+            // First update the electrode potentials, if they were not updated
+            PotentialDistribution potentialDistribution = PotentialDistribution;
+
+            for(int i = 0; i < Electrodes.Count; i++)
+            {
+                foreach (var kvp in potentialDistribution.Potentials)
+                {
+                    if (kvp.Key == Electrodes[i].MeshId)
+                    {
+                        Electrodes[i].Voltage = kvp.Value;
+                        break;
+                    }
+                }
+            }
+
             double[] potentials = new double[Electrodes.Count];
 
             for (int i = 0; i < potentials.Length; i++)
                 potentials[i] = Electrodes[i].Voltage;
 
             return potentials;
+        }
+
+        // Set the conductivity distribution of the mesh, and also sets each elements conductivity
+        // according to the provided distribution
+        public void SetConductivityDistribution(ConductivityDistribution conductivityDistribution)
+        {
+            if (conductivityDistribution.Conductivities.Count != ConductivityDistribution.Conductivities.Count)
+                throw new ArgumentOutOfRangeException("Cannot set conductivity distribution on mesh, since the provided distribution contains differing number of elements, then the mesh. Check code!");
+
+            ConductivityDistribution = conductivityDistribution;
+
+            foreach(var kvp in ConductivityDistribution.Conductivities)
+            {
+                foreach(var element in Elements)
+                {
+                    if(element.Id == kvp.Key)
+                    {
+                        element.Conductivity = kvp.Value;
+                        break;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Creates a deep copy of this FEMMesh, including vertices, elements,
+        /// electrode list, and distributions.
+        /// </summary>
+        public FEMMesh DeepCopy()
+        {
+            // 1) Clone vertices
+            var vertexMap = new Dictionary<int, Vertex>();
+            var newVertices = new List<Vertex>(Vertices.Count);
+            foreach (var v in Vertices)
+            {
+                var v2 = new Vertex(v.GlobalId, v.X, v.Y)
+                {
+                    Potential = v.Potential,
+                    IsBoundary = v.IsBoundary,
+                    BoundaryId = v.BoundaryId,
+                    IsElectrode = v.IsElectrode,
+                    ElectrodeId = v.ElectrodeId
+                };
+                vertexMap[v.GlobalId] = v2;
+                newVertices.Add(v2);
+            }
+
+            // 2) Clone elements referencing new vertices
+            var newElements = new List<FEMElement>(Elements.Count);
+            foreach (var el in Elements)
+            {
+                var a = vertexMap[el.Vertices[0].GlobalId];
+                var b = vertexMap[el.Vertices[1].GlobalId];
+                var c = vertexMap[el.Vertices[2].GlobalId];
+                var el2 = new FEMElement(el.Id, a, b, c)
+                {
+                    Conductivity = el.Conductivity
+                };
+                newElements.Add(el2);
+            }
+
+            // 3) Construct new mesh
+            var copy = new FEMMesh(newVertices, newElements);
+
+            // 4) Clone electrodes
+            copy.Electrodes = new List<Electrode>(Electrodes.Count);
+            foreach (var el in Electrodes)
+            {
+                var el2 = new Electrode(el.Id, el.MeshId, el.Current, el.ZContact, el.Voltage)
+                {
+                    IsGround = el.IsGround,
+                    IsExcitation = el.IsExcitation
+                };
+                el2.VertexIds.AddRange(el.VertexIds);
+                copy.Electrodes.Add(el2);
+            }
+
+            // 5) Clone distributions
+            copy.ConductivityDistribution = new ConductivityDistribution(
+                new Dictionary<int, double>(this.ConductivityDistribution.Conductivities));
+            copy.PotentialDistribution = new PotentialDistribution(
+                new Dictionary<int, double>(this.PotentialDistribution.Potentials));
+
+            return copy;
         }
     }
 }

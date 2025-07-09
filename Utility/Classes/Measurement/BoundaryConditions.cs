@@ -1,127 +1,142 @@
 ﻿namespace Utility.Classes.Measurement
 {
     /// <summary>
-    /// The boundary conditions define that on which electrodes we specify the 
+    /// The boundary condition define that on which electrodes we specify the 
     /// voltages and currents used during measurement. This can be used for a CEM
     /// type forward simulation step.
     /// </summary>
-    public sealed class BoundaryConditions
+    public sealed class BoundaryCondition
     {
-        public List<Electrode> Electrodes;
-        private readonly SixteenElectrodeMeasurement Measurement;
+        public List<Electrode> Electrodes { get; set; } = [];
+        public int NumElectrodes { get; private set; } = -1;
+        public int GroundElectrodeId { get; private set; } = -1;
+        public int ExcitationElectrodeId { get; private set; } = -1;
 
-        public BoundaryConditions(List<Electrode> electrodes, SixteenElectrodeMeasurement measurement)
+        public BoundaryCondition(List<Electrode> electrodes)
+        {
+            Initialize(electrodes);
+        }
+
+        public BoundaryCondition(List<Electrode> electrodes, PotentialDistribution potentialDistribution)
+        {
+            Initialize(electrodes);
+
+            for (int i = 0; i < NumElectrodes; i++)
+            {
+                foreach (var kvp in potentialDistribution.Potentials)
+                {
+                    if (kvp.Key == Electrodes[i].MeshId)
+                    {
+                        Electrodes[i].Voltage = kvp.Value;
+                        break;
+                    }
+                }
+            }
+        }
+
+        public BoundaryCondition(List<Electrode> electrodes, List<double> potentials, List<double> currents)
+        {
+            Initialize(electrodes);
+
+            SetElectrodeCurrents(currents);
+            SetElectrodePotentials(potentials);
+        }
+
+        public BoundaryCondition(List<Electrode> electrodes, double[] potentials, double[] currents)
+        {
+            Initialize(electrodes);
+
+            SetElectrodeCurrents(currents);
+            SetElectrodePotentials(potentials);
+        }
+
+        public BoundaryCondition(List<Electrode> electrodes, double[] currents)
+        {
+            Initialize(electrodes);
+
+            SetElectrodeCurrents(currents);
+        }
+
+        public BoundaryCondition(List<Electrode> electrodes, List<double> currents)
+        {
+            Initialize(electrodes);
+
+            SetElectrodeCurrents(currents);
+        }
+
+
+        private void Initialize(List<Electrode> electrodes)
         {
             Electrodes = electrodes;
-            Measurement = measurement;
+            NumElectrodes = electrodes.Count;
 
-            int gndId = measurement.GNDElectrodeId;
-            int excitationId = measurement.ExcitationElectrodeId;
+            var groundElectrode = Electrodes.Find(x => x.IsGround);
+            var excitationElectrode = Electrodes.Find(x => x.IsExcitation);
 
-            // Specify the voltages and currents on each electrode
-            foreach(Electrode electrode in Electrodes)
-            {
-                if(electrode.Id == gndId)
-                {
-                    electrode.IsGround = true;
-                    electrode.IsExcitation = true;
-                    electrode.IsMeasuring = false;
+            if (groundElectrode == null || excitationElectrode == null)
+                throw new ArgumentNullException("No ground or excitation id specified on electrodes, check calling code!");
 
-                    // Set electrode current to -1.0 mA
-                    electrode.Current = -1.0;
-
-                    // Set the ground electrodes potential to 0V
-                    electrode.Voltage = 0.0;
-                }
-                else if(electrode.Id == excitationId)
-                {
-                    electrode.IsGround = false;
-                    electrode.IsExcitation = true;
-                    electrode.IsMeasuring = false;
-
-                    // Set electrode current to 0.5 mA
-                    electrode.Current = 1.0;
-                }
-                else
-                {
-                    electrode.IsGround = false;
-                    electrode.IsExcitation = false;
-                    electrode.IsMeasuring = true;
-
-                    // TODO: set to measurement.Measurement[...]
-
-                    // Currently setting it to 1.0 mV
-                    electrode.Voltage = 1.0;
-                }
-            }
+            GroundElectrodeId = groundElectrode.Id;
+            ExcitationElectrodeId = excitationElectrode.Id;
         }
 
-        public BoundaryConditions(List<Electrode> electrodes)
+        #region Getter and Setter Methods
+
+        public List<double> GetElectrodeCurrentsList() => Electrodes.Select(x => x.Current).ToList();
+
+        public List<double> GetElectrodePotentialsList() => Electrodes.Select(x => x.Voltage).ToList();
+
+        public double[] GetElectrodeCurrents()
         {
-            Electrodes = electrodes;
-            
-            int gndId = electrodes.Find(x=> x.IsGround).Id;
-            int excitationId = electrodes.Find(x=> x.IsExcitation).Id;
+            double[] currents = new double[NumElectrodes];
+            for (int i = 0; i < NumElectrodes; i++)
+                currents[i] = Electrodes[i].Current;
 
-            // Specify the voltages and currents on each electrode
-            foreach (Electrode electrode in Electrodes)
-            {
-                if (electrode.Id == gndId)
-                {
-                    electrode.IsGround = true;
-                    electrode.IsExcitation = true;
-                    electrode.IsMeasuring = false;
-
-                    // Set electrode current to -1.0 mA
-                    electrode.Current = -1.0;
-
-                    // Set the ground electrodes potential to 0V
-                    electrode.Voltage = 0.0;
-                }
-                else if (electrode.Id == excitationId)
-                {
-                    electrode.IsGround = false;
-                    electrode.IsExcitation = true;
-                    electrode.IsMeasuring = false;
-
-                    // Set electrode current to 0.5 mA
-                    electrode.Current = 1.0;
-                }
-                else
-                {
-                    electrode.IsGround = false;
-                    electrode.IsExcitation = false;
-                    electrode.IsMeasuring = true;
-
-                    // TODO: set to measurement.Measurement[...]
-
-                    // Currently setting it to 1.0 mV
-                    electrode.Voltage = 1.0;
-                }
-            }
+            return currents;
         }
 
-        /// <summary>
-        /// electrodes: your list of L Electrode objects (with zℓ and Id already set,
-        ///             plus IsGround/IsExcitation flags).
-        /// srcDist:   a PotentialDistribution whose .GetPotential(el.Id) is the Iₗ value you want.
-        /// </summary>
-        public BoundaryConditions(
-            IEnumerable<Electrode> electrodes,
-            PotentialDistribution? srcDist = null)
+        public double[] GetElectrodePotentials()
         {
-            Electrodes = electrodes.ToList();
+            double[] potentials = new double[NumElectrodes];
+            for (int i = 0; i < NumElectrodes; i++)
+                potentials[i] = Electrodes[i].Voltage;
 
-            // If you passed in a residual/source distribution, apply it here:
-            if (srcDist != null)
-            {
-                foreach (var e in Electrodes)
-                {
-                    // Overwrite the net‐current Iₗ for each electrode ℓ:
-                    e.Current = srcDist.GetPotential(e.Id);
-                }
-            }
-            // Otherwise, you assume the electrodes already have .Current from the forward-step.
+            return potentials;
         }
+
+        private void SetElectrodeCurrents(List<double> currents)
+        {
+            if (currents.Count != Electrodes.Count)
+                throw new ArgumentOutOfRangeException("Cannot set currents, item count mismatch between currents and electrodes. Check code!");
+
+            for (int i = 0; i < Electrodes.Count; i++)
+                Electrodes[i].Current = currents[i];
+        }
+
+        private void SetElectrodeCurrents(double[] currents)
+        {
+            if (currents.Length != Electrodes.Count)
+                throw new ArgumentOutOfRangeException("Cannot set currents, item count mismatch between currents and electrodes. Check code!");
+            for (int i = 0; i < Electrodes.Count; i++)
+                Electrodes[i].Current = currents[i];
+        }
+
+        private void SetElectrodePotentials(List<double> potentials)
+        {
+            if (potentials.Count != Electrodes.Count)
+                throw new ArgumentOutOfRangeException("Cannot set potentials, item count mismatch between potentials and electrodes. Check code!");
+
+            for (int i = 0; i < Electrodes.Count; i++)
+                Electrodes[i].Current = potentials[i];
+        }
+
+        private void SetElectrodePotentials(double[] potentials)
+        {
+            if (potentials.Length != Electrodes.Count)
+                throw new ArgumentOutOfRangeException("Cannot set currents, item count mismatch between potentials and electrodes. Check code!");
+            for (int i = 0; i < Electrodes.Count; i++)
+                Electrodes[i].Current = potentials[i];
+        }
+        #endregion
     }
 }

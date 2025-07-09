@@ -60,7 +60,7 @@ namespace BusinessLayer
             _mesh = mesh;
 
             _numericSolver = NumericSolverFactory.Create(parameters.NumericSolver);
-            _differentialEquationSolver = DifferentialEquationSolverFactory.Create(parameters.DifferentialEquationSolver, _numericSolver);
+            _differentialEquationSolver = DifferentialEquationSolverFactory.Create(mesh, parameters.DifferentialEquationSolver, _numericSolver);
             _regularizer = RegularisationFactory.Create(parameters.RegularizationTechnique, _mesh);
             _errorMetric = ErrorMetricFactory.Create(parameters.ErrorMetric);
             _numericOptimizer = NumericOptimizerFactory.Create(parameters.NumericOptimizer);
@@ -109,10 +109,10 @@ namespace BusinessLayer
 
                 var dummyMeas = SimulateDummyMeasurement().GetMeasurement(i);
 
-                var bc = new BoundaryConditions(physicalElectrodes, dummyMeas);
+                var bc = new BoundaryCondition(physicalElectrodes);
 
                 // Run the LBM forward solver using the ground truth conductivity and this drive pattern.
-                var potentialDistribution = _differentialEquationSolver.SolveForward(groundTruthMesh, groundTruthConductivity, bc);
+                var potentialDistribution = _differentialEquationSolver.SolveForward(groundTruthMesh, bc);
 
                 // After the solve, the GetElectrodePotentials method will return the calculated
                 // potentials, including NaNs for the driving electrodes.
@@ -134,7 +134,6 @@ namespace BusinessLayer
             // --- Step 3: Wrap the final matrix in the EITMeasurement object ---
             return new EITMeasurements(measurementMatrix);
         }
-
 
         private EITMeasurements SimulateDummyMeasurement()
         {
@@ -171,7 +170,7 @@ namespace BusinessLayer
         }
         public FEMMesh SolveFemForward(FEMMesh mesh)
         {
-            _differentialEquationSolver = DifferentialEquationSolverFactory.Create(DifferentialEquationSolver.FiniteElementMethod, NumericSolverFactory.Create(NumericSolver.SVD));
+            _differentialEquationSolver = DifferentialEquationSolverFactory.Create(mesh, DifferentialEquationSolver.FiniteElementMethod, NumericSolverFactory.Create(NumericSolver.SVD));
 
             var conductivitiyDistribution = mesh.GetConductivityDistribution();
 
@@ -179,10 +178,14 @@ namespace BusinessLayer
 
             electrodes[0].IsGround = true;
             electrodes[1].IsExcitation = true;
-            
-            BoundaryConditions boundaryConditions = new BoundaryConditions(electrodes);
 
-            PotentialDistribution potentialDistribution = _differentialEquationSolver.SolveForward(mesh, conductivitiyDistribution, boundaryConditions);
+            double[] currents = new double[electrodes.Count];
+            currents[0] = -1.0;
+            currents[1] = 1.0;
+
+            BoundaryCondition boundaryConditions = new BoundaryCondition(electrodes, currents);
+
+            PotentialDistribution potentialDistribution = _differentialEquationSolver.SolveForward(mesh, boundaryConditions);
 
             mesh.PotentialDistribution = potentialDistribution;
 
@@ -205,44 +208,45 @@ namespace BusinessLayer
 
         public FEMMesh SolveFemInverse(FEMMesh mesh)
         {
-            _differentialEquationSolver = DifferentialEquationSolverFactory.Create(DifferentialEquationSolver.FiniteElementMethod, NumericSolverFactory.Create(NumericSolver.SVD));
+            // Forward step computes the correct potential values
+            FEMMesh forwardProjection = SolveFemForward(mesh);
+            var measuredValues = forwardProjection.GetElectrodePotentials();
+
+            // Initialize inverse solver
+            _differentialEquationSolver = DifferentialEquationSolverFactory.Create(mesh, DifferentialEquationSolver.FiniteElementMethod, NumericSolverFactory.Create(NumericSolver.SVD));
             _errorMetric = ErrorMetricFactory.Create(ErrorMetric.L2);
             _regularizer = RegularisationFactory.Create(RegularizationTechnique.FirstOrderTikhonov, mesh);
 
-            // 2) Initialize conductivity (σ⁽⁰⁾)
-            var sigma = mesh.GetConductivityDistribution();
-
+            // 2) Initialize conductivity (σ^{0}) to homogeneous distribution
+            var sigma = ConductivityDistributionFactory.CreateRandom(mesh);
+            mesh.SetConductivityDistribution(sigma);
+            
             // 3) Mark electrodes: 0=ground, 1=excitation
             var electrodes = mesh.Electrodes;
-            electrodes[0].IsGround = true;
-            electrodes[1].IsExcitation = true;
-            var bc = new BoundaryConditions(electrodes);
+            var bc = new BoundaryCondition(electrodes);
 
             // 4) Iterative loop
             double prevError = double.PositiveInfinity;
-            for (int iter = 0; iter < 50; iter++)
+            for (int iter = 0; iter < 10; iter++)
             {
                 Debug.WriteLine($"\n=== Inverse iteration {iter} ===");
 
                 // 4a) Forward solve φ⁽ᵏ⁾ = S(σ⁽ᵏ⁾)   (thesis Eq. 1.1.16)
-                var phi = _differentialEquationSolver
-                    .SolveForward(mesh, sigma, bc);
+                var phi = _differentialEquationSolver.SolveForward(mesh, bc);
                 Debug.WriteLine("Forward φ computed.");
 
                 // 4b) Extract simulated boundary data d_sim
                 var dSim = mesh.GetElectrodePotentials();
-                double[] dObs = new double[dSim.Length];
-                for (int i = 0; i < dObs.Length; i++)
-                    dObs[i] = 1.0;
+                double[] dObs = measuredValues;
 
                 // 4c) Compute misfit J_misfit (thesis Eq. 2.1.4 or 3.1.1)
                 double misfit = _errorMetric.Evaluate(mesh, dObs, dSim);
                 Debug.WriteLine($"Misfit J = {misfit:0.#####}");
 
                 // 4d) Regularization term J_reg and grad ∇J_reg (Eq. 2.1.27/2.1.28)
-                double regTerm = _regularizer.EvaluateTerm(mesh, sigma);
-                var regGrad = _regularizer.EvaluateGradient(mesh, sigma);
-                Debug.WriteLine($"Regularization R = {regTerm:0.#####}");
+                //double regTerm = _regularizer.EvaluateTerm(mesh, sigma);
+                //var regGrad = _regularizer.EvaluateGradient(mesh, sigma);
+                //Debug.WriteLine($"Regularization R = {regTerm:0.#####}");
 
                 // 4e) Build adjoint source s = EvaluateAdjointSource (L2: residual; W2: Kantorovich φ) 
                 var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, dObs, dSim);
@@ -254,8 +258,8 @@ namespace BusinessLayer
 
                 // 4f) Adjoint solve μ: same forward‐solver but feed in adjSrc as boundary currents
                 var mu = _differentialEquationSolver
-                    .SolveForward(mesh, mesh.ConductivityDistribution,
-                                  new BoundaryConditions(electrodes, srcDist));
+                    .SolveForward(mesh,
+                                  new BoundaryCondition(electrodes, srcDist));
                 Debug.WriteLine("Adjoint μ computed.");
 
                 // 4g) Compute gradient ∇J_data = ∇μ·∇φ elementwise  (thesis Eq. 2.1.20)
@@ -276,7 +280,7 @@ namespace BusinessLayer
                 // 4h) Total gradient ∇J = ∇J_data + ∇R  (Eq. 2.1.31)
                 var totalGradDict = dataGrad.Conductivities.ToDictionary(
                     kvp => kvp.Key,
-                    kvp => kvp.Value + regGrad.GetConductivity(kvp.Key)
+                    kvp => kvp.Value /*+ regGrad.GetConductivity(kvp.Key)*/
                 );
                 var totalGrad = new ConductivityDistribution(totalGradDict);
 
@@ -289,9 +293,9 @@ namespace BusinessLayer
                     kvp => kvp.Value - step * totalGrad.GetConductivity(kvp.Key)
                 );
                 sigma = new ConductivityDistribution(newSigmaDict);
-
+                mesh.SetConductivityDistribution(sigma);
                 // 4j) Check convergence on boundary misfit change
-                if (Math.Abs(prevError - misfit) < 1e-6)
+                if (Math.Abs(prevError - misfit) < 1e-8)
                 {
                     Debug.WriteLine("Converged on misfit change. Stopping.");
                     break;

@@ -1,5 +1,6 @@
 ﻿using MathNet.Numerics.LinearAlgebra;
 using System.Diagnostics;
+using System.Numerics;
 using Utility.Classes.Measurement;
 using Utility.Classes.Meshing;
 
@@ -37,7 +38,7 @@ namespace Utility.Classes.Solvers
         /// <param name="checkInterval">How often (in iterations) to check for convergence.</param>
         /// <param name="source">An optional source term, used for solving the adjoint problem.</param>
         /// <returns>A PotentialDistribution representing the final, steady-state potential field.</returns>
-        public PotentialDistribution RunSimulation(LBMMesh mesh, ConductivityDistribution sigma, BoundaryConditions bc, int maxIterations, double convergenceThreshold, int checkInterval, Vector<double> source = null)
+        public PotentialDistribution RunSimulation(LBMMesh mesh, ConductivityDistribution sigma, BoundaryCondition bc, int maxIterations, double convergenceThreshold, int checkInterval, Complex[] source = null)
         {
             // Prepare the mesh with initial values for this simulation run.
             Initialize(mesh, sigma);
@@ -149,7 +150,7 @@ namespace Utility.Classes.Solvers
         /// <summary>
         /// Configures the boundary conditions by setting flags on the LBM elements.
         /// </summary>
-        private void ApplyBoundaryConditions(LBMMesh mesh, BoundaryConditions bc)
+        private void ApplyBoundaryConditions(LBMMesh mesh, BoundaryCondition bc)
         {
             if (bc?.Electrodes == null) 
                 return;
@@ -270,12 +271,12 @@ namespace Utility.Classes.Solvers
             }
         }
 
-        private Dictionary<int, double> MapSourceToElements(LBMMesh mesh, Vector<double> source)
+        private Dictionary<int, double> MapSourceToElements(LBMMesh mesh, Complex[] source)
         {
             if (source == null)
                 return null;
-
-            return source.Select((val, i) => new { Id = i, Value = val }).ToDictionary(x => x.Id, x => x.Value);
+            throw new NotImplementedException();
+            //return source.Select((val, i) => new { Id = i, Value = val }).ToDictionary(x => x.Id, x => x.Value);
         }
 
         private PotentialDistribution PackResult(LBMMesh mesh)

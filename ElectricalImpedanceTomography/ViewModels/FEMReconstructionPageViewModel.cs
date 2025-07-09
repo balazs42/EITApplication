@@ -1,5 +1,7 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+﻿using BH.Engine.Base;
+using CommunityToolkit.Mvvm.ComponentModel;
 using ServiceLayer;
+using Utility.Classes;
 using Utility.Classes.Factories;
 using Utility.Classes.Meshing;
 
@@ -16,34 +18,39 @@ namespace ElectricalImpedanceTomography.ViewModels
         private int boundaryNodeCount = 16;
 
         private FEMMesh _mesh;
+        private FEMMesh _reconstructedMesh;
 
         public FEMReconstructionPageViewModel(ReconstructionService reconstructionService)
         {
             _reconstructionService = reconstructionService;
 
-            _mesh = new FEMMesh();
+            _mesh = GenerateMesh();
+            _reconstructedMesh = GenerateMesh();
         }
 
 
         public FEMMesh GenerateMesh()
         {
-            _mesh = (FEMMesh)MeshFactory.Create(MeshType.FEM, 
-                                                layers: Layers,
-                                                boundaryVertexCount: BoundaryNodeCount);
-
-            return _mesh;
+            return (FEMMesh)MeshFactory.Create(MeshType.FEM, 
+                                               layers: Layers,
+                                               boundaryVertexCount: BoundaryNodeCount);
         }
 
-        public FEMMesh SolveForward()
-        {
-            _reconstructionService.SolveFemForward(_mesh);
+        public FEMMesh GetMesh() => _mesh;
+        public FEMMesh GetReconstructionMesh() => _reconstructedMesh;
 
-            return _mesh;
+        public FEMMesh SolveForward(FEMMesh mesh)
+        {
+            var retMesh = _reconstructionService.SolveFemForward(mesh);;
+
+            _reconstructedMesh.PotentialDistribution = retMesh.PotentialDistribution;
+
+            return retMesh;
         }
 
-        public FEMMesh SolveInverse()
+        public FEMMesh SolveInverse(FEMMesh mesh)
         {
-            return _reconstructionService.SolveFemInverse(_mesh);
+            return _reconstructionService.SolveFemInverse(mesh);
         }
     }
 }

@@ -5,7 +5,8 @@ namespace Utility.Classes.Measurement
     {
         public SixteenElectrodeMeasurement[] Measurements { get; set; } = new SixteenElectrodeMeasurement[16];
 
-        public BoundaryConditions BoundaryConditions { get; set; }
+        // TODO: Fill Boundary conditions from measurements
+        public List<BoundaryCondition> BoundaryConditions { get; set; }
 
         public EITMeasurements(double[,] measurements)
         {

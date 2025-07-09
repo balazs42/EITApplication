@@ -10,7 +10,7 @@ namespace Utility.Classes.Factories
         {
             MeshType.FEM => CreateCircularFEMMesh(layers: layers,
                                                   boundaryVertexCount: boundaryVertexCount,
-                                                  inhomogeneityValue: 3.0),
+                                                  inhomogeneityValue: 0.2),
             MeshType.LBM => new LBMMesh(),
             _ => throw new NotSupportedException()
         };
@@ -48,6 +48,9 @@ namespace Utility.Classes.Factories
             int electrodeCount,
             double inhomogeneityValue)
         {
+            if (electrodeCount > boundaryVertexCount)
+                electrodeCount = boundaryVertexCount;
+
             // 1) build vertices (center + rings)
             var vertices = new List<Vertex>();
             int vid = 0;
@@ -106,29 +109,86 @@ namespace Utility.Classes.Factories
             var mesh = new FEMMesh(vertices, elements);
 
             // 5) distribute electrodes
+
+            // clear any leftover flags
+            foreach (var v in vertices)
+            {
+                v.IsElectrode = false;
+                v.ElectrodeId = -1;
+            }
+
             var outerVerts = vertices.Where(v => v.IsBoundary).ToList();
             double sector = 2 * Math.PI / electrodeCount;
             var electrodes = new List<Electrode>(electrodeCount);
+
             for (int elId = 0; elId < electrodeCount; elId++)
             {
                 double start = elId * sector;
                 double end = start + sector;
-                var segVerts = outerVerts.Where(v =>
+
+                // find all boundary verts in this angular slice
+                var segVerts = outerVerts
+                  .Where(v => {
+                      double ang = Math.Atan2(v.Y, v.X);
+                      if (ang < 0) ang += 2 * Math.PI;
+                      return ang >= start && ang < end;
+                  })
+                  .ToList();
+
+                // if none, pick the one closest to the middle of the slice
+                if (segVerts.Count == 0)
                 {
-                    double ang = Math.Atan2(v.Y, v.X);
-                    if (ang < 0) ang += 2 * Math.PI;
-                    return ang >= start && ang < end;
-                }).ToList();
-                foreach (var v in segVerts)
-                {
-                    v.IsElectrode = true;
-                    v.ElectrodeId = elId;
+                    double mid = (start + end) / 2;
+                    if (mid >= 2 * Math.PI) mid -= 2 * Math.PI;
+                    segVerts.Add(outerVerts
+                      .OrderBy(v => {
+                          double ang = Math.Atan2(v.Y, v.X);
+                          if (ang < 0) ang += 2 * Math.PI;
+                          double diff = Math.Abs(ang - mid);
+                          return diff > Math.PI ? 2 * Math.PI - diff : diff;
+                      })
+                      .First());
                 }
-                var el = new Electrode(elId, elId, 0.0, 0.1, 1.0);
+
+                // mark them
+                segVerts[0].IsElectrode = true;
+                segVerts[0].ElectrodeId = elId;
+
+                // now safe to do segVerts[0]
+                var el = new Electrode(
+                    id: elId,
+                    meshId: segVerts[0].GlobalId,
+                    current: 0.0,
+                    zContact: 0.1,
+                    voltage: 1.0);
+
                 el.VertexIds.AddRange(segVerts.Select(v => v.GlobalId));
                 electrodes.Add(el);
             }
             mesh.Electrodes = electrodes;
+
+            // ——— assign neighbor lists ———
+            var neighborMap = mesh.Vertices
+                .ToDictionary(v => v.GlobalId, v => new HashSet<Vertex>());
+
+            foreach (var elem in mesh.Elements)
+            {
+                var vs = elem.Vertices;
+                // each pair in the triangle is a neighbor
+                neighborMap[vs[0].GlobalId].Add(vs[1]);
+                neighborMap[vs[0].GlobalId].Add(vs[2]);
+                neighborMap[vs[1].GlobalId].Add(vs[0]);
+                neighborMap[vs[1].GlobalId].Add(vs[2]);
+                neighborMap[vs[2].GlobalId].Add(vs[0]);
+                neighborMap[vs[2].GlobalId].Add(vs[1]);
+            }
+
+            // write them back into each vertex
+            foreach (var v in mesh.Vertices)
+            {
+                v.Neighbors = neighborMap[v.GlobalId].ToList();
+            }
+
             return mesh;
         }
 

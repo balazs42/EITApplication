@@ -19,6 +19,11 @@
         // Common phantom / thoracic values: ~ 0.01 Ω – 0.1 Ω.
         public double ZContact { get; set; } = 0.1;
 
+        // Surface area of the electrode, which correspond to the integral
+        // specified in %, so 0.1 means it takes length as on a connection like: Vn ----- Ve ----- Vm
+        // |Ve-Vn| * 0.1 and |Ve - Vm| * 0.1
+        public double BoundarySurfaceLength { get; set; } = 0.1;
+
         // Measured voltage value on the electrode
         public double Voltage { get; set; }
 

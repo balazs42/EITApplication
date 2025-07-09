@@ -14,24 +14,24 @@ namespace Utility.Classes.Models
         private readonly IDifferentialEquationSolver _differentialEquationSolver;
         private readonly IMesh _mesh;
         private readonly ConductivityDistribution _conductivityDistribution;
-        private readonly BoundaryConditions _boundaryConditions;
+        private readonly BoundaryCondition _boundaryCondition;
 
-        public ForwardModel(INumericSolver numericSolver, IDifferentialEquationSolver differentialEquationSolver, IMesh mesh, ConductivityDistribution conductivityDistribution, BoundaryConditions boundaryConditions)
+        public ForwardModel(INumericSolver numericSolver, IDifferentialEquationSolver differentialEquationSolver, IMesh mesh, ConductivityDistribution conductivityDistribution, BoundaryCondition boundaryCondition)
         {
             _numericSolver = numericSolver;
             _differentialEquationSolver = differentialEquationSolver;
             _mesh = mesh;
             _conductivityDistribution = conductivityDistribution;
-            _boundaryConditions = boundaryConditions;
+            _boundaryCondition = boundaryCondition;
         }
 
         public PotentialDistribution ForwardSolve()
         {
-            return _differentialEquationSolver.SolveForward(_mesh, _conductivityDistribution, _boundaryConditions);
+            return _differentialEquationSolver.SolveForward(_mesh, _boundaryCondition);
         }
 
         public ConductivityDistribution GetConductivityDistribution() => _conductivityDistribution;
-        public BoundaryConditions GetBoundaryConditions() => _boundaryConditions;
+        public BoundaryCondition GetBoundaryConditions() => _boundaryCondition;
         public IMesh GetMesh() => _mesh;
     }
 }
