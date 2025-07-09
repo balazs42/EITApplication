@@ -1,3 +1,5 @@
+using ElectricalImpedanceTomography.Views;
+
 namespace ElectricalImpedanceTomography.Controls;
 
 public partial class NavBarControl : ContentView
@@ -39,6 +41,7 @@ public partial class NavBarControl : ContentView
         MainPageButton.IsVisible = true;
         DAQPageButton.IsVisible = true;
         ReconstructionPageButton.IsVisible = true;
+        FEMReconstructionPageButton.IsVisible = true;
 
         // Hide the button matching the current page name (case-insensitive)
         if (string.Equals(currentPageName, "MainPage"))
@@ -47,6 +50,8 @@ public partial class NavBarControl : ContentView
             DAQPageButton.IsVisible = false;
         else if (string.Equals(currentPageName, "ReconstructionPage"))
             ReconstructionPageButton.IsVisible = false;
+        else if (string.Equals(currentPageName, "FEM Reconstruction"))
+            FEMReconstructionPageButton.IsVisible = false;
     }
 
     // Handle navigation for ALL buttons
@@ -64,6 +69,7 @@ public partial class NavBarControl : ContentView
             "Main" => "///MainPage",
             "DAQ" => "//DAQPage",
             "EIT Reconstruction" => "//ReconstructionPage",
+            "FEM Reconstruction" => "//FEMReconstructionPage",
             _ => string.Empty
         };
 

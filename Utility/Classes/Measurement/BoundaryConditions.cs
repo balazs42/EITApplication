@@ -27,8 +27,8 @@
                     electrode.IsExcitation = true;
                     electrode.IsMeasuring = false;
 
-                    // Set electrode current to -0.5 mA
-                    electrode.Current = -0.5;
+                    // Set electrode current to -1.0 mA
+                    electrode.Current = -1.0;
 
                     // Set the ground electrodes potential to 0V
                     electrode.Voltage = 0.0;
@@ -40,7 +40,7 @@
                     electrode.IsMeasuring = false;
 
                     // Set electrode current to 0.5 mA
-                    electrode.Current = 0.5;
+                    electrode.Current = 1.0;
                 }
                 else
                 {
@@ -54,6 +54,51 @@
                     electrode.Voltage = 1.0;
                 }
             }
-        }        
+        }
+
+        public BoundaryConditions(List<Electrode> electrodes)
+        {
+            Electrodes = electrodes;
+            
+            int gndId = electrodes.Find(x=> x.IsGround).Id;
+            int excitationId = electrodes.Find(x=> x.IsExcitation).Id;
+
+            // Specify the voltages and currents on each electrode
+            foreach (Electrode electrode in Electrodes)
+            {
+                if (electrode.Id == gndId)
+                {
+                    electrode.IsGround = true;
+                    electrode.IsExcitation = true;
+                    electrode.IsMeasuring = false;
+
+                    // Set electrode current to -1.0 mA
+                    electrode.Current = -1.0;
+
+                    // Set the ground electrodes potential to 0V
+                    electrode.Voltage = 0.0;
+                }
+                else if (electrode.Id == excitationId)
+                {
+                    electrode.IsGround = false;
+                    electrode.IsExcitation = true;
+                    electrode.IsMeasuring = false;
+
+                    // Set electrode current to 0.5 mA
+                    electrode.Current = 1.0;
+                }
+                else
+                {
+                    electrode.IsGround = false;
+                    electrode.IsExcitation = false;
+                    electrode.IsMeasuring = true;
+
+                    // TODO: set to measurement.Measurement[...]
+
+                    // Currently setting it to 1.0 mV
+                    electrode.Voltage = 1.0;
+                }
+            }
+        }
     }
 }

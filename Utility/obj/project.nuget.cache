@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "QcY5QWXprVY=",
+  "dgSpecHash": "L2dUqI413K4=",
   "success": true,
   "projectFilePath": "C:\\Users\\Bazsi\\Documents\\EITApplication\\Utility\\Utility.csproj",
   "expectedPackageFiles": [
@@ -13,6 +13,7 @@
     "C:\\Users\\Bazsi\\.nuget\\packages\\google.ortools.runtime.win-x64\\9.12.4544\\google.ortools.runtime.win-x64.9.12.4544.nupkg.sha512",
     "C:\\Users\\Bazsi\\.nuget\\packages\\google.protobuf\\3.29.3\\google.protobuf.3.29.3.nupkg.sha512",
     "C:\\Users\\Bazsi\\.nuget\\packages\\mathnet.numerics\\5.0.0\\mathnet.numerics.5.0.0.nupkg.sha512",
+    "C:\\Users\\Bazsi\\.nuget\\packages\\miconvexhull\\1.1.19.1019\\miconvexhull.1.1.19.1019.nupkg.sha512",
     "C:\\Users\\Bazsi\\.nuget\\packages\\system.runtime.compilerservices.unsafe\\4.5.2\\system.runtime.compilerservices.unsafe.4.5.2.nupkg.sha512",
     "C:\\Users\\Bazsi\\.nuget\\packages\\unity\\5.11.10\\unity.5.11.10.nupkg.sha512"
   ],

@@ -7,6 +7,9 @@
         public int BoundaryId { get; set; } = -1;
         public int ElectrodeId { get; set; } = -1;
 
+        public double Potential { get; set; } = 0.0;
+
+
         // X,Y is the location of the vertex in the mesh
         public double X { get; set; } = 0.0;
         public double Y { get; set; } = 0.0;
@@ -43,6 +46,18 @@
             Y = y;
             IsBoundary = isBoundary;
             IsElectrode = isElectrode;
+        }
+
+        public Vertex(int globalId, int boundaryId, int electrodeId, double x, double y, bool isBoundary, bool isElectrode, double potential)
+        {
+            GlobalId = globalId;
+            BoundaryId = boundaryId;
+            ElectrodeId = electrodeId;
+            X = x;
+            Y = y;
+            IsBoundary = isBoundary;
+            IsElectrode = isElectrode;
+            Potential = potential;  
         }
     }
 }

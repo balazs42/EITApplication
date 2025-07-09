@@ -50,7 +50,7 @@ namespace BusinessLayer
             //);
             throw new NotImplementedException();
             ConductivityDistribution result = new ConductivityDistribution(new());
-            ReconstructionResult reconstructionResult = new ReconstructionResult((_mesh is FEMMesh) ? (FEMMesh)_mesh : (LBMMesh)_mesh, result );
+            ReconstructionResult reconstructionResult = new ReconstructionResult((_mesh is FEMMesh) ? (FEMMesh)_mesh : (LBMMesh)_mesh, result);
             return reconstructionResult;
         }
 
@@ -168,5 +168,62 @@ namespace BusinessLayer
 
             return new EITMeasurements(meas);
         }
+        public FEMMesh SolveFemForward(FEMMesh mesh)
+        {
+            _differentialEquationSolver = DifferentialEquationSolverFactory.Create(DifferentialEquationSolver.FiniteElementMethod, NumericSolverFactory.Create(NumericSolver.SVD));
+
+            var conductivitiyDistribution = mesh.GetConductivityDistribution();
+
+            var electrodes = mesh.Electrodes;
+
+            electrodes[0].IsGround = true;
+            electrodes[1].IsExcitation = true;
+            
+            BoundaryConditions boundaryConditions = new BoundaryConditions(electrodes);
+
+            PotentialDistribution potentialDistribution = _differentialEquationSolver.SolveForward(mesh, conductivitiyDistribution, boundaryConditions);
+
+            mesh.PotentialDistribution = potentialDistribution;
+
+            // 6) Update every vertex’s .Potential from the returned dictionary
+            foreach (var v in mesh.Vertices)
+            {
+                v.Potential = potentialDistribution.GetPotential(v.GlobalId);
+            }
+
+            // 7) (Optional) set each electrode's measured voltage = average over its nodes
+            foreach (var el in electrodes)
+            {
+                if (el.VertexIds.Count == 0) continue;
+                double sum = el.VertexIds.Sum(id => potentialDistribution.GetPotential(id));
+                el.Voltage = sum / el.VertexIds.Count;
+            }
+
+            return mesh;
+        }
+
+        public FEMMesh SolveFemInverse(FEMMesh mesh)
+        {
+            _differentialEquationSolver = DifferentialEquationSolverFactory.Create(DifferentialEquationSolver.FiniteElementMethod, NumericSolverFactory.Create(NumericSolver.SVD));
+            _errorMetric = ErrorMetricFactory.Create(ErrorMetric.L2);
+
+            var conductivitiyDistribution = mesh.GetConductivityDistribution();
+
+            var electrodes = mesh.Electrodes;
+
+            electrodes[0].IsGround = true;
+            electrodes[1].IsExcitation = true;
+
+            BoundaryConditions boundaryConditions = new BoundaryConditions(electrodes);
+
+            FEMMesh reconMesh = mesh;
+
+            PotentialDistribution potentialDistribution = _differentialEquationSolver.SolveForward(reconMesh, conductivitiyDistribution, boundaryConditions);
+
+            // TODO: iteratations for the inverse problem until convergence threshold is reached only on the one boundary condition.
+
+            return mesh;
+        }
     }
 }
+ 

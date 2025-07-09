@@ -26,12 +26,19 @@ namespace Utility.Classes.ReconstructionParameters
     {
         public double[] SolveLinearSystem(double[,] A, double[] b)
         {
+            if (A.Cast<double>().Any(d => double.IsNaN(d) || double.IsInfinity(d)) ||
+                                     b.Any(d => double.IsNaN(d) || double.IsInfinity(d)))
+                throw new InvalidOperationException("System contains invalid entries.");
+
             // Convert native C# arrays to MathNet types
             Matrix<double> matrixA = DenseMatrix.OfArray(A);
             Vector<double> vectorB = DenseVector.OfArray(b);
 
             if (matrixA.RowCount != matrixA.ColumnCount)
                 throw new ArgumentException("LU decomposition requires a square matrix.");
+
+            if (Math.Abs(matrixA.Determinant()) < 1e-12)
+                throw new InvalidOperationException("Matrix is singular or nearly so.");
 
             // Perform LU decomposition and solve
             var lu = matrixA.LU();

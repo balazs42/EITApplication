@@ -1071,3 +1071,4 @@ C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\obj\Debug\
 C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\obj\Debug\net9.0-windows10.0.19041.0\win10-x64\qualifiers.txt
 C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\obj\Debug\net9.0-windows10.0.19041.0\win10-x64\qualifiers.txt.intermediate
 C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\obj\Debug\net9.0-windows10.0.19041.0\win10-x64\MultipleQualifiersPerDimensionFound.txt
+C:\Users\Bazsi\Documents\EITApplication\ElectricalImpedanceTomography\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\MIConvexHull.dll

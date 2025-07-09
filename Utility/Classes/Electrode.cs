@@ -17,7 +17,7 @@
 
         // Contact impedance (Ω).  0 → voltage measured directly
         // Common phantom / thoracic values: ~ 0.01 Ω – 0.1 Ω.
-        public double ZContact { get; set; }
+        public double ZContact { get; set; } = 0.1;
 
         // Measured voltage value on the electrode
         public double Voltage { get; set; }
@@ -26,7 +26,7 @@
         public bool IsGround { get; set; } = false;
         public bool IsMeasuring { get; set; } = false;
 
-        public Electrode(int meshId, List<int> vertexIds, double current = double.NaN, double zContact = 0.0, double voltage = double.NaN)
+        public Electrode(int meshId, List<int> vertexIds, double current = double.NaN, double zContact = 0.1, double voltage = double.NaN)
         {
             MeshId = meshId;
             Current = current;

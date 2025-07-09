@@ -3,6 +3,7 @@
     public sealed class FEMElement : MeshElement
     {
         public double Area { get; set; }
+        public double Conductivity { get; set; } = 1.0;
 
         public new List<Vertex> Vertices { get; set; } = [new Vertex(), new Vertex(), new Vertex()];
 
@@ -10,6 +11,15 @@
         {
             Id = id;
             Vertices = [v1, v2, v3];
+
+            CalculateArea();
+        }
+
+        public FEMElement(int id, Vertex v1, Vertex v2, Vertex v3, double conductivity)
+        {
+            Id = id;
+            Vertices = [v1, v2, v3];
+            Conductivity = conductivity;
 
             CalculateArea();
         }

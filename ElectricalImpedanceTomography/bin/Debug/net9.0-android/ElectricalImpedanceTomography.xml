@@ -10,6 +10,15 @@
         <member name="P:ElectricalImpedanceTomography.ViewModels.DAQPageViewModel.PlotModels">
             <inheritdoc cref="F:ElectricalImpedanceTomography.ViewModels.DAQPageViewModel.plotModels"/>
         </member>
+        <member name="T:ElectricalImpedanceTomography.ViewModels.FEMReconstructionPageViewModel">
+            <inheritdoc/>
+        </member>
+        <member name="P:ElectricalImpedanceTomography.ViewModels.FEMReconstructionPageViewModel.Radius">
+            <inheritdoc cref="F:ElectricalImpedanceTomography.ViewModels.FEMReconstructionPageViewModel.radius"/>
+        </member>
+        <member name="P:ElectricalImpedanceTomography.ViewModels.FEMReconstructionPageViewModel.BoundaryNodes">
+            <inheritdoc cref="F:ElectricalImpedanceTomography.ViewModels.FEMReconstructionPageViewModel.boundaryNodes"/>
+        </member>
         <member name="T:ElectricalImpedanceTomography.ViewModels.LBMCellViewModel">
             <inheritdoc/>
             <inheritdoc/>
@@ -64,6 +73,12 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.PlotModels">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "PlotModels" generated properties.</summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.Radius">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "Radius" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.BoundaryNodes">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "BoundaryNodes" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.IsWallProxy">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "IsWallProxy" generated properties.</summary>
         </member>
@@ -87,6 +102,12 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.PlotModels">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "PlotModels" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.Radius">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "Radius" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.BoundaryNodes">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "BoundaryNodes" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.IsWallProxy">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "IsWallProxy" generated properties.</summary>

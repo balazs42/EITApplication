@@ -1722,6 +1722,19 @@
           }
         }
       },
+      "MIConvexHull/1.1.19.1019": {
+        "type": "package",
+        "compile": {
+          "lib/netstandard2.0/MIConvexHull.dll": {
+            "related": ".deps.json;.pdb"
+          }
+        },
+        "runtime": {
+          "lib/netstandard2.0/MIConvexHull.dll": {
+            "related": ".deps.json;.pdb"
+          }
+        }
+      },
       "runtime.android-arm.runtime.native.System.IO.Ports/9.0.5": {
         "type": "package",
         "runtimeTargets": {
@@ -2917,6 +2930,7 @@
         "dependencies": {
           "CommunityToolkit.Mvvm": "8.4.0",
           "Google.OrTools": "9.12.4544",
+          "MIConvexHull": "1.1.19.1019",
           "MathNet.Numerics": "5.0.0",
           "Unity": "5.11.10"
         },
@@ -3526,6 +3540,23 @@
         "lib/netstandard2.0/MathNet.Numerics.xml",
         "mathnet.numerics.5.0.0.nupkg.sha512",
         "mathnet.numerics.nuspec"
+      ]
+    },
+    "MIConvexHull/1.1.19.1019": {
+      "sha512": "Qz0BIRVyflj9jMkIKG1tpON5Xz1lFEA9XyRH0Pw5qIsCE75heHF4cHrBr8RqvQJRaaNXH+5jdWAfFP3m3OfTOA==",
+      "type": "package",
+      "path": "miconvexhull/1.1.19.1019",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "lib/netstandard1.0/MIConvexHull.deps.json",
+        "lib/netstandard1.0/MIConvexHull.dll",
+        "lib/netstandard1.0/MIConvexHull.pdb",
+        "lib/netstandard2.0/MIConvexHull.deps.json",
+        "lib/netstandard2.0/MIConvexHull.dll",
+        "lib/netstandard2.0/MIConvexHull.pdb",
+        "miconvexhull.1.1.19.1019.nupkg.sha512",
+        "miconvexhull.nuspec"
       ]
     },
     "runtime.android-arm.runtime.native.System.IO.Ports/9.0.5": {

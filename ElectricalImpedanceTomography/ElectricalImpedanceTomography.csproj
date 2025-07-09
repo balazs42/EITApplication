@@ -85,6 +85,9 @@
 	  <MauiXaml Update="Views\DAQPage.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
+	  <MauiXaml Update="Views\FEMReconstructionPage.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
 	  <MauiXaml Update="Views\ReconstructionPage.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>

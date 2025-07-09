@@ -1,242 +1,357 @@
-﻿using MathNet.Numerics.LinearAlgebra;
-using Utility.Classes.Measurement;
+﻿using System.Diagnostics;
+using MathNet.Numerics.LinearAlgebra;
+using MathNet.Numerics.LinearAlgebra.Double;
 using Utility.Classes.Meshing;
 using Utility.Classes.ReconstructionParameters;
 
 namespace Utility.Classes.Solvers
 {
     /// <summary>
-    /// The core "engine" for all FEM-based calculations.
-    /// This class contains the detailed logic for matrix assembly and solving.
-    /// It does NOT implement the IDifferentialEquationSolver interface directly.
+    /// The core engine for all FEM-based calculations implementing the 
+    /// Complete Electrode Model (CEM) for forward and adjoint solves.
+    /// References:
+    ///  • Stiffness assembly: Eq. (1.2.3)
+    ///  • Robin mass (contact impedance): Eq. (1.1.12)
+    ///  • Coupling matrix:         Eq. (1.1.12)
+    ///  • Electrode diag. matrix:  Eq. (1.1.15)
+    ///  • Block system form:       Eq. (1.1.16)
+    ///  • Grounding removal:       Sec. 1.1.3 (after Eq. 1.1.16)
+    ///  • Conductivity gradient:   Eq. (2.1.20)
     /// </summary>
     public sealed class FiniteElementSolver
     {
         private readonly INumericSolver _numericSolver;
 
+        /// <summary>
+        /// Constructor takes a numeric linear solver (e.g. LU, SVD).
+        /// </summary>
         public FiniteElementSolver(INumericSolver numericSolver)
         {
             _numericSolver = numericSolver;
         }
 
         /// <summary>
-        /// The main engine method. Solves a general FEM system for the Complete Electrode Model.
+        /// Solve the CEM forward problem: nodal potentials α and electrode voltages U.
+        /// Assembles K, M, A, D and RHS F, removes the ground row/column, solves,
+        /// then reinserts U_ground = 0 (see Sec. 1.1.3).
         /// </summary>
-        public PotentialDistribution SolveSystem(IMesh mesh, ConductivityDistribution sigma, BoundaryConditions bc, Vector<double> potentialSourceTerm = null)
+        public PotentialDistribution SolveSystem(IMesh mesh, ConductivityDistribution sigma, List<Electrode> electrodes, Vector<double>? potentialSourceTerm = null)
         {
             if (mesh is not FEMMesh femMesh)
-                throw new ArgumentException("FiniteElementSolver requires an FEMMesh.", nameof(mesh));
+                throw new ArgumentException("Requires FEMMesh", nameof(mesh));
 
-            int numVertices = femMesh.Vertices.Count;
-            int numElectrodes = bc.Electrodes.Count;
-            int groundElectrodeId = numElectrodes - 1; // Convention: ground the last electrode
+            int N = femMesh.Vertices.Count;          // number of domain DOFs
+            int L = electrodes.Count;                // number of electrodes
+            int groundId = electrodes.Find(e => e.IsGround).Id;
 
-            var K = BuildStiffnessMatrix(femMesh, sigma);
-            var M = BuildRobinMassMatrix(femMesh, bc);
-            var A = BuildCouplingMatrix(femMesh, bc);
-            var D = BuildElectrodeMatrix(femMesh, bc);
-            var S = BuildSystemMatrix(K, M, A, D, numVertices, numElectrodes);
-            var F = BuildRhsVector(bc, numVertices, potentialSourceTerm);
+            // 1) Build sub-blocks
+            var K = BuildStiffnessMatrix(femMesh, sigma);               // Eq. (1.2.3)
+            var M = BuildRobinMassMatrix(femMesh, electrodes);          // Eq. (1.1.12)
+            var A = BuildCouplingMatrix(femMesh, electrodes);           // Eq. (1.1.12)
+            var D = BuildElectrodeMatrix(femMesh, electrodes);          // Eq. (1.1.15)
 
-            // Apply pinned node values before grounding
-            var pinnedNodes = FindPinnedNodes(femMesh);
-            ApplyDirichletConditions(S, F, pinnedNodes);
+            Debug.WriteLine("Stiffness matrix K:\n" + K.ToMatrixString());
+            Debug.WriteLine("Robin mass matrix M:\n" + M.ToMatrixString());
+            Debug.WriteLine("Coupling matrix A:\n" + A.ToMatrixString());
+            Debug.WriteLine("Electrode matrix D:\n" + D.ToMatrixString());
 
-            var (S_grounded, F_grounded) = ApplyGrounding(S, F, numVertices, groundElectrodeId);
-            var solution_grounded = _numericSolver.SolveLinearSystem(S_grounded.ToArray(), F_grounded.ToArray());
-            var fullSolution = ReconstructFullSolution(solution_grounded, numVertices, numElectrodes, groundElectrodeId);
+            // 2) Assemble global saddle-point system S [α; U] = F  (Eq. 1.1.16)
+            var S = BuildSystemMatrix(K, M, A, D, N, L);
+            var F = BuildRhsVector(electrodes, N, potentialSourceTerm);
 
-            var nodalPotentials = fullSolution.SubVector(0, numVertices);
-            var potentialDict = new Dictionary<int, double>();
-            for (int i = 0; i < numVertices; i++)
-                potentialDict[femMesh.Vertices[i].GlobalId] = nodalPotentials[i];
+            Debug.WriteLine("System matrix S:\n" + S.ToMatrixString());
+            Debug.WriteLine("RHS vector F:\n" + F.ToVectorString());
 
-            return new PotentialDistribution(potentialDict);
+            // 3) Remove the ground electrode row/column and RHS entry (Sec. 1.1.3)
+            var (Sg, Fg) = ApplyGrounding(S, F, N, groundId);
+            Debug.WriteLine("Grounded system Sg:\n" + Sg.ToMatrixString());
+            Debug.WriteLine("Grounded RHS Fg:\n" + Fg.ToVectorString());
+
+            // 4) Solve the smaller, non-singular system
+            var solg = _numericSolver.SolveLinearSystem(Sg.ToArray(), Fg.ToArray());
+
+            // 5) Reconstruct full solution including U_ground=0
+            var full = ReconstructFullSolution(solg, N, L, groundId);
+            Debug.WriteLine("Full solution vector [α; U]:\n" + full.ToVectorString());
+
+            // 6) Extract nodal potentials α and build the distribution
+            var potentials = full.SubVector(0, N);
+            var dict = new Dictionary<int, double>(N);
+            for (int i = 0; i < N; i++)
+                dict[femMesh.Vertices[i].GlobalId] = potentials[i];
+
+            return new PotentialDistribution(dict);
         }
 
+        /// <summary>
+        /// Compute the element-wise gradient of the misfit via adjoint φ, μ:
+        /// ∇J/∇σ = ∇μ·∇φ  (Eq. 2.1.20)
+        /// </summary>
         public ConductivityDistribution ComputeGradient(IMesh mesh, PotentialDistribution phi, PotentialDistribution mu)
         {
             if (mesh is not FEMMesh femMesh)
-                throw new ArgumentException("FEM gradient computation requires a FEMMesh.");
+                throw new ArgumentException("Requires FEMMesh", nameof(mesh));
 
-            var gradPhi = FiniteElementOperators.CalculateElementWiseGradient(femMesh, phi);
-            var gradMu = FiniteElementOperators.CalculateElementWiseGradient(femMesh, mu);
-            var gradientDict = new Dictionary<int, double>();
-            foreach (var element in femMesh.Elements)
+            var gradDict = new Dictionary<int, double>();
+
+            // Loop over each triangular element
+            foreach (var elem in femMesh.Elements)
             {
-                var gP = gradPhi.GetVector(element.Id);
-                var gM = gradMu.GetVector(element.Id);
-                gradientDict[element.Id] = gP.X * gM.X + gP.Y * gM.Y;
-            }
-            return new ConductivityDistribution(gradientDict);
-        }
+                // Vertex coords
+                var v = elem.Vertices;
+                double x1 = v[0].X, y1 = v[0].Y;
+                double x2 = v[1].X, y2 = v[1].Y;
+                double x3 = v[2].X, y3 = v[2].Y;
+                double area = elem.Area;
 
-        #region Private Helpers
+                // Eq. (1.2.2): shape function gradients (constant per element)
+                var grad1 = new double[] { (y2 - y3) / (2 * area), (x3 - x2) / (2 * area) };
+                var grad2 = new double[] { (y3 - y1) / (2 * area), (x1 - x3) / (2 * area) };
+                var grad3 = new double[] { (y1 - y2) / (2 * area), (x2 - x1) / (2 * area) };
 
-        private Matrix<double> BuildStiffnessMatrix(FEMMesh mesh, ConductivityDistribution sigma)
-        {
-            var K = Matrix<double>.Build.Sparse(mesh.Vertices.Count, mesh.Vertices.Count);
-            foreach (var element in mesh.Elements)
-            {
-                double conductivity = sigma.GetConductivity(element.Id);
-                var v = element.Vertices;
+                // Local nodal potentials
+                double phi1 = phi.GetPotential(v[0].GlobalId);
+                double phi2 = phi.GetPotential(v[1].GlobalId);
+                double phi3 = phi.GetPotential(v[2].GlobalId);
+                double mu1 = mu.GetPotential(v[0].GlobalId);
+                double mu2 = mu.GetPotential(v[1].GlobalId);
+                double mu3 = mu.GetPotential(v[2].GlobalId);
 
-                var gradN = new (double dx, double dy)[3];
-                gradN[0] = ((v[1].Y - v[2].Y), (v[2].X - v[1].X));
-                gradN[1] = ((v[2].Y - v[0].Y), (v[0].X - v[2].X));
-                gradN[2] = ((v[0].Y - v[1].Y), (v[1].X - v[0].X));
-
-                var kLocal = Matrix<double>.Build.Dense(3, 3);
-                for (int i = 0; i < 3; i++)
+                // Compute ∇φ_h and ∇μ_h: sums of nodal alpha * grad(phi_i)
+                var gradPhi = new double[2]; // ∇φ_h
+                var gradMu = new double[2]; // ∇μ_h
+                for (int d = 0; d < 2; d++)
                 {
-                    for (int j = 0; j < 3; j++)
-                    {
-                        double dotProduct = gradN[i].dx * gradN[j].dx + gradN[i].dy * gradN[j].dy;
-                        kLocal[i, j] = conductivity * dotProduct / (4 * element.Area);
-                    }
+                    gradPhi[d] = phi1 * grad1[d] + phi2 * grad2[d] + phi3 * grad3[d];
+                    gradMu[d] = mu1 * grad1[d] + mu2 * grad2[d] + mu3 * grad3[d];
                 }
 
-                int[] gids = { v[0].GlobalId, v[1].GlobalId, v[2].GlobalId };
+                // Eq. (2.1.20): ∇J/∇σ on element = (∇μ·∇φ) * |T|
+                double localGrad = (gradMu[0] * gradPhi[0] + gradMu[1] * gradPhi[1]) * area;
+                gradDict[elem.Id] = localGrad;
+            }
+
+            var result = new ConductivityDistribution(gradDict);
+            // Debug print gradient distribution
+            Debug.WriteLine("Gradient per element:\n");
+            foreach (var kvp in gradDict)
+                Debug.WriteLine($"Element {kvp.Key}: ∂J/∂σ = {kvp.Value:0.0000}");
+
+            return result;
+        }
+
+        #region Matrix Assembly Helpers
+
+        /// <summary>
+        /// Build the stiffness matrix K: 
+        /// K_ij = σ_T * (∇φ_i · ∇φ_j) * |T|  (Eq. 1.2.3)
+        /// </summary>
+        private Matrix<double> BuildStiffnessMatrix(FEMMesh mesh, ConductivityDistribution sigma)
+        {
+            int N = mesh.Vertices.Count;
+            var K = DenseMatrix.Build.Dense(N, N);
+
+            // Loop elements
+            foreach (var elem in mesh.Elements)
+            {
+                var v = elem.Vertices;
+                double x1 = v[0].X, y1 = v[0].Y;
+                double x2 = v[1].X, y2 = v[1].Y;
+                double x3 = v[2].X, y3 = v[2].Y;
+                double area = elem.Area;
+
+                // shape function gradients
+                var g1 = new double[] { (y2 - y3) / (2 * area), (x3 - x2) / (2 * area) };
+                var g2 = new double[] { (y3 - y1) / (2 * area), (x1 - x3) / (2 * area) };
+                var g3 = new double[] { (y1 - y2) / (2 * area), (x2 - x1) / (2 * area) };
+
+                // conductivity on this element
+                double sigmaT = sigma.GetConductivity(elem.Id);
+
+                // local stiffness 3x3
+                double[,] loc = new double[3, 3];
+                var grads = new[] { g1, g2, g3 };
                 for (int i = 0; i < 3; i++)
                     for (int j = 0; j < 3; j++)
-                        K[gids[i], gids[j]] += kLocal[i, j];
+                    {
+                        // Eq. (1.2.3)
+                        loc[i, j] = sigmaT * (grads[i][0] * grads[j][0] + grads[i][1] * grads[j][1]) * area;
+                    }
+
+                // assemble into global K
+                var ids = new[] { v[0].GlobalId, v[1].GlobalId, v[2].GlobalId };
+                for (int i = 0; i < 3; i++)
+                    for (int j = 0; j < 3; j++)
+                        K[ids[i], ids[j]] += loc[i, j];
             }
             return K;
         }
 
-        private Matrix<double> BuildRobinMassMatrix(FEMMesh mesh, BoundaryConditions bc)
+        /// <summary>
+        /// Build the Robin mass matrix M for contact impedances:
+        /// lumped: M[ii] += 1/z_ℓ  per electrode node  (Eq. 1.1.12)
+        /// </summary>
+        private Matrix<double> BuildRobinMassMatrix(FEMMesh mesh, List<Electrode> electrodes)
         {
-            var M = Matrix<double>.Build.Sparse(mesh.Vertices.Count, mesh.Vertices.Count);
-            foreach (var electrode in bc.Electrodes)
+            int N = mesh.Vertices.Count;
+            var M = DenseMatrix.Build.Dense(N, N);
+
+            // lump each electrode node
+            foreach (var el in electrodes)
             {
-                if (Math.Abs(electrode.ZContact) < 1e-12) continue;
-                var electrodeEdges = FindElectrodeEdges(mesh, electrode);
-                foreach (var edge in electrodeEdges)
+                if (el.ZContact <= 0) continue;
+                double factor = 1.0 / el.ZContact;
+                foreach (var vid in el.VertexIds)
                 {
-                    double length = Math.Sqrt(Math.Pow(edge.End.X - edge.Start.X, 2) + Math.Pow(edge.End.Y - edge.Start.Y, 2));
-                    int u = edge.Start.GlobalId;
-                    int v = edge.End.GlobalId;
-                    double c = length / (6.0 * electrode.ZContact);
-                    M[u, u] += 2 * c; M[v, v] += 2 * c; M[u, v] += c; M[v, u] += c;
+                    // Eq. (1.1.12) lumped diagonal
+                    M[vid, vid] += factor;
                 }
             }
             return M;
         }
 
-        private Matrix<double> BuildCouplingMatrix(FEMMesh mesh, BoundaryConditions bc)
+        /// <summary>
+        /// Build the coupling matrix A between domain nodes α and electrodes U:
+        /// lumped: A[vid, el.Id] += 1/zℓ  (Eq. 1.1.12)
+        /// </summary>
+        private Matrix<double> BuildCouplingMatrix(FEMMesh mesh, List<Electrode> electrodes)
         {
-            var A = Matrix<double>.Build.Sparse(mesh.Vertices.Count, bc.Electrodes.Count);
-            foreach (var electrode in bc.Electrodes)
+            int N = mesh.Vertices.Count;
+            int L = electrodes.Count;
+            var A = DenseMatrix.Build.Dense(N, L);
+
+            foreach (var el in electrodes)
             {
-                if (Math.Abs(electrode.ZContact) < 1e-12) continue;
-                var electrodeEdges = FindElectrodeEdges(mesh, electrode);
-                foreach (var edge in electrodeEdges)
+                if (el.ZContact <= 0) continue;
+                double factor = 1.0 / el.ZContact;
+                foreach (var vid in el.VertexIds)
                 {
-                    double length = Math.Sqrt(Math.Pow(edge.End.X - edge.Start.X, 2) + Math.Pow(edge.End.Y - edge.Start.Y, 2));
-                    A[edge.Start.GlobalId, electrode.Id] += length / (2.0 * electrode.ZContact);
-                    A[edge.End.GlobalId, electrode.Id] += length / (2.0 * electrode.ZContact);
+                    // Eq. (1.1.12)
+                    A[vid, el.Id] += factor;
                 }
             }
             return A;
         }
 
-        private Matrix<double> BuildElectrodeMatrix(FEMMesh mesh, BoundaryConditions bc)
+        /// <summary>
+        /// Build the diagonal electrode matrix D:
+        /// D[ℓ,ℓ] = |Eℓ| / zℓ  ≈ (#nodes) / zℓ  (Eq. 1.1.15)
+        /// </summary>
+        private Matrix<double> BuildElectrodeMatrix(FEMMesh mesh, List<Electrode> electrodes)
         {
-            var D = Matrix<double>.Build.Sparse(bc.Electrodes.Count, bc.Electrodes.Count);
-            foreach (var electrode in bc.Electrodes)
+            int L = electrodes.Count;
+            var D = DenseMatrix.Build.Dense(L, L);
+            foreach (var el in electrodes)
             {
-                if (Math.Abs(electrode.ZContact) < 1e-12) continue;
-                var electrodeEdges = FindElectrodeEdges(mesh, electrode);
-                double totalLength = electrodeEdges.Sum(e => Math.Sqrt(Math.Pow(e.End.X - e.Start.X, 2) + Math.Pow(e.End.Y - e.Start.Y, 2)));
-                D[electrode.Id, electrode.Id] = totalLength / electrode.ZContact;
+                if (el.ZContact <= 0) continue;
+                // approximate |Eℓ| ≈ number of nodes
+                double lengthApprox = el.VertexIds.Count;
+                D[el.Id, el.Id] = lengthApprox / el.ZContact;  // Eq. (1.1.15)
             }
             return D;
         }
 
-        private Matrix<double> BuildSystemMatrix(Matrix<double> K, Matrix<double> M, Matrix<double> A, Matrix<double> D, int numVertices, int numElectrodes)
+        /// <summary>
+        /// Assemble block system S = [K+M  -A; -Aᵀ  D]  (Eq. 1.1.16)
+        /// </summary>
+        private Matrix<double> BuildSystemMatrix(
+            Matrix<double> K,
+            Matrix<double> M,
+            Matrix<double> A,
+            Matrix<double> D,
+            int numVertices,
+            int numElectrodes)
         {
-            int systemSize = numVertices + numElectrodes;
-            var S = Matrix<double>.Build.Sparse(systemSize, systemSize);
-            S.SetSubMatrix(0, 0, K + M);
-            S.SetSubMatrix(0, numVertices, -A);
-            S.SetSubMatrix(numVertices, 0, -A.Transpose());
-            S.SetSubMatrix(numVertices, numVertices, D);
+            int size = numVertices + numElectrodes;
+            var S = DenseMatrix.Build.Dense(size, size);
+
+            // Top-left: K+M
+            var KM = K + M;
+            S.SetSubMatrix(0, numVertices, 0, numVertices, KM);
+
+            // Top-right: -A
+            S.SetSubMatrix(0, numVertices, numVertices, numElectrodes, A.Multiply(-1.0));
+
+            // Bottom-left: -Aᵀ
+            S.SetSubMatrix(numVertices, numElectrodes, 0, numVertices, A.Transpose().Multiply(-1.0));
+
+            // Bottom-right: D
+            S.SetSubMatrix(numVertices, numElectrodes, numVertices, numElectrodes, D);
+
             return S;
         }
 
-        private Vector<double> BuildRhsVector(BoundaryConditions bc, int numVertices, Vector<double> potentialSource)
+        /// <summary>
+        /// Build RHS F = [potentialSource; electrode currents]  (bottom block = Iₗ)
+        /// </summary>
+        private Vector<double> BuildRhsVector(
+            List<Electrode> electrodes,
+            int numVertices,
+            Vector<double>? potentialSource)
         {
-            int systemSize = numVertices + bc.Electrodes.Count;
-            var F = Vector<double>.Build.Dense(systemSize);
+            int L = electrodes.Count;
+            var F = DenseVector.Build.Dense(numVertices + L);
+
+            // Top: domain source term
             if (potentialSource != null)
                 F.SetSubVector(0, numVertices, potentialSource);
-            for (int i = 0; i < bc.Electrodes.Count; i++)
-                F[numVertices + i] = bc.Electrodes[i].Current;
+
+            // Bottom: electrode currents Iₗ
+            for (int i = 0; i < L; i++)
+            {
+                F[numVertices + electrodes[i].Id] = electrodes[i].Current;  // Eq. (1.1.16)
+            }
             return F;
         }
 
-        private (Matrix<double>, Vector<double>) ApplyGrounding(Matrix<double> S, Vector<double> F, int numVertices, int groundElectrodeId)
+        #endregion
+
+        #region Grounding and Solution Reconstruction
+
+        /// <summary>
+        /// Remove the ground electrode DOF (row&column) and RHS entry (Sec. 1.1.3).
+        /// </summary>
+        private (Matrix<double> Sg, Vector<double> Fg) ApplyGrounding(
+            Matrix<double> S,
+            Vector<double> F,
+            int numVertices,
+            int groundElectrodeId)
         {
-            int groundIndex = numVertices + groundElectrodeId;
-            var indicesToRemove = new[] { groundIndex };
+            int fullSize = S.RowCount;
+            int removeIndex = numVertices + groundElectrodeId;
+            int newSize = fullSize - 1;
 
-            var groundElement = F.ElementAt(groundIndex);
+            var Sg = DenseMatrix.Build.Dense(newSize, newSize);
+            var Fg = DenseVector.Build.Dense(newSize);
 
-            groundElement = 0.0;
-
-            return (S.RemoveRow(groundIndex).RemoveColumn(groundIndex), F);
-        }
-
-        private Vector<double> ReconstructFullSolution(double[] solution_grounded, int numVertices, int numElectrodes, int groundElectrodeId)
-        {
-            var fullSolution = new List<double>(solution_grounded);
-            fullSolution.Insert(numVertices + groundElectrodeId, 0.0);
-            return Vector<double>.Build.DenseOfEnumerable(fullSolution);
-        }
-
-        private List<Edge> FindElectrodeEdges(FEMMesh mesh, Electrode electrode)
-        {
-            var electrodeEdges = new List<Edge>();
-            var electrodeVertexIds = new HashSet<int>(electrode.VertexIds);
-            foreach (var element in mesh.Elements.Cast<FEMElement>())
+            // Copy rows and cols skipping grounded index
+            for (int i = 0, ri = 0; i < fullSize; i++)
             {
-                var v = element.Vertices;
-                if (electrodeVertexIds.Contains(v[0].GlobalId) && electrodeVertexIds.Contains(v[1].GlobalId)) 
-                    electrodeEdges.Add(new Edge(v[0], v[1]));
-                if (electrodeVertexIds.Contains(v[1].GlobalId) && electrodeVertexIds.Contains(v[2].GlobalId)) 
-                    electrodeEdges.Add(new Edge(v[1], v[2]));
-                if (electrodeVertexIds.Contains(v[2].GlobalId) && electrodeVertexIds.Contains(v[0].GlobalId)) 
-                    electrodeEdges.Add(new Edge(v[2], v[0]));
+                if (i == removeIndex) continue;
+                for (int j = 0, cj = 0; j < fullSize; j++)
+                {
+                    if (j == removeIndex) continue;
+                    Sg[ri, cj] = S[i, j];
+                    cj++;
+                }
+                Fg[ri] = F[i];
+                ri++;
             }
-            return electrodeEdges.GroupBy(e => (Math.Min(e.Start.GlobalId, e.End.GlobalId), Math.Max(e.Start.GlobalId, e.End.GlobalId))).Select(g => g.First()).ToList();
+            return (Sg, Fg);
         }
 
-        private List<(int NodeId, double Value)> FindPinnedNodes(FEMMesh mesh)
+        /// <summary>
+        /// Reinsert U_ground=0 back into the solution vector of length N+L (after solve).
+        /// </summary>
+        private Vector<double> ReconstructFullSolution(
+            double[] solg,
+            int numVertices,
+            int numElectrodes,
+            int groundElectrodeId)
         {
-            var pinnedNodes = new List<(int, double)>();
-            foreach (var element in mesh.Elements.Cast<FEMElement>())
-            {
-                if (element.IsPinned)
-                    foreach (var vertex in element.Vertices)
-                        if (!pinnedNodes.Any(n => n.Item1 == vertex.GlobalId))
-                            pinnedNodes.Add((vertex.GlobalId, element.PinValue));
-            }
-            return pinnedNodes;
-        }
-
-        private void ApplyDirichletConditions(Matrix<double> A, Vector<double> b, List<(int NodeId, double Value)> conditions)
-        {
-            foreach (var (nodeId, val) in conditions)
-            {
-                for (int j = 0; j < A.RowCount; j++)
-                    if (j != nodeId)
-                        b[j] -= A[j, nodeId] * val;
-
-                A.ClearRow(nodeId);
-                A.ClearColumn(nodeId);
-                A[nodeId, nodeId] = 1.0;
-                b[nodeId] = val;
-            }
+            var list = new List<double>(solg);
+            list.Insert(numVertices + groundElectrodeId, 0.0);
+            return Vector<double>.Build.DenseOfEnumerable(list);
         }
 
         #endregion

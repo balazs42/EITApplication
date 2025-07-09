@@ -21,6 +21,19 @@
         {
         }
 
+        public new ConductivityDistribution GetConductivityDistribution()
+        {
+            Dictionary<int, double> cd = new Dictionary<int, double>();
+
+            foreach(var element in  Elements)
+                cd.Add(element.Id, element.Conductivity);
+
+            ConductivityDistribution = new ConductivityDistribution(cd);
+
+            return ConductivityDistribution;
+        }
+
+
         public override double[] GetElectrodePotentials()
         {
             throw new NotImplementedException();

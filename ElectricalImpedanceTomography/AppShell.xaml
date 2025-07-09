@@ -19,5 +19,8 @@
         Title="Reconstruction"
         ContentTemplate="{DataTemplate views:ReconstructionPage}"
         Route="ReconstructionPage"/>
-
+    <ShellContent
+         Title="FEM Reconstruction"
+         ContentTemplate="{DataTemplate views:FEMReconstructionPage}"
+         Route="FEMReconstructionPage"/>
 </Shell>

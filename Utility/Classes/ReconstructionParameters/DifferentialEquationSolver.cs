@@ -63,7 +63,7 @@ namespace Utility.Classes.ReconstructionParameters
 
             // It assembles matrices K, M, A, D, grounds the system, and solves.
             // The BuildRhsVector helper will correctly use 'potentialSourceTerm'.
-            PotentialDistribution potentialDistribution = _solver.SolveSystem(mesh, sigma, bc, potentialSourceTerm);
+            PotentialDistribution potentialDistribution = _solver.SolveSystem(mesh, sigma, bc.Electrodes, potentialSourceTerm);
 
             return potentialDistribution;
         }

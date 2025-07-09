@@ -1,5 +1,6 @@
 ﻿using BusinessLayer;
 using Utility.Classes;
+using Utility.Classes.Meshing;
 using Utility.Classes.ReconstructionParameters;
 using Utility.Logger;
 
@@ -35,6 +36,34 @@ namespace ServiceLayer
             try
             {
                 _reconstructionPersistence.InitializeReconstruction(mesh, parameters);
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                Console.WriteLine(ex.Message);
+                throw;
+            }
+        }
+
+        public FEMMesh SolveFemForward(FEMMesh mesh)
+        {
+            try
+            {
+                return _reconstructionPersistence.SolveFemForward(mesh);
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                Console.WriteLine(ex.Message);
+                throw;
+            }
+        }
+
+        public FEMMesh SolveFemInverse(FEMMesh mesh)
+        {
+            try
+            {
+                return _reconstructionPersistence.SolveFemInverse(mesh);
             }
             catch(Exception ex)
             {

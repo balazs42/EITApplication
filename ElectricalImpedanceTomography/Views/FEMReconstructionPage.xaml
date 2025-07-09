@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="ElectricalImpedanceTomography.Views.FEMReconstructionPage"
+             xmlns:skia="clr-namespace:SkiaSharp.Views.Maui.Controls;assembly=SkiaSharp.Views.Maui.Controls"
+             xmlns:viewmodels="clr-namespace:ElectricalImpedanceTomography.ViewModels"
+             x:DataType="viewmodels:FEMReconstructionPageViewModel"
+             Title="FEMReconstructionPage">
+    <Grid RowDefinitions="Auto,Auto,*" ColumnDefinitions="*" RowSpacing="10">
+        <!-- radius & boundary nodes -->
+        <StackLayout Grid.Row="0" Orientation="Horizontal" Spacing="15" Padding="10">
+            
+            <Label Text="Layers:" VerticalOptions="Center"/>
+            <Entry WidthRequest="80" Keyboard="Numeric"
+                Text="{Binding Layers}"/>
+            
+            <Label Text="Boundary nodes:" VerticalOptions="Center"/>
+            <Entry WidthRequest="80" Keyboard="Numeric"
+                Text="{Binding BoundaryNodeCount}"/>
+            
+        </StackLayout>
+
+        <!-- buttons -->
+        <StackLayout Grid.Row="1" Orientation="Horizontal"
+                 HorizontalOptions="Center" Spacing="20" Padding="5">
+            <Button Text="Generate Mesh" Clicked="OnGenerateMeshClicked"/>
+            <Button Text="Solve Forward"  Clicked="OnSolveForwardClicked"/>
+            <Button Text="Solve Inverse"  Clicked="OnSolveInverseClicked"/>
+        </StackLayout>
+
+        <!-- 3) Side-by-side meshes -->
+        <Grid Grid.Row="2"
+              ColumnDefinitions="*,*,*" 
+              RowDefinitions="Auto,*,Auto" 
+              ColumnSpacing="10" 
+              Padding="10">
+
+            <!-- Potential column -->
+            <Label Grid.Row="0" 
+                   Grid.Column="0"
+                   Padding="10"
+                   Margin="10"
+                   Text="Potential Distribution"
+                   FontAttributes="Bold"
+                   HorizontalOptions="Center"/>
+            <skia:SKCanvasView Grid.Row="1" Grid.Column="0"                               
+                               x:Name="PotentialCanvas"
+                               PaintSurface="OnPotentialPaintSurface"
+                               EnableTouchEvents="True"
+                               Touch="OnPotentialCanvasTouch"/>
+            <skia:SKCanvasView Grid.Row="2" Grid.Column="0"
+                               x:Name="PotentialColorbar"
+                               HeightRequest="33"
+                               WidthRequest="500"                               
+                               PaintSurface="OnPotentialColorbarPaintSurface"/>
+
+            <!-- Conductivity column -->
+            <Label Grid.Row="0" Grid.Column="1"
+                   Padding="10"
+                   Text="Conductivity Distribution"
+                   FontAttributes="Bold"
+                   HorizontalOptions="Center"/>
+            <skia:SKCanvasView Grid.Row="1" Grid.Column="1"
+                               x:Name="ConductivityCanvas"
+                               PaintSurface="OnConductivityPaintSurface"
+                               EnableTouchEvents="True"
+                               Touch="OnConductivityCanvasTouch"/>
+            <skia:SKCanvasView Grid.Row="2" Grid.Column="1"
+                               x:Name="ConductivityColorbar"
+                               HeightRequest="40"
+                               WidthRequest="500"
+                               PaintSurface="OnConductivityColorbarPaintSurface"/>
+
+            <!-- Potential column -->
+            <Label Grid.Row="0" 
+                   Grid.Column="2"
+                   Padding="10"
+                   Margin="10"
+                   Text="Reconstruction Result"
+                   FontAttributes="Bold"
+                   HorizontalOptions="Center"/>
+            <skia:SKCanvasView Grid.Row="1" Grid.Column="2"                               
+                    x:Name="ReconstructionCanvas"
+                    PaintSurface="OnReconstructionPaintSurface"
+                    EnableTouchEvents="True"
+                    Touch="OnReconstructionTouch"/>
+            <skia:SKCanvasView Grid.Row="2" Grid.Column="2"
+                    x:Name="ReconstructionColorbar"
+                    HeightRequest="33"
+                    WidthRequest="500"                               
+                    PaintSurface="OnReconstructionColorbarPaintSurface"/>
+
+        </Grid>
+    </Grid>
+</ContentPage>

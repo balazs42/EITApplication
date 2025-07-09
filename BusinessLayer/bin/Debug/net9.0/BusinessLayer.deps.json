@@ -2382,6 +2382,14 @@
           }
         }
       },
+      "MIConvexHull/1.1.19.1019": {
+        "runtime": {
+          "lib/netstandard2.0/MIConvexHull.dll": {
+            "assemblyVersion": "1.1.19.1018",
+            "fileVersion": "1.1.19.1018"
+          }
+        }
+      },
       "Microsoft.CSharp/4.7.0": {},
       "Microsoft.NETCore.Platforms/5.0.1": {},
       "Microsoft.Win32.Registry/5.0.0": {
@@ -3359,6 +3367,7 @@
         "dependencies": {
           "CommunityToolkit.Mvvm": "8.4.0",
           "Google.OrTools": "9.12.4544",
+          "MIConvexHull": "1.1.19.1019",
           "MathNet.Numerics": "5.0.0",
           "Unity": "5.11.10"
         },
@@ -3467,6 +3476,13 @@
       "sha512": "sha512-pg1W2VwaEQMAiTpGK840hZgzavnqjlCMTVSbtVCXVyT+7AX4mc1o89SPv4TBlAjhgCOo9c1Y+jZ5m3ti2YgGgA==",
       "path": "mathnet.numerics/5.0.0",
       "hashPath": "mathnet.numerics.5.0.0.nupkg.sha512"
+    },
+    "MIConvexHull/1.1.19.1019": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-Qz0BIRVyflj9jMkIKG1tpON5Xz1lFEA9XyRH0Pw5qIsCE75heHF4cHrBr8RqvQJRaaNXH+5jdWAfFP3m3OfTOA==",
+      "path": "miconvexhull/1.1.19.1019",
+      "hashPath": "miconvexhull.1.1.19.1019.nupkg.sha512"
     },
     "Microsoft.CSharp/4.7.0": {
       "type": "package",

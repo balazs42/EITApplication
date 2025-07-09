@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ElectricalImpedanceTomography")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0+925c1a621e058d1d2ecdc474673771f4a1e01191")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0+27f815819c97b4324146144ec4016f67e48a37ad")]
 [assembly: System.Reflection.AssemblyProductAttribute("ElectricalImpedanceTomography")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ElectricalImpedanceTomography")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
