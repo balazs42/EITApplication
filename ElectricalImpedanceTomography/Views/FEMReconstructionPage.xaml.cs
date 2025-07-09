@@ -267,6 +267,21 @@ public partial class FEMReconstructionPage : ContentPage
         OnConductivityColorbarPaintSurface(sender, e, false);
     }
 
+    private void OnConductivityPaintSurface(object sender, SKPaintSurfaceEventArgs e)
+    {
+        OnConductivityPaintSurface(sender, e, true);
+    }
+
+    private void OnConductivityColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
+    {
+        OnConductivityColorbarPaintSurface(sender, e, true);
+    }
+
+    private void OnConductivityCanvasTouch(object sender, SKTouchEventArgs e)
+    {
+        OnConductivityCanvasTouch(sender, e, true);
+    }
+
     private void OnReconstructionTouch(object sender, SKTouchEventArgs e)
     {
         OnConductivityCanvasTouch(sender, e, false);
@@ -359,14 +374,20 @@ public partial class FEMReconstructionPage : ContentPage
                     break;
                 }
             }
-            ConductivityCanvas.InvalidateSurface();
+            if (conductivityCanvas)
+                ConductivityCanvas.InvalidateSurface();
+            else
+                ReconstructionCanvas.InvalidateSurface();
             e.Handled = true;
         }
         else if (e.ActionType == SKTouchAction.Released)
         {
             _hoverCondValue = null;
             _hoverCondCanvasPt = null;
-            ConductivityCanvas.InvalidateSurface();
+            if (conductivityCanvas)
+                ConductivityCanvas.InvalidateSurface();
+            else
+                ReconstructionCanvas.InvalidateSurface();
             e.Handled = true;
         }
     }

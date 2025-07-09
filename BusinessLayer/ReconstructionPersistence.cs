@@ -6,6 +6,7 @@ using Utility.Classes.Measurement;
 using Utility.Classes.Meshing;
 using Utility.Classes.Models;
 using Utility.Classes.ReconstructionParameters;
+using Utility.Classes.Solvers;
 
 namespace BusinessLayer
 {
@@ -206,21 +207,101 @@ namespace BusinessLayer
         {
             _differentialEquationSolver = DifferentialEquationSolverFactory.Create(DifferentialEquationSolver.FiniteElementMethod, NumericSolverFactory.Create(NumericSolver.SVD));
             _errorMetric = ErrorMetricFactory.Create(ErrorMetric.L2);
+            _regularizer = RegularisationFactory.Create(RegularizationTechnique.FirstOrderTikhonov, mesh);
 
-            var conductivitiyDistribution = mesh.GetConductivityDistribution();
+            // 2) Initialize conductivity (σ⁽⁰⁾)
+            var sigma = mesh.GetConductivityDistribution();
 
+            // 3) Mark electrodes: 0=ground, 1=excitation
             var electrodes = mesh.Electrodes;
-
             electrodes[0].IsGround = true;
             electrodes[1].IsExcitation = true;
+            var bc = new BoundaryConditions(electrodes);
 
-            BoundaryConditions boundaryConditions = new BoundaryConditions(electrodes);
+            // 4) Iterative loop
+            double prevError = double.PositiveInfinity;
+            for (int iter = 0; iter < 50; iter++)
+            {
+                Debug.WriteLine($"\n=== Inverse iteration {iter} ===");
 
-            FEMMesh reconMesh = mesh;
+                // 4a) Forward solve φ⁽ᵏ⁾ = S(σ⁽ᵏ⁾)   (thesis Eq. 1.1.16)
+                var phi = _differentialEquationSolver
+                    .SolveForward(mesh, sigma, bc);
+                Debug.WriteLine("Forward φ computed.");
 
-            PotentialDistribution potentialDistribution = _differentialEquationSolver.SolveForward(reconMesh, conductivitiyDistribution, boundaryConditions);
+                // 4b) Extract simulated boundary data d_sim
+                var dSim = mesh.GetElectrodePotentials();
+                double[] dObs = new double[dSim.Length];
+                for (int i = 0; i < dObs.Length; i++)
+                    dObs[i] = 1.0;
 
-            // TODO: iteratations for the inverse problem until convergence threshold is reached only on the one boundary condition.
+                // 4c) Compute misfit J_misfit (thesis Eq. 2.1.4 or 3.1.1)
+                double misfit = _errorMetric.Evaluate(mesh, dObs, dSim);
+                Debug.WriteLine($"Misfit J = {misfit:0.#####}");
+
+                // 4d) Regularization term J_reg and grad ∇J_reg (Eq. 2.1.27/2.1.28)
+                double regTerm = _regularizer.EvaluateTerm(mesh, sigma);
+                var regGrad = _regularizer.EvaluateGradient(mesh, sigma);
+                Debug.WriteLine($"Regularization R = {regTerm:0.#####}");
+
+                // 4e) Build adjoint source s = EvaluateAdjointSource (L2: residual; W2: Kantorovich φ) 
+                var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, dObs, dSim);
+                // wrap into a PotentialDistribution on electrodes
+                var srcDist = new PotentialDistribution(
+                    Enumerable.Range(0, adjSrc.Length)
+                              .ToDictionary(i => electrodes[i].Id, i => adjSrc[i])
+                );
+
+                // 4f) Adjoint solve μ: same forward‐solver but feed in adjSrc as boundary currents
+                var mu = _differentialEquationSolver
+                    .SolveForward(mesh, mesh.ConductivityDistribution,
+                                  new BoundaryConditions(electrodes, srcDist));
+                Debug.WriteLine("Adjoint μ computed.");
+
+                // 4g) Compute gradient ∇J_data = ∇μ·∇φ elementwise  (thesis Eq. 2.1.20)
+                var dataGrad = new ConductivityDistribution(
+                    mesh.Elements.ToDictionary(
+                        el => el.Id,
+                        el => {
+                            // compute ∇φ, ∇μ on this element (call your operator)
+                            var gPhi = FiniteElementOperators.CalculateElementWiseGradient(mesh, phi)
+                                        .GetVector(el.Id);
+                            var gMu = FiniteElementOperators.CalculateElementWiseGradient(mesh, mu)
+                                        .GetVector(el.Id);
+                            return (gMu.X * gPhi.X + gMu.Y * gPhi.Y) * el.Area;
+                        }
+                    )
+                );
+
+                // 4h) Total gradient ∇J = ∇J_data + ∇R  (Eq. 2.1.31)
+                var totalGradDict = dataGrad.Conductivities.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value + regGrad.GetConductivity(kvp.Key)
+                );
+                var totalGrad = new ConductivityDistribution(totalGradDict);
+
+                Debug.WriteLine("Gradient ∇J computed.");
+
+                // 4i) Line search / simple step: σ⁽ᵏ⁺¹⁾ = σ⁽ᵏ⁾ - α ∇J
+                double step = 1e-2;  // choose small enough for stability
+                var newSigmaDict = sigma.Conductivities.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value - step * totalGrad.GetConductivity(kvp.Key)
+                );
+                sigma = new ConductivityDistribution(newSigmaDict);
+
+                // 4j) Check convergence on boundary misfit change
+                if (Math.Abs(prevError - misfit) < 1e-6)
+                {
+                    Debug.WriteLine("Converged on misfit change. Stopping.");
+                    break;
+                }
+                prevError = misfit;
+            }
+
+            // 5) Update mesh ConductivityDistribution and return
+            foreach (var el in mesh.Elements)
+                el.Conductivity = sigma.GetConductivity(el.Id);
 
             return mesh;
         }

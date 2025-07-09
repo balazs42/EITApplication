@@ -11,12 +11,14 @@
         <StackLayout Grid.Row="0" Orientation="Horizontal" Spacing="15" Padding="10">
             
             <Label Text="Layers:" VerticalOptions="Center"/>
-            <Entry WidthRequest="80" Keyboard="Numeric"
-                Text="{Binding Layers}"/>
+            <Entry WidthRequest="80"
+                   Keyboard="Numeric"
+                   Text="{Binding Layers}"/>
             
             <Label Text="Boundary nodes:" VerticalOptions="Center"/>
-            <Entry WidthRequest="80" Keyboard="Numeric"
-                Text="{Binding BoundaryNodeCount}"/>
+            <Entry WidthRequest="80" 
+                   Keyboard="Numeric"
+                   Text="{Binding BoundaryNodeCount}"/>
             
         </StackLayout>
 
@@ -80,15 +82,15 @@
                    FontAttributes="Bold"
                    HorizontalOptions="Center"/>
             <skia:SKCanvasView Grid.Row="1" Grid.Column="2"                               
-                    x:Name="ReconstructionCanvas"
-                    PaintSurface="OnReconstructionPaintSurface"
-                    EnableTouchEvents="True"
-                    Touch="OnReconstructionTouch"/>
+                               x:Name="ReconstructionCanvas"
+                               PaintSurface="OnReconstructionPaintSurface"
+                               EnableTouchEvents="True"
+                               Touch="OnReconstructionTouch"/>
             <skia:SKCanvasView Grid.Row="2" Grid.Column="2"
-                    x:Name="ReconstructionColorbar"
-                    HeightRequest="33"
-                    WidthRequest="500"                               
-                    PaintSurface="OnReconstructionColorbarPaintSurface"/>
+                               x:Name="ReconstructionColorbar"
+                               HeightRequest="33"
+                               WidthRequest="500"                               
+                               PaintSurface="OnReconstructionColorbarPaintSurface"/>
 
         </Grid>
     </Grid>

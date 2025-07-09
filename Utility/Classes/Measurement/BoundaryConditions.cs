@@ -100,5 +100,28 @@
                 }
             }
         }
+
+        /// <summary>
+        /// electrodes: your list of L Electrode objects (with zℓ and Id already set,
+        ///             plus IsGround/IsExcitation flags).
+        /// srcDist:   a PotentialDistribution whose .GetPotential(el.Id) is the Iₗ value you want.
+        /// </summary>
+        public BoundaryConditions(
+            IEnumerable<Electrode> electrodes,
+            PotentialDistribution? srcDist = null)
+        {
+            Electrodes = electrodes.ToList();
+
+            // If you passed in a residual/source distribution, apply it here:
+            if (srcDist != null)
+            {
+                foreach (var e in Electrodes)
+                {
+                    // Overwrite the net‐current Iₗ for each electrode ℓ:
+                    e.Current = srcDist.GetPotential(e.Id);
+                }
+            }
+            // Otherwise, you assume the electrodes already have .Current from the forward-step.
+        }
     }
 }

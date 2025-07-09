@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <PackageReference Include="BHoM.Interop.TriangleNet" Version="6.3.0" />
+    <PackageReference Include="Unity" Version="5.11.10" />
     <PackageReference Include="Unofficial.Triangle.NET" Version="0.0.1" />
   </ItemGroup>
 

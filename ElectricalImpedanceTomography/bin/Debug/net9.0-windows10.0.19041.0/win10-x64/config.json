@@ -1,6 +1,0 @@
-{
-  "PortName": "COM1",
-  "BaudeRate": "115200",
-  "Parity": "None",
-  "DataBits": 8
-}

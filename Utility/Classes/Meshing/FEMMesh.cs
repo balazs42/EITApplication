@@ -36,7 +36,12 @@
 
         public override double[] GetElectrodePotentials()
         {
-            throw new NotImplementedException();
+            double[] potentials = new double[Electrodes.Count];
+
+            for (int i = 0; i < potentials.Length; i++)
+                potentials[i] = Electrodes[i].Voltage;
+
+            return potentials;
         }
     }
 }
