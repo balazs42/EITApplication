@@ -54,10 +54,11 @@ namespace Utility.Classes.ReconstructionParameters
 
         public ConductivityDistribution ComputeMisfitGradient(IMesh mesh, PotentialDistribution phi, PotentialDistribution mu)
         {
-            return _solver.ComputeGradient(mesh, phi, mu);
+            throw new NotImplementedException();
+            //return _solver.ComputeGradient(mesh, phi, mu);
         }
 
-        // The private 'Solve' method remains the core engine, now more versatile.
+        // The private 'Solve' method remains the core engine
         private PotentialDistribution Solve(IMesh mesh, BoundaryCondition bc, Complex[] potentialSourceTerm = null)
         {
             if (mesh is not FEMMesh femMesh)
@@ -65,7 +66,7 @@ namespace Utility.Classes.ReconstructionParameters
 
             // It assembles matrices K, M, A, D, grounds the system, and solves.
             // The BuildRhsVector helper will correctly use 'potentialSourceTerm'.
-            PotentialDistribution potentialDistribution = _solver.SolveSystem(mesh, femMesh.ConductivityDistribution, bc.Electrodes, potentialSourceTerm);
+            PotentialDistribution potentialDistribution = _solver.Solve(femMesh, mesh.GetConductivityDistribution(), bc.Electrodes);
 
             return potentialDistribution;
         }

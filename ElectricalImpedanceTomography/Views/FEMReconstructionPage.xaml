@@ -19,7 +19,32 @@
             <Entry WidthRequest="80" 
                    Keyboard="Numeric"
                    Text="{Binding BoundaryNodeCount}"/>
+
+            <Label Text="Electrode Count:" VerticalOptions="Center"/>
+            <Entry WidthRequest="80" 
+                   Keyboard="Numeric"
+                   Text="{Binding ElectrodeCount}"/>
+
+            <Label Text="Excitation Id:" VerticalOptions="Center"/>
+            <Entry WidthRequest="80" 
+                   Keyboard="Numeric"
+                   Text="{Binding ExcitationElectrodeId}"/>
+
+            <Label Text="Ground Id:" VerticalOptions="Center"/>
+            <Entry WidthRequest="80" 
+                   Keyboard="Numeric"
+                   Text="{Binding GroundElectrodeId}"/>
+
+            <Label Text="Current[mA]:" VerticalOptions="Center"/>
+            <Entry WidthRequest="80" 
+                   Keyboard="Numeric"
+                   Text="{Binding ExcitationCurrentAmplitude}"/>
             
+            <Label Text="Electrode Size[%]:" VerticalOptions="Center"/>
+            <Entry WidthRequest="80" 
+                   Keyboard="Numeric"
+                   Text="{Binding ElectrodeSurfaceLength}"/>
+
         </StackLayout>
 
         <!-- buttons -->

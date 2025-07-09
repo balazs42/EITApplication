@@ -176,14 +176,7 @@ namespace BusinessLayer
 
             var electrodes = mesh.Electrodes;
 
-            electrodes[0].IsGround = true;
-            electrodes[1].IsExcitation = true;
-
-            double[] currents = new double[electrodes.Count];
-            currents[0] = -1.0;
-            currents[1] = 1.0;
-
-            BoundaryCondition boundaryConditions = new BoundaryCondition(electrodes, currents);
+            BoundaryCondition boundaryConditions = new BoundaryCondition(electrodes);
 
             PotentialDistribution potentialDistribution = _differentialEquationSolver.SolveForward(mesh, boundaryConditions);
 

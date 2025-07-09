@@ -22,6 +22,10 @@ public partial class FEMReconstructionPage : ContentPage
     private SKPoint? _hoverPotCanvasPt;
     private double? _hoverPotValue;
 
+    // hover state for potential vertex
+    private Vertex _hoverPotVertex;
+    private SKPoint? _hoverPotVertexCanvasPt;
+
     // hover state for conductivity:
     private SKPoint? _hoverCondCanvasPt;
     private double? _hoverCondValue;
@@ -190,6 +194,43 @@ public partial class FEMReconstructionPage : ContentPage
         }
 
         DrawElectrodes(canvas);
+
+        // draw info box for the hovered vertex
+        if (_hoverPotVertex != null && _hoverPotVertexCanvasPt.HasValue)
+        {
+            var pt = _hoverPotVertexCanvasPt.Value;
+            var v = _hoverPotVertex;
+
+                    // build the text lines
+            string[] lines = new[]
+            {
+                $"GID: {v.GlobalId}",
+                $"BID: {v.BoundaryId}",
+                $"EID: {v.ElectrodeId}",
+                $"Φ: {v.Potential:F3}"
+            };
+
+            // measure widest line
+            using var measure = new SKPaint { TextSize = 16, IsAntialias = true };
+            float w = lines.Max(l => measure.MeasureText(l));
+            float h = lines.Length * (measure.TextSize + 4);
+
+            // box position
+            var box = new SKRect(pt.X + 10, pt.Y - h - 10, pt.X + 10 + w + 8, pt.Y - 10);
+
+            // draw semi‐opaque background
+            using var bg = new SKPaint { Color = new SKColor(0, 0, 0, 200), IsAntialias = true };
+            canvas.DrawRoundRect(box, 4, 4, bg);
+
+            // draw each line
+            using var textPaint = new SKPaint { Color = SKColors.White, TextSize = 16, IsAntialias = true };
+            float y = box.Top + measure.TextSize + 2;
+            foreach (var line in lines)
+            {
+                canvas.DrawText(line, box.Left + 4, y, textPaint);
+                y += measure.TextSize + 4;
+            }
+        }
     }
 
 
@@ -232,29 +273,18 @@ public partial class FEMReconstructionPage : ContentPage
         if (e.ActionType == SKTouchAction.Pressed || e.ActionType == SKTouchAction.Moved)
         {
             var p = e.Location;
-            _hoverPotValue = null;
-            _hoverPotCanvasPt = null;
-            foreach (var elem in _mesh.Elements)
-            {
-                var c0 = ToCanvas(elem.Vertices[0]);
-                var c1 = ToCanvas(elem.Vertices[1]);
-                var c2 = ToCanvas(elem.Vertices[2]);
-                if (PointInTriangle(p, c0, c1, c2, out var u, out var v, out var w))
-                {
-                    _hoverPotValue = u * elem.Vertices[0].Potential +
-                                     v * elem.Vertices[1].Potential +
-                                     w * elem.Vertices[2].Potential;
-                    _hoverPotCanvasPt = p;
-                    break;
-                }
-            }
+            // find nearest vertex in screen coords
+            _hoverPotVertex = _mesh.Vertices
+                .OrderBy(v => (ToCanvas(v) - p).LengthSquared)
+                .First();
+            _hoverPotVertexCanvasPt = p;
             PotentialCanvas.InvalidateSurface();
             e.Handled = true;
         }
         else if (e.ActionType == SKTouchAction.Released)
         {
-            _hoverPotValue = null;
-            _hoverPotCanvasPt = null;
+            _hoverPotVertex = null;
+            _hoverPotVertexCanvasPt = null;
             PotentialCanvas.InvalidateSurface();
             e.Handled = true;
         }
