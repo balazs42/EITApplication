@@ -1,26 +1,39 @@
-.vs/ElectricalImpedanceTomography/FileContentIndex/b8ffdd05-15d5-41c4-b943-34638e4b404e.vsidx
-# Rider / IntelliSense caches
+# === IDE & tooling caches ===
+# Rider caches
 CodeChunks.db
-SemanticSymbols.db
-SemanticSymbols.db-shm
-SemanticSymbols.db-wal
+SemanticSymbols.db*
+.idea/
+*.sln.DotSettings.user
 
-# DB caches in general
-*.db
-*.db-shm
-*.db-wal
-
-# Visual Studio build output
-bin/
-obj/
-
-# VS workspace and user files
+# Visual Studio caches / workspace
 .vs/
 *.user
 *.suo
 
-# JetBrains Rider
-.idea/
+# === Build artifacts & binaries ===
+# .NET & Mono
+bin/
+obj/
+*.dll
+*.pdb
 
-# Rider caches
-*.sln.DotSettings.user
+# General caches & temp
+*.cache
+*.log
+*.tmp
+
+# Android / Unity / Xamarin
+*.dex
+
+# Databases
+*.db
+*.db-shm
+*.db-wal
+
+# Other generated/3rd-party artifacts
+*.exe
+*.so
+*.dylib
+*.jar
+*.class
+
