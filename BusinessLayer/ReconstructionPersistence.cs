@@ -203,7 +203,7 @@ namespace BusinessLayer
             return mesh;
         }
 
-        public FEMMesh SolveFemInverse(FEMMesh mesh, int maxIterCount, double stepSize)
+        public FEMMesh SolveFemInverse(FEMMesh mesh, int maxIterCount, double stepSize, double regularization)
         {
             // Forward step computes the correct potential values
             FEMMesh forwardProjection = SolveFemForward(mesh);
@@ -216,7 +216,7 @@ namespace BusinessLayer
             // Initialize inverse solver
             _differentialEquationSolver = DifferentialEquationSolverFactory.Create(mesh, DifferentialEquationSolver.FiniteElementMethod, NumericSolverFactory.Create(NumericSolver.SVD));
             _errorMetric = ErrorMetricFactory.Create(ErrorMetric.L2);
-            _regularizer = RegularisationFactory.Create(RegularizationTechnique.FirstOrderTikhonov, mesh);
+            _regularizer = RegularisationFactory.Create(RegularizationTechnique.ZeroOrderTikhonov, forwardProjection, regularization);
 
             // 2) Initialize conductivity (σ^{0}) to homogeneous distribution
             ConductivityDistribution sigma = ConductivityDistributionFactory.CreateRandom(mesh);
@@ -251,9 +251,9 @@ namespace BusinessLayer
                 Debug.WriteLine($"Misfit J = {misfit:0.#####}");
 
                 // 4d) Regularization term J_reg and grad ∇J_reg (Eq. 2.1.27/2.1.28)
-                //double regTerm = _regularizer.EvaluateTerm(mesh, sigma);
-                //var regGrad = _regularizer.EvaluateGradient(mesh, sigma);
-                //Debug.WriteLine($"Regularization R = {regTerm:0.#####}");
+                double regTerm = _regularizer.EvaluateTerm(mesh, sigma);
+                var regGrad = _regularizer.EvaluateGradient(mesh, sigma);
+                Debug.WriteLine($"Regularization R = {regTerm:0.#####}");
 
                 // 4e) Build adjoint source s = EvaluateAdjointSource (L2: residual; W2: Kantorovich φ) 
                 var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, dObs, dSim);
@@ -287,7 +287,7 @@ namespace BusinessLayer
                 // 4h) Total gradient ∇J = ∇J_data + ∇R  (Eq. 2.1.31)
                 var totalGradDict = dataGrad.Conductivities.ToDictionary(
                     kvp => kvp.Key,
-                    kvp => kvp.Value /*+ regGrad.GetConductivity(kvp.Key)*/
+                    kvp => kvp.Value + regGrad.GetConductivity(kvp.Key)
                 );
                 var totalGrad = new ConductivityDistribution(totalGradDict);
 

@@ -80,6 +80,12 @@
                    WidthRequest="80" 
                    Keyboard="Numeric"
                    Text="{Binding StepSize}"/>
+
+            <Label Grid.Row="2" Grid.Column="5" Text="Regularization Weight (θ):" VerticalOptions="Center" HorizontalOptions="Center"/>
+            <Entry Grid.Row="4" Grid.Column="5"
+                   WidthRequest="80" 
+                   Keyboard="Numeric"
+                   Text="{Binding RegularizationWeight}"/>
         </Grid>
 
 

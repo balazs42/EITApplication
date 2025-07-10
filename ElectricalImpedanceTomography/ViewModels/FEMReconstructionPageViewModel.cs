@@ -45,6 +45,9 @@ namespace ElectricalImpedanceTomography.ViewModels
         [ObservableProperty]
         private double stepSize = 0.001;
 
+        [ObservableProperty]
+        private double regularizationWeight = 1e-3;
+
         private FEMMesh _mesh;
         private FEMMesh _reconstructedMesh;
 
@@ -117,7 +120,8 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             return _reconstructionService.SolveFemInverse(mesh,
                                                           maxIterCount: MaxIterationCount,
-                                                          stepSize: StepSize);
+                                                          stepSize: StepSize,
+                                                          regularization: RegularizationWeight);
         }
     }
 }
