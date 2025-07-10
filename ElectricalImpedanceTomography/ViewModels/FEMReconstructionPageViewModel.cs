@@ -25,13 +25,25 @@ namespace ElectricalImpedanceTomography.ViewModels
         private int excitationElectrodeId = 1;
 
         [ObservableProperty]
-        private int groundElectrodeId = 16;
+        private int groundElectrodeId = 0;
 
         [ObservableProperty]
         private double excitationCurrentAmplitude = 1.0;
 
         [ObservableProperty]
-        private double electrodeSurfaceLength = 0.3;
+        private double electrodeSurfaceLength = 1.0;
+
+        [ObservableProperty]
+        private double contactImpedance = 1.0;
+
+        [ObservableProperty]
+        private double inhomogenityValue = 10.0;
+
+        [ObservableProperty]
+        private int maxIterationCount = 1000;
+
+        [ObservableProperty]
+        private double stepSize = 0.001;
 
         private FEMMesh _mesh;
         private FEMMesh _reconstructedMesh;
@@ -50,10 +62,16 @@ namespace ElectricalImpedanceTomography.ViewModels
             if (BoundaryNodeCount < ElectrodeCount)
                 ElectrodeCount = BoundaryNodeCount;
 
-            return (FEMMesh)MeshFactory.Create(MeshType.FEM, 
-                                               layers: Layers,
-                                               boundaryVertexCount: BoundaryNodeCount, 
-                                               electrodeCount: ElectrodeCount);
+            var newMesh =  (FEMMesh)MeshFactory.Create(MeshType.FEM, 
+                                                       layers: Layers,
+                                                       boundaryVertexCount: BoundaryNodeCount, 
+                                                       electrodeCount: ElectrodeCount,
+                                                       inhomogenityValue: InhomogenityValue);
+
+            _mesh = newMesh.DeepCopy();
+            _reconstructedMesh = newMesh.DeepCopy();
+
+            return newMesh;
         }
 
         public FEMMesh GetMesh() => _mesh;
@@ -71,6 +89,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 el.Voltage = 0.0;
                 el.ZContact = 0.1;
                 el.Length = ElectrodeSurfaceLength;
+                el.ZContact = ContactImpedance;
             }
 
             if (ExcitationElectrodeId == GroundElectrodeId)
@@ -80,7 +99,9 @@ namespace ElectricalImpedanceTomography.ViewModels
             electrodes[ExcitationElectrodeId % ElectrodeCount].Current = ExcitationCurrentAmplitude;
             electrodes[GroundElectrodeId % ElectrodeCount].IsGround = true;
             electrodes[GroundElectrodeId % ElectrodeCount].Current = -ExcitationCurrentAmplitude;
-            
+
+            _reconstructedMesh.Electrodes = [.. electrodes];
+
             var retMesh = _reconstructionService.SolveFemForward(mesh);;
 
             _reconstructedMesh.PotentialDistribution = retMesh.PotentialDistribution;
@@ -90,7 +111,13 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public FEMMesh SolveInverse(FEMMesh mesh)
         {
-            return _reconstructionService.SolveFemInverse(mesh);
+            SolveForward(_reconstructedMesh);
+
+            _reconstructedMesh.Electrodes = _mesh.Electrodes;
+
+            return _reconstructionService.SolveFemInverse(mesh,
+                                                          maxIterCount: MaxIterationCount,
+                                                          stepSize: StepSize);
         }
     }
 }

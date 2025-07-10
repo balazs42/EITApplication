@@ -8,44 +8,80 @@
              Title="FEMReconstructionPage">
     <Grid RowDefinitions="Auto,Auto,*" ColumnDefinitions="*" RowSpacing="10">
         <!-- radius & boundary nodes -->
-        <StackLayout Grid.Row="0" Orientation="Horizontal" Spacing="15" Padding="10">
+
+        <Grid Grid.Row="0"
+              RowSpacing="5"
+              ColumnSpacing="10"              
+              RowDefinitions="Auto, Auto, Auto, Auto"
+              ColumnDefinitions="*, *, *, *, *,*, *, *, *, *">
             
-            <Label Text="Layers:" VerticalOptions="Center"/>
-            <Entry WidthRequest="80"
+            <Label Grid.Row="0" Grid.Column="0" Text="Layers:" VerticalOptions="Center" HorizontalOptions="Center"/>
+            <Entry Grid.Row="1" Grid.Column="0"
+                   WidthRequest="80"
                    Keyboard="Numeric"
                    Text="{Binding Layers}"/>
-            
-            <Label Text="Boundary nodes:" VerticalOptions="Center"/>
-            <Entry WidthRequest="80" 
+
+            <Label Grid.Row="0" Grid.Column="1" Text="Boundary nodes:" VerticalOptions="Center" HorizontalOptions="Center"/>
+            <Entry Grid.Row="1" Grid.Column="1"
+                   WidthRequest="80" 
                    Keyboard="Numeric"
                    Text="{Binding BoundaryNodeCount}"/>
 
-            <Label Text="Electrode Count:" VerticalOptions="Center"/>
-            <Entry WidthRequest="80" 
+            <Label Grid.Row="0" Grid.Column="2" Text="Electrode Count:" VerticalOptions="Center" HorizontalOptions="Center"/>
+            <Entry Grid.Row="1" Grid.Column="2"
+                   WidthRequest="80" 
                    Keyboard="Numeric"
                    Text="{Binding ElectrodeCount}"/>
 
-            <Label Text="Excitation Id:" VerticalOptions="Center"/>
-            <Entry WidthRequest="80" 
+            <Label Grid.Row="0" Grid.Column="3" Text="Excitation Id:" VerticalOptions="Center" HorizontalOptions="Center"/>
+            <Entry Grid.Row="1" Grid.Column="3"
+                   WidthRequest="80" 
                    Keyboard="Numeric"
                    Text="{Binding ExcitationElectrodeId}"/>
 
-            <Label Text="Ground Id:" VerticalOptions="Center"/>
-            <Entry WidthRequest="80" 
+            <Label Grid.Row="0" Grid.Column="4" Text="Ground Id:" VerticalOptions="Center" HorizontalOptions="Center"/>
+            <Entry Grid.Row="1" Grid.Column="4"
+                   WidthRequest="80" 
                    Keyboard="Numeric"
                    Text="{Binding GroundElectrodeId}"/>
 
-            <Label Text="Current[mA]:" VerticalOptions="Center"/>
-            <Entry WidthRequest="80" 
+            <Label Grid.Row="0" Grid.Column="5" Text="Current[mA]:" VerticalOptions="Center" HorizontalOptions="Center"/>
+            <Entry Grid.Row="1" Grid.Column="5"
+                   WidthRequest="80" 
                    Keyboard="Numeric"
                    Text="{Binding ExcitationCurrentAmplitude}"/>
-            
-            <Label Text="Electrode Size[%]:" VerticalOptions="Center"/>
-            <Entry WidthRequest="80" 
+
+            <Label Grid.Row="2" Grid.Column="0" Text="Electrode Size[%]:" VerticalOptions="Center" HorizontalOptions="Center"/>
+            <Entry Grid.Row="4" Grid.Column="0"
+                   WidthRequest="80" 
                    Keyboard="Numeric"
                    Text="{Binding ElectrodeSurfaceLength}"/>
 
-        </StackLayout>
+            <Label Grid.Row="2" Grid.Column="1" Text="Contact Impedance [mΩ]:" VerticalOptions="Center" HorizontalOptions="Center"/>
+            <Entry Grid.Row="4" Grid.Column="1"
+                   WidthRequest="80" 
+                   Keyboard="Numeric"
+                   Text="{Binding ContactImpedance}"/>
+
+            <Label Grid.Row="2" Grid.Column="2" Text="Inhomogenity [mS]:" VerticalOptions="Center" HorizontalOptions="Center"/>
+            <Entry Grid.Row="4" Grid.Column="2"
+                   WidthRequest="80" 
+                   Keyboard="Numeric"
+                   Text="{Binding InhomogenityValue}"/>
+
+            <Label Grid.Row="2" Grid.Column="3" Text="Max iteration count:" VerticalOptions="Center" HorizontalOptions="Center"/>
+            <Entry Grid.Row="4" Grid.Column="3"
+                   WidthRequest="80" 
+                   Keyboard="Numeric"
+                   Text="{Binding MaxIterationCount}"/>
+
+            <Label Grid.Row="2" Grid.Column="4" Text="Gradient Step Size (β):" VerticalOptions="Center" HorizontalOptions="Center"/>
+            <Entry Grid.Row="4" Grid.Column="4"
+                   WidthRequest="80" 
+                   Keyboard="Numeric"
+                   Text="{Binding StepSize}"/>
+        </Grid>
+
 
         <!-- buttons -->
         <StackLayout Grid.Row="1" Orientation="Horizontal"

@@ -1,5 +1,6 @@
 ﻿using DataAccessLayer;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using Utility.Classes;
 using Utility.Classes.Factories;
 using Utility.Classes.Measurement;
@@ -168,6 +169,9 @@ namespace BusinessLayer
 
             return new EITMeasurements(meas);
         }
+
+        #region Finite Element Method Related Functions
+
         public FEMMesh SolveFemForward(FEMMesh mesh)
         {
             _differentialEquationSolver = DifferentialEquationSolverFactory.Create(mesh, DifferentialEquationSolver.FiniteElementMethod, NumericSolverFactory.Create(NumericSolver.SVD));
@@ -199,11 +203,15 @@ namespace BusinessLayer
             return mesh;
         }
 
-        public FEMMesh SolveFemInverse(FEMMesh mesh)
+        public FEMMesh SolveFemInverse(FEMMesh mesh, int maxIterCount, double stepSize)
         {
             // Forward step computes the correct potential values
             FEMMesh forwardProjection = SolveFemForward(mesh);
-            var measuredValues = forwardProjection.GetElectrodePotentials();
+            double[] measuredValues = forwardProjection.GetElectrodePotentials();
+
+            Debug.WriteLine("The simulated measured values are:");
+            for (int i = 0; i < measuredValues.Length; i++)
+                Debug.WriteLine($"{measuredValues[i]}");
 
             // Initialize inverse solver
             _differentialEquationSolver = DifferentialEquationSolverFactory.Create(mesh, DifferentialEquationSolver.FiniteElementMethod, NumericSolverFactory.Create(NumericSolver.SVD));
@@ -211,25 +219,31 @@ namespace BusinessLayer
             _regularizer = RegularisationFactory.Create(RegularizationTechnique.FirstOrderTikhonov, mesh);
 
             // 2) Initialize conductivity (σ^{0}) to homogeneous distribution
-            var sigma = ConductivityDistributionFactory.CreateRandom(mesh);
+            ConductivityDistribution sigma = ConductivityDistributionFactory.CreateRandom(mesh);
             mesh.SetConductivityDistribution(sigma);
             
             // 3) Mark electrodes: 0=ground, 1=excitation
-            var electrodes = mesh.Electrodes;
+            List<Electrode> electrodes = mesh.Electrodes;
             var bc = new BoundaryCondition(electrodes);
 
             // 4) Iterative loop
             double prevError = double.PositiveInfinity;
-            for (int iter = 0; iter < 10; iter++)
+            List<double> errors = [];
+
+            for (int iter = 0; iter < maxIterCount; iter++)
             {
                 Debug.WriteLine($"\n=== Inverse iteration {iter} ===");
 
                 // 4a) Forward solve φ⁽ᵏ⁾ = S(σ⁽ᵏ⁾)   (thesis Eq. 1.1.16)
-                var phi = _differentialEquationSolver.SolveForward(mesh, bc);
+                PotentialDistribution phi = _differentialEquationSolver.SolveForward(mesh, bc);
                 Debug.WriteLine("Forward φ computed.");
 
                 // 4b) Extract simulated boundary data d_sim
-                var dSim = mesh.GetElectrodePotentials();
+                double[] dSim = mesh.GetElectrodePotentials();
+                Debug.WriteLine("The simulated electrode potentials during iteration:");
+                for (int i = 0; i < dSim.Length; i++)
+                    Debug.WriteLine($"{dSim[i]}");
+
                 double[] dObs = measuredValues;
 
                 // 4c) Compute misfit J_misfit (thesis Eq. 2.1.4 or 3.1.1)
@@ -260,7 +274,7 @@ namespace BusinessLayer
                     mesh.Elements.ToDictionary(
                         el => el.Id,
                         el => {
-                            // compute ∇φ, ∇μ on this element (call your operator)
+                            // compute ∇φ, ∇μ on this element
                             var gPhi = FiniteElementOperators.CalculateElementWiseGradient(mesh, phi)
                                         .GetVector(el.Id);
                             var gMu = FiniteElementOperators.CalculateElementWiseGradient(mesh, mu)
@@ -280,13 +294,16 @@ namespace BusinessLayer
                 Debug.WriteLine("Gradient ∇J computed.");
 
                 // 4i) Line search / simple step: σ⁽ᵏ⁺¹⁾ = σ⁽ᵏ⁾ - α ∇J
-                double step = 1e-2;  // choose small enough for stability
+                double step = stepSize;  // choose small enough for stability
                 var newSigmaDict = sigma.Conductivities.ToDictionary(
                     kvp => kvp.Key,
-                    kvp => kvp.Value - step * totalGrad.GetConductivity(kvp.Key)
+                    // Clamp conductivites which got below 0
+                    kvp => ((kvp.Value - step * totalGrad.GetConductivity(kvp.Key)) < 0.0) ? 1e-1 : kvp.Value - step * totalGrad.GetConductivity(kvp.Key)
                 );
+                
                 sigma = new ConductivityDistribution(newSigmaDict);
                 mesh.SetConductivityDistribution(sigma);
+
                 // 4j) Check convergence on boundary misfit change
                 if (Math.Abs(prevError - misfit) < 1e-8)
                 {
@@ -294,7 +311,16 @@ namespace BusinessLayer
                     break;
                 }
                 prevError = misfit;
+                errors.Add(prevError);
             }
+
+            Debug.WriteLine("Erorrs during iteration:");
+            // print errors
+            for (int i = 0; i < errors.Count; i++)
+                if (i % 10 == 0)
+                    Debug.WriteLine("");
+                else Debug.Write($"{errors[i]:F6},");
+
 
             // 5) Update mesh ConductivityDistribution and return
             foreach (var el in mesh.Elements)
@@ -302,6 +328,7 @@ namespace BusinessLayer
 
             return mesh;
         }
+        #endregion
     }
 }
- 
+

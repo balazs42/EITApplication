@@ -17,6 +17,7 @@ public partial class FEMReconstructionPage : ContentPage
     // data ranges:
     private double _minPot, _maxPot;
     private double _minCond, _maxCond;
+    private double _minRecon, _maxRecon;
 
     // hover state for potential:
     private SKPoint? _hoverPotCanvasPt;
@@ -29,6 +30,10 @@ public partial class FEMReconstructionPage : ContentPage
     // hover state for conductivity:
     private SKPoint? _hoverCondCanvasPt;
     private double? _hoverCondValue;
+
+    // hover state for reconstructed:
+    private SKPoint? _hoverReconCanvasPt;
+    private double? _hoverReconValue;
 
     readonly SKColor HoverTextColor = SKColors.Lime;
 
@@ -82,6 +87,8 @@ public partial class FEMReconstructionPage : ContentPage
         _maxPot = verts.Max(v => v.Potential);
         _minCond = _mesh.Elements.Min(el => el.Conductivity);
         _maxCond = _mesh.Elements.Max(el => el.Conductivity);
+        _minRecon = _reconstructedMesh.Elements.Min(el => el.Conductivity);
+        _maxRecon = _reconstructedMesh.Elements.Max(el => el.Conductivity);
     }
 
     SKPoint ToCanvas(Vertex v)
@@ -162,7 +169,6 @@ public partial class FEMReconstructionPage : ContentPage
         }
     }
 
-
     private void OnPotentialPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
         var canvas = e.Surface.Canvas;
@@ -233,8 +239,6 @@ public partial class FEMReconstructionPage : ContentPage
         }
     }
 
-
-
     // ---- POTENTIAL COLORBAR ----
     private void OnPotentialColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
@@ -291,32 +295,133 @@ public partial class FEMReconstructionPage : ContentPage
     }
 
     private void OnReconstructionPaintSurface(object sender, SKPaintSurfaceEventArgs e)
-    => OnConductivityPaintSurface(sender, e, conductivtiyCanvas: false);
+    {
+        var canvas = e.Surface.Canvas;
+        canvas.Clear(SKColor.Parse("#1E1E1E"));
+        ComputeBoundsAndRanges(e.Info);
+        // Fill each element
+        using var fillPaint = new SKPaint
+        {
+            IsAntialias = true,
+            Style = SKPaintStyle.Fill
+        };
+
+        foreach (var elem in _reconstructedMesh.Elements)
+        {
+            fillPaint.Color = ColorForValue(
+                elem.Conductivity, _minRecon, _maxRecon);
+
+            using var path = new SKPath();
+            path.MoveTo(ToCanvas(elem.Vertices[0]));
+            path.LineTo(ToCanvas(elem.Vertices[1]));
+            path.LineTo(ToCanvas(elem.Vertices[2]));
+            path.Close();
+            canvas.DrawPath(path, fillPaint);
+        }
+
+        // Outline
+        using var strokePaint = new SKPaint
+        {
+            Style = SKPaintStyle.Stroke,
+            Color = SKColors.Black,
+            StrokeWidth = 1,
+            IsAntialias = true
+        };
+        foreach (var elem in _reconstructedMesh.Elements)
+        {
+            using var path = new SKPath();
+            path.MoveTo(ToCanvas(elem.Vertices[0]));
+            path.LineTo(ToCanvas(elem.Vertices[1]));
+            path.LineTo(ToCanvas(elem.Vertices[2]));
+            path.Close();
+            canvas.DrawPath(path, strokePaint);
+        }
+
+        if (_hoverReconValue.HasValue && _hoverReconCanvasPt.HasValue)
+        {
+            using var textPaint = new SKPaint
+            {
+                Color = HoverTextColor,
+                TextSize = 24,
+                IsAntialias = true
+            };
+            var txt = _hoverReconValue.Value.ToString("F3");
+            var pt = _hoverReconCanvasPt.Value;
+            canvas.DrawText(txt, pt.X + 10, pt.Y - 10, textPaint);
+        }
+
+        DrawElectrodes(canvas);
+    }
 
     private void OnReconstructionColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
-        => OnConductivityColorbarPaintSurface(sender, e, false);
+    {
+        var canvas = e.Surface.Canvas;
+        canvas.Clear(SKColors.White);
+        var info = e.Info;
+        float h = info.Height * 0.9f;
+        float y = 2f;
+
+        var rect = new SKRect(0, y, info.Width, y + h);
+        using var paint = new SKPaint
+        {
+            Shader = SKShader.CreateLinearGradient(
+                new SKPoint(rect.Left, rect.Top),
+                new SKPoint(rect.Right, rect.Top),
+                new[] { ColorForValue(_minRecon, _minRecon, _maxRecon),
+                            ColorForValue(_maxRecon, _minRecon, _maxRecon) },
+                null, SKShaderTileMode.Clamp)
+        };
+        canvas.DrawRect(rect, paint);
+
+        using var txt = new SKPaint
+        {
+            IsAntialias = true,
+            TextSize = 20,
+            Color = SKColors.White,
+            FakeBoldText = true
+        };
+        var minTxt = _minRecon.ToString("F2");
+        var maxTxt = _maxRecon.ToString("F2");
+        float textY = rect.Top + txt.TextSize + 3;
+        canvas.DrawText(minTxt, rect.Left + 2, textY, txt);
+        float w = txt.MeasureText(maxTxt);
+        canvas.DrawText(maxTxt, rect.Right - w - 2, textY, txt);
+    }
 
     private void OnReconstructionTouch(object sender, SKTouchEventArgs e)
-        => OnConductivityCanvasTouch(sender, e, false);
-
-    private void OnConductivityPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
-        OnConductivityPaintSurface(sender, e, true);
-    }
+        if (e.ActionType == SKTouchAction.Pressed || e.ActionType == SKTouchAction.Moved)
+        {
+            var p = e.Location;
+            _hoverReconValue = null;
+            _hoverReconCanvasPt= null;
 
-    private void OnConductivityColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
-    {
-        OnConductivityColorbarPaintSurface(sender, e, true);
+            foreach (var elem in _reconstructedMesh.Elements)
+            {
+                var c0 = ToCanvas(elem.Vertices[0]);
+                var c1 = ToCanvas(elem.Vertices[1]);
+                var c2 = ToCanvas(elem.Vertices[2]);
+                if (PointInTriangle(p, c0, c1, c2, out _, out _, out _))
+                {
+                    _hoverReconValue = elem.Conductivity;
+                    _hoverReconCanvasPt = p;
+                    break;
+                }
+            }
+            ReconstructionCanvas.InvalidateSurface();
+            e.Handled = true;
+        }
+        else if (e.ActionType == SKTouchAction.Released)
+        {
+            _hoverReconValue = null;
+            _hoverReconCanvasPt = null;
+            ReconstructionCanvas.InvalidateSurface();
+            e.Handled = true;
+        }
     }
-
-    private void OnConductivityCanvasTouch(object sender, SKTouchEventArgs e)
-    {
-        OnConductivityCanvasTouch(sender, e, true);
-    }
-
 
     // ---- DRAW CONDUCTIVITY MESH ----
-    private void OnConductivityPaintSurface(object sender, SKPaintSurfaceEventArgs e, bool conductivtiyCanvas = true)
+    private void OnConductivityPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
         var canvas = e.Surface.Canvas;
         canvas.Clear(SKColor.Parse("#1E1E1E"));
@@ -327,12 +432,8 @@ public partial class FEMReconstructionPage : ContentPage
             IsAntialias = true,
             Style = SKPaintStyle.Fill
         };
-
-        FEMMesh mesh = conductivtiyCanvas ? _mesh : _reconstructedMesh;
         
-
-
-        foreach (var elem in mesh.Elements)
+        foreach (var elem in _mesh.Elements)
         {
             fillPaint.Color = ColorForValue(
                 elem.Conductivity, _minCond, _maxCond);
@@ -379,7 +480,7 @@ public partial class FEMReconstructionPage : ContentPage
         DrawElectrodes(canvas);
     }
 
-    private void OnConductivityCanvasTouch(object sender, SKTouchEventArgs e, bool conductivityCanvas = true)
+    private void OnConductivityCanvasTouch(object sender, SKTouchEventArgs e)
     {
         if (e.ActionType == SKTouchAction.Pressed || e.ActionType == SKTouchAction.Moved)
         {
@@ -387,9 +488,7 @@ public partial class FEMReconstructionPage : ContentPage
             _hoverCondValue = null;
             _hoverCondCanvasPt = null;
 
-            FEMMesh mesh = conductivityCanvas ? _mesh : _reconstructedMesh;
-
-            foreach (var elem in mesh.Elements)
+            foreach (var elem in _mesh.Elements)
             {
                 var c0 = ToCanvas(elem.Vertices[0]);
                 var c1 = ToCanvas(elem.Vertices[1]);
@@ -401,27 +500,20 @@ public partial class FEMReconstructionPage : ContentPage
                     break;
                 }
             }
-            if (conductivityCanvas)
-                ConductivityCanvas.InvalidateSurface();
-            else
-                ReconstructionCanvas.InvalidateSurface();
+            ConductivityCanvas.InvalidateSurface();
             e.Handled = true;
         }
         else if (e.ActionType == SKTouchAction.Released)
         {
             _hoverCondValue = null;
             _hoverCondCanvasPt = null;
-            if (conductivityCanvas)
                 ConductivityCanvas.InvalidateSurface();
-            else
-                ReconstructionCanvas.InvalidateSurface();
             e.Handled = true;
         }
     }
 
-
     // ---- CONDUCTIVITY COLORBAR ----
-    private void OnConductivityColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e, bool conductivityCanvas = true)
+    private void OnConductivityColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
         var canvas = e.Surface.Canvas;
         canvas.Clear(SKColors.White);
@@ -461,8 +553,8 @@ public partial class FEMReconstructionPage : ContentPage
     // ---- BUTTON HANDLERS ----
     private void OnGenerateMeshClicked(object s, EventArgs e)
     {
-        _mesh = _viewModel.GenerateMesh();
-        _reconstructedMesh = _viewModel.GenerateMesh();
+        _mesh = _viewModel.GenerateMesh().DeepCopy();
+        _reconstructedMesh = _viewModel.GenerateMesh().DeepCopy();
         PotentialCanvas.InvalidateSurface();
         PotentialColorbar.InvalidateSurface();
         ConductivityCanvas.InvalidateSurface();
@@ -473,14 +565,14 @@ public partial class FEMReconstructionPage : ContentPage
 
     private void OnSolveForwardClicked(object s, EventArgs e)
     {
-        _mesh = _viewModel.SolveForward(_mesh);
+        _mesh = _viewModel.SolveForward(_mesh).DeepCopy();
         PotentialCanvas.InvalidateSurface();
         PotentialColorbar.InvalidateSurface();
     }
 
     private void OnSolveInverseClicked(object s, EventArgs e)
     {
-        _reconstructedMesh = _viewModel.SolveInverse(_reconstructedMesh);
+        _reconstructedMesh = _viewModel.SolveInverse(_reconstructedMesh).DeepCopy();
         ReconstructionCanvas.InvalidateSurface();
         ReconstructionColorbar.InvalidateSurface();
     }

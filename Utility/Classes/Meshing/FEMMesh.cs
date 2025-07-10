@@ -15,12 +15,23 @@ namespace Utility.Classes.Meshing
             this.Elements = elements;
             base.Elements = elements.Cast<MeshElement>().ToList();
 
-            // Initialize with a homogeneous conductivity distribution
-            this.ConductivityDistribution = ConductivityDistributionFactory.FromFEMMesh(this);
+            Initialize();
         }
 
         public FEMMesh()
         {
+            Initialize();
+        }
+
+        public void Initialize()
+        {
+            // Initialize with a homogeneous conductivity distribution
+            this.ConductivityDistribution = ConductivityDistributionFactory.FromFEMMesh(this);
+
+            Dictionary<int, double> potentialDistribution = new Dictionary<int, double>();
+            foreach (var vertex in Vertices)
+                potentialDistribution.Add(vertex.GlobalId, vertex.Potential);
+            PotentialDistribution = new PotentialDistribution(potentialDistribution);
         }
 
         public new ConductivityDistribution GetConductivityDistribution()
@@ -81,6 +92,54 @@ namespace Utility.Classes.Meshing
                     }
                 }
             }
+        }
+        
+        public void SetPotentialDistribution(PotentialDistribution potentialDistribution)
+        {
+            if(potentialDistribution.Potentials.Count != PotentialDistribution.Potentials.Count)
+                throw new ArgumentOutOfRangeException("Cannot set potential distribution on mesh, since the provided distribution contains differing number of elements, then the mesh. Check code!");
+
+            PotentialDistribution = potentialDistribution;
+
+            foreach(var kvp in PotentialDistribution.Potentials)
+            {
+                foreach(var vertex in Vertices)
+                {
+                    if(vertex.GlobalId == kvp.Key)
+                    {
+                        vertex.Potential = kvp.Value;
+                        break;
+                    }
+                }
+            }
+
+            // Set electrode potentials as well
+            double[] electrodePotentials = new double[Electrodes.Count];
+
+            foreach (var vertex in Vertices)
+                if (vertex.IsElectrode)
+                    electrodePotentials[vertex.ElectrodeId] = vertex.Potential;
+
+            SetElectrodePotentials(electrodePotentials);
+        }
+
+
+        public void SetElectrodePotentials(List<double> potentials)
+        {
+            if (potentials.Count != Electrodes.Count)
+                throw new ArgumentOutOfRangeException("Cannot set electrode potentials, if list size mistamtch electrodes list count, check code!");
+
+            for (int i = 0; i < potentials.Count; i++)
+                Electrodes[i].Voltage = potentials[i];
+        }
+
+        public void SetElectrodePotentials(double[] potentials)
+        {
+            if (potentials.Length != Electrodes.Count)
+                throw new ArgumentOutOfRangeException("Cannot set electrode potentials, if list size mistamtch electrodes list count, check code!");
+
+            for (int i = 0; i < potentials.Length; i++)
+                Electrodes[i].Voltage = potentials[i];
         }
 
         /// <summary>

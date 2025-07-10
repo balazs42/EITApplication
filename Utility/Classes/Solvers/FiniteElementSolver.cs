@@ -1,7 +1,5 @@
-﻿using Google.OrTools.ConstraintSolver;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Numerics;
-using System.Xml.Linq;
 using Utility.Classes.Meshing;
 using Utility.Classes.ReconstructionParameters;
 
@@ -60,8 +58,8 @@ namespace Utility.Classes.Solvers
         /// <param name="electrodes"/> electrode list with .Current, .IsGround set
         /// <returns>vector [alpha; U]</returns>
         public PotentialDistribution Solve(FEMMesh mesh,
-                                    ConductivityDistribution sigma,
-                                    List<Electrode> electrodes)
+                                           ConductivityDistribution sigma,
+                                           List<Electrode> electrodes)
         {
             // 1) Build sub-blocks
             BuildStiffnessMatrix(mesh, sigma); // Eq (1.2.3)
@@ -91,10 +89,14 @@ namespace Utility.Classes.Solvers
             Debug.WriteLine("Solution [α; U]:\n" + FormatComplexVector(full));
 
             Dictionary<int, double> pd = new();
-            for (int i = 0; i < full.Length; i++)
+            for (int i = 0; i < N_phi; i++)
                 pd.Add(i, full[i].Real);
 
-            return new PotentialDistribution(pd);
+            var potentialDistribution = new PotentialDistribution(pd);
+
+            mesh.SetPotentialDistribution(potentialDistribution);
+
+            return potentialDistribution;
         }
 
         #region Assembly
@@ -110,13 +112,13 @@ namespace Utility.Classes.Solvers
                 // get shape gradients ∇φ^T (double[3,2]) from element, Eq (1.2.2)
                 var grads = elem.GradPhi; // [3,2] array of (∂φ_i/∂x, ∂φ_i/∂y)
                 for (int i = 0; i < 3; i++) for (int j = 0; j < 3; j++)
-                    {
-                        double gdot = grads[i, 0] * grads[j, 0] + grads[i, 1] * grads[j, 1];
-                        K[elem.Vertices[i].GlobalId,
-                          elem.Vertices[j].GlobalId] += sT * area * gdot;
-                    }
+                {
+                    double gdot = grads[i, 0] * grads[j, 0] + grads[i, 1] * grads[j, 1];
+                    K[elem.Vertices[i].GlobalId,
+                        elem.Vertices[j].GlobalId] += sT * area * gdot;
+                }
             }
-            Debug.WriteLine("K:\n" + FormatComplexMatrix(K));
+            //Debug.WriteLine("K:\n" + FormatComplexMatrix(K));
         }
 
         /// <summary>Eq (1.1.12)</summary>
@@ -131,7 +133,7 @@ namespace Utility.Classes.Solvers
                 foreach (int vid in el.VertexIds)
                     M[vid, vid] += invZ * h;
             }
-            Debug.WriteLine("M:\n" + FormatComplexMatrix(M));
+            //Debug.WriteLine("M:\n" + FormatComplexMatrix(M));
         }
 
         /// <summary>Eq (1.1.12)</summary>
@@ -146,7 +148,7 @@ namespace Utility.Classes.Solvers
                 foreach (int vid in el.VertexIds)
                     A_coup[vid, el.Id] += invZ * h;
             }
-            Debug.WriteLine("A_coup:\n" + FormatComplexMatrix(A_coup));
+            //Debug.WriteLine("A_coup:\n" + FormatComplexMatrix(A_coup));
         }
 
         /// <summary>Eq (1.1.15)</summary>
@@ -157,7 +159,7 @@ namespace Utility.Classes.Solvers
             foreach (var el in mesh.Electrodes)
                 D[el.Id, el.Id] = el.Length / el.ZContact;
 
-            Debug.WriteLine("D:\n" + FormatComplexMatrix(D));
+            //Debug.WriteLine("D:\n" + FormatComplexMatrix(D));
         }
 
         /// <summary>Eq (1.1.16)</summary>
@@ -177,7 +179,7 @@ namespace Utility.Classes.Solvers
             // D
             for (int ell = 0; ell < Lloc; ell++)
                 SystemMatrix[N + ell, N + ell] = D[ell, ell];
-            Debug.WriteLine("SystemMatrix:\n" + FormatComplexMatrix(SystemMatrix));
+           // Debug.WriteLine("SystemMatrix:\n" + FormatComplexMatrix(SystemMatrix));
         }
 
         /// <summary>rhs = [0; I] </summary>
@@ -188,7 +190,7 @@ namespace Utility.Classes.Solvers
             for (int ell = 0; ell < L; ell++)
                 SystemRHS[N_phi + ell] = electrodes[ell].Current;
 
-            Debug.WriteLine("SystemRHS:\n" + FormatComplexVector(SystemRHS));
+           // Debug.WriteLine("SystemRHS:\n" + FormatComplexVector(SystemRHS));
         }
         #endregion
 

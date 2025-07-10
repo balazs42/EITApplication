@@ -1,18 +1,17 @@
 ﻿using Utility.Classes.Meshing;
 using MIConvexHull;
-using System.Text.Json.Serialization;                           // ← Delaunay triangulation
 
 namespace Utility.Classes.Factories
 {
 
     public static class MeshFactory
     {
-        public static IMesh Create(MeshType mt, int layers = 2, int boundaryVertexCount = 16, int electrodeCount = 16) => mt switch
+        public static IMesh Create(MeshType mt, int layers = 2, int boundaryVertexCount = 16, int electrodeCount = 16, double inhomogenityValue = 10.0) => mt switch
         {
             MeshType.FEM => CreateCircularFEMMesh(layers: layers,
                                                   boundaryVertexCount: boundaryVertexCount,
-                                                  inhomogeneityValue: 0.2,
-                                                  electrodeCount: electrodeCount),
+                                                  electrodeCount: electrodeCount,
+                                                  inhomogeneityValue: inhomogenityValue),
             MeshType.LBM => new LBMMesh(),
             _ => throw new NotSupportedException()
         };
@@ -37,8 +36,8 @@ namespace Utility.Classes.Factories
         public static FEMMesh CreateCircularFEMMesh(
             int layers,
             int boundaryVertexCount,
-            double inhomogeneityValue = 3.0,
-            int electrodeCount = 16)
+            int electrodeCount = 16,
+            double inhomogeneityValue = 3.0)
         {
             return CreateCircularFEMMeshInternal(layers, boundaryVertexCount, electrodeCount, inhomogeneityValue);
         }
@@ -194,7 +193,8 @@ namespace Utility.Classes.Factories
                 }
             }
 
-
+            // Initialize should be called, because that is what updates the mesh conductivity distribution and potential distribution
+            mesh.Initialize();
             return mesh;
         }
 

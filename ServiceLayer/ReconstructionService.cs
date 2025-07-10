@@ -59,11 +59,11 @@ namespace ServiceLayer
             }
         }
 
-        public FEMMesh SolveFemInverse(FEMMesh mesh)
+        public FEMMesh SolveFemInverse(FEMMesh mesh, int maxIterCount, double stepSize)
         {
             try
             {
-                return _reconstructionPersistence.SolveFemInverse(mesh);
+                return _reconstructionPersistence.SolveFemInverse(mesh, maxIterCount, stepSize);
             }
             catch(Exception ex)
             {
