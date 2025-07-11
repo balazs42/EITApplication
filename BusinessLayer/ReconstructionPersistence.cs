@@ -1,4 +1,5 @@
-﻿using DataAccessLayer;
+﻿using BH.Engine.Reflection;
+using DataAccessLayer;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using Utility.Classes;
@@ -205,6 +206,8 @@ namespace BusinessLayer
 
         public FEMMesh SolveFemInverse(FEMMesh mesh, int maxIterCount, double stepSize, double regularization)
         {
+            return SolveFemInverseAllFrames(mesh, maxIterCount, stepSize, regularization);
+
             // Forward step computes the correct potential values
             FEMMesh forwardProjection = SolveFemForward(mesh);
             double[] measuredValues = forwardProjection.GetElectrodePotentials();
@@ -328,6 +331,215 @@ namespace BusinessLayer
 
             return mesh;
         }
+
+        public FEMMesh SolveFemInverseAllFrames(FEMMesh mesh, int maxIterCount, double stepSize, double regularization, double excitationAmplitude = 1.0, double tolerance = 1e-5, double minConductivtiy = 1e-3, double maxConductivity = 10.0)
+        {
+            List<double[]> simulatedMeasurements = SimulateFemMeasurements(mesh, excitationAmplitude);
+            
+            // Initialize inverse solver
+            _differentialEquationSolver = DifferentialEquationSolverFactory.Create(mesh, DifferentialEquationSolver.FiniteElementMethod, NumericSolverFactory.Create(NumericSolver.SVD));
+            _errorMetric = ErrorMetricFactory.Create(ErrorMetric.L2);
+            _regularizer = RegularisationFactory.Create(RegularizationTechnique.ZeroOrderTikhonov, mesh.DeepCopy(), regularization);
+
+            // 2) Initialize conductivity (σ^{(0)}) to homogeneous distribution
+            ConductivityDistribution sigma = ConductivityDistributionFactory.CreateSlightlyDiffering(mesh, mesh.Elements.Count / 2, 0.95);
+            mesh.SetConductivityDistribution(sigma);
+
+            // 3) Mark electrodes: 0=ground, 1=excitation
+            List<Electrode> electrodes = mesh.Electrodes;
+            var bc = new BoundaryCondition(electrodes);
+            var electrodeCount = mesh.Electrodes.Count;
+
+            // 4) Iterative loop
+            double prevJ = double.PositiveInfinity;
+            List<double> errors = [];
+
+            for (int iter = 0; iter < maxIterCount; iter++)
+            {
+                Debug.WriteLine($"\n=== Inverse iteration {iter} ===");
+
+                Dictionary<int, double> totalGrad = new();
+                for (int i = 0; i < mesh.Elements.Count; i++)
+                    totalGrad.Add(i, 0.0);
+
+                for(int exc = 0; exc < mesh.Electrodes.Count; exc++)
+                {
+                    // Clear electrode status
+                    foreach (var el in mesh.Electrodes)
+                    {
+                        el.Current = 0.0;
+                        el.IsExcitation = false;
+                        el.IsGround = false;
+                        el.Voltage = 0.0;
+                    }
+
+                    // Set new electrode setup
+                    electrodes[exc % electrodeCount].IsExcitation = true;
+                    electrodes[exc % electrodeCount].Current = excitationAmplitude;
+                    electrodes[(exc + 1) % electrodeCount].IsGround = true;
+                    electrodes[(exc + 1) % electrodeCount].Current = -excitationAmplitude;
+
+                    // 4a) Forward solve φ⁽ᵏ⁾ = S(σ⁽ᵏ⁾)   (thesis Eq. 1.1.16)
+                    PotentialDistribution phi = _differentialEquationSolver.SolveForward(mesh, bc);
+                    Debug.WriteLine("Forward φ computed.");
+
+                    // 4b) Extract simulated boundary data d_sim
+                    double[] dSim = mesh.GetElectrodePotentials();
+                    Debug.WriteLine("The simulated electrode potentials during iteration:");
+                    for (int i = 0; i < dSim.Length; i++)
+                        Debug.WriteLine($"{dSim[i]}");
+
+                    double[] dObs = simulatedMeasurements[exc];
+
+                    // 4e) Build adjoint source s = EvaluateAdjointSource (L2: residual; W2: Kantorovich φ) 
+                    var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, dObs, dSim);
+                    // wrap into a PotentialDistribution on electrodes
+                    var srcDist = new PotentialDistribution(
+                        Enumerable.Range(0, adjSrc.Length)
+                                  .ToDictionary(i => electrodes[i].Id, i => adjSrc[i])
+                    );
+
+                    // 4f) Adjoint solve μ: same forward‐solver but feed in adjSrc as boundary currents
+                    var mu = _differentialEquationSolver.SolveForward(mesh, new BoundaryCondition(electrodes, srcDist));
+                    Debug.WriteLine("Adjoint μ computed.");
+
+                    // 4g) Compute gradient ∇J_data = ∇μ·∇φ elementwise  (thesis Eq. 2.1.20)
+                    var dataGrad = new ConductivityDistribution(
+                        mesh.Elements.ToDictionary(
+                            el => el.Id,
+                            el => {
+                                // compute ∇φ, ∇μ on this element
+                                var gPhi = FiniteElementOperators.CalculateElementWiseGradient(mesh, phi)
+                                            .GetVector(el.Id);
+                                var gMu = FiniteElementOperators.CalculateElementWiseGradient(mesh, mu)
+                                            .GetVector(el.Id);
+                                return (gMu.X * gPhi.X + gMu.Y * gPhi.Y) * el.Area;
+                            }
+                        )
+                    );
+
+                    foreach (var kvp in dataGrad.Conductivities)
+                        totalGrad[kvp.Key] += kvp.Value;
+                }
+
+                // 4d) Regularization term J_reg and grad ∇J_reg (Eq. 2.1.27/2.1.28)
+                double regTerm = _regularizer.EvaluateTerm(mesh, sigma);
+                var regGrad = _regularizer.EvaluateGradient(mesh, sigma);
+                Debug.WriteLine($"Regularization R = {regTerm:0.#####}");
+
+                // 4h) Total gradient ∇J = ∇J_data + ∇R  (Eq. 2.1.31)
+                var totalGradDict = totalGrad.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value + regGrad.GetConductivity(kvp.Key)
+                );
+
+                // Normalize gradient
+                foreach (var kvp in totalGradDict)
+                    totalGradDict[kvp.Key] = kvp.Value / simulatedMeasurements.Count;
+
+                var grad = new ConductivityDistribution(totalGradDict);
+
+                Debug.WriteLine("Gradient ∇J computed.");
+
+                // 4i) Line search / simple step: σ⁽ᵏ⁺¹⁾ = σ⁽ᵏ⁾ - α ∇J
+                double step = stepSize;  // choose small enough for stability
+
+                var newSigmaDict = sigma.Conductivities.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value - step * grad.GetConductivity(kvp.Key)
+                );
+                 
+                // Clamp conductivites which got below 0 or got over the limit
+                foreach (var kvp in newSigmaDict)
+                {
+                    if (kvp.Value < minConductivtiy)
+                        newSigmaDict[kvp.Key] = 1e-3;
+                    else if (kvp.Value > maxConductivity)
+                        newSigmaDict[kvp.Key] = maxConductivity;
+                }
+
+                sigma = new ConductivityDistribution(newSigmaDict);
+                mesh.SetConductivityDistribution(sigma);
+
+                // Compute total misfit
+                double Jtotal = 0;
+                for (int exc = 0; exc < electrodeCount; exc++)
+                {
+                    // Clear electrode status
+                    foreach (var el in mesh.Electrodes)
+                    {
+                        el.Current = 0.0;
+                        el.IsExcitation = false;
+                        el.IsGround = false;
+                        el.Voltage = 0.0;
+                    }
+
+                    // Set new electrode setup
+                    electrodes[exc % electrodeCount].IsExcitation = true;
+                    electrodes[exc % electrodeCount].Current = excitationAmplitude;
+                    electrodes[(exc + 1) % electrodeCount].IsGround = true;
+                    electrodes[(exc + 1) % electrodeCount].Current = -excitationAmplitude;
+
+                    var phiNew = _differentialEquationSolver.SolveForward(mesh, bc);
+                    double[] dSimNew = mesh.GetElectrodePotentials();
+                    double[] dObs = simulatedMeasurements[exc];
+                    Jtotal += _errorMetric.Evaluate(mesh, dObs, dSimNew);
+                }
+                Debug.WriteLine($"Iteration {iter}: total misfit = {Jtotal}");
+                
+                if (Math.Abs(prevJ - Jtotal) < tolerance) 
+                    break;
+                
+                prevJ = Jtotal;
+            }
+
+            Debug.WriteLine("Erorrs during iteration:");
+            // print errors
+            for (int i = 0; i < errors.Count; i++)
+                if (i % 10 == 0)
+                    Debug.WriteLine("");
+                else Debug.Write($"{errors[i]:F6},");
+
+
+            // 5) Update mesh ConductivityDistribution and return
+            foreach (var el in mesh.Elements)
+                el.Conductivity = sigma.GetConductivity(el.Id);
+
+            return mesh;
+        }
+
+        private List<double[]> SimulateFemMeasurements(FEMMesh mesh, double excitationAmplitude)
+        {
+            List<double[]> measurements = [];
+
+            FEMMesh deepCopy = mesh.DeepCopy();
+            var electrodes = deepCopy.Electrodes;
+            int electrodeCount = deepCopy.Electrodes.Count;
+            for (int i = 0; i < electrodeCount; i++)
+            {
+                // Clear electrode status
+                foreach(var el in deepCopy.Electrodes)
+                {
+                    el.Current = 0.0;
+                    el.IsExcitation = false;
+                    el.IsGround = false;
+                    el.Voltage = 0.0;
+                }
+
+                // Set new electrode setup
+                electrodes[i % electrodeCount].IsExcitation = true;
+                electrodes[i % electrodeCount].Current = excitationAmplitude;
+                electrodes[(i + 1) % electrodeCount].IsGround = true;
+                electrodes[(i + 1) % electrodeCount].Current = -excitationAmplitude;
+
+                FEMMesh result = SolveFemForward(deepCopy);
+
+                measurements.Add(result.GetElectrodePotentials());
+            }
+
+            return measurements;
+        }
+
         #endregion
     }
 }

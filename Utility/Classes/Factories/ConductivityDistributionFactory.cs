@@ -20,13 +20,37 @@ namespace Utility.Classes.Factories
         {
             Random r = new Random();
 
-            ConductivityDistribution radnomDistribution = new ConductivityDistribution(mesh.GetConductivityDistribution().Conductivities);
+            ConductivityDistribution randomDistribution = new ConductivityDistribution(mesh.GetConductivityDistribution().Conductivities);
 
             // Reassing conductivity values
-            foreach (var kvp in radnomDistribution.Conductivities)
-                radnomDistribution.Conductivities[kvp.Key] = r.NextDouble() * max;
+            foreach (var kvp in randomDistribution.Conductivities)
+                randomDistribution.Conductivities[kvp.Key] = r.NextDouble() * max;
 
-            return radnomDistribution;
+            return randomDistribution;
+        }
+
+        public static ConductivityDistribution CreateSlightlyDiffering(IMesh mesh, int numDiffering, double scaling = 0.95)
+        {
+            if (scaling < 0.0)
+                scaling = 0.5;
+
+            Random r = new Random();
+
+            int elementCount = mesh.GetElements().Count;
+
+            double ratio = (double)numDiffering / (double)elementCount;
+
+            if (ratio > 1.0)
+                ratio = 1.0;
+
+            ConductivityDistribution conductivityDistribution = new ConductivityDistribution(mesh.GetConductivityDistribution().Conductivities);
+
+            // Set randomly elements conductivity to slightly differing values
+            foreach (var kvp in conductivityDistribution.Conductivities)
+                if (r.NextDouble() > ratio)
+                    conductivityDistribution.Conductivities[kvp.Key] = conductivityDistribution.Conductivities[kvp.Key] * scaling;
+
+            return conductivityDistribution;
         }
 
         public static ConductivityDistribution FromFEMMesh(FEMMesh mesh)

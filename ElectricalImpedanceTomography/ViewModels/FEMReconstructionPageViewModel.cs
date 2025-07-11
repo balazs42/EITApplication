@@ -40,7 +40,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         private double inhomogenityValue = 10.0;
 
         [ObservableProperty]
-        private int maxIterationCount = 1000;
+        private int maxIterationCount = 50;
 
         [ObservableProperty]
         private double stepSize = 0.001;
@@ -103,8 +103,6 @@ namespace ElectricalImpedanceTomography.ViewModels
             electrodes[GroundElectrodeId % ElectrodeCount].IsGround = true;
             electrodes[GroundElectrodeId % ElectrodeCount].Current = -ExcitationCurrentAmplitude;
 
-            _reconstructedMesh.Electrodes = [.. electrodes];
-
             var retMesh = _reconstructionService.SolveFemForward(mesh);;
 
             _reconstructedMesh.PotentialDistribution = retMesh.PotentialDistribution;
@@ -114,9 +112,28 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public FEMMesh SolveInverse(FEMMesh mesh)
         {
-            SolveForward(_reconstructedMesh);
+            var electrodes = mesh.Electrodes;
 
-            _reconstructedMesh.Electrodes = _mesh.Electrodes;
+            foreach (var el in electrodes)
+            {
+                el.IsExcitation = false;
+                el.IsGround = false;
+                el.Current = 0.0;
+                el.Voltage = 0.0;
+                el.ZContact = 0.1;
+                el.Length = ElectrodeSurfaceLength;
+                el.ZContact = ContactImpedance;
+            }
+
+            if (ExcitationElectrodeId == GroundElectrodeId)
+                ExcitationElectrodeId++;
+
+            electrodes[ExcitationElectrodeId % ElectrodeCount].IsExcitation = true;
+            electrodes[ExcitationElectrodeId % ElectrodeCount].Current = ExcitationCurrentAmplitude;
+            electrodes[GroundElectrodeId % ElectrodeCount].IsGround = true;
+            electrodes[GroundElectrodeId % ElectrodeCount].Current = -ExcitationCurrentAmplitude;
+
+            _reconstructedMesh.Electrodes = [.. electrodes];
 
             return _reconstructionService.SolveFemInverse(mesh,
                                                           maxIterCount: MaxIterationCount,
