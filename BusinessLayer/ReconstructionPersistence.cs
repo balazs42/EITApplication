@@ -321,8 +321,8 @@ namespace BusinessLayer
             // print errors
             for (int i = 0; i < errors.Count; i++)
                 if (i % 10 == 0)
-                    Debug.WriteLine("");
-                else Debug.Write($"{errors[i]:F6},");
+                    Debug.WriteLine($"{errors[i]:F6} ");
+                else Debug.Write($"{errors[i]:F6}, ");
 
 
             // 5) Update mesh ConductivityDistribution and return
