@@ -121,7 +121,7 @@
             for(int i = 0; i < 16; i++)
             {
                 if (Electrodes[i].IsMeasuring)
-                    electrodePotentials[i] = Electrodes[i].Voltage;
+                    electrodePotentials[i] = Electrodes[i].Potential;
                 else
                     electrodePotentials[i] = double.NaN;
             }

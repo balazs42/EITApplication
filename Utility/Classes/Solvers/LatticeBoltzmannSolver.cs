@@ -297,7 +297,7 @@ namespace Utility.Classes.Solvers
                     if (calculatedPotentials.TryGetValue(electrode.MeshId, out double voltage))
                     {
                         // Update the Voltage property on the Electrode object itself.
-                        electrode.Voltage = voltage;
+                        electrode.Potential = voltage;
                     }
                 }
 
@@ -310,11 +310,11 @@ namespace Utility.Classes.Solvers
                     var adjecentElectrode = mesh.Electrodes[(i + 1) % mesh.Electrodes.Count];
 
                     // Get the calculated voltages
-                    double currentElectrodeVoltage = currentElectrode.Voltage;
-                    double adjecentElectrodeVoltage = adjecentElectrode.Voltage;
+                    double currentElectrodeVoltage = currentElectrode.Potential;
+                    double adjecentElectrodeVoltage = adjecentElectrode.Potential;
 
                     // Store the differential voltage associated with this electrode
-                    currentElectrode.Voltage = currentElectrodeVoltage - adjecentElectrodeVoltage;
+                    currentElectrode.Potential = currentElectrodeVoltage - adjecentElectrodeVoltage;
                 }
             }
 

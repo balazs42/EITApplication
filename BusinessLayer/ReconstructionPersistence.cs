@@ -14,16 +14,16 @@ namespace BusinessLayer
     {
         private readonly IDAQRepository _daqRepository;
 
-        private InverseModel _inverseModel;
+        private InverseModel? _inverseModel = null;
 
-        private EITMeasurements _measurementData;
+        private EITMeasurements? _measurementData = null;
 
-        private IMesh _mesh;
-        private INumericSolver _numericSolver;
-        private IDifferentialEquationSolver _differentialEquationSolver;
-        private IRegularizer _regularizer;
-        private IErrorMetric _errorMetric;
-        private INumericOptimizer _numericOptimizer;
+        private IMesh? _mesh = null;
+        private INumericSolver? _numericSolver = null;
+        private IDifferentialEquationSolver? _differentialEquationSolver = null;
+        private IRegularizer? _regularizer = null;
+        private IErrorMetric? _errorMetric = null;
+        private INumericOptimizer? _numericOptimizer = null;
 
         public ReconstructionPersistence(IDAQRepository daqRepository)
         {
@@ -32,8 +32,8 @@ namespace BusinessLayer
 
         public async Task<ReconstructionResult> GetReconstructionResult()
         {
-            if (_inverseModel == null)
-                throw new InvalidOperationException();
+            if (_inverseModel == null || _mesh == null)
+                throw new NullReferenceException();
 
             // Generate initial distribution for the reconstruction process
             ConductivityDistribution initialDistribution = PriorConductivityDistributionGenerator.GenerateHomogeneousDistribution(_mesh);
@@ -73,6 +73,9 @@ namespace BusinessLayer
         /// </summary>
         private EITMeasurements SimulateMeasurement()
         {
+            if (_differentialEquationSolver == null)
+                throw new NullReferenceException("Differential equation solver was null, check code!");
+
             Debug.WriteLine("Simulating measurement data from phantom...");
 
             // --- Step 1: Create the Ground Truth Phantom ---
@@ -182,22 +185,8 @@ namespace BusinessLayer
             BoundaryCondition boundaryConditions = new BoundaryCondition(electrodes);
 
             PotentialDistribution potentialDistribution = _differentialEquationSolver.SolveForward(mesh, boundaryConditions);
+            mesh.SetPotentialDistribution(potentialDistribution);
 
-            mesh.PotentialDistribution = potentialDistribution;
-
-            // 6) Update every vertex’s .Potential from the returned dictionary
-            foreach (var v in mesh.Vertices)
-            {
-                v.Potential = potentialDistribution.GetPotential(v.GlobalId);
-            }
-
-            // 7) (Optional) set each electrode's measured voltage = average over its nodes
-            foreach (var el in electrodes)
-            {
-                if (el.VertexIds.Count == 0) continue;
-                double sum = el.VertexIds.Sum(id => potentialDistribution.GetPotential(id));
-                el.Voltage = sum / el.VertexIds.Count;
-            }
 
             return mesh;
         }
@@ -368,7 +357,7 @@ namespace BusinessLayer
                         el.Current = 0.0;
                         el.IsExcitation = false;
                         el.IsGround = false;
-                        el.Voltage = 0.0;
+                        el.Potential = 0.0;
                     }
 
                     // Set new electrode setup
@@ -454,7 +443,7 @@ namespace BusinessLayer
                         el.Current = 0.0;
                         el.IsExcitation = false;
                         el.IsGround = false;
-                        el.Voltage = 0.0;
+                        el.Potential = 0.0;
                     }
 
                     // Set new electrode setup
@@ -506,7 +495,7 @@ namespace BusinessLayer
                     el.Current = 0.0;
                     el.IsExcitation = false;
                     el.IsGround = false;
-                    el.Voltage = 0.0;
+                    el.Potential = 0.0;
                 }
 
                 // Set new electrode setup
@@ -525,7 +514,7 @@ namespace BusinessLayer
 
         #endregion
 
-        public ReconstructionResult FemReconstructionStep(FEMMesh mesh, double[] measurement, double stepSize = 1e-3, double regularization = 1e-3, double excitationAmplitude = 1.0, double tolerance = 1e-5)
+        public ReconstructionResult FemReconstructionStep(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double regularization = 1e-3, double stepSize = 1e-3)
         {
             FEMMesh deepCopy = mesh.DeepCopy();
             ConductivityDistribution originalConductivityDistribution = deepCopy.ConductivityDistribution;

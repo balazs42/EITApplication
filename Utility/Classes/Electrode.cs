@@ -25,7 +25,7 @@
         public double Length { get; set; } = 0.3;
 
         // Measured voltage value on the electrode
-        public double Voltage { get; set; }
+        public double Potential { get; set; }
 
         public bool IsExcitation { get; set; } = false;
         public bool IsGround { get; set; } = false;
@@ -36,7 +36,7 @@
             MeshId = meshId;
             Current = current;
             ZContact = zContact;
-            Voltage = voltage;
+            Potential = voltage;
             VertexIds = vertexIds;
         }
 
@@ -46,7 +46,7 @@
             MeshId = meshId;
             Current = current;
             ZContact = zContact;
-            Voltage = voltage;
+            Potential = voltage;
             IsExcitation = isExcitation;
             IsGround = isGround;
             IsMeasuring = isMeasuring;

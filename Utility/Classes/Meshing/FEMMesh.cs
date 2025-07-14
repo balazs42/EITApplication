@@ -34,6 +34,10 @@ namespace Utility.Classes.Meshing
             PotentialDistribution = new PotentialDistribution(potentialDistribution);
         }
 
+        /// <summary>
+        /// Returns the conductivity distribution object of the mesh.
+        /// </summary>
+        /// <returns>ConductivityDistribution of the mesh.</returns>
         public new ConductivityDistribution GetConductivityDistribution()
         {
             Dictionary<int, double> cd = new Dictionary<int, double>();
@@ -46,7 +50,10 @@ namespace Utility.Classes.Meshing
             return ConductivityDistribution;
         }
 
-
+        /// <summary>
+        /// Returns the electrode potentials in an ordered array.
+        /// </summary>
+        /// <returns>The ordered array of electrode potentials.</returns>
         public override double[] GetElectrodePotentials()
         {
             // First update the electrode potentials, if they were not updated
@@ -58,7 +65,7 @@ namespace Utility.Classes.Meshing
                 {
                     if (kvp.Key == Electrodes[i].MeshId)
                     {
-                        Electrodes[i].Voltage = kvp.Value;
+                        Electrodes[i].Potential = kvp.Value;
                         break;
                     }
                 }
@@ -67,13 +74,18 @@ namespace Utility.Classes.Meshing
             double[] potentials = new double[Electrodes.Count];
 
             for (int i = 0; i < potentials.Length; i++)
-                potentials[i] = Electrodes[i].Voltage;
+                potentials[i] = Electrodes[i].Potential;
 
             return potentials;
         }
 
-        // Set the conductivity distribution of the mesh, and also sets each elements conductivity
-        // according to the provided distribution
+
+        /// <summary>
+        /// Set the conductivity distribution of the mesh, and also sets each elements conductivity
+        /// according to the provided distribution.
+        /// </summary>
+        /// <param name="conductivityDistribution">The conductivity distribution to set the mesh.</param>
+        /// <exception cref="ArgumentOutOfRangeException">Throws if conductivity distribution counts are incomatible.</exception>
         public void SetConductivityDistribution(ConductivityDistribution conductivityDistribution)
         {
             if (conductivityDistribution.Conductivities.Count != ConductivityDistribution.Conductivities.Count)
@@ -93,7 +105,13 @@ namespace Utility.Classes.Meshing
                 }
             }
         }
-        
+
+        /// <summary>
+        /// Sets the potential distrubution of the mesh, by setting the maching verted ids to the provided distribution  
+        /// also sets the electrode potentials, after setting the vertex potentials.
+        /// </summary>
+        /// <param name="potentialDistribution">The provided potential distribution</param>
+        /// <exception cref="ArgumentOutOfRangeException">If the provided distribution does not contain same number of nodes, throws.</exception>
         public void SetPotentialDistribution(PotentialDistribution potentialDistribution)
         {
             if(potentialDistribution.Potentials.Count != PotentialDistribution.Potentials.Count)
@@ -123,23 +141,32 @@ namespace Utility.Classes.Meshing
             SetElectrodePotentials(electrodePotentials);
         }
 
-
+        /// <summary>
+        /// Sets the electrode potentials of the mesh to the provided list. The provided list should contain the electrode potentials ordered as 1st to last electrode.
+        /// </summary>
+        /// <param name="potentials">List of potentials that will be set for the electrodes.</param>
+        /// <exception cref="ArgumentOutOfRangeException">Throws if list sizes are not compatible.</exception>
         public void SetElectrodePotentials(List<double> potentials)
         {
             if (potentials.Count != Electrodes.Count)
                 throw new ArgumentOutOfRangeException("Cannot set electrode potentials, if list size mistamtch electrodes list count, check code!");
 
             for (int i = 0; i < potentials.Count; i++)
-                Electrodes[i].Voltage = potentials[i];
+                Electrodes[i].Potential = potentials[i];
         }
 
+        /// <summary>
+        /// Sets the electrode potentials of the mesh to the provided array. The provided array should contain the electrode potentials ordered as 1st to last electrode.
+        /// </summary>
+        /// <param name="potentials">Array of potentials that will be set for the electrodes.</param>
+        /// <exception cref="ArgumentOutOfRangeException">Throws if array lengths are not compatible.</exception>
         public void SetElectrodePotentials(double[] potentials)
         {
             if (potentials.Length != Electrodes.Count)
                 throw new ArgumentOutOfRangeException("Cannot set electrode potentials, if list size mistamtch electrodes list count, check code!");
 
             for (int i = 0; i < potentials.Length; i++)
-                Electrodes[i].Voltage = potentials[i];
+                Electrodes[i].Potential = potentials[i];
         }
 
         /// <summary>
@@ -186,7 +213,7 @@ namespace Utility.Classes.Meshing
             copy.Electrodes = new List<Electrode>(Electrodes.Count);
             foreach (var el in Electrodes)
             {
-                var el2 = new Electrode(el.Id, el.MeshId, el.Current, el.ZContact, el.Voltage)
+                var el2 = new Electrode(el.Id, el.MeshId, el.Current, el.ZContact, el.Potential)
                 {
                     IsGround = el.IsGround,
                     IsExcitation = el.IsExcitation

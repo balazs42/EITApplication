@@ -1,4 +1,5 @@
-﻿using Utility.Classes.Meshing;
+﻿using Utility.Classes.Factories;
+using Utility.Classes.Meshing;
 
 namespace Utility.Classes
 {
@@ -24,24 +25,11 @@ namespace Utility.Classes
     /// </summary>
     public abstract class Mesh : IMesh
     {
-        public List<Vertex> Vertices { get; protected set; }
-        public List<MeshElement> Elements { get; protected set; }
-        public List<Electrode> Electrodes { get; set; }
+        public List<Vertex> Vertices { get; protected set; } = [];
+        public List<MeshElement> Elements { get; protected set; } = [];
+        public List<Electrode> Electrodes { get; set; } = [];
         public ConductivityDistribution ConductivityDistribution { get; set; }
         public PotentialDistribution PotentialDistribution { get; set; }
-
-        public Mesh(int numVertices)
-        {
-            Vertices = new List<Vertex>();
-
-            for(int i = 0; i <  numVertices; i++) 
-                Vertices.Add(new Vertex(i));
-        }
-
-        public Mesh(List<Vertex> vertices)
-        {
-            Vertices = vertices;
-        }
 
         public Mesh()
         {

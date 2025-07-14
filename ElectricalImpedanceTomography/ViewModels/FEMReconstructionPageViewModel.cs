@@ -88,7 +88,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 el.IsExcitation = false;
                 el.IsGround = false;
                 el.Current = 0.0;
-                el.Voltage = 0.0;
+                el.Potential = 0.0;
                 el.ZContact = 0.1;
                 el.Length = ElectrodeSurfaceLength;
                 el.ZContact = ContactImpedance;
@@ -118,7 +118,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 el.IsExcitation = false;
                 el.IsGround = false;
                 el.Current = 0.0;
-                el.Voltage = 0.0;
+                el.Potential = 0.0;
                 el.ZContact = 0.1;
                 el.Length = ElectrodeSurfaceLength;
                 el.ZContact = ContactImpedance;

@@ -65,7 +65,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         [RelayCommand]
         private void ToggleWallState(object cellInfo)
         {
-            if (cellInfo is (int x, int y))
+            if (cellInfo is (int x, int y) && LbmMesh != null)
             {
                 var element = LbmMesh.GetElementAt(x, y);
                 if (element != null)
@@ -76,7 +76,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         [RelayCommand]
         private void ToggleElectrodeState(object cellInfo)
         {
-            if (cellInfo is (int x, int y))
+            if (cellInfo is (int x, int y) && LbmMesh != null)
             {
                 var element = LbmMesh.GetElementAt(x, y);
                 if (element != null && !element.IsWall) // Can't place an electrode on a wall

@@ -51,49 +51,48 @@ namespace Utility.Classes.Solvers
         }
 
         /// <summary>
-        /// Solve forward CEM problem.
+        /// Solve forward CEM problem. First builds the saddle point system, applies grounding then solves with _numericSolver.
+        /// Finally reinserts grounding and returing the arising potential distribution on the mesh.
         /// </summary>
         /// <param name="mesh"/> FEM mesh
-        /// <param name="sigma"/> conductivity distribution
         /// <param name="electrodes"/> electrode list with .Current, .IsGround set
         /// <returns>vector [alpha; U]</returns>
-        public PotentialDistribution Solve(FEMMesh mesh,
-                                           ConductivityDistribution sigma,
-                                           List<Electrode> electrodes)
+        public PotentialDistribution Solve(FEMMesh mesh, List<Electrode> electrodes)
         {
-            // 1) Build sub-blocks
-            BuildStiffnessMatrix(mesh, sigma); // Eq (1.2.3)
-            BuildRobinMassMatrix(mesh);        // Eq (1.1.12)
-            BuildCouplingMatrix(mesh);         // Eq (1.1.12)
-            BuildElectrodeMatrix(mesh);        // Eq (1.1.15)
+            // Build sub-blocks of the Saddle-Point System
+            BuildStiffnessMatrix(mesh);     // Eq (1.2.3)
+            BuildRobinMassMatrix(mesh);     // Eq (1.1.12)
+            BuildCouplingMatrix(mesh);      // Eq (1.1.12)
+            BuildElectrodeMatrix(mesh);     // Eq (1.1.15)
 
-            // 2) Assemble saddle system S [α; U] = b  (Eq 1.1.16)
+            // Assemble saddle system S [α; U] = b  (Eq 1.1.16)
             BuildSystemMatrix();
             BuildRhsVector(electrodes);
 
             Debug.WriteLine("Assembled S and b");
 
-            // 3) Find ground index
-            int groundId = electrodes.Find(e => e.IsGround)?.Id
-                           ?? throw new InvalidOperationException("No ground electrode.");
+            // Find ground index
+            int groundId = electrodes.Find(e => e.IsGround)?.Id ?? throw new InvalidOperationException("No ground electrode.");
 
-            // 4) Remove ground DOF (Sec 1.1.3)
+            // Remove ground DOF (Sec 1.1.3)
             var (Sg, bg) = ApplyGrounding(SystemMatrix, SystemRHS, groundId);
 
-            // 5) Solve reduced real system
-            var solRed = _numericSolver.SolveLinearSystem(
-                MatrixToReal(Sg), VectorToReal(bg));
+            // Solve reduced real system
+            var solRed = _numericSolver.SolveLinearSystem(MatrixToReal(Sg), VectorToReal(bg));
 
-            // 6) Reconstruct full complex sol with U_ground=0
+            // Reconstruct full complex sol with U_ground=0
             var full = ReconstructFullSolution(solRed, groundId);
+
             Debug.WriteLine("Solution [α; U]:\n" + FormatComplexVector(full));
 
+            // Create new potential distribution for the 
             Dictionary<int, double> pd = new();
             for (int i = 0; i < N_phi; i++)
                 pd.Add(i, full[i].Real);
 
             var potentialDistribution = new PotentialDistribution(pd);
 
+            // Set the mesh potentials
             mesh.SetPotentialDistribution(potentialDistribution);
 
             return potentialDistribution;
@@ -102,9 +101,11 @@ namespace Utility.Classes.Solvers
         #region Assembly
 
         /// <summary>Eq (1.2.3)</summary>
-        private void BuildStiffnessMatrix(FEMMesh mesh, ConductivityDistribution sigma)
+        private void BuildStiffnessMatrix(FEMMesh mesh)
         {
             Array.Clear(K, 0, K.Length);
+            ConductivityDistribution sigma = mesh.GetConductivityDistribution();
+
             foreach (var elem in mesh.Elements)
             {
                 double area = elem.Area;
@@ -231,6 +232,11 @@ namespace Utility.Classes.Solvers
         #endregion
 
         #region Utils
+        /// <summary>
+        /// Converts the provided complex 2D array to real 2D array by neglecting the complex parts.
+        /// </summary>
+        /// <param name="C">Complex matrix</param>
+        /// <returns>Real valued matrix of same dimensions.</returns>
         private static double[,] MatrixToReal(Complex[,] C)
         {
             int r = C.GetLength(0), c = C.GetLength(1);
@@ -238,12 +244,19 @@ namespace Utility.Classes.Solvers
             for (int i = 0; i < r; i++) for (int j = 0; j < c; j++) R[i, j] = C[i, j].Real;
             return R;
         }
+
+        /// <summary>
+        /// Converts the provided complex array to real array by neglecting the complex parts.
+        /// </summary>
+        /// <param name="C">Complex array.</param>
+        /// <returns>Real valued array of same dimension.</returns>
         private static double[] VectorToReal(Complex[] C)
         {
             int n = C.Length; var R = new double[n];
             for (int i = 0; i < n; i++) R[i] = C[i].Real;
             return R;
         }
+
         private static string FormatComplexMatrix(Complex[,] M)
         {
             var s = ""; int r = M.GetLength(0), c = M.GetLength(1);

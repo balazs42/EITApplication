@@ -22,26 +22,17 @@ public partial class FEMReconstructionPage : ContentPage
 
     // hover state for potential:
     private SKPoint? _hoverPotCanvasPt;
-    private double? _hoverPotValue;
-
+    
     // hover state for potential vertex
-    private Vertex _hoverPotVertex;
-    private SKPoint? _hoverPotVertexCanvasPt;
+    private Vertex? _hoverPotVertex;
 
     // hover state for conductivity:
     private SKPoint? _hoverCondCanvasPt;
     private double? _hoverCondValue;
 
-    // hover state for reconstructed:
-    private SKPoint? _hoverReconCanvasPt;
-    private double? _hoverReconValue;
-
-    readonly SKColor HoverTextColor = SKColors.Lime;
-
     readonly SKColor ElectrodeFill = SKColors.Yellow;
     readonly SKColor ElectrodeStroke = SKColors.Black;
     const float ElectrodeRadius = 6f;
-
 
     public FEMReconstructionPage()
 	{

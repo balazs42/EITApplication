@@ -27,7 +27,7 @@
                 {
                     if (kvp.Key == Electrodes[i].MeshId)
                     {
-                        Electrodes[i].Voltage = kvp.Value;
+                        Electrodes[i].Potential = kvp.Value;
                         break;
                     }
                 }
@@ -84,7 +84,7 @@
 
         public List<double> GetElectrodeCurrentsList() => Electrodes.Select(x => x.Current).ToList();
 
-        public List<double> GetElectrodePotentialsList() => Electrodes.Select(x => x.Voltage).ToList();
+        public List<double> GetElectrodePotentialsList() => Electrodes.Select(x => x.Potential).ToList();
 
         public double[] GetElectrodeCurrents()
         {
@@ -99,7 +99,7 @@
         {
             double[] potentials = new double[NumElectrodes];
             for (int i = 0; i < NumElectrodes; i++)
-                potentials[i] = Electrodes[i].Voltage;
+                potentials[i] = Electrodes[i].Potential;
 
             return potentials;
         }
