@@ -1,5 +1,4 @@
 ﻿using ElectricalImpedanceTomography.ViewModels;
-using MathNet.Numerics.Providers.LinearAlgebra;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
 using SkiaSharp.Views.Maui.Controls;
@@ -27,13 +26,15 @@ public partial class FEMReconstructionPage : ContentPage
     // hover state for potential vertex
     private Vertex? _hoverPotVertex;
 
-    // hover state for conductivity:
+    // hover state for conductivity element
+    private FEMElement _hoverCondElem;
     private SKPoint? _hoverCondCanvasPt;
-    private double? _hoverCondValue;
 
     readonly SKColor ElectrodeFill = SKColors.Yellow;
     readonly SKColor ElectrodeStroke = SKColors.Black;
     const float ElectrodeRadius = 6f;
+
+    private bool _isSimulationRunning = false;
 
     // Defining the modes
     private enum PotentialDisplayMode
@@ -333,15 +334,44 @@ public partial class FEMReconstructionPage : ContentPage
             canvas.DrawPath(path, stroke);
         }
 
-        // hover text
-        if (_hoverCondValue.HasValue && _hoverCondCanvasPt.HasValue)
+        // hover‐info box for conductivity element
+        if (_hoverCondElem != null && _hoverCondCanvasPt.HasValue)
         {
-            var txt = _hoverCondValue.Value.ToString("F3");
             var pt = _hoverCondCanvasPt.Value;
-            using var textPaint = new SKPaint { IsAntialias = true, Color=SKColors.White };
-            using var textFont = new SKFont(SKTypeface.Default, 16);
-            canvas.DrawText(txt, pt.X + 10, pt.Y - 10,
-                SKTextAlign.Left, textFont, textPaint);
+            var el = _hoverCondElem;
+
+            // build the two lines
+            string[] lines = {
+                $"Elem: {el.Id}",
+                $"σ:    {el.Conductivity:F3}"
+            };
+
+            // measure via SKFont
+            using var textPaint = new SKPaint { IsAntialias = true, Color = SKColors.White };
+            using var font = new SKFont(SKTypeface.Default, 16);
+            float boxW = lines.Max(l => font.MeasureText(l)) + 8;
+            float boxH = lines.Length * (font.Size + 4) + 4;
+
+            // decide which side (canvas center)
+            var origin = new SKPoint(e.Info.Width * .5f, e.Info.Height * .5f);
+            var dir = new SKPoint(origin.X - pt.X, origin.Y - pt.Y);
+            const float off = 10f;
+            float x = dir.X > 0 ? pt.X + off : pt.X - off - boxW;
+            float y = dir.Y > 0 ? pt.Y + off : pt.Y - off - boxH;
+            var box = new SKRect(x, y, x + boxW, y + boxH);
+
+            // semi‐opaque background
+            using var bg = new SKPaint { Color = new SKColor(0, 0, 0, 200), IsAntialias = true };
+            canvas.DrawRoundRect(box, 4, 4, bg);
+
+            // draw each line
+            float ty = box.Top + font.Size + 2;
+            foreach (var line in lines)
+            {
+                canvas.DrawText(line, box.Left + 4, ty,
+                                SKTextAlign.Left, font, textPaint);
+                ty += font.Size + 4;
+            }
         }
 
         DrawElectrodes(canvas);
@@ -360,14 +390,25 @@ public partial class FEMReconstructionPage : ContentPage
         PotentialColorbar.InvalidateSurface();
     }
 
+    private void StartStopButtonClicked(object sender, EventArgs e)
+    {
+        _isSimulationRunning = !_isSimulationRunning;
+        // TODO: stop
+    }
+
+    private void StepButtonClicked(object sender, EventArgs e)
+    {
+        var result = _viewModel.InverseSolveStep();
+    }
+
     void HandleConductivityTouch(SKTouchEventArgs e, FEMMesh mesh, SKCanvasView cv)
     {
-        if (e.ActionType == SKTouchAction.Pressed ||
-            e.ActionType == SKTouchAction.Moved)
+        if (e.ActionType == SKTouchAction.Pressed || e.ActionType == SKTouchAction.Moved)
         {
             var p = e.Location;
-            _hoverCondValue = null;
+            _hoverCondElem = null;
             _hoverCondCanvasPt = null;
+
             foreach (var elem in mesh.Elements)
             {
                 var c0 = ToCanvas(elem.Vertices[0]);
@@ -375,17 +416,18 @@ public partial class FEMReconstructionPage : ContentPage
                 var c2 = ToCanvas(elem.Vertices[2]);
                 if (PointInTriangle(p, c0, c1, c2, out _, out _, out _))
                 {
-                    _hoverCondValue = elem.Conductivity;
+                    _hoverCondElem = elem;
                     _hoverCondCanvasPt = p;
                     break;
                 }
             }
+
             cv.InvalidateSurface();
             e.Handled = true;
         }
         else if (e.ActionType == SKTouchAction.Released)
         {
-            _hoverCondValue = null;
+            _hoverCondElem = null;
             _hoverCondCanvasPt = null;
             cv.InvalidateSurface();
             e.Handled = true;

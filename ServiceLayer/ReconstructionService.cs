@@ -1,5 +1,6 @@
 ﻿using BusinessLayer;
 using Utility.Classes;
+using Utility.Classes.Measurement;
 using Utility.Classes.Meshing;
 using Utility.Classes.ReconstructionParameters;
 using Utility.Logger;
@@ -64,6 +65,34 @@ namespace ServiceLayer
             try
             {
                 return _reconstructionPersistence.SolveFemInverse(mesh, maxIterCount, stepSize, regularization);
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                Console.WriteLine(ex.Message);
+                throw;
+            }
+        }
+
+        public ReconstructionResult InverseSolveStepFem(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double stepSize)
+        {
+            try
+            {
+                return _reconstructionPersistence.InverseSolveStepFem(mesh, measurement, boundaryCondition, stepSize);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                Console.WriteLine(ex.Message);
+                throw;
+            }
+        }
+
+        public List<double[]> SimulateFemMeasurements(FEMMesh mesh, double excitationAmplitude)
+        {
+            try
+            {
+                return _reconstructionPersistence.SimulateFemMeasurements(mesh, excitationAmplitude);
             }
             catch(Exception ex)
             {

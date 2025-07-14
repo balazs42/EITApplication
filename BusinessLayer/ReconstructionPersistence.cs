@@ -63,7 +63,7 @@ namespace BusinessLayer
             _differentialEquationSolver = DifferentialEquationSolverFactory.Create(mesh, parameters.DifferentialEquationSolver, _numericSolver);
             _regularizer = RegularisationFactory.Create(parameters.RegularizationTechnique, _mesh);
             _errorMetric = ErrorMetricFactory.Create(parameters.ErrorMetric);
-            _numericOptimizer = NumericOptimizerFactory.Create(parameters.NumericOptimizer, ConductivityDistributionFactory.CreateRandom(mesh));
+            _numericOptimizer = NumericOptimizerFactory.Create(parameters.NumericOptimizer, ConductivityDistributionFactory.CreateSlightlyDiffering(mesh));
 
             _inverseModel = InverseModelFactory.Create(_mesh, _numericOptimizer, _regularizer, _errorMetric, _differentialEquationSolver);
         }
@@ -176,7 +176,8 @@ namespace BusinessLayer
 
         public FEMMesh SolveFemForward(FEMMesh mesh)
         {
-            _differentialEquationSolver = DifferentialEquationSolverFactory.Create(mesh, DifferentialEquationSolver.FiniteElementMethod, NumericSolverFactory.Create(NumericSolver.SVD));
+            if (_differentialEquationSolver == null)
+                throw new NullReferenceException("Cannot perform Finite Element forward solve, differential equation solver is not specified!");
 
             var conductivitiyDistribution = mesh.GetConductivityDistribution();
 
@@ -201,11 +202,6 @@ namespace BusinessLayer
             Debug.WriteLine("The simulated measured values are:");
             for (int i = 0; i < measuredValues.Length; i++)
                 Debug.WriteLine($"{measuredValues[i]}");
-
-            // Initialize inverse solver
-            _differentialEquationSolver = DifferentialEquationSolverFactory.Create(mesh, DifferentialEquationSolver.FiniteElementMethod, NumericSolverFactory.Create(NumericSolver.SVD));
-            _errorMetric = ErrorMetricFactory.Create(ErrorMetric.L2);
-            _regularizer = RegularisationFactory.Create(RegularizationTechnique.ZeroOrderTikhonov, forwardProjection, regularization);
 
             // 2) Initialize conductivity (σ^{0}) to homogeneous distribution
             ConductivityDistribution sigma = ConductivityDistributionFactory.CreateRandom(mesh);
@@ -322,14 +318,8 @@ namespace BusinessLayer
         {
             List<double[]> simulatedMeasurements = SimulateFemMeasurements(mesh, excitationAmplitude);
             
-            // Initialize inverse solver
-            _differentialEquationSolver = DifferentialEquationSolverFactory.Create(mesh, DifferentialEquationSolver.FiniteElementMethod, NumericSolverFactory.Create(NumericSolver.SVD));
-            _errorMetric = ErrorMetricFactory.Create(ErrorMetric.L2);
-            _regularizer = RegularisationFactory.Create(RegularizationTechnique.ZeroOrderTikhonov, mesh.DeepCopy(), regularization);
-            _numericOptimizer = NumericOptimizerFactory.Create(NumericOptimizer.GradientBased, ConductivityDistributionFactory.CreateSlightlyDiffering(mesh, mesh.Elements.Count / 2, 0.95));
-
             // 2) Initialize conductivity (σ^{(0)}) to homogeneous distribution
-            ConductivityDistribution sigma = ConductivityDistributionFactory.CreateSlightlyDiffering(mesh, mesh.Elements.Count / 2, 0.95);
+            ConductivityDistribution sigma = ConductivityDistributionFactory.CreateSlightlyDiffering(mesh, 0.95);
             mesh.SetConductivityDistribution(sigma);
 
             List<Electrode> electrodes = mesh.Electrodes;
@@ -459,7 +449,9 @@ namespace BusinessLayer
                     Jtotal += _errorMetric.Evaluate(mesh, dObs, dSimNew);
                 }
                 Debug.WriteLine($"Iteration {iter}: total misfit = {Jtotal}");
-                
+
+                errors.Add(Jtotal);
+
                 if (Math.Abs(prevJ - Jtotal) < tolerance) 
                     break;
                 
@@ -469,10 +461,11 @@ namespace BusinessLayer
             Debug.WriteLine("Erorrs during iteration:");
             // print errors
             for (int i = 0; i < errors.Count; i++)
-                if (i % 10 == 0)
-                    Debug.WriteLine("");
-                else Debug.Write($"{errors[i]:F6},");
+                if (i % 5 == 0)
+                    Debug.WriteLine($"It[{i}]: {errors[i]:F6} ");
+                else Debug.Write($"It[{i}]: {errors[i]:F6}\t");
 
+            Debug.WriteLine("");
 
             // 5) Update mesh ConductivityDistribution and return
             foreach (var el in mesh.Elements)
@@ -481,7 +474,7 @@ namespace BusinessLayer
             return mesh;
         }
 
-        private List<double[]> SimulateFemMeasurements(FEMMesh mesh, double excitationAmplitude)
+        public List<double[]> SimulateFemMeasurements(FEMMesh mesh, double excitationAmplitude)
         {
             List<double[]> measurements = [];
 
@@ -515,7 +508,7 @@ namespace BusinessLayer
 
         #endregion
 
-        public ReconstructionResult FemReconstructionStep(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double currentErorr, double regularization = 1e-3, double stepSize = 1e-3)
+        public ReconstructionResult InverseSolveStepFem(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double stepSize)
         {
             FEMMesh deepCopy = mesh.DeepCopy();
             ConductivityDistribution originalConductivityDistribution = deepCopy.ConductivityDistribution;
@@ -523,11 +516,11 @@ namespace BusinessLayer
             // Initialize inverse solver
             _differentialEquationSolver = DifferentialEquationSolverFactory.Create(mesh, DifferentialEquationSolver.FiniteElementMethod, NumericSolverFactory.Create(NumericSolver.SVD));
             _errorMetric = ErrorMetricFactory.Create(ErrorMetric.L2);
-            _regularizer = RegularisationFactory.Create(RegularizationTechnique.ZeroOrderTikhonov, mesh.DeepCopy(), regularization);
+            _regularizer = RegularisationFactory.Create(RegularizationTechnique.ZeroOrderTikhonov, mesh.DeepCopy(), 0.0);
             _numericOptimizer = NumericOptimizerFactory.Create(NumericOptimizer.GradientBased, ConductivityDistributionFactory.CreateRandom(mesh));
 
             // Initialize conductivity (σ^{(0)}) to homogeneous distribution
-            ConductivityDistribution sigma0 = ConductivityDistributionFactory.CreateSlightlyDiffering(mesh, mesh.Elements.Count / 2, 0.95);
+            ConductivityDistribution sigma0 = ConductivityDistributionFactory.CreateSlightlyDiffering(mesh, 0.95);
             mesh.SetConductivityDistribution(sigma0);
 
             // Create new boundary conditions that will be fed to the Finite Element Solver
@@ -543,20 +536,13 @@ namespace BusinessLayer
 
             // Extract simulated boundary data d_sim
             double[] dSim = mesh.GetElectrodePotentials();
-            Debug.WriteLine("The simulated electrode potentials during iteration:");
-            for (int i = 0; i < dSim.Length; i++)
-                Debug.WriteLine($"{dSim[i]}");
-
             double[] dObs = measurement;
 
             // Build adjoint source s = EvaluateAdjointSource (L2: residual; W2: Kantorovich φ) 
             var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, dObs, dSim);
            
             // wrap into a PotentialDistribution on electrodes
-            var srcDist = new PotentialDistribution(
-                Enumerable.Range(0, adjSrc.Length)
-                            .ToDictionary(i => electrodes[i].Id, i => adjSrc[i])
-            );
+            var srcDist = new PotentialDistribution(Enumerable.Range(0, adjSrc.Length).ToDictionary(i => electrodes[i].Id, i => adjSrc[i]));
 
             // 4f) Adjoint solve μ: same forward‐solver but feed in adjSrc as boundary currents
             var mu = _differentialEquationSolver.SolveForward(mesh, new BoundaryCondition(electrodes, srcDist));

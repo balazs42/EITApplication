@@ -129,7 +129,7 @@
         <!-- buttons -->
         <Grid Grid.Row="1"
               RowDefinitions="Auto" 
-              ColumnDefinitions="Auto, Auto, Auto, Auto" 
+              ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto" 
               HorizontalOptions="Center" 
               Padding="10"
               ColumnSpacing="10">
@@ -161,7 +161,19 @@
                     Grid.Column="3" 
                     Text="Solve Inverse"  
                     Clicked="OnSolveInverseClicked"/>
+
+            <Button x:Name="StartStopButton"
+                    Style="{StaticResource ButtonStyle}"
+                    Grid.Column="4"
+                    Text="Stop"
+                    Clicked="StartStopButtonClicked"/>
             
+            <Button Style="{StaticResource ButtonStyle}"
+                    Grid.Column="5"
+                    Text="Step"
+                    Clicked="StepButtonClicked"/>
+
+
         </Grid>
 
         <!-- 3) Side-by-side meshes -->

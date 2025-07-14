@@ -1,8 +1,10 @@
-﻿
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using ServiceLayer;
+using Utility.Classes;
 using Utility.Classes.Factories;
+using Utility.Classes.Measurement;
 using Utility.Classes.Meshing;
+using Utility.Classes.ReconstructionParameters;
 
 namespace ElectricalImpedanceTomography.ViewModels
 {
@@ -15,10 +17,10 @@ namespace ElectricalImpedanceTomography.ViewModels
         private int layers = 2;
 
         [ObservableProperty]
-        private int boundaryNodeCount = 16;
+        private int boundaryNodeCount = 8;
 
         [ObservableProperty]
-        private int electrodeCount = 16;
+        private int electrodeCount = 8;
 
         [ObservableProperty]
         private int excitationElectrodeId = 1;
@@ -36,7 +38,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         private double contactImpedance = 1.0;
 
         [ObservableProperty]
-        private double inhomogenityValue = 10.0;
+        private double inhomogenityValue = 2.0;
 
         [ObservableProperty]
         private int maxIterationCount = defaultMaxIterationCount;
@@ -50,12 +52,26 @@ namespace ElectricalImpedanceTomography.ViewModels
         private FEMMesh _mesh;
         private FEMMesh _reconstructedMesh;
 
+        private bool _isSimulationRunning = false;
+
+        private List<double[]> _simulatedMeasurements;
+        private int _simulatedMeasurementsIndex = 0;
+
+        private EITReconstructionParameters reconstructionParameters = new (DifferentialEquationSolver.FiniteElementMethod, 
+                                                                            RegularizationTechnique.ZeroOrderTikhonov, 
+                                                                            ErrorMetric.L2, 
+                                                                            NumericSolver.SVD, 
+                                                                            NumericOptimizer.GradientBased);
+
         public FEMReconstructionPageViewModel(ReconstructionService reconstructionService)
         {
             _reconstructionService = reconstructionService;
 
             _mesh = GenerateMesh();
             _reconstructedMesh = GenerateMesh();
+
+            // Initialize solver
+            _reconstructionService.InitializeReconstruction(_mesh, reconstructionParameters);            
         }
 
 
@@ -138,6 +154,27 @@ namespace ElectricalImpedanceTomography.ViewModels
                                                           maxIterCount: MaxIterationCount,
                                                           stepSize: StepSize,
                                                           regularization: RegularizationWeight);
+        }
+
+        public ReconstructionResult InverseSolveStep()
+        {
+            // Get the simulated measurements for the original mesh
+            _simulatedMeasurements = _reconstructionService.SimulateFemMeasurements(_mesh, ExcitationCurrentAmplitude);
+
+            // The current simulated measurement
+            double[] currentSimulatedMeasurement = _simulatedMeasurements[_simulatedMeasurementsIndex % ElectrodeCount];
+
+            // TODO: create the appropirate boundary conditions
+            BoundaryCondition bc = new(_mesh.Electrodes);
+
+            ReconstructionResult reconstructionResult = _reconstructionService.InverseSolveStepFem(mesh: _mesh,
+                                                                                                   measurement: currentSimulatedMeasurement,
+                                                                                                   boundaryCondition: bc,
+                                                                                                   stepSize: StepSize);
+
+            _simulatedMeasurementsIndex++;
+
+            return reconstructionResult;
         }
     }
 }
