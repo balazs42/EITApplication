@@ -1,6 +1,7 @@
 ﻿using ElectricalImpedanceTomography.ViewModels;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
+using SkiaSharp.Views.Maui.Controls;
 using Utility.Classes.Meshing;
 
 namespace ElectricalImpedanceTomography.Views;
@@ -175,320 +176,163 @@ public partial class FEMReconstructionPage : ContentPage
         canvas.Clear(SKColor.Parse("#1E1E1E"));
         ComputeBoundsAndRanges(e.Info);
 
-        using var fillPaint = new SKPaint { Style = SKPaintStyle.Fill, IsAntialias = true };
-        using var strokePaint = new SKPaint { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1, IsAntialias = true };
+        using var fill = new SKPaint { Style = SKPaintStyle.Fill, IsAntialias = true };
+        using var stroke = new SKPaint { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1, IsAntialias = true };
 
+        // draw mesh elements
         foreach (var elem in _mesh.Elements)
         {
             double avg = elem.Vertices.Average(v => v.Potential);
-            fillPaint.Color = ColorForValue(avg, _minPot, _maxPot);
+            fill.Color = ColorForValue(avg, _minPot, _maxPot);
+
             using var path = new SKPath();
             path.MoveTo(ToCanvas(elem.Vertices[0]));
             path.LineTo(ToCanvas(elem.Vertices[1]));
             path.LineTo(ToCanvas(elem.Vertices[2]));
             path.Close();
-            canvas.DrawPath(path, fillPaint);
-            canvas.DrawPath(path, strokePaint);
+
+            canvas.DrawPath(path, fill);
+            canvas.DrawPath(path, stroke);
         }
 
-        if (_hoverPotValue.HasValue && _hoverPotCanvasPt.HasValue)
-        {
-            using var textPaint = new SKPaint { Color = HoverTextColor, TextSize = 24, IsAntialias = true };
-            var txt = _hoverPotValue.Value.ToString("F3");
-            var pt = _hoverPotCanvasPt.Value;
-            canvas.DrawText(txt, pt.X + 10, pt.Y - 10, textPaint);
-        }
-
+        // draw electrodes
         DrawElectrodes(canvas);
 
-        // draw info box for the hovered vertex
-        if (_hoverPotVertex != null && _hoverPotVertexCanvasPt.HasValue)
+        // draw hover info
+        if (_hoverPotVertex != null && _hoverPotCanvasPt.HasValue)
         {
-            var pt = _hoverPotVertexCanvasPt.Value;
+            var pt = _hoverPotCanvasPt.Value;
             var v = _hoverPotVertex;
 
-                    // build the text lines
-            string[] lines = new[]
+            // info lines
+            var lines = new[]
             {
-                $"GID: {v.GlobalId}",
-                $"BID: {v.BoundaryId}",
-                $"EID: {v.ElectrodeId}",
-                $"Φ: {v.Potential:F3}"
-            };
+                    $"GID: {v.GlobalId}",
+                    $"BID: {v.BoundaryId}",
+                    $"EID: {v.ElectrodeId}",
+                    $"Φ:  {v.Potential:F3}"
+                };
 
-            // measure widest line
-            using var measure = new SKPaint { TextSize = 16, IsAntialias = true };
-            float w = lines.Max(l => measure.MeasureText(l));
-            float h = lines.Length * (measure.TextSize + 4);
+            // measure text
+            using var textPaint = new SKPaint { IsAntialias = true, Color = SKColors.White};
+            using var textFont = new SKFont(SKTypeface.Default, 16);
+            float boxW = lines.Max(l => textFont.MeasureText(l)) + 8;
+            float boxH = lines.Length * (textFont.Size + 4) + 4;
 
-            // box position
-            var box = new SKRect(pt.X + 10, pt.Y - h - 10, pt.X + 10 + w + 8, pt.Y - 10);
+            // choose side relative to center
+            var origin = new SKPoint(e.Info.Width * .5f, e.Info.Height * .5f);
+            var dir = new SKPoint(origin.X - pt.X, origin.Y - pt.Y);
+            const float off = 10f;
+            float x = dir.X > 0 ? pt.X + off : pt.X - off - boxW;
+            float y = dir.Y > 0 ? pt.Y + off : pt.Y - off - boxH;
+            var box = new SKRect(x, y, x + boxW, y + boxH);
 
-            // draw semi‐opaque background
-            using var bg = new SKPaint { Color = new SKColor(0, 0, 0, 200), IsAntialias = true };
+            // background
+            using var bg = new SKPaint { Color = SKColors.Gray, IsAntialias = true };
             canvas.DrawRoundRect(box, 4, 4, bg);
 
-            // draw each line
-            using var textPaint = new SKPaint { Color = SKColors.White, TextSize = 16, IsAntialias = true };
-            float y = box.Top + measure.TextSize + 2;
+            // draw text
+            float ty = box.Top + textFont.Size + 2;
             foreach (var line in lines)
             {
-                canvas.DrawText(line, box.Left + 4, y, textPaint);
-                y += measure.TextSize + 4;
+                canvas.DrawText(line, box.Left + 4, ty,
+                    SKTextAlign.Left, textFont, textPaint);
+                ty += textFont.Size + 4;
             }
         }
     }
 
-    // ---- POTENTIAL COLORBAR ----
-    private void OnPotentialColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
-    {
-        var canvas = e.Surface.Canvas;
-        canvas.Clear(SKColors.Transparent);
-        var info = e.Info;
-        float h = info.Height * 0.6f;
-        float y = (info.Height - h) / 2f;
-
-        var rect = new SKRect(0, y, info.Width, y + h);
-        using var paint = new SKPaint
-        {
-            Shader = SKShader.CreateLinearGradient(
-                new SKPoint(rect.Left, rect.Top),
-                new SKPoint(rect.Right, rect.Top),
-                new[] { ColorForValue(_minPot, _minPot, _maxPot), SKColors.White, ColorForValue(_maxPot, _minPot, _maxPot) },
-                new float[] { 0f, 0.5f, 1f },
-                SKShaderTileMode.Clamp)
-        };
-        canvas.DrawRect(rect, paint);
-
-        using var txt = new SKPaint { IsAntialias = true, TextSize = 20, Color = SKColors.White, FakeBoldText = true };
-        string minTxt = _minPot.ToString("F2");
-        string midTxt = ((_minPot + _maxPot) * 0.5).ToString("F2");
-        string maxTxt = _maxPot.ToString("F2");
-        float textY = rect.Top + txt.TextSize + 0f;
-        canvas.DrawText(minTxt, rect.Left + 2f, textY, txt);
-        float wMid = txt.MeasureText(midTxt);
-        canvas.DrawText(midTxt, rect.MidX - wMid / 2f, textY, txt);
-        float w = txt.MeasureText(maxTxt);
-        canvas.DrawText(maxTxt, rect.Right - w - 2f, textY, txt);
-    }
 
     private void OnPotentialCanvasTouch(object sender, SKTouchEventArgs e)
     {
-        if (e.ActionType == SKTouchAction.Pressed || e.ActionType == SKTouchAction.Moved)
+        if (e.ActionType == SKTouchAction.Pressed ||
+            e.ActionType == SKTouchAction.Moved)
         {
             var p = e.Location;
-            // find nearest vertex in screen coords
+            // find nearest vertex
             _hoverPotVertex = _mesh.Vertices
                 .OrderBy(v => (ToCanvas(v) - p).LengthSquared)
                 .First();
-            _hoverPotVertexCanvasPt = p;
-            PotentialCanvas.InvalidateSurface();
+            _hoverPotCanvasPt = p;
+            ((SKCanvasView)sender).InvalidateSurface();
             e.Handled = true;
         }
         else if (e.ActionType == SKTouchAction.Released)
         {
             _hoverPotVertex = null;
-            _hoverPotVertexCanvasPt = null;
-            PotentialCanvas.InvalidateSurface();
+            _hoverPotCanvasPt = null;
+            ((SKCanvasView)sender).InvalidateSurface();
             e.Handled = true;
         }
     }
 
+    // ===== CONDUCTIVITY (and RECONSTRUCTION) =====
+    private void OnConductivityPaintSurface(object sender, SKPaintSurfaceEventArgs e)
+        => DrawConductivityMesh(e, _mesh, ConductivityCanvas);
+
     private void OnReconstructionPaintSurface(object sender, SKPaintSurfaceEventArgs e)
+        => DrawConductivityMesh(e, _reconstructedMesh, ReconstructionCanvas);
+
+    void DrawConductivityMesh(SKPaintSurfaceEventArgs e, FEMMesh mesh, SKCanvasView canvasView)
     {
         var canvas = e.Surface.Canvas;
         canvas.Clear(SKColor.Parse("#1E1E1E"));
         ComputeBoundsAndRanges(e.Info);
-        // Fill each element
-        using var fillPaint = new SKPaint
-        {
-            IsAntialias = true,
-            Style = SKPaintStyle.Fill
-        };
 
-        foreach (var elem in _reconstructedMesh.Elements)
-        {
-            fillPaint.Color = ColorForValue(
-                elem.Conductivity, _minRecon, _maxRecon);
+        using var fill = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Fill };
+        using var stroke = new SKPaint { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1, IsAntialias = true };
 
+        // fill
+        foreach (var elem in mesh.Elements)
+        {
+            fill.Color = ColorForValue(elem.Conductivity, _minCond, _maxCond);
             using var path = new SKPath();
             path.MoveTo(ToCanvas(elem.Vertices[0]));
             path.LineTo(ToCanvas(elem.Vertices[1]));
             path.LineTo(ToCanvas(elem.Vertices[2]));
             path.Close();
-            canvas.DrawPath(path, fillPaint);
+            canvas.DrawPath(path, fill);
         }
-
-        // Outline
-        using var strokePaint = new SKPaint
-        {
-            Style = SKPaintStyle.Stroke,
-            Color = SKColors.Black,
-            StrokeWidth = 1,
-            IsAntialias = true
-        };
-        foreach (var elem in _reconstructedMesh.Elements)
+        // outline
+        foreach (var elem in mesh.Elements)
         {
             using var path = new SKPath();
             path.MoveTo(ToCanvas(elem.Vertices[0]));
             path.LineTo(ToCanvas(elem.Vertices[1]));
             path.LineTo(ToCanvas(elem.Vertices[2]));
             path.Close();
-            canvas.DrawPath(path, strokePaint);
+            canvas.DrawPath(path, stroke);
         }
 
-        if (_hoverReconValue.HasValue && _hoverReconCanvasPt.HasValue)
-        {
-            using var textPaint = new SKPaint
-            {
-                Color = HoverTextColor,
-                TextSize = 24,
-                IsAntialias = true
-            };
-            var txt = _hoverReconValue.Value.ToString("F3");
-            var pt = _hoverReconCanvasPt.Value;
-            canvas.DrawText(txt, pt.X + 10, pt.Y - 10, textPaint);
-        }
-
-        DrawElectrodes(canvas);
-    }
-
-    private void OnReconstructionColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
-    {
-        var canvas = e.Surface.Canvas;
-        canvas.Clear(SKColors.White);
-        var info = e.Info;
-        float h = info.Height * 0.9f;
-        float y = 2f;
-
-        var rect = new SKRect(0, y, info.Width, y + h);
-        using var paint = new SKPaint
-        {
-            Shader = SKShader.CreateLinearGradient(
-                new SKPoint(rect.Left, rect.Top),
-                new SKPoint(rect.Right, rect.Top),
-                new[] { ColorForValue(_minRecon, _minRecon, _maxRecon),
-                            ColorForValue(_maxRecon, _minRecon, _maxRecon) },
-                null, SKShaderTileMode.Clamp)
-        };
-        canvas.DrawRect(rect, paint);
-
-        using var txt = new SKPaint
-        {
-            IsAntialias = true,
-            TextSize = 20,
-            Color = SKColors.White,
-            FakeBoldText = true
-        };
-        var minTxt = _minRecon.ToString("F2");
-        var maxTxt = _maxRecon.ToString("F2");
-        float textY = rect.Top + txt.TextSize + 3;
-        canvas.DrawText(minTxt, rect.Left + 2, textY, txt);
-        float w = txt.MeasureText(maxTxt);
-        canvas.DrawText(maxTxt, rect.Right - w - 2, textY, txt);
-    }
-
-    private void OnReconstructionTouch(object sender, SKTouchEventArgs e)
-    {
-        if (e.ActionType == SKTouchAction.Pressed || e.ActionType == SKTouchAction.Moved)
-        {
-            var p = e.Location;
-            _hoverReconValue = null;
-            _hoverReconCanvasPt= null;
-
-            foreach (var elem in _reconstructedMesh.Elements)
-            {
-                var c0 = ToCanvas(elem.Vertices[0]);
-                var c1 = ToCanvas(elem.Vertices[1]);
-                var c2 = ToCanvas(elem.Vertices[2]);
-                if (PointInTriangle(p, c0, c1, c2, out _, out _, out _))
-                {
-                    _hoverReconValue = elem.Conductivity;
-                    _hoverReconCanvasPt = p;
-                    break;
-                }
-            }
-            ReconstructionCanvas.InvalidateSurface();
-            e.Handled = true;
-        }
-        else if (e.ActionType == SKTouchAction.Released)
-        {
-            _hoverReconValue = null;
-            _hoverReconCanvasPt = null;
-            ReconstructionCanvas.InvalidateSurface();
-            e.Handled = true;
-        }
-    }
-
-    // ---- DRAW CONDUCTIVITY MESH ----
-    private void OnConductivityPaintSurface(object sender, SKPaintSurfaceEventArgs e)
-    {
-        var canvas = e.Surface.Canvas;
-        canvas.Clear(SKColor.Parse("#1E1E1E"));
-
-        // Fill each element
-        using var fillPaint = new SKPaint
-        {
-            IsAntialias = true,
-            Style = SKPaintStyle.Fill
-        };
-        
-        foreach (var elem in _mesh.Elements)
-        {
-            fillPaint.Color = ColorForValue(
-                elem.Conductivity, _minCond, _maxCond);
-
-            using var path = new SKPath();
-            path.MoveTo(ToCanvas(elem.Vertices[0]));
-            path.LineTo(ToCanvas(elem.Vertices[1]));
-            path.LineTo(ToCanvas(elem.Vertices[2]));
-            path.Close();
-            canvas.DrawPath(path, fillPaint);
-        }
-
-        // Outline
-        using var strokePaint = new SKPaint
-        {
-            Style = SKPaintStyle.Stroke,
-            Color = SKColors.Black,
-            StrokeWidth = 1,
-            IsAntialias = true
-        };
-        foreach (var elem in _mesh.Elements)
-        {
-            using var path = new SKPath();
-            path.MoveTo(ToCanvas(elem.Vertices[0]));
-            path.LineTo(ToCanvas(elem.Vertices[1]));
-            path.LineTo(ToCanvas(elem.Vertices[2]));
-            path.Close();
-            canvas.DrawPath(path, strokePaint);
-        }
-
+        // hover text
         if (_hoverCondValue.HasValue && _hoverCondCanvasPt.HasValue)
         {
-            using var textPaint = new SKPaint
-            {
-                Color = HoverTextColor,
-                TextSize = 24,
-                IsAntialias = true
-            };
             var txt = _hoverCondValue.Value.ToString("F3");
             var pt = _hoverCondCanvasPt.Value;
-            canvas.DrawText(txt, pt.X + 10, pt.Y - 10, textPaint);
+            using var textPaint = new SKPaint { IsAntialias = true, Color=SKColors.White };
+            using var textFont = new SKFont(SKTypeface.Default, 16);
+            canvas.DrawText(txt, pt.X + 10, pt.Y - 10,
+                SKTextAlign.Left, textFont, textPaint);
         }
 
         DrawElectrodes(canvas);
     }
 
     private void OnConductivityCanvasTouch(object sender, SKTouchEventArgs e)
+        => HandleConductivityTouch(e, _mesh, ConductivityCanvas);
+
+    private void OnReconstructionTouch(object sender, SKTouchEventArgs e)
+        => HandleConductivityTouch(e, _reconstructedMesh, ReconstructionCanvas);
+
+    void HandleConductivityTouch(SKTouchEventArgs e, FEMMesh mesh, SKCanvasView cv)
     {
-        if (e.ActionType == SKTouchAction.Pressed || e.ActionType == SKTouchAction.Moved)
+        if (e.ActionType == SKTouchAction.Pressed ||
+            e.ActionType == SKTouchAction.Moved)
         {
             var p = e.Location;
             _hoverCondValue = null;
             _hoverCondCanvasPt = null;
-
-            foreach (var elem in _mesh.Elements)
+            foreach (var elem in mesh.Elements)
             {
                 var c0 = ToCanvas(elem.Vertices[0]);
                 var c1 = ToCanvas(elem.Vertices[1]);
@@ -500,52 +344,65 @@ public partial class FEMReconstructionPage : ContentPage
                     break;
                 }
             }
-            ConductivityCanvas.InvalidateSurface();
+            cv.InvalidateSurface();
             e.Handled = true;
         }
         else if (e.ActionType == SKTouchAction.Released)
         {
             _hoverCondValue = null;
             _hoverCondCanvasPt = null;
-                ConductivityCanvas.InvalidateSurface();
+            cv.InvalidateSurface();
             e.Handled = true;
         }
     }
 
-    // ---- CONDUCTIVITY COLORBAR ----
+    private void OnPotentialColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
+        => DrawColorbar(e, _minPot, _maxPot);
+
     private void OnConductivityColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
+        => DrawColorbar(e, _minCond, _maxCond);
+
+    private void OnReconstructionColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
+        => DrawColorbar(e, _minRecon, _maxRecon);
+
+    private void DrawColorbar(SKPaintSurfaceEventArgs e, double min, double max)
     {
         var canvas = e.Surface.Canvas;
-        canvas.Clear(SKColors.White);
+        canvas.Clear(SKColors.Transparent);
         var info = e.Info;
-        float h = info.Height * 0.9f;
-        float y = 2f;
-
+        float h = info.Height * 0.6f;
+        float y = (info.Height - h) / 2f;
         var rect = new SKRect(0, y, info.Width, y + h);
+
         using var paint = new SKPaint
         {
             Shader = SKShader.CreateLinearGradient(
                 new SKPoint(rect.Left, rect.Top),
                 new SKPoint(rect.Right, rect.Top),
-                new[] { ColorForValue(_minCond, _minCond, _maxCond),
-                            ColorForValue(_maxCond, _minCond, _maxCond) },
-                null, SKShaderTileMode.Clamp)
+                new[] {
+                        ColorForValue(min, min, max),
+                        SKColors.Black,
+                        ColorForValue(max, min, max)
+                },
+                new float[] { 0f, 0.5f, 1f },
+                SKShaderTileMode.Clamp)
         };
         canvas.DrawRect(rect, paint);
 
-        using var txt = new SKPaint
-        {
-            IsAntialias = true,
-            TextSize = 20,
-            Color = SKColors.White,
-            FakeBoldText = true
-        };
-        var minTxt = _minCond.ToString("F2");
-        var maxTxt = _maxCond.ToString("F2");
-        float textY = rect.Top + txt.TextSize + 3;
-        canvas.DrawText(minTxt, rect.Left + 2, textY, txt);
-        float w = txt.MeasureText(maxTxt);
-        canvas.DrawText(maxTxt, rect.Right - w - 2, textY, txt);
+        using var textPaint = new SKPaint { IsAntialias = true, Color = SKColors.White };
+        using var textFont = new SKFont(SKTypeface.Default, 16);
+        string minTxt = min.ToString("F2");
+        string midTxt = ((min + max) / 2).ToString("F2");
+        string maxTxt = max.ToString("F2");
+
+        float ty = rect.Top + textFont.Size + 2;
+        canvas.DrawText(minTxt, rect.Left + 2, ty, SKTextAlign.Left, textFont, textPaint);
+
+        float wMid = textFont.MeasureText(midTxt);
+        canvas.DrawText(midTxt, rect.MidX - wMid / 2, ty, SKTextAlign.Left, textFont, textPaint);
+
+        float wMax = textFont.MeasureText(maxTxt);
+        canvas.DrawText(maxTxt, rect.Right - wMax - 2, ty, SKTextAlign.Left, textFont, textPaint);
     }
 
     #endregion

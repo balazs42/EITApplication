@@ -119,7 +119,7 @@
                                Touch="OnPotentialCanvasTouch"/>
             <skia:SKCanvasView Grid.Row="2" Grid.Column="0"
                                x:Name="PotentialColorbar"
-                               HeightRequest="33"
+                               HeightRequest="40"
                                WidthRequest="500"                               
                                PaintSurface="OnPotentialColorbarPaintSurface"/>
 
@@ -140,7 +140,7 @@
                                WidthRequest="500"
                                PaintSurface="OnConductivityColorbarPaintSurface"/>
 
-            <!-- Potential column -->
+            <!-- Reconstruction column -->
             <Label Grid.Row="0" 
                    Grid.Column="2"
                    Padding="10"
@@ -155,7 +155,7 @@
                                Touch="OnReconstructionTouch"/>
             <skia:SKCanvasView Grid.Row="2" Grid.Column="2"
                                x:Name="ReconstructionColorbar"
-                               HeightRequest="33"
+                               HeightRequest="40"
                                WidthRequest="500"                               
                                PaintSurface="OnReconstructionColorbarPaintSurface"/>
 

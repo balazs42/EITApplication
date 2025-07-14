@@ -1,8 +1,6 @@
-﻿using BH.Engine.Base;
-using BH.Engine.Diffing;
+﻿
 using CommunityToolkit.Mvvm.ComponentModel;
 using ServiceLayer;
-using Utility.Classes;
 using Utility.Classes.Factories;
 using Utility.Classes.Meshing;
 
@@ -10,6 +8,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 {
     public partial class FEMReconstructionPageViewModel : BaseViewModel
     {
+        private const int defaultMaxIterationCount = 50;
         private readonly ReconstructionService _reconstructionService;
         
         [ObservableProperty]
@@ -40,7 +39,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         private double inhomogenityValue = 10.0;
 
         [ObservableProperty]
-        private int maxIterationCount = 50;
+        private int maxIterationCount = defaultMaxIterationCount;
 
         [ObservableProperty]
         private double stepSize = 0.001;

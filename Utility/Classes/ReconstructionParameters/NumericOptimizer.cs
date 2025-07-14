@@ -31,7 +31,7 @@
     {
         private readonly double _min = 1e-6;
         private readonly double _max = 10.0;
-
+        
         public ConductivityDistribution OptimizationStep(ConductivityDistribution currentSigma, ConductivityDistribution totalGradient, double stepSize)
         {
             // loop over elements
