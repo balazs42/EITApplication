@@ -7,7 +7,6 @@ namespace Utility.Classes.Solvers
         /// <summary>
         /// Calculates the gradient of a scalar field, assuming linear basis functions.
         /// The gradient is constant within each element.
-        /// This matches the derivation in your thesis.
         /// </summary>
         /// <param name="femMesh">The FEM mesh.</param>
         /// <param name="scalarField">A scalar field defined per-vertex (e.g., PotentialDistribution).</param>

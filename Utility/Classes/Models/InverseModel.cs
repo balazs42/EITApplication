@@ -1,9 +1,7 @@
-﻿using MathNet.Numerics.LinearAlgebra;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Numerics;
 using Utility.Classes.Factories;
 using Utility.Classes.Measurement;
-using Utility.Classes.Meshing;
 using Utility.Classes.ReconstructionParameters;
 
 namespace Utility.Classes.Models
@@ -114,7 +112,7 @@ namespace Utility.Classes.Models
 
                 // STEP 4: Solve the adjoint problem for the sensitivity map (μ).
                 var homogeneousBC = BoundaryConditionFactory.CreateHomogeneous(mesh);
-                var mu = _deSolver.SolveAdjoint(mesh, sigma, homogeneousBC, adjointSourceVec);
+                var mu = _deSolver.SolveAdjoint(mesh, homogeneousBC, adjointSourceVec);
 
                 // STEP 5: Compute the gradient component for this measurement frame (∇φ · ∇μ).
                 var misfitGradient = _deSolver.ComputeMisfitGradient(mesh, phi, mu);

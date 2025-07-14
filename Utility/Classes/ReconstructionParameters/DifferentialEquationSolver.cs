@@ -23,7 +23,7 @@ namespace Utility.Classes.ReconstructionParameters
         /// <summary>
         /// Solves the adjoint problem to find the adjoint variable μ.
         /// </summary>
-        PotentialDistribution SolveAdjoint(IMesh mesh, ConductivityDistribution sigma, BoundaryCondition bc, Complex[] adjointSource);
+        PotentialDistribution SolveAdjoint(IMesh mesh, BoundaryCondition bc, Complex[] adjointSource);
 
         /// <summary>
         /// Computes the misfit gradient component (e.g., ∇φ · ∇μ).
@@ -38,6 +38,7 @@ namespace Utility.Classes.ReconstructionParameters
 
         public FiniteElementDESolver(FEMMesh mesh, INumericSolver numericSolver)
         {
+            _mesh = mesh;
             _solver = new FiniteElementSolver(mesh, numericSolver);
         }
         
@@ -46,10 +47,10 @@ namespace Utility.Classes.ReconstructionParameters
             return Solve(mesh, bc);
         }
 
-        public PotentialDistribution SolveAdjoint(IMesh mesh, ConductivityDistribution sigma, BoundaryCondition bc, Complex[] adjointSource)
+        public PotentialDistribution SolveAdjoint(IMesh mesh, BoundaryCondition bc, Complex[] adjointSource)
         {
             //var homogeneousBC = new BoundaryConditions(bc.Electrodes.Select(e => new Electrode(e.Id, e.VertexIds, 0.0, e.ZContact)), null);
-            return Solve(mesh, bc, adjointSource);
+            return Solve(mesh, bc);
         }
 
         public ConductivityDistribution ComputeMisfitGradient(IMesh mesh, PotentialDistribution phi, PotentialDistribution mu)
@@ -58,8 +59,14 @@ namespace Utility.Classes.ReconstructionParameters
             //return _solver.ComputeGradient(mesh, phi, mu);
         }
 
-        // The private 'Solve' method remains the core engine
-        private PotentialDistribution Solve(IMesh mesh, BoundaryCondition bc, Complex[] potentialSourceTerm = null)
+        /// <summary>
+        /// Calculates the arising potential distribution given the mesh's conductivity field, and the applied boundary conditions
+        /// </summary>
+        /// <param name="mesh">The mesh which on we calculate the potential distribution.</param>
+        /// <param name="bc">The boundary conditions which should be applied to the calculations.</param>
+        /// <returns></returns>
+        /// <exception cref="ArgumentException"></exception>
+        private PotentialDistribution Solve(IMesh mesh, BoundaryCondition bc)
         {
             if (mesh is not FEMMesh femMesh)
                 throw new ArgumentException("FiniteElementSolver requires an FEMMesh.");
@@ -102,7 +109,7 @@ namespace Utility.Classes.ReconstructionParameters
                                          null);
         }
 
-        public PotentialDistribution SolveAdjoint(IMesh mesh, ConductivityDistribution sigma, BoundaryCondition bc, Complex[] adjointSource)
+        public PotentialDistribution SolveAdjoint(IMesh mesh, BoundaryCondition bc, Complex[] adjointSource)
         {
             if (mesh is not LBMMesh lbmMesh) 
                 throw new ArgumentException("LBM requires an LBMMesh.");
@@ -111,7 +118,7 @@ namespace Utility.Classes.ReconstructionParameters
 
             // Run simulation with dummy boundary conditions 
             return _solver.RunSimulation(lbmMesh, 
-                                         sigma, 
+                                         lbmMesh.ConductivityDistribution, 
                                          homogeneousBC, 
                                          _maxIterations, 
                                          _convergenceThreshold, 

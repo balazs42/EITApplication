@@ -216,7 +216,7 @@ namespace Utility.Classes.Solvers
                 }
                 ii++;
             }
-            Debug.WriteLine($"Grounded size={red}\n" + FormatComplexMatrix(Ar));
+            //Debug.WriteLine($"Grounded size={red}\n" + FormatComplexMatrix(Ar));
             return (Ar, br);
         }
 

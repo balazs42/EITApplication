@@ -6,10 +6,47 @@
              xmlns:viewmodels="clr-namespace:ElectricalImpedanceTomography.ViewModels"
              x:DataType="viewmodels:FEMReconstructionPageViewModel"
              Title="FEMReconstructionPage">
+    <ContentPage.Resources>
+        <Style x:Key="ButtonStyle" TargetType="Button">
+            <Setter Property="FontSize" Value="Medium"/>
+            <Setter Property="TextColor" Value="White"/>
+            <Setter Property="BackgroundColor" Value="#555555"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="FontFamily" Value="Roboto-Bold"/>
+            <Setter Property="Margin" Value="5,0"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="MinimumHeightRequest" Value="30"/>
+
+            <Setter Property="VisualStateManager.VisualStateGroups">
+                <VisualStateGroupList>
+                    <VisualStateGroup x:Name="CommonStates">
+
+                        <VisualState x:Name="Normal">
+                            <VisualState.Setters>
+                                <Setter Property="Scale" Value="1.0" />
+                                <Setter Property="BackgroundColor" Value="#555555" />
+                                <Setter Property="Opacity" Value="1.0"/>
+                            </VisualState.Setters>
+                        </VisualState>
+
+                        <VisualState x:Name="Pressed">
+                            <VisualState.Setters>
+                                <Setter Property="BackgroundColor" Value="#444444" />
+                                <Setter Property="Scale" Value="0.95" />
+                            </VisualState.Setters>
+                        </VisualState>
+
+                    </VisualStateGroup>
+                </VisualStateGroupList>
+            </Setter>
+        </Style>
+    </ContentPage.Resources>
+    
     <Grid RowDefinitions="Auto,Auto,*" ColumnDefinitions="*" RowSpacing="10">
         <!-- radius & boundary nodes -->
 
         <Grid Grid.Row="0"
+              HorizontalOptions="Center"
               RowSpacing="5"
               ColumnSpacing="10"              
               RowDefinitions="Auto, Auto, Auto, Auto"
@@ -90,12 +127,42 @@
 
 
         <!-- buttons -->
-        <StackLayout Grid.Row="1" Orientation="Horizontal"
-                 HorizontalOptions="Center" Spacing="20" Padding="5">
-            <Button Text="Generate Mesh" Clicked="OnGenerateMeshClicked"/>
-            <Button Text="Solve Forward"  Clicked="OnSolveForwardClicked"/>
-            <Button Text="Solve Inverse"  Clicked="OnSolveInverseClicked"/>
-        </StackLayout>
+        <Grid Grid.Row="1"
+              RowDefinitions="Auto" 
+              ColumnDefinitions="Auto, Auto, Auto, Auto" 
+              HorizontalOptions="Center" 
+              Padding="10"
+              ColumnSpacing="10">
+
+            <Button Style="{StaticResource ButtonStyle}"
+                    Grid.Column="0"
+                    Text="Generate Mesh" 
+                    Clicked="OnGenerateMeshClicked"/>
+            
+            <Picker Grid.Column="1"
+                    x:Name="PotentialModePicker"
+                    Title="Potential Display Mode"
+                    SelectedIndexChanged="OnPotentialModeChanged">
+                <Picker.Items>
+                    <x:String>Default</x:String>
+                    <x:String>Grayscale</x:String>
+                    <x:String>Inverted</x:String>
+                    <x:String>Heatmap</x:String>
+                    <x:String>Rainbow</x:String>
+                </Picker.Items>
+            </Picker>
+            
+            <Button Style="{StaticResource ButtonStyle}"
+                    Grid.Column="2" 
+                    Text="Solve Forward" 
+                    Clicked="OnSolveForwardClicked"/>
+
+            <Button Style="{StaticResource ButtonStyle}"
+                    Grid.Column="3" 
+                    Text="Solve Inverse"  
+                    Clicked="OnSolveInverseClicked"/>
+            
+        </Grid>
 
         <!-- 3) Side-by-side meshes -->
         <Grid Grid.Row="2"

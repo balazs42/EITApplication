@@ -187,7 +187,6 @@ namespace BusinessLayer
             PotentialDistribution potentialDistribution = _differentialEquationSolver.SolveForward(mesh, boundaryConditions);
             mesh.SetPotentialDistribution(potentialDistribution);
 
-
             return mesh;
         }
 
@@ -327,7 +326,7 @@ namespace BusinessLayer
             _differentialEquationSolver = DifferentialEquationSolverFactory.Create(mesh, DifferentialEquationSolver.FiniteElementMethod, NumericSolverFactory.Create(NumericSolver.SVD));
             _errorMetric = ErrorMetricFactory.Create(ErrorMetric.L2);
             _regularizer = RegularisationFactory.Create(RegularizationTechnique.ZeroOrderTikhonov, mesh.DeepCopy(), regularization);
-            _numericOptimizer = NumericOptimizerFactory.Create(NumericOptimizer.GradientBased, ConductivityDistributionFactory.CreateRandom(mesh));
+            _numericOptimizer = NumericOptimizerFactory.Create(NumericOptimizer.GradientBased, ConductivityDistributionFactory.CreateSlightlyDiffering(mesh, mesh.Elements.Count / 2, 0.95));
 
             // 2) Initialize conductivity (σ^{(0)}) to homogeneous distribution
             ConductivityDistribution sigma = ConductivityDistributionFactory.CreateSlightlyDiffering(mesh, mesh.Elements.Count / 2, 0.95);
@@ -431,7 +430,9 @@ namespace BusinessLayer
                 Debug.WriteLine("Gradient ∇J computed.");
 
                 // 4i) Apply optimization step
-                mesh.ConductivityDistribution = _numericOptimizer.OptimizationStep(mesh.ConductivityDistribution, grad, stepSize);
+                var newConductivityDistribution = _numericOptimizer.OptimizationStep(mesh.ConductivityDistribution, grad, stepSize);
+
+                mesh.SetConductivityDistribution(newConductivityDistribution);
 
                 // Compute total misfit
                 double Jtotal = 0;
@@ -514,7 +515,7 @@ namespace BusinessLayer
 
         #endregion
 
-        public ReconstructionResult FemReconstructionStep(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double regularization = 1e-3, double stepSize = 1e-3)
+        public ReconstructionResult FemReconstructionStep(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double currentErorr, double regularization = 1e-3, double stepSize = 1e-3)
         {
             FEMMesh deepCopy = mesh.DeepCopy();
             ConductivityDistribution originalConductivityDistribution = deepCopy.ConductivityDistribution;
@@ -525,7 +526,7 @@ namespace BusinessLayer
             _regularizer = RegularisationFactory.Create(RegularizationTechnique.ZeroOrderTikhonov, mesh.DeepCopy(), regularization);
             _numericOptimizer = NumericOptimizerFactory.Create(NumericOptimizer.GradientBased, ConductivityDistributionFactory.CreateRandom(mesh));
 
-            // 2) Initialize conductivity (σ^{(0)}) to homogeneous distribution
+            // Initialize conductivity (σ^{(0)}) to homogeneous distribution
             ConductivityDistribution sigma0 = ConductivityDistributionFactory.CreateSlightlyDiffering(mesh, mesh.Elements.Count / 2, 0.95);
             mesh.SetConductivityDistribution(sigma0);
 
@@ -536,11 +537,11 @@ namespace BusinessLayer
 
             bc = new BoundaryCondition(mesh.Electrodes);
 
-            // 4a) Forward solve φ⁽ᵏ⁾ = S(σ⁽ᵏ⁾)   (thesis Eq. 1.1.16)
+            // Forward solve  (thesis Eq. 1.1.16)
             PotentialDistribution phi = _differentialEquationSolver.SolveForward(mesh, bc);
             Debug.WriteLine("Forward φ computed.");
 
-            // 4b) Extract simulated boundary data d_sim
+            // Extract simulated boundary data d_sim
             double[] dSim = mesh.GetElectrodePotentials();
             Debug.WriteLine("The simulated electrode potentials during iteration:");
             for (int i = 0; i < dSim.Length; i++)
@@ -548,8 +549,9 @@ namespace BusinessLayer
 
             double[] dObs = measurement;
 
-            // 4e) Build adjoint source s = EvaluateAdjointSource (L2: residual; W2: Kantorovich φ) 
+            // Build adjoint source s = EvaluateAdjointSource (L2: residual; W2: Kantorovich φ) 
             var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, dObs, dSim);
+           
             // wrap into a PotentialDistribution on electrodes
             var srcDist = new PotentialDistribution(
                 Enumerable.Range(0, adjSrc.Length)
@@ -566,10 +568,8 @@ namespace BusinessLayer
                     el => el.Id,
                     el => {
                         // compute ∇φ, ∇μ on this element
-                        var gPhi = FiniteElementOperators.CalculateElementWiseGradient(mesh, phi)
-                                    .GetVector(el.Id);
-                        var gMu = FiniteElementOperators.CalculateElementWiseGradient(mesh, mu)
-                                    .GetVector(el.Id);
+                        var gPhi = FiniteElementOperators.CalculateElementWiseGradient(mesh, phi).GetVector(el.Id);
+                        var gMu = FiniteElementOperators.CalculateElementWiseGradient(mesh, mu).GetVector(el.Id);
                         return (gMu.X * gPhi.X + gMu.Y * gPhi.Y) * el.Area;
                     }
                 )
@@ -588,10 +588,7 @@ namespace BusinessLayer
             Debug.WriteLine($"Regularization R = {regTerm:0.#####}");
 
             // 4h) Total gradient ∇J = ∇J_data + ∇R  (Eq. 2.1.31)
-            var totalGradDict = totalGrad.ToDictionary(
-                kvp => kvp.Key,
-                kvp => kvp.Value + regGrad.GetConductivity(kvp.Key)
-            );
+            var totalGradDict = totalGrad.ToDictionary(kvp => kvp.Key, kvp => kvp.Value + regGrad.GetConductivity(kvp.Key));
 
             var grad = new ConductivityDistribution(totalGradDict);
 

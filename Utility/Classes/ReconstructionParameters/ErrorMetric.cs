@@ -65,18 +65,14 @@ namespace Utility.Classes.ReconstructionParameters
             double[] residual = new double[measured.Length];
             for (int i = 0; i < measured.Length; i++)
             {
-
                 // If a value is NaN, the residual (the source for the adjoint) should be zero.
                 if (double.IsNaN(measured[i]) || double.IsNaN(simulated[i]))
-                {
                     residual[i] = 0.0;
-                }
-                // This is the (Sφ - d_observed) term. The negative sign and S*
-                // are handled by the adjoint solver itself.
+                // adjoint PDE is ∇·(γ∇μ) = - S^T (Sϕ - d_obs),
+                // so the boundary‐current we feed into our forward‐solver adjoint is
+                //    Iℓ = - (ϕℓ - d_obs,ℓ) = d_obs,ℓ – ϕℓ
                 else
-                {
-                    residual[i] = simulated[i] - measured[i];
-                }
+                    residual[i] = measured[i] - simulated[i];
             }
             return residual;
         }
