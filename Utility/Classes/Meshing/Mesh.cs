@@ -103,8 +103,8 @@ namespace Utility.Classes
 
             foreach (var kvp in potentialDistribution.Potentials)
                 PotentialDistribution.Potentials[kvp.Key] = kvp.Value;
-
-
         }
+
+        public abstract Mesh DeepCopy();
     }
 }

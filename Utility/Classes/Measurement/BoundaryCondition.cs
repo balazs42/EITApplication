@@ -77,6 +77,7 @@ namespace Utility.Classes.Measurement
 
         public double[] GetElectrodeCurrents()
         {
+            NumElectrodes = Electrodes.Count;
             double[] currents = new double[NumElectrodes];
             for (int i = 0; i < NumElectrodes; i++)
                 currents[i] = Electrodes[i].Current;
@@ -86,6 +87,7 @@ namespace Utility.Classes.Measurement
 
         public double[] GetElectrodePotentials()
         {
+            NumElectrodes = Electrodes.Count;
             double[] potentials = new double[NumElectrodes];
             for (int i = 0; i < NumElectrodes; i++)
                 potentials[i] = Electrodes[i].Potential;
@@ -122,7 +124,7 @@ namespace Utility.Classes.Measurement
         private void SetElectrodePotentials(double[] potentials)
         {
             if (potentials.Length != Electrodes.Count)
-                throw new ArgumentOutOfRangeException("Cannot set currents, item count mismatch between potentials and electrodes. Check code!");
+                throw new ArgumentOutOfRangeException("Cannot set potentials, item count mismatch between potentials and electrodes. Check code!");
             for (int i = 0; i < Electrodes.Count; i++)
                 Electrodes[i].Current = potentials[i];
         }

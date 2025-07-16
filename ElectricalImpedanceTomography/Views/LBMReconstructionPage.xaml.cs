@@ -21,7 +21,7 @@ public partial class LBMReconstructionPage : ContentPage
 
 		BindingContext = _viewModel;
 
-        //InitializePickers();
+        _viewModel.GenerateLbmMesh();
 	}
 
     private void OnCanvasViewPaintSurface(object sender, SKPaintSurfaceEventArgs e)
@@ -30,34 +30,29 @@ public partial class LBMReconstructionPage : ContentPage
         SKCanvas canvas = surface.Canvas;
         canvas.Clear(SKColors.White);
 
-        if (_viewModel?.LbmMesh == null) return;
-        var mesh = _viewModel.LbmMesh;
+        var mesh = _viewModel.GetMesh();
+
+        if (mesh == null) 
+            return;
+
         var info = e.Info;
         float cellWidth = (float)info.Width / mesh.Nx;
         float cellHeight = (float)info.Height / mesh.Ny;
 
-        for (int y = 0; y < mesh.Ny; y++)
+        for (int x = 0; x < mesh.Nx; x++)
         {
-            for (int x = 0; x < mesh.Nx; x++)
+            for (int y = 0; y < mesh.Ny; y++)
             {
                 var element = mesh.GetElementAt(x, y);
 
-                // --- UPDATED DRAWING LOGIC ---
                 // Determine the fill color based on the element's state
                 SKPaint currentFillPaint;
                 if (element.IsElectrode)
-                {
                     currentFillPaint = _electrodePaint;
-                }
                 else if (element.IsWall)
-                {
                     currentFillPaint = _wallPaint;
-                }
                 else
-                {
                     currentFillPaint = _fillPaint;
-                }
-                // --- END UPDATED LOGIC ---
 
                 var rect = SKRect.Create(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
                 canvas.DrawRect(rect, currentFillPaint);
@@ -66,7 +61,7 @@ public partial class LBMReconstructionPage : ContentPage
         }
     }
 
-    // This handler is now ONLY for left-clicks (tapping) to toggle walls
+    // This handler is ONLY for left-clicks (tapping) to toggle walls
     private void OnCanvasTouch(object sender, SKTouchEventArgs e)
     { 
         // We only act on the initial press of a button.
@@ -80,15 +75,14 @@ public partial class LBMReconstructionPage : ContentPage
 
         if (IsWithinBounds(col, row))
         {
-            // --- THIS IS THE NEW, SIMPLIFIED LOGIC ---
             switch (e.MouseButton)
             {
                 case SKMouseButton.Left: // Left-click toggles walls
-                    _viewModel.ToggleWallStateCommand.Execute((col, row));
+                    _viewModel.ToggleWallStateCommand.Execute((row - 1, col));
                     break;
 
                 case SKMouseButton.Right: // Right-click toggles electrodes
-                    _viewModel.ToggleElectrodeStateCommand.Execute((col, row));
+                    _viewModel.ToggleElectrodeStateCommand.Execute((row - 1, col));
                     break;
             }
 
@@ -101,10 +95,8 @@ public partial class LBMReconstructionPage : ContentPage
 
 
     private (int, int) GetCellCoordinatesFromPixel(SKPoint pixelLocation)
-    {
-        if (_viewModel?.LbmMesh == null) return (-1, -1);
-
-        var mesh = _viewModel.LbmMesh;
+    {        
+        var mesh = _viewModel.GetMesh();
         float cellWidth = (float)canvasView.CanvasSize.Width / mesh.Nx;
         float cellHeight = (float)canvasView.CanvasSize.Height / mesh.Ny;
 
@@ -116,26 +108,8 @@ public partial class LBMReconstructionPage : ContentPage
 
     private bool IsWithinBounds(int col, int row)
     {
-        if (_viewModel?.LbmMesh == null) return false;
-        return col >= 0 && col < _viewModel.LbmMesh.Nx && row >= 0 && row < _viewModel.LbmMesh.Ny;
-    }
-
-    public void InitializePickers()
-    {
-        var DESolverList = new List<string>() { "Finite Element Method", "Lattice Boltzmann Method" };
-        DESolverPicker.ItemsSource = DESolverList;
-
-        var RegularaizationTechniqueList = new List<string>() { "None", "Zero-Order Tikhonov", "First-Order Tikhonov", "Total Variation", "Laplace" };
-        RegulariaztionPicker.ItemsSource = RegularaizationTechniqueList;
-
-        var ErrorMetricList = new List<string>() { "L2", "Wasserstein-2" };
-        ErrorMetricPicker.ItemsSource = ErrorMetricList;
-
-        var NumericSolverList = new List<string>() { "LU Decomposition", "SVD", "tSVD", "GMRES" };
-        NumericSolverPicker.ItemsSource = NumericSolverList;
-
-        var NumericOptimizerList = new List<string>() { "Gradient Based", "Particle Swarm" };
-        NumericOptimizerPicker.ItemsSource = NumericOptimizerList;
+        if (_viewModel?.GetMesh() == null) return false;
+        return col >= 0 && col < _viewModel.GetMesh().Nx && row >= 0 && row < _viewModel.GetMesh().Ny;
     }
 
     private void OnStartReconstruction(object sender, EventArgs e)

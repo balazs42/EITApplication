@@ -28,6 +28,17 @@
             IsWall = isWall;
         }
 
+        public LBMElement(int id, LBMElement[] neighbors, double[] fi, double[] fi_next, double conductivity, bool isWall, bool isElectrode)
+        {
+            Id = id;
+            Neighbors = neighbors;
+            Fi = fi;
+            Fi_next = fi_next;
+            Conductivity = conductivity;
+            IsWall = isWall;
+            IsElectrode = isElectrode;
+        }
+
         public double GetPotential()
         {
             double sum = 0.0;

@@ -1,10 +1,8 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ServiceLayer;
-using Utility.Classes;
 using Utility.Classes.Meshing;
 using Utility.Classes.ReconstructionParameters;
-
 namespace ElectricalImpedanceTomography.ViewModels
 {
     public partial class LBMReconstructionPageViewModel : BaseViewModel
@@ -35,10 +33,8 @@ namespace ElectricalImpedanceTomography.ViewModels
         [ObservableProperty]
         private EITReconstructionParameters reconstructionParameters;
 
-        public LBMMesh? LbmMesh { get; private set; } = null;
 
-        // TODO: Implementation of this mesh type
-        public FEMMesh? FemMesh { get; private set; } = null;
+        private LBMMesh _mesh;
 
         [ObservableProperty]
         private int gridSizeNx = 15;
@@ -51,22 +47,28 @@ namespace ElectricalImpedanceTomography.ViewModels
             _reconstructionService = reconstructionService;
 
             ReconstructionParameters = new EITReconstructionParameters();
+            ReconstructionParameters.DifferentialEquationSolver = DifferentialEquationSolver.LatticeBoltzmannMethod;
 
             GenerateLbmMesh();
         }
 
-        private void GenerateLbmMesh()
+        public void GenerateLbmMesh()
         {
             // Create the underlying data model
-            LbmMesh = new LBMMesh(GridSizeNx, GridSizeNy);
+            _mesh = new LBMMesh(GridSizeNx, GridSizeNy);
+        }
+
+        public LBMMesh GetMesh()
+        {
+            return _mesh.DeepCopy();
         }
 
         [RelayCommand]
         private void ToggleWallState(object cellInfo)
         {
-            if (cellInfo is (int x, int y) && LbmMesh != null)
+            if (cellInfo is (int x, int y) && _mesh != null)
             {
-                var element = LbmMesh.GetElementAt(x, y);
+                var element = _mesh.GetElementAt(x, y);
                 if (element != null)
                     element.IsWall = !element.IsWall;
             }
@@ -75,9 +77,9 @@ namespace ElectricalImpedanceTomography.ViewModels
         [RelayCommand]
         private void ToggleElectrodeState(object cellInfo)
         {
-            if (cellInfo is (int x, int y) && LbmMesh != null)
+            if (cellInfo is (int x, int y) && _mesh != null)
             {
-                var element = LbmMesh.GetElementAt(x, y);
+                var element = _mesh.GetElementAt(x, y);
                 if (element != null && !element.IsWall) // Can't place an electrode on a wall
                     element.IsElectrode = !element.IsElectrode;
             }
@@ -86,8 +88,22 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public async void OnStartReconstructionClicked(object sender, EventArgs e)
         {
-            IMesh mesh = GetCurrentMesh();
-            _reconstructionService.InitializeReconstruction(mesh, ReconstructionParameters);
+            var electrodes = _mesh.Electrodes;
+
+            foreach(var el in electrodes)
+            {
+                el.IsExcitation = false;
+                el.IsGround = false;
+                el.Current = 0.0;
+                el.Potential = 0.0;
+            }
+
+            electrodes[0].IsExcitation = true;
+            electrodes[0].Current = 1.0;
+            electrodes[1].IsGround = true;
+            electrodes[1].Current = -1.0;
+
+            _reconstructionService.InitializeReconstruction(_mesh, ReconstructionParameters);
 
             var result = await _reconstructionService.GetReconstructionResult();
         }
@@ -113,25 +129,8 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
         }
 
-        private IMesh GetCurrentMesh()
-        {
-            IMesh? mesh = null;
-
-            if (FemMesh != null)
-                mesh = FemMesh;
-            else if (LbmMesh != null)
-                mesh = LbmMesh;
-
-            if (mesh == null)
-                throw new NullReferenceException("Cannot initialize reconstruciton, with LbmMesh and FemMesh being null, check code!");
-
-            return mesh;
-        }
-
         private async void SetupLBMReconstruction()
         {
-            IMesh mesh = GetCurrentMesh();
-
             var parameters = new EITReconstructionParameters
             {
                 DifferentialEquationSolver = DifferentialEquationSolver.LatticeBoltzmannMethod,
@@ -141,7 +140,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 NumericOptimizer = NumericOptimizer.GradientBased
             };
 
-            _reconstructionService.InitializeReconstruction(mesh, parameters);
+            _reconstructionService.InitializeReconstruction(_mesh, parameters);
             var result = await _reconstructionService.GetReconstructionResult();
         }
     }

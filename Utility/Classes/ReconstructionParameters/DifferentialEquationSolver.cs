@@ -87,11 +87,11 @@ namespace Utility.Classes.ReconstructionParameters
             if (mesh is not LBMMesh lbmMesh) 
                 throw new ArgumentException("LBM requires an LBMMesh.");
 
-            return _solver.RunSimulation(lbmMesh, 
-                                         bc as LBMBoundaryCondition ?? throw new InvalidCastException("Cannot cast boundary conditions to LBM boundary conditions, check calling code!"), 
-                                         _maxIterations, 
-                                         _convergenceThreshold, 
-                                         _checkInterval);
+            return _solver.RunForward(lbmMesh, 
+                                      bc as LBMBoundaryCondition ?? throw new InvalidCastException("Cannot cast boundary conditions to LBM boundary conditions, check calling code!"), 
+                                      _maxIterations, 
+                                      _convergenceThreshold, 
+                                      _checkInterval);
         }
 
         public PotentialDistribution SolveAdjoint(IMesh mesh, BoundaryCondition bc, Complex[] adjointSource)
@@ -99,13 +99,15 @@ namespace Utility.Classes.ReconstructionParameters
             if (mesh is not LBMMesh lbmMesh) 
                 throw new ArgumentException("LBM requires an LBMMesh.");
 
+            throw new NotImplementedException();
+
             // Run simulation with dummy boundary conditions 
-            return _solver.RunSimulation(lbmMesh,
-                                         bc as LBMBoundaryCondition ?? throw new InvalidCastException("Cannot cast boundary conditions to LBM boundary conditions, check calling code!"),
-                                         _maxIterations, 
-                                         _convergenceThreshold, 
-                                         _checkInterval, 
-                                         adjointSource);
+            //return _solver.InverseSolve(lbmMesh,
+            //                            bc as LBMBoundaryCondition ?? throw new InvalidCastException("Cannot cast boundary conditions to LBM boundary conditions, check calling code!"),
+            //                            _maxIterations, 
+            //                            _convergenceThreshold, 
+            //                            _checkInterval, 
+            //                            adjointSource);
         }
     }
 }

@@ -175,7 +175,7 @@ namespace Utility.Classes.Meshing
         /// Creates a deep copy of this FEMMesh, including vertices, elements,
         /// electrode list, and distributions.
         /// </summary>
-        public FEMMesh DeepCopy()
+        public override FEMMesh DeepCopy()
         {
             // 1) Clone vertices
             var vertexMap = new Dictionary<int, Vertex>();

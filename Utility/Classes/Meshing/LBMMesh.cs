@@ -1,7 +1,12 @@
-﻿namespace Utility.Classes.Meshing
+﻿using Utility.Classes.Factories;
+
+namespace Utility.Classes.Meshing
 {
     public class LBMMesh : Mesh
     {
+        private const int _defaultNx = 15;
+        private const int _defaultNy = 15;
+
         public int Nx { get; }
         public int Ny { get; }
 
@@ -22,14 +27,14 @@
         /// </summary>
         /// <param name="nx">Number of cells in the x dimension.</param>
         /// <param name="ny">Number of cells in the y dimension.</param>
-        public LBMMesh(int nx = 50, int ny = 50)
+        public LBMMesh(int nx = _defaultNx, int ny = _defaultNy)
         {
             Nx = nx;
             Ny = ny;
 
             // Create all elements and place them in a grid for easy lookup
             _elementGrid = new LBMElement[nx, ny];
-            base.Elements = new List<MeshElement>(nx * ny);
+            Elements = new List<LBMElement>(nx * ny);
             for (int y = 0; y < ny; y++)
             {
                 for (int x = 0; x < nx; x++)
@@ -40,9 +45,9 @@
 
                     _elementGrid[x, y] = element;
                     Elements.Add(element);
+                    base.Elements.Add(element);
                 }
             }
-
             // Link neighbors for every element
             var directions = new (int cx, int cy)[] { (0, 0), (1, 0), (0, 1), (-1, 0), (0, -1), (1, 1), (-1, 1), (-1, -1), (1, -1) };
             for (int y = 0; y < ny; y++)
@@ -63,11 +68,59 @@
                     }
                 }
             }
+            
+            Dictionary<int, double> cd = new();
+            foreach (var el in Elements)
+                cd.Add(el.Id, el.Conductivity);
+            ConductivityDistribution = new(cd);
+
+            ConductivityDistribution = ConductivityDistributionFactory.CreateHomogeneous(this, 1.0);
+            Dictionary<int, double> pd = new();
+
+            foreach (var el in Elements)
+                pd.Add(el.Id, el.Fi.Sum());
+
+            PotentialDistribution = new PotentialDistribution(pd);
 
             // Place 16 equidistant electrodes inside the walls
             PlaceEquidistantElectrodes(16);
 
             //this.ConductivityDistribution = PriorConductivityDistributionGenerator.GenerateHomogeneousDistribution(this, 1.0);
+        }
+
+        public LBMMesh(List<LBMElement> elements, int nx = _defaultNy, int ny = _defaultNy)
+        {
+            Nx = nx;
+            Ny = ny;
+
+            Elements = elements;
+
+            int electrodeNum = Elements.Count(x => x.IsElectrode);
+
+            Electrodes = new List<LBMElectrode>(electrodeNum);
+
+            foreach (var el in Electrodes)
+            {
+                var electrodeElement = Elements.Find(x => x.Id == el.GridId);
+
+                if (electrodeElement == null)
+                    throw new InvalidOperationException("Cannot set electrode potential since it is not assinged a corect gridId. Check calling code!");
+
+                el.Potential = electrodeElement.Fi.Sum();
+            }
+
+            _elementGrid = new LBMElement[nx, ny];
+            for (int x = 0; x < Nx; x++)
+            {
+                for (int y = 0; y < Ny; y++)
+                {
+                    int id = x * Nx + y - 1 >= 0 ? x * Nx + y - 1 : 0;
+                    var correspondingElement = Elements.Find(x => x.Id == id);
+                    if (correspondingElement == null)
+                        throw new InvalidOperationException("Cannot set grid, element id mismatch. The ids should be at top left, and descend to bottom right. Check calling code!");
+                    _elementGrid[x, y] = correspondingElement;
+                }
+            }
         }
 
         /// <summary>
@@ -86,7 +139,7 @@
             if (perimeterCells.Count == 0) return; // Cannot place electrodes on a very small mesh
 
             // Initialize the main electrode list
-            base.Electrodes = new List<Electrode>(numElectrodes);
+            Electrodes = new List<LBMElectrode>(numElectrodes);
 
             double spacing = (double)perimeterCells.Count / numElectrodes;
 
@@ -113,8 +166,14 @@
                     potential: 0.0
                 );
 
+                Electrodes.Add(electrode);
                 base.Electrodes.Add(electrode);
             }
+        }
+
+        public void SetElectrodes(List<LBMElectrode> electrodes)
+        {
+            Electrodes = electrodes;
         }
 
         public override double[] GetElectrodePotentials()
@@ -130,6 +189,34 @@
             }
 
             return electrodePotentials;
+        }
+
+        public override LBMMesh DeepCopy()
+        {
+            // Clone elements referencing new vertices
+            var newElements = new List<LBMElement>(Elements.Count);
+            foreach (var el in Elements)
+            {
+                int id = el.Id;
+                var neighbors = el.Neighbors;
+                var fi = el.Fi;
+                var fi_next = el.Fi_next;
+                var conductivity = el.Conductivity;
+                bool isWall = el.IsWall;
+                bool isElectrode = el.IsElectrode;
+
+                newElements.Add(new LBMElement(id, neighbors, fi, fi_next, conductivity, isWall, isElectrode));
+            }
+
+            var copy = new LBMMesh(newElements);
+
+            // Clone distributions
+            copy.ConductivityDistribution = new ConductivityDistribution(
+                new Dictionary<int, double>(this.ConductivityDistribution.Conductivities));
+            copy.PotentialDistribution = new PotentialDistribution(
+                new Dictionary<int, double>(this.PotentialDistribution.Potentials));
+
+            return copy;
         }
     }
 }
