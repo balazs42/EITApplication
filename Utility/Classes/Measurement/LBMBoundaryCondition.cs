@@ -5,7 +5,7 @@ namespace Utility.Classes.Measurement
     public class LBMBoundaryCondition : BoundaryCondition
     {
         public new List<LBMElectrode> Electrodes = [];
-        public bool IsNeumann = true;
+        public bool IsNeumann = false;
 
 
         public LBMBoundaryCondition(List<LBMElectrode> electrodes)
