@@ -33,13 +33,14 @@ namespace Utility.Classes.Meshing
             Ny = ny;
 
             // Create all elements and place them in a grid for easy lookup
-            _elementGrid = new LBMElement[nx, ny];
-            Elements = new List<LBMElement>(nx * ny);
-            for (int y = 0; y < ny; y++)
+            _elementGrid = new LBMElement[Nx, Ny];
+            Elements = new List<LBMElement>(Nx * Ny);
+            for (int y = 0; y < Ny; y++)
             {
-                for (int x = 0; x < nx; x++)
+                for (int x = 0; x < Nx; x++)
                 {
-                    var element = new LBMElement(isWall: false) { Id = y * nx + x };
+                    var element = new LBMElement(isWall: false) { Id = y * Nx + x };
+
                     if (x == 0 || x == nx - 1 || y == 0 || y == ny - 1)
                         element.IsWall = true;
 
@@ -50,9 +51,9 @@ namespace Utility.Classes.Meshing
             }
             // Link neighbors for every element
             var directions = new (int cx, int cy)[] { (0, 0), (1, 0), (0, 1), (-1, 0), (0, -1), (1, 1), (-1, 1), (-1, -1), (1, -1) };
-            for (int y = 0; y < ny; y++)
+            for (int y = 0; y < Ny; y++)
             {
-                for (int x = 0; x < nx; x++)
+                for (int x = 0; x < Nx; x++)
                 {
                     var currentElement = _elementGrid[x, y];
                     for (int k = 0; k < 9; k++)
@@ -114,7 +115,7 @@ namespace Utility.Classes.Meshing
             {
                 for (int y = 0; y < Ny; y++)
                 {
-                    int id = x * Nx + y - 1 >= 0 ? x * Nx + y - 1 : 0;
+                    int id = x * Nx + y;
                     var correspondingElement = Elements.Find(x => x.Id == id);
                     if (correspondingElement == null)
                         throw new InvalidOperationException("Cannot set grid, element id mismatch. The ids should be at top left, and descend to bottom right. Check calling code!");
@@ -193,30 +194,62 @@ namespace Utility.Classes.Meshing
 
         public override LBMMesh DeepCopy()
         {
-            // Clone elements referencing new vertices
-            var newElements = new List<LBMElement>(Elements.Count);
-            foreach (var el in Elements)
-            {
-                int id = el.Id;
-                var neighbors = el.Neighbors;
-                var fi = el.Fi;
-                var fi_next = el.Fi_next;
-                var conductivity = el.Conductivity;
-                bool isWall = el.IsWall;
-                bool isElectrode = el.IsElectrode;
+            // 1) create an empty mesh of the same dimensions:
+            var copy = new LBMMesh(this.Nx, this.Ny);
 
-                newElements.Add(new LBMElement(id, neighbors, fi, fi_next, conductivity, isWall, isElectrode));
+            // 2) copy element‐by‐element
+            foreach (var orig in this.Elements)
+            {
+                // locate the corresponding new element by id:
+                var (x, y) = this.ToLattice(orig.Id);
+                var dst = copy.GetElementAt(x, y);
+
+                // copy flags + conductivity:
+                dst.IsWall = orig.IsWall;
+                dst.IsElectrode = orig.IsElectrode;
+                dst.Conductivity = orig.Conductivity;
+
+                // deep‐copy the two 9‐velocity arrays:
+                for (int k = 0; k < 9; k++)
+                {
+                    dst.Fi[k] = orig.Fi[k];
+                    dst.Fi_next[k] = orig.Fi_next[k];
+                }
+
+                // neighbors were already wired by the ctor
             }
 
-            var copy = new LBMMesh(newElements);
+            // 3) copy the high‐level electrode objects
+            copy.Electrodes.Clear();
+            base.Electrodes.Clear();
+            foreach (var OE in this.Electrodes)
+            {
+                var NE = new LBMElectrode(
+                    id: OE.Id,
+                    gridId: OE.GridId,
+                    current: OE.Current,
+                    contactImpedance: OE.ZContact,
+                    potential: OE.Potential
+                )
+                {
+                    IsMeasuring = OE.IsMeasuring
+                    // copy any other electrode flags here…
+                };
 
-            // Clone distributions
+                copy.Electrodes.Add(NE);
+                base.Electrodes.Add(NE);
+            }
+
+            // 4) clone your distributions
             copy.ConductivityDistribution = new ConductivityDistribution(
-                new Dictionary<int, double>(this.ConductivityDistribution.Conductivities));
+                new Dictionary<int, double>(this.ConductivityDistribution.Conductivities)
+            );
             copy.PotentialDistribution = new PotentialDistribution(
-                new Dictionary<int, double>(this.PotentialDistribution.Potentials));
+                new Dictionary<int, double>(this.PotentialDistribution.Potentials)
+            );
 
             return copy;
         }
+
     }
 }
