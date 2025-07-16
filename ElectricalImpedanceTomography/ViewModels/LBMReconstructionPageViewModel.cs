@@ -1,6 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ServiceLayer;
+using Utility.Classes;
 using Utility.Classes.Meshing;
 using Utility.Classes.ReconstructionParameters;
 namespace ElectricalImpedanceTomography.ViewModels
@@ -33,14 +34,16 @@ namespace ElectricalImpedanceTomography.ViewModels
         [ObservableProperty]
         private EITReconstructionParameters reconstructionParameters;
 
+        [ObservableProperty]
+        private ReconstructionResult reconstructionResult;
 
         private LBMMesh _mesh;
 
         [ObservableProperty]
-        private int gridSizeNx = 15;
+        private int gridSizeNx = 32;
 
         [ObservableProperty]
-        private int gridSizeNy = 15;
+        private int gridSizeNy = 32;
 
         public LBMReconstructionPageViewModel(IReconstructionService reconstructionService)
         {
@@ -99,13 +102,16 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
 
             electrodes[0].IsExcitation = true;
-            electrodes[0].Current = 1.0;
             electrodes[1].IsGround = true;
-            electrodes[1].Current = -1.0;
+
+            electrodes.First().Potential = 1.0;
+            electrodes.Last().Potential = -1.0;
 
             _reconstructionService.InitializeReconstruction(_mesh, ReconstructionParameters);
 
-            var result = await _reconstructionService.GetReconstructionResult();
+            ReconstructionResult = await _reconstructionService.GetReconstructionResult();
+
+            OnPropertyChanged(nameof(ReconstructionResult));
         }
 
         public void OnReconstructionParametersChanged(object sender, EventArgs e)
