@@ -30,7 +30,9 @@ namespace BusinessLayer
 
         public async Task<ReconstructionResult> GetReconstructionResult()
         {
-            if (_inverseModel == null || _mesh == null)
+        LBMMesh? mesh = _mesh as LBMMesh;
+            
+            if (_inverseModel == null || _mesh == null || mesh == null)
                 throw new NullReferenceException();
 
             // Generate initial distribution for the reconstruction process
@@ -45,7 +47,7 @@ namespace BusinessLayer
             //var result = await Task.Run(() => 
             //    _inverseModel.Solve(initialDistribution, measurement, 50)            
             //);
-            var electrodes = _mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
+            var electrodes = mesh.Electrodes;
 
             LBMBoundaryCondition bc = new(electrodes);
 
