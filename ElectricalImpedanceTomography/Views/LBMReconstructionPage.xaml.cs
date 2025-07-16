@@ -1,6 +1,7 @@
-using ElectricalImpedanceTomography.ViewModels;
+﻿using ElectricalImpedanceTomography.ViewModels;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
+using Utility.Classes.Meshing;
 
 namespace ElectricalImpedanceTomography.Views;
 
@@ -8,10 +9,17 @@ public partial class LBMReconstructionPage : ContentPage
 {
 	private readonly LBMReconstructionPageViewModel _viewModel;
 
+    // Paints for the mesh elements
     private readonly SKPaint _fillPaint = new() { Style = SKPaintStyle.Fill, Color = SKColors.WhiteSmoke };
     private readonly SKPaint _wallPaint = new() { Style = SKPaintStyle.Fill, Color = SKColors.Black };
     private readonly SKPaint _electrodePaint = new() { Style = SKPaintStyle.Fill, Color = SKColors.Orange };
     private readonly SKPaint _strokePaint = new() { Style = SKPaintStyle.Stroke, Color = SKColors.LightGray, StrokeWidth = 1 };
+
+    // hover state
+    private LBMElement? _hoverElem;
+    private SKPoint? _hoverElemCanvasPt;
+
+    private double _maxPot, _minPot;
 
     public LBMReconstructionPage()
 	{
@@ -22,98 +30,195 @@ public partial class LBMReconstructionPage : ContentPage
 		BindingContext = _viewModel;
 
         _viewModel.GenerateLbmMesh();
-	}
+
+        canvasView.InvalidateSurface();
+        PotentialResultCanvas.InvalidateSurface();
+    }
+
+    #region Mesh Drawin Functions 
+
+    SKColor BlueToRed(double v)
+    {
+        // normalize into [0,1]
+        float t = (float)((v - _minPot) / (_maxPot - _minPot));
+        t = Math.Clamp(t, 0f, 1f);
+
+        // interpolate: blue=(0,0,255) → red=(255,0,0)
+        byte r = (byte)(t * 255);
+        byte b = (byte)((1 - t) * 255);
+        return new SKColor(r, 0, b);
+    }
+
+    private void OnPotentialResultPaintSurface(object sender, SKPaintSurfaceEventArgs e)
+    {
+        var canvas = e.Surface.Canvas;
+        canvas.Clear(SKColors.White);
+
+        // draw grid first
+        OnCanvasViewPaintSurface(sender, e);
+
+        var result = _viewModel.ReconstructionResult;
+        if (result?.CurrentPotentialDistribution == null)
+            return;
+
+        var mesh = (LBMMesh)result.Mesh;
+        float cw = e.Info.Width / mesh.Nx;
+        float ch = e.Info.Height / mesh.Ny;
+
+        var pd = result.CurrentPotentialDistribution.Potentials;
+        double min = pd.Values.Min();
+        double max = pd.Values.Max();
+
+        _minPot = min;
+        _maxPot = max;
+
+        // simple blue→red
+        SKColor BlueToRed(double v)
+        {
+            float t = (float)((v - min) / (max - min));
+            t = Math.Clamp(t, 0f, 1f);
+            byte r = (byte)(t * 255);
+            byte b = (byte)((1 - t) * 255);
+            return new SKColor(r, 0, b);
+        }
+
+        for (int y = 0; y < mesh.Ny; y++)
+        {
+            for (int x = 0; x < mesh.Nx; x++)
+            {
+                var el = mesh.GetElementAt(x, y);
+                var pot = pd[el.Id];
+
+                var fill = new SKPaint
+                {
+                    Style = SKPaintStyle.Fill,
+                    Color = BlueToRed(pot)
+                };
+                var r = SKRect.Create(x * cw, y * ch, cw, ch);
+
+                if (el.IsWall)
+                    fill = _wallPaint;
+
+                canvas.DrawRect(r, fill);
+                canvas.DrawRect(r, _strokePaint);
+            }
+        }
+    }
 
     private void OnCanvasViewPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
-        SKSurface surface = e.Surface;
-        SKCanvas canvas = surface.Canvas;
+        var canvas = e.Surface.Canvas;
         canvas.Clear(SKColors.White);
 
         var mesh = _viewModel.GetMesh();
-
-        if (mesh == null) 
-            return;
+        if (mesh == null) return;
 
         var info = e.Info;
-        float cellWidth = (float)info.Width / mesh.Nx;
-        float cellHeight = (float)info.Height / mesh.Ny;
+        float cw = (float)(info.Width / mesh.Nx);
+        float ch = (float)(info.Height / mesh.Ny);
 
-        for (int x = 0; x < mesh.Nx; x++)
-        {
-            for (int y = 0; y < mesh.Ny; y++)
+        // draw all cells
+        for (int y = 0; y < mesh.Ny; y++)
+            for (int x = 0; x < mesh.Nx; x++)
             {
-                var element = mesh.GetElementAt(x, y);
+                var el = mesh.GetElementAt(x, y);
+                SKPaint fill = el.IsElectrode ? _electrodePaint
+                             : el.IsWall ? _wallPaint
+                                              : _fillPaint;
 
-                // Determine the fill color based on the element's state
-                SKPaint currentFillPaint;
-                if (element.IsElectrode)
-                    currentFillPaint = _electrodePaint;
-                else if (element.IsWall)
-                    currentFillPaint = _wallPaint;
-                else
-                    currentFillPaint = _fillPaint;
+                var r = SKRect.Create(x * cw, y * ch, cw, ch);
+                canvas.DrawRect(r, fill);
+                canvas.DrawRect(r, _strokePaint);
+            }
 
-                var rect = SKRect.Create(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
-                canvas.DrawRect(rect, currentFillPaint);
-                canvas.DrawRect(rect, _strokePaint);
+        // —— hover‐info box ——  
+        if (_hoverElem != null && _hoverElemCanvasPt.HasValue)
+        {
+            var pt = _hoverElemCanvasPt.Value;
+            var el = _hoverElem;
+
+            // lines to display
+            string[] lines = {
+                    $"ID:   {el.Id}",
+                    $"Wall:      {el.IsWall}",
+                    $"Electrode: {el.IsElectrode}",
+                    $"σ:   {el.Conductivity:F3}",
+                    $"Phi: {el.Fi.Sum()}"
+                };
+
+            // measure
+            using var txtPaint = new SKPaint { IsAntialias = true, Color = SKColors.White };
+            using var font = new SKFont(SKTypeface.Default, 14);
+            float w = lines.Max(l => font.MeasureText(l)) + 8;
+            float h = lines.Length * (font.Size + 4) + 4;
+
+            // choose side relative to canvas center
+            var center = new SKPoint(info.Width / 2f, info.Height / 2f);
+            var dir = new SKPoint(center.X - pt.X, center.Y - pt.Y);
+            const float off = 8f;
+            float bx = dir.X > 0 ? pt.X + off : pt.X - off - w;
+            float by = dir.Y > 0 ? pt.Y + off : pt.Y - off - h;
+            var box = new SKRect(bx, by, bx + w, by + h);
+
+            // background
+            using var bg = new SKPaint { Color = new SKColor(0, 0, 0, 200), IsAntialias = true };
+            canvas.DrawRoundRect(box, 4, 4, bg);
+
+            // text
+            float ty = box.Top + font.Size + 2;
+            foreach (var line in lines)
+            {
+                canvas.DrawText(line, box.Left + 4, ty, SKTextAlign.Left, font, txtPaint);
+                ty += font.Size + 4;
             }
         }
     }
 
-    // This handler is ONLY for left-clicks (tapping) to toggle walls
+    // —— TOUCH / HOVER ——  
     private void OnCanvasTouch(object sender, SKTouchEventArgs e)
-    { 
-        // We only act on the initial press of a button.
-        if (e.ActionType != SKTouchAction.Pressed)
+    {
+        var mesh = _viewModel.GetMesh();
+        if (mesh == null) return;
+
+        // get grid cell coords
+        float cw = (float)canvasView.CanvasSize.Width / mesh.Nx;
+        float ch = (float)canvasView.CanvasSize.Height / mesh.Ny;
+        int col = (int)(e.Location.X / cw);
+        int row = (int)(e.Location.Y / ch);
+
+        // clamp
+        if (col < 0) col = 0; if (col >= mesh.Nx) col = mesh.Nx - 1;
+        if (row < 0) row = 0; if (row >= mesh.Ny) row = mesh.Ny - 1;
+
+        if (e.ActionType == SKTouchAction.Moved || e.ActionType == SKTouchAction.Pressed)
         {
-            e.Handled = true;
-            return;
+            // update hover
+            _hoverElem = mesh.GetElementAt(col, row);
+            _hoverElemCanvasPt = e.Location;
         }
 
-        var (col, row) = GetCellCoordinatesFromPixel(e.Location);
-
-        if (IsWithinBounds(col, row))
+        // left-click toggles walls, right-click toggles electrodes
+        if (e.ActionType == SKTouchAction.Pressed)
         {
             switch (e.MouseButton)
             {
-                case SKMouseButton.Left: // Left-click toggles walls
-                    _viewModel.ToggleWallStateCommand.Execute((row - 1, col));
+                case SKMouseButton.Left:
+                    _viewModel.ToggleWallStateCommand.Execute((row, col));
                     break;
-
-                case SKMouseButton.Right: // Right-click toggles electrodes
-                    _viewModel.ToggleElectrodeStateCommand.Execute((row - 1, col));
+                case SKMouseButton.Right:
+                    _viewModel.ToggleElectrodeStateCommand.Execute((row, col));
                     break;
             }
-
-            // After any action, invalidate the canvas to force a redraw.
-            canvasView.InvalidateSurface();
         }
 
+        canvasView.InvalidateSurface();
         e.Handled = true;
     }
-
-
-    private (int, int) GetCellCoordinatesFromPixel(SKPoint pixelLocation)
-    {        
-        var mesh = _viewModel.GetMesh();
-        float cellWidth = (float)canvasView.CanvasSize.Width / mesh.Nx;
-        float cellHeight = (float)canvasView.CanvasSize.Height / mesh.Ny;
-
-        int col = (int)(pixelLocation.X / cellWidth);
-        int row = (int)(pixelLocation.Y / cellHeight);
-
-        return (col, row);
-    }
-
-    private bool IsWithinBounds(int col, int row)
-    {
-        if (_viewModel?.GetMesh() == null) return false;
-        return col >= 0 && col < _viewModel.GetMesh().Nx && row >= 0 && row < _viewModel.GetMesh().Ny;
-    }
+    #endregion
 
     private void OnStartReconstruction(object sender, EventArgs e)
     {
         _viewModel.OnStartReconstructionClicked(sender, e);
+        PotentialResultCanvas.InvalidateSurface();
     }
 }

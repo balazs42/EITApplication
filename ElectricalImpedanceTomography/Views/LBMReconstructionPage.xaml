@@ -62,19 +62,55 @@
                         Text="Start Reconstruction"
                         Clicked="OnStartReconstruction"/>
             </Grid>
-            <Border Grid.Row="2" 
-                    Stroke="DarkGray" 
-                    StrokeThickness="2"
-                    Margin="10"
-                    HorizontalOptions="Center" VerticalOptions="Center">
-                <skia:SKCanvasView x:Name="canvasView"
-                               WidthRequest="800" 
-                               HeightRequest="800"
-                               PaintSurface="OnCanvasViewPaintSurface"
-                               EnableTouchEvents="True"
-                               Touch="OnCanvasTouch">
-                </skia:SKCanvasView>
-            </Border>
+            <Grid Grid.Row="2"
+                  RowDefinitions="Auto, *"
+                  ColumnDefinitions="Auto, Auto"
+                  ColumnSpacing="10"
+                  Padding="10">
+                
+                <Label Grid.Row="0"
+                       Grid.Column="0" 
+                       FontAttributes="Bold"
+                       HorizontalOptions="Center"
+                       Text="LBM Grid:"/>
+                <Border Grid.Row="1"
+                        Grid.Column="0"
+                        Stroke="DarkGray" 
+                        StrokeThickness="2"
+                        Margin="10"
+                        HorizontalOptions="Center" 
+                        VerticalOptions="Center">
+                    
+                    <skia:SKCanvasView x:Name="canvasView"
+                                       WidthRequest="500" 
+                                       HeightRequest="500"
+                                       PaintSurface="OnCanvasViewPaintSurface"
+                                       EnableTouchEvents="True"
+                                       Touch="OnCanvasTouch">
+                    </skia:SKCanvasView>
+                </Border>
+
+                <Label Text="Potential Field" 
+                       Grid.Row="0" 
+                       Grid.Column="1"
+                       FontAttributes="Bold" 
+                       HorizontalOptions="Center" />
+                
+                <Border Grid.Row="1"
+                        Grid.Column="1"
+                        Stroke="DarkGray" 
+                        StrokeThickness="2"
+                        Margin="10"
+                        HorizontalOptions="Center" VerticalOptions="Center">
+                    <skia:SKCanvasView x:Name="PotentialResultCanvas"
+                                       PaintSurface="OnPotentialResultPaintSurface"
+                                       EnableTouchEvents="False"
+                                       HeightRequest="500"
+                                       WidthRequest="500"
+                                       Margin="10">
+                    </skia:SKCanvasView>
+                </Border>
+            </Grid>
         </Grid>
     </Grid>
 </ContentPage>
