@@ -36,7 +36,7 @@ namespace Utility.Classes.Solvers
             {
                 for (int k = 0; k < 9; k++)
                 {
-                    el.Fi[k] = W[k] * 0.0;      // equilibrium with φ=0
+                    el.Fi[k] = W[k] * 0.0;      // equilibrium with φ=1
                     el.Fi_next[k] = 0.0;
                 }
                 if(el.IsElectrode)
@@ -46,20 +46,26 @@ namespace Utility.Classes.Solvers
                     if (correspondingElectrode != null && bc.IsNeumann)
                         correspondingElectrode.Current = bc.Electrodes[correspondingElectrode.Id].Current;
                     else if (correspondingElectrode != null && !bc.IsNeumann)
+                    {
                         correspondingElectrode.Potential = bc.Electrodes[correspondingElectrode.Id].Potential;
+                        for (int i = 0; i < 9; i++)
+                            el.Fi[i] = W[i] * correspondingElectrode.Potential;
+                    }
                 }
             }
+
+            var elements = mesh.Elements.Cast<LBMElement>();
 
 
             // 2) Load conductivity γ into each element
             var sigmaDist = mesh.GetConductivityDistribution();
-            foreach (var el in mesh.Elements.Cast<LBMElement>())
+            foreach (var el in elements)
                 el.Conductivity = sigmaDist.GetConductivity(el.Id);
 
             // 3) Mark electrodes as pinned Dirichlet
             foreach (var electrode in bc.Electrodes)
             {
-                var cell = mesh.Elements.Cast<LBMElement>().First(e => e.Id == electrode.GridId);
+                var cell = elements.First(e => e.Id == electrode.GridId);
                 if (cell != null)
                     cell.IsElectrode = true;
             }
@@ -68,9 +74,6 @@ namespace Utility.Classes.Solvers
             double[] prevPhi = new double[mesh.Elements.Count];
             for (int t = 0; t < maxIter; t++)
             {
-                var elements = mesh.Elements.Cast<LBMElement>();
-
-
                 // 4a) Collision
                 foreach (var el in elements)
                 {
@@ -98,16 +101,19 @@ namespace Utility.Classes.Solvers
                 }
 
                 // 4b) Streaming + bounce-back
-                foreach (var el in mesh.Elements.Cast<LBMElement>())
+                foreach (var el in elements)
                 {
-                    if (el.IsWall) continue;
+                    if (el.IsWall) 
+                        continue;
+
                     for (int k = 0; k < 9; k++)
                     {
                         var nb = el.Neighbors[k];
                         
                         // send to the same direction slot in neighbor
-                        if (nb != null && !nb.IsWall)
+                        if (!nb.IsWall)
                             nb.Fi_next[k] = el.Fi[k];
+
                         // bounce-back into opposite direction
                         else
                             el.Fi_next[Opposite[k]] = el.Fi[k];
@@ -129,8 +135,11 @@ namespace Utility.Classes.Solvers
                     // enforce pinned Dirichlet: Fi = W[k]*PinValue
                     if (el.IsElectrode)
                     {
+                        var electrode = mesh.Electrodes.First(x => x.GridId == el.Id);
+                        double potential = electrode.Potential;
+
                         for (int k = 0; k < 9; k++)
-                            el.Fi[k] = W[k] * el.GetPotential();
+                            el.Fi[k] = W[k] * potential;
                     }
                 }
 
@@ -156,11 +165,8 @@ namespace Utility.Classes.Solvers
 
             // 5) Extract electrode potentials to return
             var dict = new Dictionary<int, double>();
-            foreach (var electrode in bc.Electrodes)
-            {
-                var cell = mesh.Elements.Cast<LBMElement>().First(e => e.Id == electrode.GridId);
-                dict[electrode.Id] = cell.Fi.Sum();
-            }
+            foreach (var elemenet in mesh.Elements)
+                dict.Add(elemenet.Id, elemenet.Fi.Sum());
             return new PotentialDistribution(dict);
         }
 
