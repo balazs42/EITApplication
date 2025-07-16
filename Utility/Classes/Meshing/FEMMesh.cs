@@ -4,7 +4,9 @@ namespace Utility.Classes.Meshing
 {
     public class FEMMesh : Mesh
     {
+        public new List<Vertex> Vertices = [];
         public new List<FEMElement> Elements { get; set; } = [];
+        public new List<FEMElectrode> Electrodes { get; set; } = [];
 
         public FEMMesh(List<Vertex> vertices, List<FEMElement> elements)
         {
@@ -86,7 +88,7 @@ namespace Utility.Classes.Meshing
         /// </summary>
         /// <param name="conductivityDistribution">The conductivity distribution to set the mesh.</param>
         /// <exception cref="ArgumentOutOfRangeException">Throws if conductivity distribution counts are incomatible.</exception>
-        public void SetConductivityDistribution(ConductivityDistribution conductivityDistribution)
+        public new void SetConductivityDistribution(ConductivityDistribution conductivityDistribution)
         {
             if (conductivityDistribution.Conductivities.Count != ConductivityDistribution.Conductivities.Count)
                 throw new ArgumentOutOfRangeException("Cannot set conductivity distribution on mesh, since the provided distribution contains differing number of elements, then the mesh. Check code!");
@@ -112,7 +114,7 @@ namespace Utility.Classes.Meshing
         /// </summary>
         /// <param name="potentialDistribution">The provided potential distribution</param>
         /// <exception cref="ArgumentOutOfRangeException">If the provided distribution does not contain same number of nodes, throws.</exception>
-        public void SetPotentialDistribution(PotentialDistribution potentialDistribution)
+        public new void SetPotentialDistribution(PotentialDistribution potentialDistribution)
         {
             if(potentialDistribution.Potentials.Count != PotentialDistribution.Potentials.Count)
                 throw new ArgumentOutOfRangeException("Cannot set potential distribution on mesh, since the provided distribution contains differing number of elements, then the mesh. Check code!");
@@ -210,10 +212,10 @@ namespace Utility.Classes.Meshing
             var copy = new FEMMesh(newVertices, newElements);
 
             // 4) Clone electrodes
-            copy.Electrodes = new List<Electrode>(Electrodes.Count);
+            copy.Electrodes = new List<FEMElectrode>(Electrodes.Count);
             foreach (var el in Electrodes)
             {
-                var el2 = new Electrode(el.Id, el.MeshId, el.Current, el.ZContact, el.Potential)
+                var el2 = new FEMElectrode(el.Id, el.MeshId, el.Current, el.ZContact, el.Potential)
                 {
                     IsGround = el.IsGround,
                     IsExcitation = el.IsExcitation

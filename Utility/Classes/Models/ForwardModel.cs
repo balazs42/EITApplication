@@ -14,9 +14,9 @@ namespace Utility.Classes.Models
         private readonly IDifferentialEquationSolver _differentialEquationSolver;
         private readonly IMesh _mesh;
         private readonly ConductivityDistribution _conductivityDistribution;
-        private readonly BoundaryCondition _boundaryCondition;
+        private readonly FEMBoundaryCondition _boundaryCondition;
 
-        public ForwardModel(INumericSolver numericSolver, IDifferentialEquationSolver differentialEquationSolver, IMesh mesh, ConductivityDistribution conductivityDistribution, BoundaryCondition boundaryCondition)
+        public ForwardModel(INumericSolver numericSolver, IDifferentialEquationSolver differentialEquationSolver, IMesh mesh, ConductivityDistribution conductivityDistribution, FEMBoundaryCondition boundaryCondition)
         {
             _numericSolver = numericSolver;
             _differentialEquationSolver = differentialEquationSolver;
@@ -31,7 +31,7 @@ namespace Utility.Classes.Models
         }
 
         public ConductivityDistribution GetConductivityDistribution() => _conductivityDistribution;
-        public BoundaryCondition GetBoundaryConditions() => _boundaryCondition;
+        public FEMBoundaryCondition GetBoundaryConditions() => _boundaryCondition;
         public IMesh GetMesh() => _mesh;
     }
 }

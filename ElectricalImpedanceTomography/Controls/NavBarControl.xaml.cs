@@ -40,7 +40,7 @@ public partial class NavBarControl : ContentView
         // Reset all buttons to visible first
         MainPageButton.IsVisible = true;
         DAQPageButton.IsVisible = true;
-        ReconstructionPageButton.IsVisible = true;
+        LBMReconstructionPageButton.IsVisible = true;
         FEMReconstructionPageButton.IsVisible = true;
 
         // Hide the button matching the current page name (case-insensitive)
@@ -48,9 +48,9 @@ public partial class NavBarControl : ContentView
             MainPageButton.IsVisible = false;
         else if (string.Equals(currentPageName, "DAQPage"))
             DAQPageButton.IsVisible = false;
-        else if (string.Equals(currentPageName, "ReconstructionPage"))
-            ReconstructionPageButton.IsVisible = false;
-        else if (string.Equals(currentPageName, "FEM Reconstruction"))
+        else if (string.Equals(currentPageName, "LBMReconstructionPage"))
+            LBMReconstructionPageButton.IsVisible = false;
+        else if (string.Equals(currentPageName, "FEMReconstructionPage"))
             FEMReconstructionPageButton.IsVisible = false;
     }
 
@@ -68,7 +68,7 @@ public partial class NavBarControl : ContentView
         {
             "Main" => "///MainPage",
             "DAQ" => "//DAQPage",
-            "EIT Reconstruction" => "//ReconstructionPage",
+            "LBM Reconstruction" => "//LBMReconstructionPage",
             "FEM Reconstruction" => "//FEMReconstructionPage",
             _ => string.Empty
         };

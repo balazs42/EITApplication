@@ -1,14 +1,13 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ServiceLayer;
-using System.Collections.ObjectModel;
 using Utility.Classes;
 using Utility.Classes.Meshing;
 using Utility.Classes.ReconstructionParameters;
 
 namespace ElectricalImpedanceTomography.ViewModels
 {
-    public partial class ReconstructionPageViewModel : BaseViewModel
+    public partial class LBMReconstructionPageViewModel : BaseViewModel
     {
         private readonly IReconstructionService _reconstructionService;
 
@@ -47,7 +46,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         [ObservableProperty]
         private int gridSizeNy = 15;
 
-        public ReconstructionPageViewModel(IReconstructionService reconstructionService)
+        public LBMReconstructionPageViewModel(IReconstructionService reconstructionService)
         {
             _reconstructionService = reconstructionService;
 

@@ -63,5 +63,48 @@ namespace Utility.Classes
 
             return electrodeVertices;
         }
+
+        public void SetConductivityDistribution(ConductivityDistribution conductivityDistribution)
+        {
+            if (conductivityDistribution == null || conductivityDistribution.Conductivities.Count != ConductivityDistribution.Conductivities.Count)
+                throw new ArgumentOutOfRangeException("Cannot set conductivity distribution to differing size, check code!");
+
+            var keys1 = conductivityDistribution.Conductivities.Keys.OrderBy(x => x).ToList();
+            var keys2 = ConductivityDistribution.Conductivities.Keys.OrderBy(x => x).ToList();
+
+            for (int i = 0; i < keys1.Count; i++)
+                if (keys1[i] != keys2[i])
+                    throw new ArgumentOutOfRangeException("Cannot set new conductivity distribution, if not all keys match!");
+
+            ConductivityDistribution = conductivityDistribution;
+
+            foreach (var kvp in conductivityDistribution.Conductivities)
+            {
+                var element = Elements.Find(x => x.Id == kvp.Key);
+
+                if (element == null)
+                    throw new NullReferenceException("Could not update LBM mesh element value, since the id of the element does not match any insatnces in the provided conducitivty distribution keys. Check code!");
+
+                element.Conductivity = kvp.Value;
+            }
+        }
+
+        public void SetPotentialDistribution(PotentialDistribution potentialDistribution)
+        {
+            if (potentialDistribution == null || potentialDistribution.Potentials.Count != PotentialDistribution.Potentials.Count)
+                throw new ArgumentOutOfRangeException("Cannot set conductivity distribution to differing size, check code!");
+
+            var keys1 = potentialDistribution.Potentials.Keys.OrderBy(x => x).ToList();
+            var keys2 = PotentialDistribution.Potentials.Keys.OrderBy(x => x).ToList();
+
+            for (int i = 0; i < keys1.Count; i++)
+                if (keys1[i] != keys2[i])
+                    throw new ArgumentOutOfRangeException("Cannot set new conductivity distribution, if not all keys match!");
+
+            foreach (var kvp in potentialDistribution.Potentials)
+                PotentialDistribution.Potentials[kvp.Key] = kvp.Value;
+
+
+        }
     }
 }

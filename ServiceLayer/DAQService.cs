@@ -15,7 +15,7 @@ namespace ServiceLayer
             _logger = logger;
         }
 
-        public EITMeasurements GetEITMeasurement()
+        public EITMeasurement GetEITMeasurement()
         {
             try
             {

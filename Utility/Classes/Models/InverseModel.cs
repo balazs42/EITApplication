@@ -36,7 +36,7 @@ namespace Utility.Classes.Models
         /// <param name="measurements">The full set of EIT measurements for all drive patterns.</param>
         /// <param name="maxIterations">The maximum number of optimization iterations to perform.</param>
         /// <returns>The final, reconstructed conductivity distribution.</returns>
-        public ConductivityDistribution Solve(ConductivityDistribution initialSigma, EITMeasurements measurements, int maxIterations = 50)
+        public ConductivityDistribution Solve(ConductivityDistribution initialSigma, EITMeasurement measurements, int maxIterations = 50)
         {
             var currentSigma = initialSigma;
             var mesh = _mesh;
@@ -86,7 +86,7 @@ namespace Utility.Classes.Models
         /// Computes the total gradient of the cost function (J_misfit + J_regularization)
         /// by summing the contributions from all measurement patterns and the regularization term.
         /// </summary>
-        private ConductivityDistribution ComputeTotalGradient(IMesh mesh, ConductivityDistribution sigma, EITMeasurements measurements)
+        private ConductivityDistribution ComputeTotalGradient(IMesh mesh, ConductivityDistribution sigma, EITMeasurement measurements)
         {
             // Initialize a dictionary to accumulate the gradient from all sources.
             var totalGradientDict = sigma.Conductivities.ToDictionary(kvp => kvp.Key, kvp => 0.0);
@@ -94,32 +94,32 @@ namespace Utility.Classes.Models
             // Loop over each of the 16 measurement drive patterns.
             for (int i = 0; i < 16; i++)
             {
-                SixteenElectrodeMeasurement measurement = measurements.GetMeasurement(i);
-                BoundaryCondition bc = new BoundaryCondition(mesh.GetElectrodes());
+                //SixteenElectrodeMeasurement measurement = measurements.GetMeasurement(i);
+                //BoundaryCondition bc = new BoundaryCondition(mesh.GetElectrodes());
 
                 // === Misfit Gradient Calculation for one drive pattern ===
 
                 // STEP 1: Solve the forward problem to get simulated potentials (φ) for the current sigma.
-                var phi = _deSolver.SolveForward(mesh, bc);
-                var simulatedPotentials = mesh.GetElectrodePotentials();
-
-                // STEP 2: Clean NaN values from the potential vectors before computing the error.
-                var cleanedPotentials = CleanPotentials(simulatedPotentials, measurement.Measurement);
-
-                // STEP 3: Get the source term for the adjoint problem from the error metric.
-                var adjointSourceRaw = _errorMetric.EvaluateAdjointSource(mesh, cleanedPotentials.Item2, cleanedPotentials.Item1);
-                var adjointSourceVec = MapAdjointSourceToMesh(mesh, adjointSourceRaw);
-
-                // STEP 4: Solve the adjoint problem for the sensitivity map (μ).
-                var homogeneousBC = BoundaryConditionFactory.CreateHomogeneous(mesh);
-                var mu = _deSolver.SolveAdjoint(mesh, homogeneousBC, adjointSourceVec);
-
-                // STEP 5: Compute the gradient component for this measurement frame (∇φ · ∇μ).
-                var misfitGradient = _deSolver.ComputeMisfitGradient(mesh, phi, mu);
-
-                // STEP 6: Accumulate the gradient.
-                foreach (var kvp in misfitGradient.Conductivities)
-                    totalGradientDict[kvp.Key] += kvp.Value;
+               //var phi = _deSolver.SolveForward(mesh, bc);
+               //var simulatedPotentials = mesh.GetElectrodePotentials();
+               //
+               //// STEP 2: Clean NaN values from the potential vectors before computing the error.
+               //var cleanedPotentials = CleanPotentials(simulatedPotentials, measurement.Measurement);
+               //
+               //// STEP 3: Get the source term for the adjoint problem from the error metric.
+               //var adjointSourceRaw = _errorMetric.EvaluateAdjointSource(mesh, cleanedPotentials.Item2, cleanedPotentials.Item1);
+               //var adjointSourceVec = MapAdjointSourceToMesh(mesh, adjointSourceRaw);
+               //
+               //// STEP 4: Solve the adjoint problem for the sensitivity map (μ).
+               //var homogeneousBC = BoundaryConditionFactory.CreateHomogeneous(mesh);
+               //var mu = _deSolver.SolveAdjoint(mesh, homogeneousBC, adjointSourceVec);
+               //
+               //// STEP 5: Compute the gradient component for this measurement frame (∇φ · ∇μ).
+               //var misfitGradient = _deSolver.ComputeMisfitGradient(mesh, phi, mu);
+               //
+               //// STEP 6: Accumulate the gradient.
+               //foreach (var kvp in misfitGradient.Conductivities)
+               //    totalGradientDict[kvp.Key] += kvp.Value;
             }
 
             // === Regularization Gradient Calculation ===
@@ -136,7 +136,7 @@ namespace Utility.Classes.Models
         /// <summary>
         /// Implements a backtracking line search to find a step size that provides sufficient decrease in the cost function.
         /// </summary>
-        private double FindOptimalStepSize(IMesh mesh, ConductivityDistribution sigma, EITMeasurements measurements, ConductivityDistribution gradient, double currentCost)
+        private double FindOptimalStepSize(IMesh mesh, ConductivityDistribution sigma, EITMeasurement measurements, ConductivityDistribution gradient, double currentCost)
         {
             double stepSize = 1.0; // Start with a large step size
             int maxLineSearchIter = 10;
@@ -165,21 +165,21 @@ namespace Utility.Classes.Models
         /// <summary>
         /// Utility function to calculate the total cost J = Σ(J_misfit) + J_regularization for a given conductivity.
         /// </summary>
-        private double CalculateTotalCost(IMesh mesh, ConductivityDistribution sigma, EITMeasurements measurements)
+        private double CalculateTotalCost(IMesh mesh, ConductivityDistribution sigma, EITMeasurement measurements)
         {
             double totalMisfit = 0.0;
 
             // Sum the misfit over all 16 measurement patterns.
             for (int i = 0; i < 16; i++)
             {
-                SixteenElectrodeMeasurement measurement = measurements.GetMeasurement(i);
-                BoundaryCondition bc = new BoundaryCondition(mesh.GetElectrodes());
-                PotentialDistribution phi = _deSolver.SolveForward(mesh, bc);
-
-                var simulated = mesh.GetElectrodePotentials();
-                var cleaned = CleanPotentials(simulated, measurement.Measurement);
-
-                totalMisfit += _errorMetric.Evaluate(mesh, cleaned.Item2, cleaned.Item1);
+                //SixteenElectrodeMeasurement measurement = measurements.GetMeasurement(i);
+                //BoundaryCondition bc = new BoundaryCondition(mesh.GetElectrodes());
+                //PotentialDistribution phi = _deSolver.SolveForward(mesh, bc);
+                //
+                //var simulated = mesh.GetElectrodePotentials();
+                //var cleaned = CleanPotentials(simulated, measurement.Measurement);
+                //
+                //totalMisfit += _errorMetric.Evaluate(mesh, cleaned.Item2, cleaned.Item1);
             }
 
             // Add the regularization penalty.
@@ -230,14 +230,14 @@ namespace Utility.Classes.Models
 
                 // electrode.MeshId is the ID of the LBM element where the electrode is placed.
                 // This is the index in our full sourceVector.
-                int elementId = electrode.MeshId;
+                //int elementId = electrode.MeshId;
 
-                if (electrodeIndex < sourcePerElectrode.Length && elementId < sourceVector.Length)
-                {
-                    // Place the source term at the correct element location.
-                    // The negative sign comes from the adjoint PDE formula: Source = -S*(Sφ - d)
-                    sourceVector[elementId] = sourcePerElectrode[electrodeIndex];
-                }
+                //if (electrodeIndex < sourcePerElectrode.Length && elementId < sourceVector.Length)
+                //{
+                //    // Place the source term at the correct element location.
+                //    // The negative sign comes from the adjoint PDE formula: Source = -S*(Sφ - d)
+                //    sourceVector[elementId] = sourcePerElectrode[electrodeIndex];
+                //}
             }
 
             return sourceVector;

@@ -16,9 +16,9 @@
         ContentTemplate="{DataTemplate views:DAQPage}"
         Route="DAQPage"/>
     <ShellContent
-        Title="Reconstruction"
-        ContentTemplate="{DataTemplate views:ReconstructionPage}"
-        Route="ReconstructionPage"/>
+        Title="LBM Reconstruction"
+        ContentTemplate="{DataTemplate views:LBMReconstructionPage}"
+        Route="LBMReconstructionPage"/>
     <ShellContent
          Title="FEM Reconstruction"
          ContentTemplate="{DataTemplate views:FEMReconstructionPage}"

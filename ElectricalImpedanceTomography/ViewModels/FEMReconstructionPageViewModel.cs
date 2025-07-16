@@ -54,7 +54,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         private bool _isSimulationRunning = false;
 
-        private List<double[]> _simulatedMeasurements;
+        private List<double[]> _simulatedMeasurements = [];
         private int _simulatedMeasurementsIndex = 0;
 
         private EITReconstructionParameters reconstructionParameters = new (DifferentialEquationSolver.FiniteElementMethod, 
@@ -118,6 +118,8 @@ namespace ElectricalImpedanceTomography.ViewModels
             electrodes[GroundElectrodeId % ElectrodeCount].IsGround = true;
             electrodes[GroundElectrodeId % ElectrodeCount].Current = -ExcitationCurrentAmplitude;
 
+            _reconstructionService.InitializeReconstruction(_mesh, reconstructionParameters);
+
             var retMesh = _reconstructionService.SolveFemForward(mesh);;
 
             _reconstructedMesh.PotentialDistribution = retMesh.PotentialDistribution;
@@ -127,6 +129,8 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public FEMMesh SolveInverse(FEMMesh mesh)
         {
+            _reconstructionService.InitializeReconstruction(_mesh, reconstructionParameters);
+
             var electrodes = mesh.Electrodes;
 
             foreach (var el in electrodes)
@@ -165,7 +169,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             double[] currentSimulatedMeasurement = _simulatedMeasurements[_simulatedMeasurementsIndex % ElectrodeCount];
 
             // TODO: create the appropirate boundary conditions
-            BoundaryCondition bc = new(_mesh.Electrodes);
+            FEMBoundaryCondition bc = new(_mesh.Electrodes);
 
             ReconstructionResult reconstructionResult = _reconstructionService.InverseSolveStepFem(mesh: _mesh,
                                                                                                    measurement: currentSimulatedMeasurement,

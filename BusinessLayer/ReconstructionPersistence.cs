@@ -15,9 +15,7 @@ namespace BusinessLayer
         private readonly IDAQRepository _daqRepository;
 
         private InverseModel? _inverseModel = null;
-
-        private EITMeasurements? _measurementData = null;
-
+        
         private IMesh? _mesh = null;
         private INumericSolver? _numericSolver = null;
         private IDifferentialEquationSolver? _differentialEquationSolver = null;
@@ -36,14 +34,14 @@ namespace BusinessLayer
                 throw new NullReferenceException();
 
             // Generate initial distribution for the reconstruction process
-            ConductivityDistribution initialDistribution = PriorConductivityDistributionGenerator.GenerateHomogeneousDistribution(_mesh);
+            //ConductivityDistribution initialDistribution = PriorConductivityDistributionGenerator.GenerateHomogeneousDistribution(_mesh);
 
             // TODO: Get the current measurement
             // EITMeasurement measurement = _daqRepository.GetEITMeasurement();
 
-            EITMeasurements measurement = SimulateMeasurement();
+            EITMeasurement measurement = SimulateMeasurement();
 
-            _inverseModel.Solve(initialDistribution, measurement, 100);
+            //_inverseModel.Solve(initialDistribution, measurement, 100);
 
             /* supply real data, mesh, and initial σ */
             //var result = await Task.Run(() => 
@@ -71,7 +69,7 @@ namespace BusinessLayer
         /// Creates a realistic, synthetic EIT measurement by simulating the physics
         /// on a known "ground truth" conductivity map.
         /// </summary>
-        private EITMeasurements SimulateMeasurement()
+        private EITMeasurement SimulateMeasurement()
         {
             if (_differentialEquationSolver == null)
                 throw new NullReferenceException("Differential equation solver was null, check code!");
@@ -107,38 +105,38 @@ namespace BusinessLayer
             for (int i = 0; i < numElectrodes; i++)
             {
                 // For each drive pattern, we need to configure the specific currents.
-                int sourceId = i;
-                int sinkId = (i + 1) % numElectrodes;
-
-                var dummyMeas = SimulateDummyMeasurement().GetMeasurement(i);
-
-                var bc = new BoundaryCondition(physicalElectrodes);
-
-                // Run the LBM forward solver using the ground truth conductivity and this drive pattern.
-                var potentialDistribution = _differentialEquationSolver.SolveForward(groundTruthMesh, bc);
-
-                // After the solve, the GetElectrodePotentials method will return the calculated
-                // potentials, including NaNs for the driving electrodes.
-                double[] resultingPotentials = groundTruthMesh.GetElectrodePotentials();
-
-                // Copy this result into the correct row of our final 16x16 matrix.
-                for (int j = 0; j < numElectrodes; j++)
-                {
-                    measurementMatrix[i, j] = resultingPotentials[j];
-                }
-
-                Debug.WriteLine("Calculated Potential Field:");
-                potentialDistribution.LogDistribution();
-                Debug.WriteLine("---------------------------");
+                //int sourceId = i;
+                //int sinkId = (i + 1) % numElectrodes;
+                //
+                //var dummyMeas = SimulateDummyMeasurement().GetMeasurement(i);
+                //
+                //var bc = new BoundaryCondition(physicalElectrodes);
+                //
+                //// Run the LBM forward solver using the ground truth conductivity and this drive pattern.
+                //var potentialDistribution = _differentialEquationSolver.SolveForward(groundTruthMesh, bc);
+                //
+                //// After the solve, the GetElectrodePotentials method will return the calculated
+                //// potentials, including NaNs for the driving electrodes.
+                //double[] resultingPotentials = groundTruthMesh.GetElectrodePotentials();
+                //
+                //// Copy this result into the correct row of our final 16x16 matrix.
+                //for (int j = 0; j < numElectrodes; j++)
+                //{
+                //    measurementMatrix[i, j] = resultingPotentials[j];
+                //}
+                //
+                //Debug.WriteLine("Calculated Potential Field:");
+                //potentialDistribution.LogDistribution();
+                //Debug.WriteLine("---------------------------");
             }
 
             Debug.WriteLine("Finished simulating measurement data.");
 
             // --- Step 3: Wrap the final matrix in the EITMeasurement object ---
-            return new EITMeasurements(measurementMatrix);
+            return new EITMeasurement(measurementMatrix);
         }
 
-        private EITMeasurements SimulateDummyMeasurement()
+        private EITMeasurement SimulateDummyMeasurement()
         {
             const int size = 16;
 
@@ -169,7 +167,7 @@ namespace BusinessLayer
                 meas[i, lowerIndex] = double.NaN;
             }
 
-            return new EITMeasurements(meas);
+            return new EITMeasurement(meas);
         }
 
         #region Finite Element Method Related Functions
@@ -181,9 +179,9 @@ namespace BusinessLayer
 
             var conductivitiyDistribution = mesh.GetConductivityDistribution();
 
-            var electrodes = mesh.Electrodes;
+            var electrodes = mesh.Electrodes.Cast<FEMElectrode>().ToList();
 
-            BoundaryCondition boundaryConditions = new BoundaryCondition(electrodes);
+            BoundaryCondition boundaryConditions = new FEMBoundaryCondition(electrodes);
 
             PotentialDistribution potentialDistribution = _differentialEquationSolver.SolveForward(mesh, boundaryConditions);
             mesh.SetPotentialDistribution(potentialDistribution);
@@ -208,8 +206,8 @@ namespace BusinessLayer
             mesh.SetConductivityDistribution(sigma);
             
             // 3) Mark electrodes: 0=ground, 1=excitation
-            List<Electrode> electrodes = mesh.Electrodes;
-            var bc = new BoundaryCondition(electrodes);
+            var electrodes = mesh.Electrodes.Cast<FEMElectrode>().ToList();
+            var bc = new FEMBoundaryCondition(electrodes);
 
             // 4) Iterative loop
             double prevError = double.PositiveInfinity;
@@ -251,7 +249,7 @@ namespace BusinessLayer
                 // 4f) Adjoint solve μ: same forward‐solver but feed in adjSrc as boundary currents
                 var mu = _differentialEquationSolver
                     .SolveForward(mesh,
-                                  new BoundaryCondition(electrodes, srcDist));
+                                  new FEMBoundaryCondition(electrodes, srcDist));
                 Debug.WriteLine("Adjoint μ computed.");
 
                 // 4g) Compute gradient ∇J_data = ∇μ·∇φ elementwise  (thesis Eq. 2.1.20)
@@ -316,14 +314,20 @@ namespace BusinessLayer
 
         public FEMMesh SolveFemInverseAllFrames(FEMMesh mesh, int maxIterCount, double stepSize, double regularization, double excitationAmplitude = 1.0, double tolerance = 1e-5, double minConductivtiy = 1e-3, double maxConductivity = 10.0)
         {
+            if (_differentialEquationSolver == null ||
+                _errorMetric == null ||
+                _regularizer == null ||
+                _numericOptimizer == null)
+                throw new NullReferenceException("Some solver parameter is null, the solver must properly be initialized, throguh the layer, check code!");
+
             List<double[]> simulatedMeasurements = SimulateFemMeasurements(mesh, excitationAmplitude);
             
             // 2) Initialize conductivity (σ^{(0)}) to homogeneous distribution
             ConductivityDistribution sigma = ConductivityDistributionFactory.CreateSlightlyDiffering(mesh, 0.95);
             mesh.SetConductivityDistribution(sigma);
 
-            List<Electrode> electrodes = mesh.Electrodes;
-            var bc = new BoundaryCondition(electrodes);
+            List<FEMElectrode> electrodes = mesh.Electrodes.Cast<FEMElectrode>().ToList();
+            var bc = new FEMBoundaryCondition(electrodes);
             var electrodeCount = mesh.Electrodes.Count;
 
             // 4) Iterative loop
@@ -355,7 +359,7 @@ namespace BusinessLayer
                     electrodes[(exc + 1) % electrodeCount].IsGround = true;
                     electrodes[(exc + 1) % electrodeCount].Current = -excitationAmplitude;
 
-                    bc = new BoundaryCondition(mesh.Electrodes);
+                    bc = new FEMBoundaryCondition(mesh.Electrodes);
 
                     // 4a) Forward solve φ⁽ᵏ⁾ = S(σ⁽ᵏ⁾)   (thesis Eq. 1.1.16)
                     PotentialDistribution phi = _differentialEquationSolver.SolveForward(mesh, bc);
@@ -378,7 +382,7 @@ namespace BusinessLayer
                     );
 
                     // 4f) Adjoint solve μ: same forward‐solver but feed in adjSrc as boundary currents
-                    var mu = _differentialEquationSolver.SolveForward(mesh, new BoundaryCondition(electrodes, srcDist));
+                    var mu = _differentialEquationSolver.SolveForward(mesh, new FEMBoundaryCondition(electrodes, srcDist));
                     Debug.WriteLine("Adjoint μ computed.");
 
                     // 4g) Compute gradient ∇J_data = ∇μ·∇φ elementwise  (thesis Eq. 2.1.20)
@@ -524,11 +528,9 @@ namespace BusinessLayer
             mesh.SetConductivityDistribution(sigma0);
 
             // Create new boundary conditions that will be fed to the Finite Element Solver
-            List<Electrode> electrodes = mesh.Electrodes;
-            var bc = new BoundaryCondition(electrodes);
+            List<FEMElectrode> electrodes = mesh.Electrodes.Cast<FEMElectrode>().ToList();
+            var bc = new FEMBoundaryCondition(electrodes);
             var electrodeCount = mesh.Electrodes.Count;
-
-            bc = new BoundaryCondition(mesh.Electrodes);
 
             // Forward solve  (thesis Eq. 1.1.16)
             PotentialDistribution phi = _differentialEquationSolver.SolveForward(mesh, bc);
@@ -545,7 +547,7 @@ namespace BusinessLayer
             var srcDist = new PotentialDistribution(Enumerable.Range(0, adjSrc.Length).ToDictionary(i => electrodes[i].Id, i => adjSrc[i]));
 
             // 4f) Adjoint solve μ: same forward‐solver but feed in adjSrc as boundary currents
-            var mu = _differentialEquationSolver.SolveForward(mesh, new BoundaryCondition(electrodes, srcDist));
+            var mu = _differentialEquationSolver.SolveForward(mesh, new FEMBoundaryCondition(electrodes, srcDist));
             Debug.WriteLine("Adjoint μ computed.");
 
             // 4g) Compute gradient ∇J_data = ∇μ·∇φ elementwise  (thesis Eq. 2.1.20)

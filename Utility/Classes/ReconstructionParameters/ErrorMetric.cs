@@ -84,7 +84,7 @@ namespace Utility.Classes.ReconstructionParameters
     public sealed class Wasserstein2ErrorMetric : IErrorMetric
     {
         // Cache the result of the latest LP solve to avoid re-computing
-        private OptimalTransportResult _lastResult;
+        private OptimalTransportResult? _lastResult;
 
         public double Evaluate(IMesh mesh, double[] measured, double[] simulated)
         {
@@ -107,14 +107,14 @@ namespace Utility.Classes.ReconstructionParameters
                 throw new ArgumentException("Wasserstein2ErrorMetric currently requires an LBMMesh to get element coordinates.");
 
             // 1. Get the list of physical electrodes and their locations from the mesh.
-            var electrodes = lbmMesh.GetElectrodes().OrderBy(e => e.Id).ToList();
+            var electrodes = lbmMesh.GetElectrodes().Cast<LBMElectrode>().OrderBy(e => e.Id).ToList();
             if (electrodes.Count != measured.Length)
                 throw new ArgumentException("Number of electrodes in mesh must match data length.");
 
             // 2. Normalize the data, filtering out any NaN values from driving electrodes.
             // This gives us the valid "masses" (mu and nu) and their corresponding locations.
-            var (mu, muLocations) = Normalize(simulated, electrodes, lbmMesh);
-            var (nu, nuLocations) = Normalize(measured, electrodes, lbmMesh);
+            var (mu, muLocations) = LBMNormalize(simulated, electrodes, lbmMesh);
+            var (nu, nuLocations) = LBMNormalize(measured, electrodes, lbmMesh);
 
             // It's possible for the sets of measuring electrodes to be different, but for EIT they are usually the same.
             // We'll proceed assuming we are comparing the distribution of `mu` to `nu`.
@@ -185,7 +185,7 @@ namespace Utility.Classes.ReconstructionParameters
         /// Normalizes a vector, filtering out NaN values, to create a probability distribution.
         /// Returns the valid "masses" and their corresponding (x, y) coordinates.
         /// </summary>
-        private (double[] dist, List<(int x, int y)> locs) Normalize(double[] vector, List<Electrode> allElectrodes, LBMMesh mesh)
+        private (double[] dist, List<(int x, int y)> locs) LBMNormalize(double[] vector, List<LBMElectrode> allElectrodes, LBMMesh mesh)
         {
             var validData = new List<double>();
             var validLocations = new List<(int x, int y)>();
@@ -196,7 +196,7 @@ namespace Utility.Classes.ReconstructionParameters
                 {
                     validData.Add(vector[i]);
                     // Find the location of this valid data point using the electrode's MeshId
-                    validLocations.Add(mesh.ToLattice(allElectrodes[i].MeshId));
+                    validLocations.Add(mesh.ToLattice(allElectrodes[i].GridId));
                 }
             }
 

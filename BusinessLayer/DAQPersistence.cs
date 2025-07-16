@@ -12,7 +12,7 @@ namespace BusinessLayer
             _daqRepository = daqRepository;
         }
 
-        public EITMeasurements GetEITMeasurement()
+        public EITMeasurement GetEITMeasurement()
         {
             return _daqRepository.GetEITMeasurement();
         }

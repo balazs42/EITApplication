@@ -8,7 +8,8 @@ namespace Utility.Classes.Factories
     {
         public static IForwardModel Create(INumericSolver ns, IDifferentialEquationSolver des, IMesh mesh, ConductivityDistribution conductivityDistribution, BoundaryCondition boundaryCondition)
         {
-            return new ForwardModel(ns, des, mesh, conductivityDistribution, boundaryCondition);
+            throw new NotImplementedException();
+            //return new ForwardModel(ns, des, mesh, conductivityDistribution, boundaryCondition);
         }
     }
 }

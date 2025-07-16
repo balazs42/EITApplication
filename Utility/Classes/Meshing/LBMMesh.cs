@@ -8,6 +8,9 @@
         // Added for fast, direct access to elements by coordinate
         private readonly LBMElement[,] _elementGrid;
 
+        public new List<LBMElement> Elements = [];
+        public new List<LBMElectrode> Electrodes = [];
+
         public LBMElement GetElementAt(int x, int y) => _elementGrid[x, y];
 
         public (int x, int y) ToLattice(int id) => (id % Nx, id / Nx);
@@ -31,7 +34,7 @@
             {
                 for (int x = 0; x < nx; x++)
                 {
-                    var element = new LBMElement(new List<Vertex>(), isWall: false) { Id = y * nx + x };
+                    var element = new LBMElement(isWall: false) { Id = y * nx + x };
                     if (x == 0 || x == nx - 1 || y == 0 || y == ny - 1)
                         element.IsWall = true;
 
@@ -64,7 +67,7 @@
             // Place 16 equidistant electrodes inside the walls
             PlaceEquidistantElectrodes(16);
 
-            this.ConductivityDistribution = PriorConductivityDistributionGenerator.GenerateHomogeneousDistribution(this, 1.0);
+            //this.ConductivityDistribution = PriorConductivityDistributionGenerator.GenerateHomogeneousDistribution(this, 1.0);
         }
 
         /// <summary>
@@ -102,12 +105,12 @@
 
                 // Create the corresponding high-level Electrode object.
                 // For LBM, one element corresponds to one measurement point.
-                var electrode = new Electrode(
+                var electrode = new LBMElectrode(
                     id: i, // The electrode's logical ID (0-15)
-                    meshId: electrodeElement.Id, // The element's ID within the mesh
+                    gridId: electrodeElement.Id, // The element's ID within the mesh
                     current: 0.0,
-                    zContact: 0.0,
-                    voltage: 0.0
+                    contactImpedance: 0.0,
+                    potential: 0.0
                 );
 
                 base.Electrodes.Add(electrode);

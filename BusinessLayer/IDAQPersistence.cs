@@ -4,6 +4,6 @@ namespace BusinessLayer
 {
     public interface IDAQPersistence
     {
-        public EITMeasurements GetEITMeasurement();
+        public EITMeasurement GetEITMeasurement();
     }
 }

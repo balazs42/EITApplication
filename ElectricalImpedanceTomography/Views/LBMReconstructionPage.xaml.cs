@@ -4,20 +4,20 @@ using SkiaSharp.Views.Maui;
 
 namespace ElectricalImpedanceTomography.Views;
 
-public partial class ReconstructionPage : ContentPage
+public partial class LBMReconstructionPage : ContentPage
 {
-	private readonly ReconstructionPageViewModel _viewModel;
+	private readonly LBMReconstructionPageViewModel _viewModel;
 
     private readonly SKPaint _fillPaint = new() { Style = SKPaintStyle.Fill, Color = SKColors.WhiteSmoke };
     private readonly SKPaint _wallPaint = new() { Style = SKPaintStyle.Fill, Color = SKColors.Black };
     private readonly SKPaint _electrodePaint = new() { Style = SKPaintStyle.Fill, Color = SKColors.Orange };
     private readonly SKPaint _strokePaint = new() { Style = SKPaintStyle.Stroke, Color = SKColors.LightGray, StrokeWidth = 1 };
 
-    public ReconstructionPage()
+    public LBMReconstructionPage()
 	{
 		InitializeComponent();
 
-		_viewModel = Utility.Composition.Container.ResolveObject<ReconstructionPageViewModel>();
+		_viewModel = Utility.Composition.Container.ResolveObject<LBMReconstructionPageViewModel>();
 
 		BindingContext = _viewModel;
 

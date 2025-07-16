@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Globalization;
 using System.IO.Ports;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Utility.Classes;
 using Utility.Classes.Measurement;
@@ -45,7 +46,11 @@ namespace DataAccessLayer
         private readonly Task _backgroundTask;
 
         // --- Event To Invoke When a Measurement is Received ---
-        public event EventHandler<EITMeasurements>? MeasurementReceived;
+        public event EventHandler<EITMeasurement>? MeasurementReceived;
+
+        private const int _frameLength = 16;
+        private const char _dataSeparator = ';';
+
 
         public DAQRepository()
         {
@@ -83,10 +88,10 @@ namespace DataAccessLayer
             }
         }
 
-        public EITMeasurements GetEITMeasurement()
+        public EITMeasurement GetEITMeasurement()
             => ReadBlock() ?? throw new InvalidOperationException("No data received");
 
-        private EITMeasurements? ReadBlock()
+        private EITMeasurement? ReadBlock()
         {
             using var port = new SerialPort(_portName, _baudRate, _parity,
                                             _dataBits, _stopBits)
@@ -106,12 +111,18 @@ namespace DataAccessLayer
                 while (!line.StartsWith("Measurements", StringComparison.OrdinalIgnoreCase));
 
                 /*–– read 16 data rows –––––––––––––––––––––––––––––––––––––*/
-                var vals = new double[16, 13];
-                for (int row = 0; row < 16; ++row)
+                List<double[]> frames = [];
+                for (int row = 0; row < _frameLength; ++row)
                 {
-                    line = port.ReadLine();                         // ← includes NANs
-                    double[] nums = ParseRow(line);                 // 13 numbers
-                    for (int col = 0; col < 13; ++col) vals[row, col] = nums[col];
+                    line = port.ReadLine();
+
+                    // Convert read lines to 
+                    var entries = line.Split(_dataSeparator);
+                    double[] nums = new double[_frameLength];
+                    for (int i = 0; i < nums.Length; i++)
+                        nums[i] = Convert.ToDouble(entries[i]);
+
+                    frames.Add(nums);
                 }
 
                 /*–– consume end marker –––––––––––––––––––––––––––––––––––*/
@@ -119,7 +130,7 @@ namespace DataAccessLayer
                 if (!line.StartsWith("End of measurements", StringComparison.OrdinalIgnoreCase))
                     throw new InvalidDataException("Missing end marker.");
 
-                return new EITMeasurements(vals);
+                return new EITMeasurement(frames);
             }
             catch (TimeoutException) { return null; }
             catch (Exception ex)
@@ -130,30 +141,9 @@ namespace DataAccessLayer
         }
 
         /*───────────────────────────────────────────────────────────────────
-         *  "NAN-aware" row parser –> 13 doubles
-         *──────────────────────────────────────────────────────────────────*/
-        private static double[] ParseRow(string line, int expected = 13)
-        {
-            var tokens = line.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
-
-            var list = new List<double>(expected);
-            foreach (var t in tokens)
-            {
-                if (t.Equals("nan", StringComparison.OrdinalIgnoreCase)) continue;
-
-                list.Add(double.Parse(t, NumberStyles.Float, CultureInfo.InvariantCulture));
-            }
-
-            if (list.Count != expected)
-                throw new FormatException($"Expected {expected} numbers, got {list.Count}");
-
-            return list.ToArray();
-        }
-
-        /*───────────────────────────────────────────────────────────────────
          *  Persist measurement to disk (jagged JSON)
          *──────────────────────────────────────────────────────────────────*/
-        private static async Task SaveToJsonAsync(EITMeasurements m, CancellationToken ct)
+        private static async Task SaveToJsonAsync(EITMeasurement m, CancellationToken ct)
         {
             string dir = Path.Combine(AppContext.BaseDirectory, "Measurements");
             Directory.CreateDirectory(dir);
@@ -164,11 +154,11 @@ namespace DataAccessLayer
             var jagged = new double[16][];
             for (int i = 0; i < 16; ++i)
             {
-                jagged[i] = new double[16];
-                SixteenElectrodeMeasurement measurement = m.GetMeasurement(i);
-                
-                for (int j = 0; j < 16; ++j)
-                    jagged[i][j] = measurement.Measurement[j];
+                //jagged[i] = new double[16];
+                //SixteenElectrodeMeasurement measurement = m.GetMeasurement(i);
+                //
+                //for (int j = 0; j < 16; ++j)
+                //    jagged[i][j] = measurement.Measurement[j];
             }
 
             var opts = new JsonSerializerOptions { WriteIndented = true };
@@ -199,6 +189,36 @@ namespace DataAccessLayer
             _writeTOms = cfg.SerialWriteTimeOut ?? _writeTOms;
             _readTOms = cfg.SerialReadTimeOut ?? _readTOms;
         }
+
+        // TODO: do something with these like saving and loading from json files
+
+        public void SaveEITMeasurement()
+        {
+        
+        }
+
+        public void LoadEITMeasurement(DateTime dateTime)
+        {
+        
+        }
+
+        public void LoadEITMeasurement(int id)
+        {
+        
+        }
+
+        public void DeleteEITMeasurement(int id)
+        {
+        
+        }
+
+        public void DeleteEITMEasurement(DateTime dateTime)
+        {
+        
+        }
+
+
+
 
         /*───────────────────────────────────────────────────────────────────*/
         public void Dispose()

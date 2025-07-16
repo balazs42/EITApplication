@@ -57,7 +57,7 @@ namespace Utility.Classes.Solvers
         /// <param name="mesh"/> FEM mesh
         /// <param name="electrodes"/> electrode list with .Current, .IsGround set
         /// <returns>vector [alpha; U]</returns>
-        public PotentialDistribution Solve(FEMMesh mesh, List<Electrode> electrodes)
+        public PotentialDistribution Solve(FEMMesh mesh, List<FEMElectrode> electrodes)
         {
             // Build sub-blocks of the Saddle-Point System
             BuildStiffnessMatrix(mesh);     // Eq (1.2.3)
@@ -112,11 +112,13 @@ namespace Utility.Classes.Solvers
                 double sT = sigma.GetConductivity(elem.Id);
                 // get shape gradients ∇φ^T (double[3,2]) from element, Eq (1.2.2)
                 var grads = elem.GradPhi; // [3,2] array of (∂φ_i/∂x, ∂φ_i/∂y)
-                for (int i = 0; i < 3; i++) for (int j = 0; j < 3; j++)
+                for (int i = 0; i < 3; i++)
                 {
-                    double gdot = grads[i, 0] * grads[j, 0] + grads[i, 1] * grads[j, 1];
-                    K[elem.Vertices[i].GlobalId,
-                        elem.Vertices[j].GlobalId] += sT * area * gdot;
+                    for (int j = 0; j < 3; j++)
+                    {
+                        double gdot = grads[i, 0] * grads[j, 0] + grads[i, 1] * grads[j, 1];
+                        K[elem.Vertices[i].GlobalId, elem.Vertices[j].GlobalId] += sT * area * gdot;
+                    }
                 }
             }
             //Debug.WriteLine("K:\n" + FormatComplexMatrix(K));
@@ -184,7 +186,7 @@ namespace Utility.Classes.Solvers
         }
 
         /// <summary>rhs = [0; I] </summary>
-        private void BuildRhsVector(List<Electrode> electrodes)
+        private void BuildRhsVector(List<FEMElectrode> electrodes)
         {
             Array.Clear(SystemRHS, 0, SystemRHS.Length);
 

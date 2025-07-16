@@ -4,6 +4,7 @@
              x:Class="ElectricalImpedanceTomography.Views.FEMReconstructionPage"
              xmlns:skia="clr-namespace:SkiaSharp.Views.Maui.Controls;assembly=SkiaSharp.Views.Maui.Controls"
              xmlns:viewmodels="clr-namespace:ElectricalImpedanceTomography.ViewModels"
+             xmlns:controls="clr-namespace:ElectricalImpedanceTomography.Controls"
              x:DataType="viewmodels:FEMReconstructionPageViewModel"
              Title="FEMReconstructionPage">
     <ContentPage.Resources>
@@ -41,11 +42,12 @@
             </Setter>
         </Style>
     </ContentPage.Resources>
-    
-    <Grid RowDefinitions="Auto,Auto,*" ColumnDefinitions="*" RowSpacing="10">
+    <Grid RowDefinitions="Auto,Auto,Auto,*" ColumnDefinitions="*" RowSpacing="10">
+        
+        <controls:NavBarControl Grid.Row="0" Grid.ColumnSpan="2" CurrentPageName="FEMReconstructionPage"/>
         <!-- radius & boundary nodes -->
 
-        <Grid Grid.Row="0"
+        <Grid Grid.Row="1"
               HorizontalOptions="Center"
               RowSpacing="5"
               ColumnSpacing="10"              
@@ -127,7 +129,7 @@
 
 
         <!-- buttons -->
-        <Grid Grid.Row="1"
+        <Grid Grid.Row="2"
               RowDefinitions="Auto" 
               ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto" 
               HorizontalOptions="Center" 
@@ -177,7 +179,7 @@
         </Grid>
 
         <!-- 3) Side-by-side meshes -->
-        <Grid Grid.Row="2"
+        <Grid Grid.Row="3"
               ColumnDefinitions="*,*,*" 
               RowDefinitions="Auto,*,Auto" 
               ColumnSpacing="10" 

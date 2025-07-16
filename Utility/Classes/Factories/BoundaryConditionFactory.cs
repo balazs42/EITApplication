@@ -1,4 +1,5 @@
 ﻿using Utility.Classes.Measurement;
+using Utility.Classes.Meshing;
 
 namespace Utility.Classes.Factories
 {
@@ -8,11 +9,16 @@ namespace Utility.Classes.Factories
         /// Creates a homogeneous boundary condition where all currents are zero.
         /// This is required for the adjoint problem.
         /// </summary>
-        public static BoundaryCondition CreateHomogeneous(IMesh mesh)
+        public static FEMBoundaryCondition CreateHomogeneous(Mesh mesh)
         {
-            List<Electrode> electrodes = mesh.GetElectrodes();
+            FEMMesh? femMesh = mesh as FEMMesh;
 
-            return new BoundaryCondition(electrodes);
+            if (femMesh == null)
+                throw new TypeLoadException("Cannot convert mesh to femMesh. Check calling code!");
+
+            List<FEMElectrode> electrodes = femMesh.GetElectrodes().Cast<FEMElectrode>().ToList();
+
+            return new FEMBoundaryCondition(electrodes);
         }
     }
 }

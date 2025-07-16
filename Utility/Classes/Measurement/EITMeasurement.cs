@@ -1,94 +1,68 @@
 ﻿
 namespace Utility.Classes.Measurement
 {
-    public class EITMeasurements
+    public class EITMeasurement
     {
-        public SixteenElectrodeMeasurement[] Measurements { get; set; } = new SixteenElectrodeMeasurement[16];
+        // Frames will store each frame of the measurement
+        public List<double[]> Frames = [];
 
-        // TODO: Fill Boundary conditions from measurements
-        public List<BoundaryCondition> BoundaryConditions { get; set; }
+        // Frame size stores the number of elements in each frame, exactly the same number as the number of electrodes used
+        public int FrameSize { get; set; } = 16;
 
-        public EITMeasurements(double[,] measurements)
+        // The current amplitude applied at the moment of the measuremnt.
+        public double? CurrentAmplitude { get; set; } = null;
+
+        public static int currentFrameIndex = 0;
+
+        public EITMeasurement(List<double[]> frames)
         {
-            Measurements = new SixteenElectrodeMeasurement[16];
+            Frames = frames;
 
-            for (int i = 0; i < 16; i++)
+            int sizeCheck = Frames[0].Length;
+            for (int i = 0; i < Frames.Count; i++)
+                if (frames[i].Length != sizeCheck)
+                    throw new ArgumentOutOfRangeException("All measurement frames should be of the same size!");
+
+            FrameSize = Frames[0].Length;
+        }
+
+        public EITMeasurement(double[,] measurementFrames)
+        {
+            Frames.Clear();
+            for(int i = 0; i < measurementFrames.GetLength(0); i++)
             {
-                double[] currentMeasurement = new double[16];
-                for (int j = 0; j < 16; j++)
-                    currentMeasurement[j] = measurements[i, j];
+                double[] frame = new double[measurementFrames.GetLength(1)];
+                for(int j = 0; j < measurementFrames.GetLength(1); j++)
+                    frame[j] = measurementFrames[i, j];
 
-                Measurements[i] = new SixteenElectrodeMeasurement(currentMeasurement, null);
+                Frames.Add(frame);
             }
         }
 
-        public SixteenElectrodeMeasurement GetMeasurement(int index)
+
+        public EITMeasurement(List<double[]> frames, double currentAmplitude)
         {
-            if (index > 15)
-                throw new ArgumentOutOfRangeException(nameof(index), "Cannot reference measurement out of bounds!");
+            Frames = frames;
 
-            return Measurements[index];
-        }
-    }
+            int sizeCheck = Frames[0].Length;
+            for (int i = 0; i < Frames.Count; i++)
+                if (frames[i].Length != sizeCheck)
+                    throw new ArgumentOutOfRangeException("All measurement frames should be of the same size!");
 
-    // Stores 16 doubles for the measurements, and which electrodes were used for excitation.
-    public class SixteenElectrodeMeasurement
-    {
-        public double[] Measurement { get; set; } = new double[16];
-        public DateTime DateTime { get; set; }
-        public int GNDElectrodeId { get; set; } = -1;
-        public int ExcitationElectrodeId { get; set; } = -1;
-
-        public SixteenElectrodeMeasurement(double[] measurement, DateTime? dateTime)
-        {
-            if (measurement.Length != 16)
-                throw new InvalidDataException("Cannot create measurement instance, if the measurement length is not 16!");
-
-            if (dateTime != null)
-                DateTime = (DateTime)dateTime;
-
-            Measurement = measurement;
-
-            List<int> nanPositions = [];
-            for (int i = 0; i < Measurement.Length; i++)
-                if (double.IsNaN(Measurement[i]))
-                    nanPositions.Add(i);
-
-            if (nanPositions.Count > 3 || nanPositions.Count == 0)
-                throw new ArgumentOutOfRangeException($"During EITMeasurement initialization, more then 3 NaN values were detected. Check code and HW! Time of the measurement: DateTime = {DateTime.ToString()}");
-
-            // First case is the first measurement where NaN | NaN | Meas1 | Meas2 .... | NaN will show.
-            // This means the ground electrode is the first electrode, excitation is the next
-            if (nanPositions[0] == 0)
-            {
-                GNDElectrodeId = nanPositions[0];
-                ExcitationElectrodeId = nanPositions[1];
-            }
-            else
-            {
-                GNDElectrodeId = nanPositions[1];
-                ExcitationElectrodeId = nanPositions[2];
-            }
+            FrameSize = Frames[0].Length;
+            CurrentAmplitude = currentAmplitude;
         }
 
-        /// <summary>
-        /// Returns the measured differential voltage value between the specified channels. Channels must be adjecent!
-        /// </summary>
-        /// <param name="channel1"></param>
-        /// <param name="channel2"></param>
-        /// <returns></returns>
-        public double GetMeasurementBetweenChannles(uint channel1, uint channel2)
+        public double[] GetNextFrame()
         {
-            if ((channel1 - channel2) != 1 || (channel2 - channel1) != 1 || channel1 == channel2)
-                throw new ArgumentOutOfRangeException("Cannot retreive measurement data, where specified channels are not adjecent. Check code!");
+            if (Frames.Count == 0 || Frames == null)
+                throw new NullReferenceException("Cannot get next frame, since Frames list is null or empty. Check code!");
 
-            if (channel1 == GNDElectrodeId || channel1 == ExcitationElectrodeId ||
-                channel2 == GNDElectrodeId || channel2 == ExcitationElectrodeId)
-                throw new InvalidDataException("Cannot retreive measurement data, from excitation channles. Check code!");
+            double[] frame = Frames[currentFrameIndex++ % FrameSize];
 
-            uint chid = (channel1 < channel2) ? channel1 : channel2;
-
-            return Measurement[chid];
+            return frame;
         }
+
+
     }
 }

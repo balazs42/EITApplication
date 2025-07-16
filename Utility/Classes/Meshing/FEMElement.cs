@@ -5,8 +5,7 @@ namespace Utility.Classes.Meshing
     public sealed class FEMElement : MeshElement
     {
         public double Area { get; set; }
-        public double Conductivity { get; set; } = 1.0;
-        public new List<Vertex> Vertices { get; set; } = [new Vertex(), new Vertex(), new Vertex()];
+        public List<Vertex> Vertices { get; set; } = [new Vertex(), new Vertex(), new Vertex()];
         public double[,] GradPhi { get; private set; } = new double[3, 3]; // Gradients of shape functions
         public double[,] DotProducts { get; private set; } = new double[3, 3];
 

@@ -21,12 +21,20 @@
 
         public bool IsWall { get; set; }
         public bool IsElectrode { get; set; }
-        public double Conductivity { get; set; } = 1.0;
-
-        public LBMElement(List<Vertex> vertices, bool isWall)
+        
+        public LBMElement() { }
+        public LBMElement(bool isWall)
         {
-            base.Vertices = vertices;
             IsWall = isWall;
+        }
+
+        public double GetPotential()
+        {
+            double sum = 0.0;
+            for (int i = 0; i < 9; i++)
+                sum += Fi[i];
+
+            return sum;
         }
     }
 }

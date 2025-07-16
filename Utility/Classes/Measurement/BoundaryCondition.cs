@@ -1,16 +1,18 @@
-﻿namespace Utility.Classes.Measurement
+﻿using Utility.Classes.Meshing;
+
+namespace Utility.Classes.Measurement
 {
-    /// <summary>
-    /// The boundary condition define that on which electrodes we specify the 
-    /// voltages and currents used during measurement. This can be used for a CEM
-    /// type forward simulation step.
-    /// </summary>
-    public sealed class BoundaryCondition
+    public abstract class BoundaryCondition
     {
         public List<Electrode> Electrodes { get; set; } = [];
-        public int NumElectrodes { get; private set; } = -1;
-        public int GroundElectrodeId { get; private set; } = -1;
-        public int ExcitationElectrodeId { get; private set; } = -1;
+        public int NumElectrodes { get; set; } = -1;
+        public int GroundElectrodeId { get; set; } = -1;
+        public int ExcitationElectrodeId { get; set; } = -1;
+
+        public BoundaryCondition()
+        {
+
+        }
 
         public BoundaryCondition(List<Electrode> electrodes)
         {
@@ -25,7 +27,7 @@
             {
                 foreach (var kvp in potentialDistribution.Potentials)
                 {
-                    if (kvp.Key == Electrodes[i].MeshId)
+                    if (kvp.Key == Electrodes[i].Id)
                     {
                         Electrodes[i].Potential = kvp.Value;
                         break;
@@ -65,20 +67,7 @@
         }
 
 
-        private void Initialize(List<Electrode> electrodes)
-        {
-            Electrodes = electrodes;
-            NumElectrodes = electrodes.Count;
-
-            var groundElectrode = Electrodes.Find(x => x.IsGround);
-            var excitationElectrode = Electrodes.Find(x => x.IsExcitation);
-
-            if (groundElectrode == null || excitationElectrode == null)
-                throw new ArgumentNullException("No ground or excitation id specified on electrodes, check calling code!");
-
-            GroundElectrodeId = groundElectrode.Id;
-            ExcitationElectrodeId = excitationElectrode.Id;
-        }
+        public abstract void Initialize(List<Electrode> electrodes);
 
         #region Getter and Setter Methods
 

@@ -75,6 +75,9 @@
 	  <Compile Update="Controls\NavBarControl.xaml.cs">
 	    <DependentUpon>NavBarControl.xaml</DependentUpon>
 	  </Compile>
+	  <Compile Update="Views\LBMReconstructionPage.xaml.cs">
+	    <DependentUpon>LBMReconstructionPage.xaml</DependentUpon>
+	  </Compile>
 	</ItemGroup>
 
 	<ItemGroup>
@@ -87,7 +90,7 @@
 	  <MauiXaml Update="Views\FEMReconstructionPage.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
-	  <MauiXaml Update="Views\ReconstructionPage.xaml">
+	  <MauiXaml Update="Views\LBMReconstructionPage.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
 	</ItemGroup>

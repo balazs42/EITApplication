@@ -21,10 +21,7 @@ namespace Utility.Classes.Factories
         /// Builds a circular FEM mesh with given concentric layers and boundary vertices,
         /// then distributes `electrodeCount` electrodes evenly around the outer boundary.
         /// </summary>
-        public static FEMMesh CreateCircularFEMMesh(
-            int layers,
-            int boundaryVertexCount,
-            int electrodeCount = 16)
+        public static FEMMesh CreateCircularFEMMesh(int layers, int boundaryVertexCount, int electrodeCount = 16)
         {
             return CreateCircularFEMMeshInternal(layers, boundaryVertexCount, electrodeCount, inhomogeneityValue: 3.0);
         }
@@ -33,21 +30,13 @@ namespace Utility.Classes.Factories
         /// Builds an inhomogeneous circular FEM mesh where elements in the inner rings
         /// have conductivity scaled by inhomogeneityValue (default 3.0).
         /// </summary>
-        public static FEMMesh CreateCircularFEMMesh(
-            int layers,
-            int boundaryVertexCount,
-            int electrodeCount = 16,
-            double inhomogeneityValue = 3.0)
+        public static FEMMesh CreateCircularFEMMesh(int layers, int boundaryVertexCount, int electrodeCount = 16, double inhomogeneityValue = 3.0)
         {
             return CreateCircularFEMMeshInternal(layers, boundaryVertexCount, electrodeCount, inhomogeneityValue);
         }
 
         // common implementation with inhomogeneity scaling
-        private static FEMMesh CreateCircularFEMMeshInternal(
-            int layers,
-            int boundaryVertexCount,
-            int electrodeCount,
-            double inhomogeneityValue)
+        private static FEMMesh CreateCircularFEMMeshInternal(int layers, int boundaryVertexCount, int electrodeCount, double inhomogeneityValue)
         {
             if (electrodeCount > boundaryVertexCount)
                 electrodeCount = boundaryVertexCount;
@@ -129,18 +118,18 @@ namespace Utility.Classes.Factories
             int boundaryCount = boundaryVerts.Count;
             int increment = Math.Max(boundaryCount / electrodeCount, 1);
 
-            var electrodes = new List<Electrode>(electrodeCount);
+            var electrodes = new List<FEMElectrode>(electrodeCount);
             for (int elId = 0; elId < electrodeCount; elId++)
             {
                 // pick every 'increment' boundary vertex
                 int idx = elId * increment;
                 if (idx >= boundaryCount) idx = boundaryCount - 1;
 
-                var v = boundaryVerts[idx];
+                Vertex v = boundaryVerts[idx];
                 v.IsElectrode = true;
                 v.ElectrodeId = elId;
 
-                var el = new Electrode(
+                var el = new FEMElectrode(
                     id: elId,
                     meshId: v.GlobalId,
                     current: 0.0,

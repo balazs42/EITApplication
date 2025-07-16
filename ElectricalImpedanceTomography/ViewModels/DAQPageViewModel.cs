@@ -29,9 +29,9 @@ namespace ElectricalImpedanceTomography.ViewModels
             InitializePlots();
         }
 
-        private void OnMeasurementReceived(EITMeasurements m)
+        private void OnMeasurementReceived(EITMeasurement m)
         {
-            if (m is EITMeasurements eitMeasurement)
+            if (m is EITMeasurement eitMeasurement)
                 UpdatePlots(eitMeasurement);
         }
 
@@ -102,16 +102,15 @@ namespace ElectricalImpedanceTomography.ViewModels
          *
          */
 
-        private void UpdatePlots(EITMeasurements measurements)
+        private void UpdatePlots(EITMeasurement measurements)
         {
             for(int i = 0; i < 16; i++)
             {
-                SixteenElectrodeMeasurement currentMeasurement = measurements.GetMeasurement(i);
-                double[] currentData = currentMeasurement.Measurement;
+                double[] currentFrame = measurements.Frames[i];
 
-                for(int j = 0; j < 16; j++)
-                    if (currentData[j] != double.NaN)
-                        AppendDataPoint(PlotModels[j], DateTime.Now, currentData[j]);
+                for(int j = 0; j < currentFrame.Length; j++)
+                    if (currentFrame[j] != double.NaN)
+                        AppendDataPoint(PlotModels[j], DateTime.Now, currentFrame[j]);
             }
 
             InvalidatePlots();

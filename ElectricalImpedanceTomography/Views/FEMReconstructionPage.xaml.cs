@@ -27,7 +27,7 @@ public partial class FEMReconstructionPage : ContentPage
     private Vertex? _hoverPotVertex;
 
     // hover state for conductivity element
-    private FEMElement _hoverCondElem;
+    private FEMElement? _hoverCondElem;
     private SKPoint? _hoverCondCanvasPt;
 
     readonly SKColor ElectrodeFill = SKColors.Yellow;

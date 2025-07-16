@@ -1,8 +1,6 @@
 ﻿using Utility.Classes.Meshing;
 using Utility.Classes.Solvers;
-using MathNet.Numerics.LinearAlgebra;
 using Utility.Classes.Measurement;
-using Utility.Classes.Factories;
 using System.Numerics;
 
 namespace Utility.Classes.ReconstructionParameters
@@ -24,11 +22,6 @@ namespace Utility.Classes.ReconstructionParameters
         /// Solves the adjoint problem to find the adjoint variable μ.
         /// </summary>
         PotentialDistribution SolveAdjoint(IMesh mesh, BoundaryCondition bc, Complex[] adjointSource);
-
-        /// <summary>
-        /// Computes the misfit gradient component (e.g., ∇φ · ∇μ).
-        /// </summary>
-        ConductivityDistribution ComputeMisfitGradient(IMesh mesh, PotentialDistribution phi, PotentialDistribution mu);
     }
 
     public sealed class FiniteElementDESolver : IDifferentialEquationSolver
@@ -44,19 +37,13 @@ namespace Utility.Classes.ReconstructionParameters
         
         public PotentialDistribution SolveForward(IMesh mesh, BoundaryCondition bc)
         {
-            return Solve(mesh, bc);
+            return Solve(mesh, bc as FEMBoundaryCondition ?? throw new InvalidCastException("Cannot cast to FEMBoundary conditions, check calling code!"));
         }
 
         public PotentialDistribution SolveAdjoint(IMesh mesh, BoundaryCondition bc, Complex[] adjointSource)
         {
             //var homogeneousBC = new BoundaryConditions(bc.Electrodes.Select(e => new Electrode(e.Id, e.VertexIds, 0.0, e.ZContact)), null);
-            return Solve(mesh, bc);
-        }
-
-        public ConductivityDistribution ComputeMisfitGradient(IMesh mesh, PotentialDistribution phi, PotentialDistribution mu)
-        {
-            throw new NotImplementedException();
-            //return _solver.ComputeGradient(mesh, phi, mu);
+            return Solve(mesh, bc as FEMBoundaryCondition ?? throw new InvalidCastException("Cannot cast to FEMBoundary conditions, check calling code!"));
         }
 
         /// <summary>
@@ -66,7 +53,7 @@ namespace Utility.Classes.ReconstructionParameters
         /// <param name="bc">The boundary conditions which should be applied to the calculations.</param>
         /// <returns></returns>
         /// <exception cref="ArgumentException"></exception>
-        private PotentialDistribution Solve(IMesh mesh, BoundaryCondition bc)
+        private PotentialDistribution Solve(IMesh mesh, FEMBoundaryCondition bc)
         {
             if (mesh is not FEMMesh femMesh)
                 throw new ArgumentException("FiniteElementSolver requires an FEMMesh.");
@@ -101,12 +88,10 @@ namespace Utility.Classes.ReconstructionParameters
                 throw new ArgumentException("LBM requires an LBMMesh.");
 
             return _solver.RunSimulation(lbmMesh, 
-                                         lbmMesh.ConductivityDistribution, 
-                                         bc, 
+                                         bc as LBMBoundaryCondition ?? throw new InvalidCastException("Cannot cast boundary conditions to LBM boundary conditions, check calling code!"), 
                                          _maxIterations, 
                                          _convergenceThreshold, 
-                                         _checkInterval, 
-                                         null);
+                                         _checkInterval);
         }
 
         public PotentialDistribution SolveAdjoint(IMesh mesh, BoundaryCondition bc, Complex[] adjointSource)
@@ -114,24 +99,13 @@ namespace Utility.Classes.ReconstructionParameters
             if (mesh is not LBMMesh lbmMesh) 
                 throw new ArgumentException("LBM requires an LBMMesh.");
 
-            var homogeneousBC = BoundaryConditionFactory.CreateHomogeneous(mesh);
-
             // Run simulation with dummy boundary conditions 
-            return _solver.RunSimulation(lbmMesh, 
-                                         lbmMesh.ConductivityDistribution, 
-                                         homogeneousBC, 
+            return _solver.RunSimulation(lbmMesh,
+                                         bc as LBMBoundaryCondition ?? throw new InvalidCastException("Cannot cast boundary conditions to LBM boundary conditions, check calling code!"),
                                          _maxIterations, 
                                          _convergenceThreshold, 
                                          _checkInterval, 
                                          adjointSource);
-        }
-
-        public ConductivityDistribution ComputeMisfitGradient(IMesh mesh, PotentialDistribution phi, PotentialDistribution mu)
-        {
-            if (mesh is not LBMMesh lbmMesh)
-                throw new ArgumentException("LBM requires an LBMMesh.");
-
-            return _solver.ComputeGradient(lbmMesh, phi, mu);
         }
     }
 }
