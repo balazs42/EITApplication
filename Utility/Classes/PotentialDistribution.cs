@@ -7,7 +7,7 @@ namespace Utility.Classes
     {
         public override Dictionary<int, double> IdValuePairs { get; set; }
         // Maps Vertex.GlobalId to its potential value.
-        public Dictionary<int, double> Potentials { get; }
+        public Dictionary<int, double> Potentials { get; set; }
 
         public PotentialDistribution(Dictionary<int, double> potentials)
         {
@@ -29,5 +29,10 @@ namespace Utility.Classes
                 Debug.Write($"{Potentials[i*nx + ny-1].ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture)};\n");
             }
         }
+
+        public override Dictionary<int, double> Get() => Potentials;
+        public override void Set(Dictionary<int, double> potentials) => Potentials = potentials;
+        public override double GetValue(int key) => Potentials[key];
+        public override void SetValue(int key, double value) => Potentials[key] = value;
     }
 }

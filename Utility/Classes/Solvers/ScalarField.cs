@@ -20,9 +20,9 @@
             IdValuePairs = idValuePairs;
         }
 
-        public double GetValue(int key) => IdValuePairs[key];
-        public void SetValue(int key, double value) => IdValuePairs[key] = value;
-        public Dictionary<int, double> Get() => IdValuePairs;
-        public void Set(Dictionary<int, double> idValuePairs) => IdValuePairs = idValuePairs;
+        public abstract double GetValue(int key);
+        public abstract void SetValue(int key, double value);
+        public abstract Dictionary<int, double> Get();
+        public abstract void Set(Dictionary<int, double> idValuePairs);
     }
 }

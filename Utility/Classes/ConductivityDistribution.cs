@@ -42,5 +42,11 @@ namespace Utility.Classes
                 Debug.Write($"{Conductivities[i * nx + ny - 1].ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture)};\n");
             }
         }
+
+        public override Dictionary<int,double> Get() => Conductivities;
+        public override void Set(Dictionary<int, double> conductivites) => Conductivities = conductivites;
+        public override double GetValue(int key) => Conductivities[key];
+        public override void SetValue(int key, double value) => Conductivities[key] = value;
+    
     }
 }
