@@ -1,5 +1,4 @@
-﻿using Utility.Classes.Factories;
-using Utility.Classes.Meshing;
+﻿using Utility.Classes.Meshing;
 
 namespace Utility.Classes
 {
@@ -103,6 +102,15 @@ namespace Utility.Classes
 
             foreach (var kvp in potentialDistribution.Potentials)
                 PotentialDistribution.Potentials[kvp.Key] = kvp.Value;
+
+            // Set electrode potentials
+            foreach(var kvp in potentialDistribution.Potentials)
+            {
+                var correspondingElectrode = Electrodes.Find(x => x.Id == kvp.Key);
+
+                if(correspondingElectrode != null)
+                    correspondingElectrode.Potential = kvp.Value;
+            }
         }
 
         public abstract Mesh DeepCopy();

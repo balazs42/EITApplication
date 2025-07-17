@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics.Tracing;
 using Utility.Classes.Meshing;
+using Utility.Classes.Meshing.FiniteElementMesh;
 
 namespace Utility.Classes.Measurement
 {

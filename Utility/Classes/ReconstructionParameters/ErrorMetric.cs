@@ -1,5 +1,5 @@
 ﻿using Google.OrTools.LinearSolver;
-using Utility.Classes.Meshing;
+using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 
 namespace Utility.Classes.ReconstructionParameters
 {

@@ -1,6 +1,6 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 
-namespace Utility.Classes.Meshing
+namespace Utility.Classes.Meshing.FiniteElementMesh
 {
     public sealed class FEMElement : MeshElement
     {
@@ -49,9 +49,9 @@ namespace Utility.Classes.Meshing
             Vertex V2 = Vertices[1];
             Vertex V3 = Vertices[2];
 
-            Area = 0.5 *  Math.Abs((V1.X * (V2.Y - V3.Y) +
+            Area = 0.5 *  Math.Abs(V1.X * (V2.Y - V3.Y) +
                                     V2.X * (V3.Y - V1.Y) +
-                                    V3.X * (V1.Y - V2.Y)));
+                                    V3.X * (V1.Y - V2.Y));
         }
 
         // Calculate gradients of spahe functions beforehand

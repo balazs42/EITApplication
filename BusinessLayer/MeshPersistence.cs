@@ -1,10 +1,11 @@
 ﻿using TriangleNet.Geometry;
 using TriangleNet.Meshing;
-using Utility.Classes.Meshing;
 
 using TVertex = TriangleNet.Geometry.Vertex;        // third-party vertex
 using TSegment = TriangleNet.Geometry.Segment;
-using MVertex = Utility.Classes.Meshing.Vertex;     // own vertex class
+using MVertex = Utility.Classes.Meshing.Vertex;
+using Utility.Classes.Meshing.FiniteElementMesh;
+using Utility.Classes.Meshing.LatticeBoltzmannMesh;     // own vertex class
 
 namespace BusinessLayer
 {

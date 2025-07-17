@@ -1,9 +1,7 @@
 ﻿using System.Diagnostics;
-using System.Globalization;
 using System.IO.Ports;
-using System.Runtime.CompilerServices;
 using System.Text.Json;
-using Utility.Classes;
+using Utility.Classes.Configurations;
 using Utility.Classes.Measurement;
 
 namespace DataAccessLayer
@@ -43,7 +41,7 @@ namespace DataAccessLayer
 
         // --- CancellationToken for the Background Sampling Task ---
         private readonly CancellationTokenSource _cts = new();
-        private readonly Task _backgroundTask;
+        private readonly Task? _backgroundTask;
 
         // --- Event To Invoke When a Measurement is Received ---
         public event EventHandler<EITMeasurement>? MeasurementReceived;
@@ -178,9 +176,7 @@ namespace DataAccessLayer
 
             string json = await File.ReadAllTextAsync(path);
             var opt = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            var cfg = JsonSerializer.Deserialize<SerialPortConfiguration>(json, opt);
-            if (cfg == null) return;
-
+            var cfg = JsonSerializer.Deserialize<SerialPortConfiguration>(json, opt) ?? throw new NullReferenceException("Configuration loading failed, check config.json file and calling code!");
             _portName = cfg.PortName ?? _portName;
             _baudRate = Int32.Parse(cfg.BaudeRate) > 0 ? Int32.Parse(cfg.BaudeRate) : _baudRate;
             _parity = cfg.Parity?.Equals("Even", StringComparison.OrdinalIgnoreCase) == true
@@ -224,7 +220,12 @@ namespace DataAccessLayer
         public void Dispose()
         {
             _cts.Cancel();
-            try { _backgroundTask.Wait(); } catch { /* ignore */ }
+            try 
+            {
+                if(_backgroundTask != null)
+                    _backgroundTask.Wait(); 
+            } 
+            catch { /* ignore */ }
             _cts.Dispose();
         }
     }

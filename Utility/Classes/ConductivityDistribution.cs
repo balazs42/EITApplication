@@ -1,13 +1,16 @@
 ﻿using System.Diagnostics;
+using Utility.Classes.Solvers;
 
 namespace Utility.Classes
 {
-    public sealed class ConductivityDistribution
+    public sealed class ConductivityDistribution : ScalarField
     {
+        public override Dictionary<int, double> IdValuePairs { get; set; }
         public Dictionary<int, double> Conductivities { get; set; }
 
         public ConductivityDistribution(Dictionary<int, double> conductivities)
         {
+            IdValuePairs = new Dictionary<int, double>();
             Conductivities = conductivities;
         }
 

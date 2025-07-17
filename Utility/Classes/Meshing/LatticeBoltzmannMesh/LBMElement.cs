@@ -1,4 +1,4 @@
-﻿namespace Utility.Classes.Meshing
+﻿namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
 {
 
     /// <summary>

@@ -1,14 +1,17 @@
 ﻿using System.Diagnostics;
+using Utility.Classes.Solvers;
 
 namespace Utility.Classes
 {
-    public class PotentialDistribution
+    public class PotentialDistribution : ScalarField
     {
+        public override Dictionary<int, double> IdValuePairs { get; set; }
         // Maps Vertex.GlobalId to its potential value.
         public Dictionary<int, double> Potentials { get; }
 
         public PotentialDistribution(Dictionary<int, double> potentials)
         {
+            IdValuePairs = new Dictionary<int, double>();
             Potentials = potentials;
         }
 

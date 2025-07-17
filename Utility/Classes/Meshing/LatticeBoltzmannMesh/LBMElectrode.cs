@@ -1,6 +1,6 @@
 ﻿using System.Transactions;
 
-namespace Utility.Classes.Meshing
+namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
 {
     public class LBMElectrode : Electrode
     {

@@ -3,10 +3,11 @@ using System.Diagnostics;
 using Utility.Classes;
 using Utility.Classes.Factories;
 using Utility.Classes.Measurement;
-using Utility.Classes.Meshing;
+using Utility.Classes.Meshing.FiniteElementMesh;
+using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.Models;
 using Utility.Classes.ReconstructionParameters;
-using Utility.Classes.Solvers;
+using Utility.Classes.Solvers.FiniteElementSolver;
 
 namespace BusinessLayer
 {
@@ -32,7 +33,7 @@ namespace BusinessLayer
         {
         LBMMesh? mesh = _mesh as LBMMesh;
             
-            if (_inverseModel == null || _mesh == null || mesh == null)
+            if (_inverseModel == null || _mesh == null || mesh == null || _differentialEquationSolver == null)
                 throw new NullReferenceException();
 
             // Generate initial distribution for the reconstruction process

@@ -1,7 +1,7 @@
-﻿using Utility.Classes.Meshing;
+﻿using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.ReconstructionParameters;
 
-namespace Utility.Classes.Solvers
+namespace Utility.Classes.Solvers.GraphBasedSolver
 {
     public class GraphBasedSolver
     {

@@ -1,7 +1,9 @@
 ﻿
-namespace Utility.Classes.Solvers
+namespace Utility.Classes.Solvers.GraphBasedSolver
 {
+    using Utility.Classes;
     using Utility.Classes.ReconstructionParameters;
+
     public class GraphBasedOperators
     {
         public readonly INumericSolver _solver;

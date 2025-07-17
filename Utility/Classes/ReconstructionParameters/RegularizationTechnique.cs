@@ -1,5 +1,8 @@
-﻿using Utility.Classes.Meshing;
+﻿using Utility.Classes.Meshing.FiniteElementMesh;
+using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.Solvers;
+using Utility.Classes.Solvers.FiniteElementSolver;
+using Utility.Classes.Solvers.LatticeBoltzmannSolver;
 
 namespace Utility.Classes.ReconstructionParameters
 {
@@ -125,7 +128,7 @@ namespace Utility.Classes.ReconstructionParameters
         public ConductivityDistribution EvaluateGradient(IMesh mesh, ConductivityDistribution sigma)
         {
             // Gradient is -λ * Δσ.
-            PotentialDistribution laplacian;
+            ScalarField laplacian;
             if (mesh is FEMMesh femMesh)
             {
                 laplacian = FiniteElementOperators.CalculateLaplacian(femMesh, sigma.ToPotentialDistribution());
@@ -139,7 +142,7 @@ namespace Utility.Classes.ReconstructionParameters
                 throw new NotSupportedException($"Mesh type {mesh.GetType().Name} not supported for First-Order Tikhonov regularization.");
             }
 
-            var gradientDict = laplacian.Potentials.ToDictionary(
+            var gradientDict = laplacian.IdValuePairs.ToDictionary(
                 kvp => kvp.Key,
                 kvp => -_lambda * kvp.Value
             );
@@ -157,7 +160,7 @@ namespace Utility.Classes.ReconstructionParameters
 
         public double EvaluateTerm(IMesh mesh, ConductivityDistribution sigma)
         {
-            PotentialDistribution laplacian;
+            ScalarField laplacian;
             if (mesh is FEMMesh femMesh)
                 laplacian = FiniteElementOperators.CalculateLaplacian(femMesh, sigma.ToPotentialDistribution());
             else if (mesh is LBMMesh lbmMesh)
@@ -166,7 +169,7 @@ namespace Utility.Classes.ReconstructionParameters
                 throw new NotSupportedException($"Mesh type {mesh.GetType().Name} not supported.");
 
             // Calculate L2-norm squared of the Laplacian field
-            double normSq = laplacian.Potentials.Values.Sum(v => v * v);
+            double normSq = laplacian.IdValuePairs.Values.Sum(v => v * v);
             return 0.5 * _lambda * normSq;
         }
 
@@ -174,7 +177,7 @@ namespace Utility.Classes.ReconstructionParameters
         {
             // Gradient is λ * Δ^2 σ (bi-Laplacian).
             // This is achieved by applying the Laplacian operator twice.
-            PotentialDistribution laplacian1, laplacian2;
+            ScalarField laplacian1, laplacian2;
             if (mesh is FEMMesh femMesh)
             {
                 laplacian1 = FiniteElementOperators.CalculateLaplacian(femMesh, sigma.ToPotentialDistribution());
@@ -190,7 +193,7 @@ namespace Utility.Classes.ReconstructionParameters
                 throw new NotSupportedException($"Mesh type {mesh.GetType().Name} not supported.");
             }
 
-            var gradientDict = laplacian2.Potentials.ToDictionary(
+            var gradientDict = laplacian2.IdValuePairs.ToDictionary(
                  kvp => kvp.Key,
                  kvp => _lambda * kvp.Value
              );
@@ -257,10 +260,10 @@ namespace Utility.Classes.ReconstructionParameters
             var normalizedGradField = new VectorField(normalizedGradData);
 
             // 3. Calculate the divergence of the normalized field: ∇·(...)
-            PotentialDistribution divergence;
-            if (mesh is LBMMesh)
+            ScalarField divergence;
+            if (mesh is LBMMesh lbmMesh)
             {
-                divergence = LatticeBoltzmannOperators.CalculateDivergence(mesh as LBMMesh, normalizedGradField);
+                divergence = LatticeBoltzmannOperators.CalculateDivergence(lbmMesh, normalizedGradField);
             }
             else if (mesh is FEMMesh)
             {
@@ -275,7 +278,7 @@ namespace Utility.Classes.ReconstructionParameters
             }
 
             // 4. Scale by -λ
-            var gradientDict = divergence.Potentials.ToDictionary(
+            var gradientDict = divergence.IdValuePairs.ToDictionary(
                 kvp => kvp.Key,
                 kvp => -_lambda * kvp.Value
             );

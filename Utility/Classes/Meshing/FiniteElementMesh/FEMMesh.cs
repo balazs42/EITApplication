@@ -1,6 +1,6 @@
 ﻿using Utility.Classes.Factories;
 
-namespace Utility.Classes.Meshing
+namespace Utility.Classes.Meshing.FiniteElementMesh
 {
     public class FEMMesh : Mesh
     {
@@ -10,11 +10,11 @@ namespace Utility.Classes.Meshing
 
         public FEMMesh(List<Vertex> vertices, List<FEMElement> elements)
         {
-            this.Vertices = vertices;
+            Vertices = vertices;
 
             // It's important to set both the specific and the base collection
             // so that methods on the base Mesh class work correctly.
-            this.Elements = elements;
+            Elements = elements;
             base.Elements = elements.Cast<MeshElement>().ToList();
 
             Initialize();
@@ -28,7 +28,7 @@ namespace Utility.Classes.Meshing
         public void Initialize()
         {
             // Initialize with a homogeneous conductivity distribution
-            this.ConductivityDistribution = ConductivityDistributionFactory.FromFEMMesh(this);
+            ConductivityDistribution = ConductivityDistributionFactory.FromFEMMesh(this);
 
             Dictionary<int, double> potentialDistribution = new Dictionary<int, double>();
             foreach (var vertex in Vertices)
@@ -226,9 +226,9 @@ namespace Utility.Classes.Meshing
 
             // 5) Clone distributions
             copy.ConductivityDistribution = new ConductivityDistribution(
-                new Dictionary<int, double>(this.ConductivityDistribution.Conductivities));
+                new Dictionary<int, double>(ConductivityDistribution.Conductivities));
             copy.PotentialDistribution = new PotentialDistribution(
-                new Dictionary<int, double>(this.PotentialDistribution.Potentials));
+                new Dictionary<int, double>(PotentialDistribution.Potentials));
 
             return copy;
         }

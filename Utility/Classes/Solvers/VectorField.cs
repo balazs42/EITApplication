@@ -1,4 +1,4 @@
-﻿namespace Utility.Classes
+﻿namespace Utility.Classes.Solvers
 {
     /// <summary>
     /// Represents a 2D vector field defined on a mesh, mapping an integer ID

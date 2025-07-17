@@ -1,5 +1,5 @@
 ﻿using Utility.Classes.Measurement;
-using Utility.Classes.Meshing;
+using Utility.Classes.Meshing.FiniteElementMesh;
 
 namespace Utility.Classes.Factories
 {

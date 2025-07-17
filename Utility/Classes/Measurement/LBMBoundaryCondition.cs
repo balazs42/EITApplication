@@ -1,4 +1,5 @@
 ﻿using Utility.Classes.Meshing;
+using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 
 namespace Utility.Classes.Measurement
 {

@@ -3,6 +3,7 @@ using SkiaSharp;
 using SkiaSharp.Views.Maui;
 using SkiaSharp.Views.Maui.Controls;
 using Utility.Classes.Meshing;
+using Utility.Classes.Meshing.FiniteElementMesh;
 
 namespace ElectricalImpedanceTomography.Views;
 

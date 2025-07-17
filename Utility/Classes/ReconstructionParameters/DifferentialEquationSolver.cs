@@ -1,7 +1,9 @@
-﻿using Utility.Classes.Meshing;
-using Utility.Classes.Solvers;
-using Utility.Classes.Measurement;
+﻿using Utility.Classes.Measurement;
 using System.Numerics;
+using Utility.Classes.Solvers.FiniteElementSolver;
+using Utility.Classes.Solvers.LatticeBoltzmannSolver;
+using Utility.Classes.Meshing.FiniteElementMesh;
+using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 
 namespace Utility.Classes.ReconstructionParameters
 {

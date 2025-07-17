@@ -1,6 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Utility.Classes.Meshing;
+using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 
 namespace ElectricalImpedanceTomography.ViewModels
 {

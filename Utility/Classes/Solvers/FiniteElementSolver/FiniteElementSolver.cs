@@ -1,9 +1,9 @@
 ﻿using System.Diagnostics;
 using System.Numerics;
-using Utility.Classes.Meshing;
+using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.ReconstructionParameters;
 
-namespace Utility.Classes.Solvers
+namespace Utility.Classes.Solvers.FiniteElementSolver
 {
     /// <summary>
     /// Core FEM engine for the Complete Electrode Model (CEM).
@@ -228,7 +228,7 @@ namespace Utility.Classes.Solvers
             int full = N_phi + L;
             var sol = new Complex[full];
             for (int i = 0, ir = 0; i < full; i++)
-                sol[i] = (i == N_phi + groundId) ? Complex.Zero : new Complex(solRed[ir++], 0);
+                sol[i] = i == N_phi + groundId ? Complex.Zero : new Complex(solRed[ir++], 0);
             return sol;
         }
         #endregion

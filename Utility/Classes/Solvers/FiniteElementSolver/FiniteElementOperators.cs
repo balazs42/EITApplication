@@ -1,6 +1,7 @@
 ﻿using Utility.Classes.Meshing;
+using Utility.Classes.Meshing.FiniteElementMesh;
 
-namespace Utility.Classes.Solvers
+namespace Utility.Classes.Solvers.FiniteElementSolver
 {
     public static class FiniteElementOperators
     {
@@ -11,7 +12,7 @@ namespace Utility.Classes.Solvers
         /// <param name="femMesh">The FEM mesh.</param>
         /// <param name="scalarField">A scalar field defined per-vertex (e.g., PotentialDistribution).</param>
         /// <returns>A VectorField where the key is the ElementId.</returns>
-        public static VectorField CalculateElementWiseGradient(FEMMesh femMesh, PotentialDistribution scalarField)
+        public static VectorField CalculateElementWiseGradient(FEMMesh femMesh, ScalarField scalarField)
         {
             var gradientData = new Dictionary<int, (double Gx, double Gy)>();
 
@@ -22,9 +23,9 @@ namespace Utility.Classes.Solvers
                 var v3 = element.Vertices[2];
 
                 // Potentials at the vertices of the element
-                double s1 = scalarField.GetPotential(v1.GlobalId);
-                double s2 = scalarField.GetPotential(v2.GlobalId);
-                double s3 = scalarField.GetPotential(v3.GlobalId);
+                double s1 = scalarField.GetValue(v1.GlobalId);
+                double s2 = scalarField.GetValue(v2.GlobalId);
+                double s3 = scalarField.GetValue(v3.GlobalId);
 
                 // Denominator for shape function derivatives: 2 * Area
                 double twoA = 2 * element.Area;
@@ -57,7 +58,7 @@ namespace Utility.Classes.Solvers
         /// <param name="femMesh">The FEM mesh.</param>
         /// <param name="scalarField">A scalar field defined per-vertex.</param>
         /// <returns>A scalar field representing the Laplacian at each vertex.</returns>
-        public static PotentialDistribution CalculateLaplacian(FEMMesh femMesh, PotentialDistribution scalarField)
+        public static PotentialDistribution CalculateLaplacian(FEMMesh femMesh, ScalarField scalarField)
         {
             var laplacianData = new Dictionary<int, double>();
             var adjacency = BuildAdjacencyMap(femMesh);
@@ -71,14 +72,14 @@ namespace Utility.Classes.Solvers
 
                 foreach (int j in adjacency[i]) // For each neighbor j of vertex i
                 {
-                    double s_i = scalarField.GetPotential(i);
-                    double s_j = scalarField.GetPotential(j);
+                    double s_i = scalarField.GetValue(i);
+                    double s_j = scalarField.GetValue(j);
 
                     // Find the two triangles sharing the edge (i, j)
                     var sharedTriangles = femMesh.Elements.Where(e =>
-                        (e.Vertices[0].GlobalId == i && (e.Vertices[1].GlobalId == j || e.Vertices[2].GlobalId == j)) ||
-                        (e.Vertices[1].GlobalId == i && (e.Vertices[0].GlobalId == j || e.Vertices[2].GlobalId == j)) ||
-                        (e.Vertices[2].GlobalId == i && (e.Vertices[0].GlobalId == j || e.Vertices[1].GlobalId == j))
+                        e.Vertices[0].GlobalId == i && (e.Vertices[1].GlobalId == j || e.Vertices[2].GlobalId == j) ||
+                        e.Vertices[1].GlobalId == i && (e.Vertices[0].GlobalId == j || e.Vertices[2].GlobalId == j) ||
+                        e.Vertices[2].GlobalId == i && (e.Vertices[0].GlobalId == j || e.Vertices[1].GlobalId == j)
                     ).ToList();
 
                     double cotAlpha = 0;

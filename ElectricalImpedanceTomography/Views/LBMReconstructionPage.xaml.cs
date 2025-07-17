@@ -1,7 +1,7 @@
 ﻿using ElectricalImpedanceTomography.ViewModels;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
-using Utility.Classes.Meshing;
+using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 
 namespace ElectricalImpedanceTomography.Views;
 

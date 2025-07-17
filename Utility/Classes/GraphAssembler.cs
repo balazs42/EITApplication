@@ -1,4 +1,4 @@
-﻿using Utility.Classes.Meshing;
+﻿using Utility.Classes.Meshing.FiniteElementMesh;
 
 namespace Utility.Classes
 {
@@ -15,20 +15,20 @@ namespace Utility.Classes
         /// <summary>
         /// List of undirected edges (i,j) with i<j.
         /// </summary>
-        public List<(int i, int j)> Edges { get; private set; }
+        public List<(int i, int j)> Edges { get; private set; } = [];
 
         /// <summary>
         /// Base conductances w̄_{ij} = ∫γ ∇ϕ_i·∇ϕ_j dΩ for each edge.
         /// </summary>
-        public double[] Wbar { get; private set; }
+        public double[] Wbar { get; private set; } = [];
 
         /// <summary>
         /// Soft topology variables α_{ij}∈[0,1] for each edge.
         /// Initialized to 1.0 (fully connected).
         /// </summary>
-        public double[] Alpha { get; private set; }
+        public double[] Alpha { get; private set; } = [];
 
-        public List<FEMElectrode> Electrodes { get; private set; }
+        public List<FEMElectrode> Electrodes { get; private set; } = [];
 
         /// <summary>
         /// Builds the graph (V,E) and initializes w̄ and α arrays from the FEM mesh.

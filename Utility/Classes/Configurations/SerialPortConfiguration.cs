@@ -1,6 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace Utility.Classes
+namespace Utility.Classes.Configurations
 {
     // Descirbes the Raw\config.json file structure that will be loaded for the ESP32Communicator
     public class SerialPortConfiguration
