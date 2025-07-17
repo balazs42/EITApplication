@@ -1,5 +1,11 @@
 ﻿namespace Utility.Classes.Meshing
 {
+
+    /// <summary>
+    /// (-1, 1)     (0, 1)     (1, 1)
+    /// (-1, 0)     (0, 0)     (1, 0)
+    /// (-1,-1)     (0,-1)     (1,-1)
+    /// </summary>
     public sealed class LBMElement : MeshElement
     {
         /// <summary>
@@ -46,6 +52,23 @@
                 sum += Fi[i];
 
             return sum;
+        }
+
+        public double GetXCurrent()
+        {
+            return Fi[2] - Fi[4] + Math.Sqrt(2) / 2.0 * (Fi[5] + Fi[8] - Fi[6] - Fi[7]);
+        }
+
+        public double GetYCurrent()
+        {
+            return Fi[1] - Fi[3] + Math.Sqrt(2) / 2.0 * (Fi[5] + Fi[6] - Fi[7] - Fi[8]);
+        }
+
+        public double GetCurrentAmplitude()
+        {
+            double vx = GetXCurrent();
+            double vy = GetYCurrent();
+            return Math.Sqrt(vx * vx + vy * vy);
         }
     }
 }

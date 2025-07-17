@@ -54,7 +54,7 @@ public partial class LBMReconstructionPage : ContentPage
         var canvas = e.Surface.Canvas;
         canvas.Clear(SKColors.White);
 
-        // draw grid first
+        // draw the base grid
         OnCanvasViewPaintSurface(sender, e);
 
         var result = _viewModel.ReconstructionResult;
@@ -65,6 +65,7 @@ public partial class LBMReconstructionPage : ContentPage
         float cw = e.Info.Width / mesh.Nx;
         float ch = e.Info.Height / mesh.Ny;
 
+        // grab potentials, compute min/max
         var pd = result.CurrentPotentialDistribution.Potentials;
         double min = pd.Values.Min();
         double max = pd.Values.Max();
@@ -72,16 +73,18 @@ public partial class LBMReconstructionPage : ContentPage
         _minPot = min;
         _maxPot = max;
 
-        // simple blue→red
-        SKColor BlueToRed(double v)
+        // rainbow: blue at t=0 → red at t=1
+        SKColor Rainbow(double v)
         {
             float t = (float)((v - min) / (max - min));
             t = Math.Clamp(t, 0f, 1f);
-            byte r = (byte)(t * 255);
-            byte b = (byte)((1 - t) * 255);
-            return new SKColor(r, 0, b);
+
+            // hue: 240° (blue) → 0° (red)
+            float hue = 240f * (1f - t);
+            return SKColor.FromHsv(hue, 100f, 100f);
         }
 
+        // draw cells
         for (int y = 0; y < mesh.Ny; y++)
         {
             for (int x = 0; x < mesh.Nx; x++)
@@ -89,22 +92,26 @@ public partial class LBMReconstructionPage : ContentPage
                 var el = mesh.GetElementAt(x, y);
                 var pot = pd[el.Id];
 
-                var fill = new SKPaint
-                {
-                    Style = SKPaintStyle.Fill,
-                    Color = BlueToRed(pot)
-                };
-                var r = SKRect.Create(x * cw, y * ch, cw, ch);
-
+                SKPaint fill;
                 if (el.IsWall)
-                    fill = _wallPaint;
+                {
+                    fill = _wallPaint;      // remain black
+                }
+                else
+                {
+                    fill = new SKPaint       // rainbow fill
+                    {
+                        Style = SKPaintStyle.Fill,
+                        Color = Rainbow(pot)
+                    };
+                }
 
+                var r = SKRect.Create(x * cw, y * ch, cw, ch);
                 canvas.DrawRect(r, fill);
                 canvas.DrawRect(r, _strokePaint);
             }
         }
     }
-
     private void OnCanvasViewPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
         var canvas = e.Surface.Canvas;
@@ -203,10 +210,10 @@ public partial class LBMReconstructionPage : ContentPage
             switch (e.MouseButton)
             {
                 case SKMouseButton.Left:
-                    _viewModel.ToggleWallStateCommand.Execute((row, col));
+                    _viewModel.ToggleWallStateCommand.Execute((col, row));
                     break;
                 case SKMouseButton.Right:
-                    _viewModel.ToggleElectrodeStateCommand.Execute((row, col));
+                    _viewModel.ToggleElectrodeStateCommand.Execute((col, row));
                     break;
             }
         }
@@ -216,9 +223,82 @@ public partial class LBMReconstructionPage : ContentPage
     }
     #endregion
 
+    private void OnPaintCurrentAmplitudeSurface(object sender, SKPaintSurfaceEventArgs e)
+    {
+        var canvas = e.Surface.Canvas;
+        canvas.Clear(SKColors.White);
+
+        // draw the base grid
+        OnCanvasViewPaintSurface(sender, e);
+
+        var result = _viewModel.ReconstructionResult;
+        if (result?.CurrentPotentialDistribution == null)
+            return;
+
+        var mesh = (LBMMesh)result.Mesh;
+        float cw = e.Info.Width / mesh.Nx;
+        float ch = e.Info.Height / mesh.Ny;
+
+        // grab potentials, compute min/max
+        var pd = result.CurrentPotentialDistribution.Potentials;
+
+        // Convert to current amplitudes
+        foreach(var p in pd)
+        {
+            var el = mesh.Elements.Find(x => x.Id == p.Key);
+
+            if(el != null)
+                pd[p.Key] = el.GetCurrentAmplitude();
+        }
+
+
+        double min = pd.Values.Min();
+        double max = pd.Values.Max();
+
+        // rainbow: blue at t=0 → red at t=1
+        SKColor Rainbow(double v)
+        {
+            float t = (float)((v - min) / (max - min));
+            t = Math.Clamp(t, 0f, 1f);
+
+            // hue: 240° (blue) → 0° (red)
+            float hue = 240f * (1f - t);
+            return SKColor.FromHsv(hue, 100f, 100f);
+        }
+
+        // draw cells
+        for (int y = 0; y < mesh.Ny; y++)
+        {
+            for (int x = 0; x < mesh.Nx; x++)
+            {
+                var el = mesh.GetElementAt(x, y);
+                var pot = pd[el.Id];
+
+                SKPaint fill;
+                if (el.IsWall)
+                {
+                    fill = _wallPaint;      // remain black
+                }
+                else
+                {
+                    fill = new SKPaint       // rainbow fill
+                    {
+                        Style = SKPaintStyle.Fill,
+                        Color = Rainbow(pot)
+                    };
+                }
+
+                var r = SKRect.Create(x * cw, y * ch, cw, ch);
+                canvas.DrawRect(r, fill);
+                canvas.DrawRect(r, _strokePaint);
+            }
+        }
+    }
+
     private void OnStartReconstruction(object sender, EventArgs e)
     {
         _viewModel.OnStartReconstructionClicked(sender, e);
         PotentialResultCanvas.InvalidateSurface();
+        CurrentAmplitudeCanvas.InvalidateSurface();
     }
 }

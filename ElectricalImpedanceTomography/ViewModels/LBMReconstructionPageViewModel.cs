@@ -103,9 +103,11 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             electrodes[0].IsExcitation = true;
             electrodes[1].IsGround = true;
+            electrodes[0].Current = 2.0;
+            electrodes[1].Current = 0.0;
 
-            electrodes.First().Potential = 1.0;
-            electrodes.Last().Potential = -1.0;
+            for (int i = 2; i < electrodes.Count; i++)
+                electrodes[i].Potential = 1.0;
 
             _reconstructionService.InitializeReconstruction(_mesh, ReconstructionParameters);
 

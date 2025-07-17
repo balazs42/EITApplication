@@ -64,7 +64,7 @@
             </Grid>
             <Grid Grid.Row="2"
                   RowDefinitions="Auto, *"
-                  ColumnDefinitions="Auto, Auto"
+                  ColumnDefinitions="Auto, Auto, Auto"
                   ColumnSpacing="10"
                   Padding="10">
                 
@@ -108,6 +108,28 @@
                                        HeightRequest="500"
                                        WidthRequest="500"
                                        Margin="10">
+                    </skia:SKCanvasView>
+                </Border>
+
+                <Label Text="Current Amplitude Field" 
+                       Grid.Row="0" 
+                       Grid.Column="2"
+                       FontAttributes="Bold" 
+                       HorizontalOptions="Center" />
+
+                <Border Grid.Row="1"
+                        Grid.Column="2"
+                        Stroke="DarkGray" 
+                        StrokeThickness="2"
+                        Margin="10"
+                        HorizontalOptions="Center" 
+                        VerticalOptions="Center">
+                    <skia:SKCanvasView x:Name="CurrentAmplitudeCanvas"
+                                       PaintSurface="OnPaintCurrentAmplitudeSurface"
+                                       EnableTouchEvents="False"
+                                       HeightRequest="500"
+                                       WidthRequest="500"
+                                       Margin="10"> 
                     </skia:SKCanvasView>
                 </Border>
             </Grid>

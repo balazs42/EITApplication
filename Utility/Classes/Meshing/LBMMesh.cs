@@ -27,7 +27,7 @@ namespace Utility.Classes.Meshing
         /// </summary>
         /// <param name="nx">Number of cells in the x dimension.</param>
         /// <param name="ny">Number of cells in the y dimension.</param>
-        public LBMMesh(int nx = _defaultNx, int ny = _defaultNy)
+        public LBMMesh(int nx = _defaultNx, int ny = _defaultNy, int electrodeNum = 16)
         {
             Nx = nx;
             Ny = ny;
@@ -84,7 +84,7 @@ namespace Utility.Classes.Meshing
             PotentialDistribution = new PotentialDistribution(pd);
 
             // Place 16 equidistant electrodes inside the walls
-            PlaceEquidistantElectrodes(16);
+            PlaceEquidistantElectrodes(electrodeNum);
 
             //this.ConductivityDistribution = PriorConductivityDistributionGenerator.GenerateHomogeneousDistribution(this, 1.0);
         }
@@ -127,7 +127,7 @@ namespace Utility.Classes.Meshing
         /// <summary>
         /// Automatically places a specified number of electrodes equidistantly along the inner perimeter of the mesh.
         /// </summary>
-        private void PlaceEquidistantElectrodes(int numElectrodes)
+        public void PlaceEquidistantElectrodes(int numElectrodes)
         {
             var perimeterCells = new List<LBMElement>();
 

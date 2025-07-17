@@ -47,9 +47,29 @@ namespace Utility.Classes.Solvers
                         correspondingElectrode.Current = bc.Electrodes[correspondingElectrode.Id].Current;
                     else if (correspondingElectrode != null && !bc.IsNeumann)
                     {
-                        correspondingElectrode.Potential = bc.Electrodes[correspondingElectrode.Id].Potential;
-                        for (int i = 0; i < 9; i++)
-                            el.Fi[i] = W[i] * correspondingElectrode.Potential;
+                        if(correspondingElectrode.IsExcitation || correspondingElectrode.IsGround)
+                        {
+                            double current = correspondingElectrode.Current;
+                            for (int i = 0; i < 9; i++)
+                                el.Fi[i] = W[i] * current;
+
+                            var neighbors = el.Neighbors;
+                            for (int i = 0; i < 9; i++)
+                            {
+                                if (neighbors[i].IsWall)
+                                {
+                                    el.Fi[Opposite[i]] += el.Fi[i];
+                                    el.Fi[i] = 0.0;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            correspondingElectrode.Potential = bc.Electrodes[correspondingElectrode.Id].Potential;
+                            for (int i = 0; i < 9; i++)
+                                el.Fi[i] = W[i] * correspondingElectrode.Potential;
+                        }
+
                     }
                 }
             }
@@ -132,14 +152,31 @@ namespace Utility.Classes.Solvers
                         el.Fi[k] = el.Fi_next[k];
                         el.Fi_next[k] = 0.0;
                     }
-                    // enforce pinned Dirichlet: Fi = W[k]*PinValue
+                    // enforce boundary condtion Neumann or Dirichlet: Fi = W[k]*PinValue
                     if (el.IsElectrode)
                     {
                         var electrode = mesh.Electrodes.First(x => x.GridId == el.Id);
                         double potential = electrode.Potential;
 
-                        for (int k = 0; k < 9; k++)
-                            el.Fi[k] = W[k] * potential;
+                        // Neumann
+                        if(electrode.IsExcitation || electrode.IsGround)
+                        {
+                            var neighbors = el.Neighbors;
+                            for(int i = 0; i < 9; i++)
+                            {
+                                if (neighbors[i].IsWall)
+                                {
+                                    el.Fi[Opposite[i]] += el.Fi[i];
+                                    el.Fi[i] = 0.0;
+                                }
+                            }
+                        }
+                        // Dirichlet
+                        else
+                        {
+                            for (int k = 0; k < 9; k++)
+                                el.Fi[k] = W[k] * potential;
+                        }
                     }
                 }
 
