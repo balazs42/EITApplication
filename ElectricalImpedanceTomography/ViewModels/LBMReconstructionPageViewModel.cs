@@ -30,7 +30,6 @@ namespace ElectricalImpedanceTomography.ViewModels
             => Enum.GetValues(typeof(NumericOptimizer))
                    .Cast<NumericOptimizer>();
 
-
         [ObservableProperty]
         private EITReconstructionParameters reconstructionParameters;
 
@@ -88,7 +87,6 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
         }
 
-
         public async void OnStartReconstructionClicked(object sender, EventArgs e)
         {
             var electrodes = _mesh.Electrodes;
@@ -106,8 +104,9 @@ namespace ElectricalImpedanceTomography.ViewModels
             electrodes[0].Current = 2.0;
             electrodes[1].Current = 0.0;
 
-            for (int i = 2; i < electrodes.Count; i++)
+            for (int i = 2; i < electrodes.Count - 1; i++)
                 electrodes[i].Potential = 1.0;
+            electrodes.Last().Potential = -(double)electrodes.Count;
 
             _reconstructionService.InitializeReconstruction(_mesh, ReconstructionParameters);
 
