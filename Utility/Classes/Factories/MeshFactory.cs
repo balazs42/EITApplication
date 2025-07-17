@@ -5,16 +5,28 @@ using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 
 namespace Utility.Classes.Factories
 {
+    public struct MeshParameters
+    {
+        public MeshType MeshType { get; set; }
+        public int Layers { get; set; }
+        public int BoundaryVertexCount { get; set; }
+        public int ElectrodeCount { get; set; }
+        public int Nx { get; set; }
+        public int Ny { get; set; }
+        public List<Dictionary<int, double>> Inhomogenities { get; set; }
+        public int Radius { get; set; }
+    }
 
     public static class MeshFactory
     {
-        public static IMesh Create(MeshType mt, int layers = 2, int boundaryVertexCount = 16, int electrodeCount = 16, double inhomogenityValue = 1.0) => mt switch
+        // TODO: create should use the MeshParameters
+        public static IMesh Create(MeshParameters parameters, double inhomogenityValue = 1.0) => parameters.MeshType switch
         {
-            MeshType.FEM => CreateCircularFEMMesh(layers: layers,
-                                                  boundaryVertexCount: boundaryVertexCount,
-                                                  electrodeCount: electrodeCount,
+            MeshType.FEM => CreateCircularFEMMesh(layers: parameters.Layers,
+                                                  boundaryVertexCount: parameters.BoundaryVertexCount,
+                                                  electrodeCount: parameters.ElectrodeCount,
                                                   inhomogeneityValue: inhomogenityValue),
-            MeshType.LBM => new LBMMesh(),
+            MeshType.LBM => LBMCreateCircular(parameters.Nx, parameters.Ny, parameters.Radius, parameters.ElectrodeCount),
             _ => throw new NotSupportedException()
         };
 
@@ -190,6 +202,21 @@ namespace Utility.Classes.Factories
             return mesh;
         }
 
+        /// <summary>
+        /// Apply multiple inhomogeneity dictionaries to a FEM mesh.
+        /// Later overrides have precedence.
+        /// </summary>
+        public static void ApplyFEMInhomogenities(FEMMesh mesh, List<Dictionary<int, double>> inhomogenities)
+        {
+            var baseDist = mesh.GetConductivityDistribution();
+            var dict = new Dictionary<int, double>(baseDist.Conductivities);
+            foreach (var d in inhomogenities)
+                foreach (var kv in d)
+                    if (dict.ContainsKey(kv.Key))
+                        dict[kv.Key] = kv.Value;
+            mesh.SetConductivityDistribution(new ConductivityDistribution(dict));
+        }
+
         private class TriVertex : IVertex
         {
             public double[] Position { get; }
@@ -206,13 +233,13 @@ namespace Utility.Classes.Factories
 
         #region Lattice Boltzmann Mesh Generation
 
-        private static LBMMesh CreateRectangularWithBorder(int nx = 15, int ny = 15, int electrodeCount = 16)
+        private static LBMMesh LBMCreateRectangularWithBorder(int nx = 15, int ny = 15, int electrodeCount = 16)
         {
             return new LBMMesh(nx, ny);
         }
 
 
-        private static LBMMesh CreateRectangularWithInhomogenity(int nx = 15, int ny = 15, int electrodeCount = 16, double inhomogenityValue = 1.0, int inhomogenitySize = 4)
+        private static LBMMesh LBMCreateRectangularWithInhomogenity(int nx = 15, int ny = 15, int electrodeCount = 16, double inhomogenityValue = 1.0, int inhomogenitySize = 4)
         {
             if (inhomogenitySize > nx || inhomogenitySize > ny)
                 throw new ArgumentOutOfRangeException("Cannot create LBM mesh with inhomogenity, size too big!");
@@ -251,7 +278,7 @@ namespace Utility.Classes.Factories
         /// <param name="radius">Radius of the inner circle.</param>
         /// <param name="electrodeCount">Number of electrodes to distribute.</param>
         /// <returns></returns>
-        private static LBMMesh CreateCircular(int nx = 15, int ny = 15, int radius = 10, int electrodeCount = 16)
+        private static LBMMesh LBMCreateCircular(int nx = 15, int ny = 15, int radius = 10, int electrodeCount = 16)
         {
             if (radius > nx / 2 || radius > ny / 2)
                 throw new ArgumentOutOfRangeException(nameof(radius),

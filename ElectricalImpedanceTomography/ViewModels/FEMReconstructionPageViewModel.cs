@@ -81,11 +81,13 @@ namespace ElectricalImpedanceTomography.ViewModels
             if (BoundaryNodeCount < ElectrodeCount)
                 ElectrodeCount = BoundaryNodeCount;
 
-            var newMesh =  (FEMMesh)MeshFactory.Create(MeshType.FEM, 
-                                                       layers: Layers,
-                                                       boundaryVertexCount: BoundaryNodeCount, 
-                                                       electrodeCount: ElectrodeCount,
-                                                       inhomogenityValue: InhomogenityValue);
+            MeshParameters parameters = new MeshParameters();
+            parameters.MeshType = MeshType.FEM;
+            parameters.Layers = Layers;
+            parameters.BoundaryVertexCount = BoundaryNodeCount;
+            parameters.ElectrodeCount = ElectrodeCount;
+
+            var newMesh =  (FEMMesh)MeshFactory.Create(parameters, InhomogenityValue);
 
             _mesh = newMesh.DeepCopy();
             _reconstructedMesh = newMesh.DeepCopy();

@@ -2,6 +2,7 @@
 using CommunityToolkit.Mvvm.Input;
 using ServiceLayer;
 using Utility.Classes;
+using Utility.Classes.Factories;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.ReconstructionParameters;
 namespace ElectricalImpedanceTomography.ViewModels
@@ -56,8 +57,15 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public void GenerateLbmMesh()
         {
+            MeshParameters parameters = new MeshParameters();
+            parameters.MeshType = Utility.Classes.Meshing.MeshType.LBM;
+            parameters.Nx = GridSizeNx;
+            parameters.Ny = GridSizeNy;
+            parameters.Radius = 10;
+            parameters.ElectrodeCount = 16;
+
             // Create the underlying data model
-            _mesh = new LBMMesh(GridSizeNx, GridSizeNy);
+            _mesh = (LBMMesh)MeshFactory.Create(parameters);
         }
 
         public LBMMesh GetMesh()

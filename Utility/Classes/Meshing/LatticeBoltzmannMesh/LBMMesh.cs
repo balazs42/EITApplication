@@ -125,48 +125,70 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
         }
 
         /// <summary>
-        /// Automatically places a specified number of electrodes equidistantly along the inner perimeter of the mesh.
+        /// Place N electrodes roughly equidistant in angle around the domain
+        /// by ray‐casting from the outer radius toward the center until a non‐wall
+        /// cell is found along each ray.
         /// </summary>
         public void PlaceEquidistantElectrodes(int numElectrodes)
         {
-            var perimeterCells = new List<LBMElement>();
+            // 1) Clear any existing electrode flags
+            foreach (var el in Elements)
+                el.IsElectrode = false;
 
-            // Trace the inner perimeter path: top, right, bottom, left
-            for (int x = 1; x < Nx - 1; x++) perimeterCells.Add(_elementGrid[x, 1]);
-            for (int y = 1; y < Ny - 1; y++) perimeterCells.Add(_elementGrid[Nx - 2, y]);
-            for (int x = Nx - 2; x > 0; x--) perimeterCells.Add(_elementGrid[x, Ny - 2]);
-            for (int y = Ny - 2; y > 0; y--) perimeterCells.Add(_elementGrid[1, y]);
+            Electrodes.Clear();
+            base.Electrodes.Clear();
 
-            if (perimeterCells.Count == 0) return; // Cannot place electrodes on a very small mesh
+            if (numElectrodes <= 0) return;
 
-            // Initialize the main electrode list
-            Electrodes = new List<LBMElectrode>(numElectrodes);
+            // 2) Compute center and max radius in lattice coords
+            double cx = (Nx - 1) / 2.0;
+            double cy = (Ny - 1) / 2.0;
+            double maxR = Math.Min(cx, cy);
 
-            double spacing = (double)perimeterCells.Count / numElectrodes;
-
+            // 3) For each electrode, pick an angle and ray‐cast inward
             for (int i = 0; i < numElectrodes; i++)
             {
-                // Calculate the ideal index on the perimeter path
-                int index = (int)Math.Round(i * spacing);
-                // Ensure index is within bounds
-                index = Math.Min(index, perimeterCells.Count - 1);
+                double theta = 2.0 * Math.PI * i / numElectrodes;
+                int chosenId = -1;
 
-                var electrodeElement = perimeterCells[index];
+                // Step from outer radius toward center in small increments
+                for (double r = maxR; r >= 0; r -= 0.5)
+                {
+                    // continuous coords along ray
+                    double fx = cx + r * Math.Cos(theta);
+                    double fy = cy + r * Math.Sin(theta);
+                    int ix = (int)Math.Round(fx);
+                    int iy = (int)Math.Round(fy);
 
-                // Mark the element as an electrode
-                electrodeElement.IsElectrode = true;
-                electrodeElement.IsWall = false;
+                    // skip out‐of‐bounds
+                    if (ix < 0 || ix >= Nx || iy < 0 || iy >= Ny)
+                        continue;
 
-                // Create the corresponding high-level Electrode object.
-                // For LBM, one element corresponds to one measurement point.
+                    var cell = _elementGrid[ix, iy];
+                    // first non‐wall is our electrode
+                    if (!cell.IsWall)
+                    {
+                        chosenId = cell.Id;
+                        break;
+                    }
+                }
+
+                // fallback if ray never hit a non‐wall cell
+                if (chosenId < 0)
+                    chosenId = Elements.First(el => !el.IsWall).Id;
+
+                // 4) Mark the chosen element as an electrode
+                var chosenEl = Elements.Single(el => el.Id == chosenId);
+                chosenEl.IsElectrode = true;
+
+                // 5) Create and register the high‐level LBMElectrode
                 var electrode = new LBMElectrode(
-                    id: i, // The electrode's logical ID (0-15)
-                    gridId: electrodeElement.Id, // The element's ID within the mesh
+                    id: i,
+                    gridId: chosenId,
                     current: 0.0,
                     contactImpedance: 0.0,
                     potential: 0.0
                 );
-
                 Electrodes.Add(electrode);
                 base.Electrodes.Add(electrode);
             }

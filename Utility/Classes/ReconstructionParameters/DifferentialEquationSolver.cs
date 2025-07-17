@@ -4,13 +4,15 @@ using Utility.Classes.Solvers.FiniteElementSolver;
 using Utility.Classes.Solvers.LatticeBoltzmannSolver;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
+using Utility.Classes.Solvers.GraphBasedSolver;
 
 namespace Utility.Classes.ReconstructionParameters
 {
     public enum DifferentialEquationSolver
     {
         FiniteElementMethod = 1,
-        LatticeBoltzmannMethod = 2
+        LatticeBoltzmannMethod = 2,
+        GraphBased = 3
     };
 
     public interface IDifferentialEquationSolver
@@ -110,6 +112,63 @@ namespace Utility.Classes.ReconstructionParameters
             //                            _convergenceThreshold, 
             //                            _checkInterval, 
             //                            adjointSource);
+        }
+    }
+
+    public sealed class GraphSolver : IDifferentialEquationSolver
+    {
+        private readonly INumericSolver _numericSolver;
+        private readonly GraphBasedSolver _solver;
+        private readonly GraphAssembler _assembler;
+
+
+        public GraphSolver(INumericSolver numericSolver, GraphBasedSolver solver, GraphAssembler assembler)
+        {
+            _numericSolver = numericSolver;
+            _solver = solver;
+            _assembler = assembler;
+        }
+
+        /// <summary>
+        /// Solves the forward problem to find the potential field φ.
+        /// </summary>
+        public PotentialDistribution SolveForward(IMesh mesh, BoundaryCondition bc)
+        {
+            if (mesh is FEMMesh femMesh)
+            {
+                _assembler.Build(femMesh);
+
+                return _solver.SolveForward(femMesh, _numericSolver);
+            }
+            else
+                throw new NotImplementedException("Cannot use graph based solver, the LBM mesh -> graph representation implmenetiation is not yet done!");
+        }
+
+        /// <summary>
+        /// Solves the adjoint problem to find the adjoint variable μ.
+        /// </summary>
+        public PotentialDistribution SolveAdjoint(IMesh mesh, BoundaryCondition bc, Complex[] adjointSource)
+        {
+            if(mesh is FEMMesh femMesh)
+            {
+                _assembler.Build(femMesh);
+
+                return _solver.SolveAdjoint(femMesh, _numericSolver);
+            }
+            else
+                throw new NotImplementedException("Cannot use graph based solver, the LBM mesh -> graph representation implmenetiation is not yet done!");
+        }
+
+        public ConductivityDistribution InverseSolve(IMesh mesh, BoundaryCondition bc, Complex[] ajdointSource)
+        {
+            if (mesh is FEMMesh femMesh)
+            {
+                _assembler.Build(femMesh);
+
+                return _solver.Iteration(femMesh, _numericSolver);
+            }
+            else
+                throw new NotImplementedException("Cannot use graph based solver, the LBM mesh -> graph representation implmenetiation is not yet done!");
         }
     }
 }
