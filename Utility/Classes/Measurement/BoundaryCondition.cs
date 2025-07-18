@@ -4,7 +4,7 @@ namespace Utility.Classes.Measurement
 {
     public abstract class BoundaryCondition
     {
-        public List<Electrode> Electrodes { get; set; } = [];
+        public IEnumerable<Electrode> Electrodes { get; set; } = [];
         public int NumElectrodes { get; set; } = -1;
         public int GroundElectrodeId { get; set; } = -1;
         public int ExcitationElectrodeId { get; set; } = -1;
@@ -14,12 +14,12 @@ namespace Utility.Classes.Measurement
 
         }
 
-        public BoundaryCondition(List<Electrode> electrodes)
+        public BoundaryCondition(IEnumerable<Electrode> electrodes)
         {
             Initialize(electrodes);
         }
 
-        public BoundaryCondition(List<Electrode> electrodes, PotentialDistribution potentialDistribution)
+        public BoundaryCondition(IEnumerable<Electrode> electrodes, PotentialDistribution potentialDistribution)
         {
             Initialize(electrodes);
 
@@ -27,16 +27,16 @@ namespace Utility.Classes.Measurement
             {
                 foreach (var kvp in potentialDistribution.Potentials)
                 {
-                    if (kvp.Key == Electrodes[i].Id)
+                    if (kvp.Key == Electrodes.ElementAt(i).Id)
                     {
-                        Electrodes[i].Potential = kvp.Value;
+                        Electrodes.ElementAt(i).Potential = kvp.Value;
                         break;
                     }
                 }
             }
         }
 
-        public BoundaryCondition(List<Electrode> electrodes, List<double> potentials, List<double> currents)
+        public BoundaryCondition(IEnumerable<Electrode> electrodes, IEnumerable<double> potentials, IEnumerable<double> currents)
         {
             Initialize(electrodes);
 
@@ -44,7 +44,7 @@ namespace Utility.Classes.Measurement
             SetElectrodePotentials(potentials);
         }
 
-        public BoundaryCondition(List<Electrode> electrodes, double[] potentials, double[] currents)
+        public BoundaryCondition(IEnumerable<Electrode> electrodes, double[] potentials, double[] currents)
         {
             Initialize(electrodes);
 
@@ -52,14 +52,14 @@ namespace Utility.Classes.Measurement
             SetElectrodePotentials(potentials);
         }
 
-        public BoundaryCondition(List<Electrode> electrodes, double[] currents)
+        public BoundaryCondition(IEnumerable<Electrode> electrodes, double[] currents)
         {
             Initialize(electrodes);
 
             SetElectrodeCurrents(currents);
         }
 
-        public BoundaryCondition(List<Electrode> electrodes, List<double> currents)
+        public BoundaryCondition(IEnumerable<Electrode> electrodes, IEnumerable<double> currents)
         {
             Initialize(electrodes);
 
@@ -67,7 +67,7 @@ namespace Utility.Classes.Measurement
         }
 
 
-        public abstract void Initialize(List<Electrode> electrodes);
+        public abstract void Initialize(IEnumerable<Electrode> electrodes);
 
         #region Getter and Setter Methods
 
@@ -77,56 +77,60 @@ namespace Utility.Classes.Measurement
 
         public double[] GetElectrodeCurrents()
         {
-            NumElectrodes = Electrodes.Count;
+            NumElectrodes = Electrodes.Count();
             double[] currents = new double[NumElectrodes];
             for (int i = 0; i < NumElectrodes; i++)
-                currents[i] = Electrodes[i].Current;
+                currents[i] = Electrodes.ElementAt(i).Current;
 
             return currents;
         }
 
         public double[] GetElectrodePotentials()
         {
-            NumElectrodes = Electrodes.Count;
+            NumElectrodes = Electrodes.Count();
             double[] potentials = new double[NumElectrodes];
             for (int i = 0; i < NumElectrodes; i++)
-                potentials[i] = Electrodes[i].Potential;
+                potentials[i] = Electrodes.ElementAt(i).Potential;
 
             return potentials;
         }
 
-        private void SetElectrodeCurrents(List<double> currents)
+        private void SetElectrodeCurrents(IEnumerable<double> currents)
         {
-            if (currents.Count != Electrodes.Count)
+            NumElectrodes = Electrodes.Count();
+            if (currents.Count() != NumElectrodes)
                 throw new ArgumentOutOfRangeException("Cannot set currents, item count mismatch between currents and electrodes. Check code!");
 
-            for (int i = 0; i < Electrodes.Count; i++)
-                Electrodes[i].Current = currents[i];
+            for (int i = 0; i < NumElectrodes; i++)
+                Electrodes.ElementAt(i).Current = currents.ElementAt(i);
         }
 
         private void SetElectrodeCurrents(double[] currents)
         {
-            if (currents.Length != Electrodes.Count)
+            NumElectrodes = Electrodes.Count();
+            if (currents.Length != NumElectrodes)
                 throw new ArgumentOutOfRangeException("Cannot set currents, item count mismatch between currents and electrodes. Check code!");
-            for (int i = 0; i < Electrodes.Count; i++)
-                Electrodes[i].Current = currents[i];
+            for (int i = 0; i < NumElectrodes; i++)
+                Electrodes.ElementAt(i).Current = currents[i];
         }
 
-        private void SetElectrodePotentials(List<double> potentials)
+        private void SetElectrodePotentials(IEnumerable<double> potentials)
         {
-            if (potentials.Count != Electrodes.Count)
+            NumElectrodes = Electrodes.Count();
+            if (potentials.Count() != NumElectrodes)
                 throw new ArgumentOutOfRangeException("Cannot set potentials, item count mismatch between potentials and electrodes. Check code!");
 
-            for (int i = 0; i < Electrodes.Count; i++)
-                Electrodes[i].Potential = potentials[i];
+            for (int i = 0; i < NumElectrodes; i++)
+                Electrodes.ElementAt(i).Potential = potentials.ElementAt(i);
         }
 
         private void SetElectrodePotentials(double[] potentials)
         {
-            if (potentials.Length != Electrodes.Count)
+            NumElectrodes = Electrodes.Count();
+            if (potentials.Length != NumElectrodes)
                 throw new ArgumentOutOfRangeException("Cannot set potentials, item count mismatch between potentials and electrodes. Check code!");
-            for (int i = 0; i < Electrodes.Count; i++)
-                Electrodes[i].Potential = potentials[i];
+            for (int i = 0; i < NumElectrodes; i++)
+                Electrodes.ElementAt(i).Potential = potentials[i];
         }
         #endregion
     }

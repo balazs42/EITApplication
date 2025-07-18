@@ -17,7 +17,7 @@ namespace Utility.Classes.Measurement
 
         public FEMBoundaryCondition(List<FEMElectrode> electrodes)
         {
-            this.Init(electrodes);
+            this.InitFEM(electrodes);
 
             Electrodes = electrodes;
         }
@@ -25,7 +25,7 @@ namespace Utility.Classes.Measurement
 
         public FEMBoundaryCondition(List<FEMElectrode> electrodes, PotentialDistribution potentialDistribution)
         {
-            this.Init(electrodes);
+            this.InitFEM(electrodes);
 
             for (int i = 0; i < NumElectrodes; i++)
             {
@@ -40,7 +40,7 @@ namespace Utility.Classes.Measurement
             }
         }
 
-        public void Init(List<FEMElectrode> electrodes)
+        public void InitFEM(List<FEMElectrode> electrodes)
         {
             Electrodes = electrodes.Cast<FEMElectrode>().ToList();
             NumElectrodes = Electrodes.Count;
@@ -64,9 +64,9 @@ namespace Utility.Classes.Measurement
             ExcitationElectrodeId = excitationElectrode.Id;
         }
 
-        public override void Initialize(List<Electrode> electrodes)
+        public override void Initialize(IEnumerable<Electrode> electrodes)
         {
-            Init(electrodes.Cast<FEMElectrode>().ToList());
+            InitFEM(electrodes.Cast<FEMElectrode>().ToList());
         }
     }
 }

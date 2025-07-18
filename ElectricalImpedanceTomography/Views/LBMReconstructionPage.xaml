@@ -52,7 +52,7 @@
             <controls:NavBarControl Grid.Row="0" Grid.ColumnSpan="2" CurrentPageName="LBMReconstructionPage"/>
             <Grid Grid.Row="1"
                   Grid.Column="0"
-                  ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto"
+                  ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto"
                   Padding="1"
                   ColumnSpacing="20"
                   HorizontalOptions="Center">
@@ -110,6 +110,10 @@
                         Margin="10"
                         Text="Solve Inverse"
                         Clicked="OnSolveInverseClicked"/>
+                <Button Style="{StaticResource ButtonStyle}"
+                        Grid.Column="8"
+                        Text="Edit Boundary Conditions"
+                        Clicked="OnEditBoundaryConditions"/>
             </Grid>
             <Grid Grid.Row="2"
                   RowDefinitions="Auto, *"

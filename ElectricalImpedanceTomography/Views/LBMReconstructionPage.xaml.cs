@@ -1,6 +1,8 @@
-﻿using ElectricalImpedanceTomography.ViewModels;
+﻿using CommunityToolkit.Maui.Views;
+using ElectricalImpedanceTomography.ViewModels;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
+using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 
 namespace ElectricalImpedanceTomography.Views;
@@ -356,6 +358,26 @@ public partial class LBMReconstructionPage : ContentPage
     private void OnSolveInverseClicked(object sender, EventArgs e)
     {
         _viewModel.OnSolveInverseClicked(sender, e);
+    }
+
+    private async void OnEditBoundaryConditions(object sender, EventArgs e)
+    {
+        // build the appropriate BoundaryCondition subclass:
+        var electrodes = _viewModel.GetMesh().Electrodes;
+
+        var bc = new LBMBoundaryCondition(electrodes);
+
+        var popup = new BoundaryConditionsPopup(bc);
+        // ShowPopupAsync returns whatever you passed to Close(...)
+        var result = await this.ShowPopupAsync(popup) as BoundaryCondition;
+        if (result != null)
+        {
+            // user clicked SAVE
+            // apply it to your solver / view‐model:
+            //            _viewModel.BoundaryCondition = result;
+            // re‐solve or redraw:
+            //          _viewModel.RunForwardSolve();
+        }
     }
 
     private void OnPotentialModeChanged(object sender, EventArgs e)

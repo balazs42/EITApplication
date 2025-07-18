@@ -24,7 +24,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             BoundaryCondition = bc;
 
-            Electrodes = new ObservableCollection<Electrode>(bc.Electrodes);
+            Electrodes = new ObservableCollection<Electrode>(bc.GetElectrodes());
         }
     }
 }
