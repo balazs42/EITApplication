@@ -18,6 +18,8 @@
         public bool IsGround { get; set; } = false;
         public bool IsMeasuring { get; set; } = false;
 
+        public bool IsSource => (IsGround || IsExcitation);
+
         public Electrode()
         {
 

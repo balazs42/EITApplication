@@ -1,4 +1,5 @@
-﻿using System.Diagnostics.Tracing;
+﻿using System.Diagnostics;
+using System.Diagnostics.Tracing;
 using Utility.Classes.Meshing;
 using Utility.Classes.Meshing.FiniteElementMesh;
 
@@ -48,7 +49,16 @@ namespace Utility.Classes.Measurement
             var excitationElectrode = Electrodes.Find(x => x.IsExcitation);
 
             if (groundElectrode == null || excitationElectrode == null)
-                throw new ArgumentNullException("No ground or excitation id specified on electrodes, check calling code!");
+            {
+                Electrodes[0].IsGround = true;
+                Electrodes[0].Current = -1.0;
+                Electrodes[1].IsExcitation = true;
+                Electrodes[1].Current = 1.0;
+                groundElectrode = Electrodes[0];
+                excitationElectrode = Electrodes[1];
+
+                Debug.WriteLine("No ground or excitation id specified on electrodes, setting to default!");
+            }
 
             GroundElectrodeId = groundElectrode.Id;
             ExcitationElectrodeId = excitationElectrode.Id;

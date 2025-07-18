@@ -131,7 +131,7 @@
         <!-- buttons -->
         <Grid Grid.Row="2"
               RowDefinitions="Auto" 
-              ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto" 
+              ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto" 
               HorizontalOptions="Center" 
               Padding="10"
               ColumnSpacing="10">
@@ -169,12 +169,15 @@
                     Grid.Column="4"
                     Text="Stop"
                     Clicked="StartStopButtonClicked"/>
-            
+
             <Button Style="{StaticResource ButtonStyle}"
                     Grid.Column="5"
                     Text="Step"
                     Clicked="StepButtonClicked"/>
-
+            <Button Style="{StaticResource ButtonStyle}"
+                    Grid.Column="6"
+                    Text="Edit Boundary Conditions"
+                    Clicked="OnEditBoundaryConditions"/>
 
         </Grid>
 
