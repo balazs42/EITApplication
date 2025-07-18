@@ -13,8 +13,41 @@
             <Setter Property="FontAttributes" Value="Bold"/>
         </Style>
         <converters:EnumDescriptionConverter x:Key="EnumDesc" />
-    </ContentPage.Resources>
-    <Grid RowDefinitions="Auto, Auto, Auto">
+        <Style x:Key="ButtonStyle" TargetType="Button">
+                <Setter Property="FontSize" Value="Medium"/>
+                <Setter Property="TextColor" Value="White"/>
+                <Setter Property="BackgroundColor" Value="#555555"/>
+                <Setter Property="Padding" Value="12,8"/>
+                <Setter Property="FontFamily" Value="Roboto-Bold"/>
+                <Setter Property="Margin" Value="5,0"/>
+                <Setter Property="CornerRadius" Value="10"/>
+                <Setter Property="MinimumHeightRequest" Value="30"/>
+
+                <Setter Property="VisualStateManager.VisualStateGroups">
+                    <VisualStateGroupList>
+                        <VisualStateGroup x:Name="CommonStates">
+
+                            <VisualState x:Name="Normal">
+                                <VisualState.Setters>
+                                    <Setter Property="Scale" Value="1.0" />
+                                    <Setter Property="BackgroundColor" Value="#555555" />
+                                    <Setter Property="Opacity" Value="1.0"/>
+                                </VisualState.Setters>
+                            </VisualState>
+
+                            <VisualState x:Name="Pressed">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="#444444" />
+                                    <Setter Property="Scale" Value="0.95" />
+                                </VisualState.Setters>
+                            </VisualState>
+
+                        </VisualStateGroup>
+                    </VisualStateGroupList>
+                </Setter>
+            </Style>
+        </ContentPage.Resources>
+        <Grid RowDefinitions="Auto, Auto, Auto">
         <Grid RowDefinitions="Auto, Auto, *" ColumnDefinitions="*, Auto">
             <controls:NavBarControl Grid.Row="0" Grid.ColumnSpan="2" CurrentPageName="LBMReconstructionPage"/>
             <Grid Grid.Row="1"
@@ -66,17 +99,13 @@
                     </Picker.Items>
                 </Picker>
                 <Button Grid.Column="6"
-                        BackgroundColor="Gray"
-                        TextColor="White"
-                        FontSize="Small"
+                        Style="{StaticResource ButtonStyle}"
                         Padding="10"
                         Margin="10"
                         Text="Solve Forward"
                         Clicked="OnSolveForwardClicked"/>
                 <Button Grid.Column="7"
-                        BackgroundColor="Gray"
-                        TextColor="White"
-                        FontSize="Small"
+                        Style="{StaticResource ButtonStyle}"
                         Padding="10"
                         Margin="10"
                         Text="Solve Inverse"
