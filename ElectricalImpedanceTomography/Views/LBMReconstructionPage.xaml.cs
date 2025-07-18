@@ -174,20 +174,40 @@ public partial class LBMReconstructionPage : ContentPage
             var pt = _hoverElemCanvasPt.Value;
             var el = _hoverElem;
 
-            // lines to display
-            string[] lines = {
-                    $"ID:   {el.Id}",
-                    $"Wall:      {el.IsWall}",
-                    $"Electrode: {el.IsElectrode}",
-                    $"σ:   {el.Conductivity:F3}",
-                    $"Phi: {el.Fi.Sum()}"
-                };
+            List<string> lines = [];
+
+            if(el.IsElectrode)
+            {
+                var elec = mesh.Electrodes.Find(x => x.GridId == el.Id);
+                if (elec == null)
+                    throw new NullReferenceException("Cannot find electrode in mesh with the same id!");
+
+                // lines to display
+                lines = new List<string>() {
+                        $"ID:   {el.Id}",
+                        $"Wall:      {el.IsWall}",
+                        $"Electrode: {el.IsElectrode}",
+                        $"Excitation: { ((elec.IsExcitation || elec.IsGround == true)  ? "True" : "False")}",
+                        $"σ:   {el.Conductivity:F3}",
+                        $"Phi: {el.Fi.Sum()}"
+                    };
+            }
+            else
+            {
+                lines = new List<string>() {
+                        $"ID:   {el.Id}",
+                        $"Wall:      {el.IsWall}",
+                        $"Electrode: {el.IsElectrode}",
+                        $"σ:   {el.Conductivity:F3}",
+                        $"Phi: {el.Fi.Sum()}"
+                    };
+            }
 
             // measure
             using var txtPaint = new SKPaint { IsAntialias = true, Color = SKColors.White };
             using var font = new SKFont(SKTypeface.Default, 14);
             float w = lines.Max(l => font.MeasureText(l)) + 8;
-            float h = lines.Length * (font.Size + 4) + 4;
+            float h = lines.Count * (font.Size + 4) + 4;
 
             // choose side relative to canvas center
             var center = new SKPoint(info.Width / 2f, info.Height / 2f);
@@ -251,7 +271,7 @@ public partial class LBMReconstructionPage : ContentPage
         canvasView.InvalidateSurface();
         e.Handled = true;
     }
-    #endregion
+
 
     private void OnPaintCurrentAmplitudeSurface(object sender, SKPaintSurfaceEventArgs e)
     {
@@ -324,7 +344,7 @@ public partial class LBMReconstructionPage : ContentPage
             }
         }
     }
-
+    #endregion
     private void OnStartReconstruction(object sender, EventArgs e)
     {
         _viewModel.OnStartReconstructionClicked(sender, e);

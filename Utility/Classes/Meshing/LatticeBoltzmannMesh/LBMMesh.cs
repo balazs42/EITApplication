@@ -196,7 +196,21 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
 
         public void SetElectrodes(List<LBMElectrode> electrodes)
         {
+            if (electrodes.Count != Electrodes.Count || electrodes.Count == 0 || electrodes.Count != base.Electrodes.Count)
+                throw new ArgumentOutOfRangeException("Cannot set new electrodes, provided list count mismatch! Check code!");
+
             Electrodes = electrodes;
+
+            for(int i = 0; i < electrodes.Count; i++)
+            {
+                base.Electrodes[i].Potential = electrodes[i].Potential;
+                base.Electrodes[i].Current = electrodes[i].Current;
+                base.Electrodes[i].ZContact = electrodes[i].ZContact;
+                base.Electrodes[i].IsExcitation = electrodes[i].IsExcitation;
+                base.Electrodes[i].IsGround = electrodes[i].IsGround;
+                base.Electrodes[i].IsMeasuring = electrodes[i].IsMeasuring;
+                base.Electrodes[i].Id = electrodes[i].Id;
+            }
         }
 
         public override double[] GetElectrodePotentials()
