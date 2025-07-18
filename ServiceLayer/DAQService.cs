@@ -1,4 +1,5 @@
 ﻿using BusinessLayer;
+using System.Diagnostics;
 using Utility.Classes.Measurement;
 using Utility.Logger;
 
@@ -24,6 +25,7 @@ namespace ServiceLayer
             catch(Exception ex)
             {
                 _logger.LogError(ex.Message);
+                Debug.WriteLine(ex.Message);
                 Console.WriteLine(ex.Message);
                 throw;
             }

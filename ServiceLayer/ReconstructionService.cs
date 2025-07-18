@@ -1,4 +1,5 @@
 ﻿using BusinessLayer;
+using System.Diagnostics;
 using Utility.Classes;
 using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.FiniteElementMesh;
@@ -28,6 +29,7 @@ namespace ServiceLayer
             {
                 _logger.LogError(ex.Message);
                 Console.WriteLine(ex.Message);
+                Debug.WriteLine(ex.Message);
                 throw;
             }
         }
@@ -42,6 +44,7 @@ namespace ServiceLayer
             {
                 _logger.LogError(ex.Message);
                 Console.WriteLine(ex.Message);
+                Debug.WriteLine(ex.Message);
                 throw;
             }
         }
@@ -56,6 +59,7 @@ namespace ServiceLayer
             {
                 _logger.LogError(ex.Message);
                 Console.WriteLine(ex.Message);
+                Debug.WriteLine(ex.Message);
                 throw;
             }
         }
@@ -70,6 +74,7 @@ namespace ServiceLayer
             {
                 _logger.LogError(ex.Message);
                 Console.WriteLine(ex.Message);
+                Debug.WriteLine(ex.Message);
                 throw;
             }
         }
@@ -84,6 +89,7 @@ namespace ServiceLayer
             {
                 _logger.LogError(ex.Message);
                 Console.WriteLine(ex.Message);
+                Debug.WriteLine(ex.Message);
                 throw;
             }
         }
@@ -98,6 +104,7 @@ namespace ServiceLayer
             {
                 _logger.LogError(ex.Message);
                 Console.WriteLine(ex.Message);
+                Debug.WriteLine(ex.Message);
                 throw;
             }
         }
