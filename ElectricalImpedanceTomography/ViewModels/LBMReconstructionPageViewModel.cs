@@ -95,7 +95,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
         }
 
-        public async void OnStartReconstructionClicked(object sender, EventArgs e)
+        public async void OnSolveForwardClicked(object sender, EventArgs e)
         {
             var electrodes = _mesh.Electrodes;
 
@@ -123,6 +123,11 @@ namespace ElectricalImpedanceTomography.ViewModels
             ReconstructionResult = await _reconstructionService.GetReconstructionResult();
 
             OnPropertyChanged(nameof(ReconstructionResult));
+        }
+
+        public void OnSolveInverseClicked(object sender, EventArgs e)
+        {
+            // TODO: implement
         }
 
         public void OnReconstructionParametersChanged(object sender, EventArgs e)

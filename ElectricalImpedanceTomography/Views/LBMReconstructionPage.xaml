@@ -19,7 +19,7 @@
             <controls:NavBarControl Grid.Row="0" Grid.ColumnSpan="2" CurrentPageName="LBMReconstructionPage"/>
             <Grid Grid.Row="1"
                   Grid.Column="0"
-                  ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto"
+                  ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto"
                   Padding="1"
                   ColumnSpacing="20"
                   HorizontalOptions="Center">
@@ -71,8 +71,16 @@
                         FontSize="Small"
                         Padding="10"
                         Margin="10"
-                        Text="Start Reconstruction"
-                        Clicked="OnStartReconstruction"/>
+                        Text="Solve Forward"
+                        Clicked="OnSolveForwardClicked"/>
+                <Button Grid.Column="7"
+                        BackgroundColor="Gray"
+                        TextColor="White"
+                        FontSize="Small"
+                        Padding="10"
+                        Margin="10"
+                        Text="Solve Inverse"
+                        Clicked="OnSolveInverseClicked"/>
             </Grid>
             <Grid Grid.Row="2"
                   RowDefinitions="Auto, *"

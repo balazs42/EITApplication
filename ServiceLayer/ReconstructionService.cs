@@ -34,6 +34,36 @@ namespace ServiceLayer
             }
         }
 
+        public PotentialDistribution LBMSolveForward()
+        {
+            try
+            {
+                return _reconstructionPersistence.LBMSolveForward();
+            }
+            catch (Exception ex) 
+            {
+                _logger.LogError(ex.Message);
+                Console.WriteLine(ex.Message);
+                Debug.WriteLine(ex.Message);
+                throw;
+            }
+        }
+
+        public ReconstructionResult LBMSolveInverse()
+        {
+            try
+            {
+                return _reconstructionPersistence.LBMSolveInverse();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                Console.WriteLine(ex.Message);
+                Debug.WriteLine(ex.Message);
+                throw;
+            }
+        }
+
         public void InitializeReconstruction(IMesh mesh, EITReconstructionParameters parameters)
         {
             try

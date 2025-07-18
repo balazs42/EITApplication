@@ -29,6 +29,20 @@ namespace BusinessLayer
             _daqRepository = daqRepository;
         }
 
+
+        public void InitializeReconstruction(IMesh mesh, EITReconstructionParameters parameters)
+        {
+            _mesh = mesh;
+
+            _numericSolver = NumericSolverFactory.Create(parameters.NumericSolver);
+            _differentialEquationSolver = DifferentialEquationSolverFactory.Create(mesh, parameters.DifferentialEquationSolver, _numericSolver);
+            _regularizer = RegularisationFactory.Create(parameters.RegularizationTechnique, _mesh);
+            _errorMetric = ErrorMetricFactory.Create(parameters.ErrorMetric);
+            _numericOptimizer = NumericOptimizerFactory.Create(parameters.NumericOptimizer, ConductivityDistributionFactory.CreateSlightlyDiffering(mesh));
+
+            _inverseModel = InverseModelFactory.Create(_mesh, _numericOptimizer, _regularizer, _errorMetric, _differentialEquationSolver);
+        }
+
         public async Task<ReconstructionResult> GetReconstructionResult()
         {
         LBMMesh? mesh = _mesh as LBMMesh;
@@ -60,19 +74,25 @@ namespace BusinessLayer
             //return reconstructionResult;
         }
 
-        public void InitializeReconstruction(IMesh mesh, EITReconstructionParameters parameters)
+        public PotentialDistribution LBMSolveForward()
         {
-            _mesh = mesh;
+            LBMMesh? mesh = _mesh as LBMMesh;
 
-            _numericSolver = NumericSolverFactory.Create(parameters.NumericSolver);
-            _differentialEquationSolver = DifferentialEquationSolverFactory.Create(mesh, parameters.DifferentialEquationSolver, _numericSolver);
-            _regularizer = RegularisationFactory.Create(parameters.RegularizationTechnique, _mesh);
-            _errorMetric = ErrorMetricFactory.Create(parameters.ErrorMetric);
-            _numericOptimizer = NumericOptimizerFactory.Create(parameters.NumericOptimizer, ConductivityDistributionFactory.CreateSlightlyDiffering(mesh));
+            if (_inverseModel == null || _mesh == null || mesh == null || _differentialEquationSolver == null)
+                throw new NullReferenceException();
 
-            _inverseModel = InverseModelFactory.Create(_mesh, _numericOptimizer, _regularizer, _errorMetric, _differentialEquationSolver);
+            var electrodes = mesh.Electrodes;
+
+            LBMBoundaryCondition bc = new(electrodes);
+
+            return _differentialEquationSolver.SolveForward(_mesh, bc);
         }
-       
+
+        public ReconstructionResult LBMSolveInverse()
+        {
+            throw new NotImplementedException();
+        }
+
         private EITMeasurement LBMSimulateDummyMeasurement()
         {
             const int size = 16;

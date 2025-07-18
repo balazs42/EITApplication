@@ -345,11 +345,17 @@ public partial class LBMReconstructionPage : ContentPage
         }
     }
     #endregion
-    private void OnStartReconstruction(object sender, EventArgs e)
+    
+    private void OnSolveForwardClicked(object sender, EventArgs e)
     {
-        _viewModel.OnStartReconstructionClicked(sender, e);
+        _viewModel.OnSolveForwardClicked(sender, e);
         PotentialResultCanvas.InvalidateSurface();
         CurrentAmplitudeCanvas.InvalidateSurface();
+    }
+
+    private void OnSolveInverseClicked(object sender, EventArgs e)
+    {
+        _viewModel.OnSolveInverseClicked(sender, e);
     }
 
     private void OnPotentialModeChanged(object sender, EventArgs e)
