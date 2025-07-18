@@ -9,6 +9,6 @@ namespace DataAccessLayer
         public void LoadEITMeasurement(DateTime dateTime);
         public void LoadEITMeasurement(int id);
         public void DeleteEITMeasurement(int id);
-        public void DeleteEITMEasurement(DateTime dateTime);
+        public void DeleteEITMeasurement(DateTime dateTime);
     }
 }
