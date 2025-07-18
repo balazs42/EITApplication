@@ -21,6 +21,17 @@ public partial class LBMReconstructionPage : ContentPage
 
     private double _maxPot, _minPot;
 
+    private enum PotentialDisplayMode
+    {
+        Default,
+        Grayscale,
+        Inverted,
+        Heatmap,
+        Rainbow
+    }
+
+    private PotentialDisplayMode _potMode = PotentialDisplayMode.Default;
+
     public LBMReconstructionPage()
 	{
 		InitializeComponent();
@@ -49,6 +60,39 @@ public partial class LBMReconstructionPage : ContentPage
         return new SKColor(r, 0, b);
     }
 
+    SKColor ColorForValue(double val, double min, double max)
+    {
+        double mid = (min + max) * 0.5;
+        if (val >= mid)
+        {
+            float t = (float)((val - mid) / (max - mid));
+            t = Math.Clamp(t, 0f, 1f);
+            byte r = (byte)(255 * t);
+            return new SKColor(r, 0, 0);
+        }
+        else
+        {
+            float t = (float)((mid - val) / (mid - min));
+            t = Math.Clamp(t, 0f, 1f);
+            byte b = (byte)(255 * t);
+            return new SKColor(0, 0, b);
+        }
+    }
+
+    private SKColor GetPotentialColor(double val)
+    {
+        var norm = (float)((val - _minPot) / (_maxPot - _minPot));
+        norm = Math.Clamp(norm, 0f, 1f);
+        return _potMode switch
+        {
+            PotentialDisplayMode.Grayscale => new SKColor((byte)(norm * 255), (byte)(norm * 255), (byte)(norm * 255)),
+            PotentialDisplayMode.Inverted => new SKColor((byte)(255 - ColorForValue(val, _minPot, _maxPot).Red), (byte)(255 - ColorForValue(val, _minPot, _maxPot).Green), (byte)(255 - ColorForValue(val, _minPot, _maxPot).Blue)),
+            PotentialDisplayMode.Heatmap => new SKColor(255, (byte)(255 * (1 - norm)), 0),
+            PotentialDisplayMode.Rainbow => SKColor.FromHsv(norm * 360f, 100f, 100f),
+            _ => ColorForValue(val, _minPot, _maxPot),
+        };
+    }
+
     private void OnPotentialResultPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
         var canvas = e.Surface.Canvas;
@@ -67,22 +111,8 @@ public partial class LBMReconstructionPage : ContentPage
 
         // grab potentials, compute min/max
         var pd = result.CurrentPotentialDistribution.Potentials;
-        double min = pd.Values.Min();
-        double max = pd.Values.Max();
-
-        _minPot = min;
-        _maxPot = max;
-
-        // rainbow: blue at t=0 → red at t=1
-        SKColor Rainbow(double v)
-        {
-            float t = (float)((v - min) / (max - min));
-            t = Math.Clamp(t, 0f, 1f);
-
-            // hue: 240° (blue) → 0° (red)
-            float hue = 240f * (1f - t);
-            return SKColor.FromHsv(hue, 100f, 100f);
-        }
+        _minPot = pd.Values.Min();
+        _maxPot = pd.Values.Max();
 
         // draw cells
         for (int y = 0; y < mesh.Ny; y++)
@@ -99,10 +129,10 @@ public partial class LBMReconstructionPage : ContentPage
                 }
                 else
                 {
-                    fill = new SKPaint       // rainbow fill
+                    fill = new SKPaint       // color according to mode
                     {
                         Style = SKPaintStyle.Fill,
-                        Color = Rainbow(pot)
+                        Color = GetPotentialColor(pot)
                     };
                 }
 
@@ -300,5 +330,11 @@ public partial class LBMReconstructionPage : ContentPage
         _viewModel.OnStartReconstructionClicked(sender, e);
         PotentialResultCanvas.InvalidateSurface();
         CurrentAmplitudeCanvas.InvalidateSurface();
+    }
+
+    private void OnPotentialModeChanged(object sender, EventArgs e)
+    {
+        _potMode = (PotentialDisplayMode)PotentialModePicker.SelectedIndex;
+        PotentialResultCanvas.InvalidateSurface();
     }
 }
