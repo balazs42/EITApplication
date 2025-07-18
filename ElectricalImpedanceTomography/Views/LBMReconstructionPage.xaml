@@ -19,7 +19,7 @@
             <controls:NavBarControl Grid.Row="0" Grid.ColumnSpan="2" CurrentPageName="LBMReconstructionPage"/>
             <Grid Grid.Row="1"
                   Grid.Column="0"
-                  ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto"
+                  ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto"
                   Padding="1"
                   ColumnSpacing="20"
                   HorizontalOptions="Center">
@@ -53,7 +53,19 @@
                         ItemsSource="{Binding NumericOptimizerOptions}"
                         SelectedItem="{Binding ReconstructionParameters.NumericOptimizer}"
                         ItemDisplayBinding="{Binding ., Converter={StaticResource EnumDesc}}" />
-                <Button Grid.Column="5"
+                <Picker x:Name="PotentialModePicker"
+                        Grid.Column="5"
+                        Title="Potential Display Mode"
+                        SelectedIndexChanged="OnPotentialModeChanged">
+                    <Picker.Items>
+                        <x:String>Default</x:String>
+                        <x:String>Grayscale</x:String>
+                        <x:String>Inverted</x:String>
+                        <x:String>Heatmap</x:String>
+                        <x:String>Rainbow</x:String>
+                    </Picker.Items>
+                </Picker>
+                <Button Grid.Column="6"
                         BackgroundColor="Gray"
                         TextColor="White"
                         FontSize="Small"
