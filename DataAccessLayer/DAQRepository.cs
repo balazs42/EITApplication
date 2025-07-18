@@ -178,7 +178,8 @@ namespace DataAccessLayer
             var opt = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             var cfg = JsonSerializer.Deserialize<SerialPortConfiguration>(json, opt) ?? throw new NullReferenceException("Configuration loading failed, check config.json file and calling code!");
             _portName = cfg.PortName ?? _portName;
-            _baudRate = Int32.Parse(cfg.BaudeRate) > 0 ? Int32.Parse(cfg.BaudeRate) : _baudRate;
+            if (int.TryParse(cfg.BaudRate, out var parsedBaud) && parsedBaud > 0)
+                _baudRate = parsedBaud;
             _parity = cfg.Parity?.Equals("Even", StringComparison.OrdinalIgnoreCase) == true
                          ? Parity.Even : Parity.None;
             _dataBits = cfg.DataBits ?? _dataBits;
@@ -208,9 +209,9 @@ namespace DataAccessLayer
         
         }
 
-        public void DeleteEITMEasurement(DateTime dateTime)
+        public void DeleteEITMeasurement(DateTime dateTime)
         {
-        
+
         }
 
 
