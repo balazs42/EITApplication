@@ -4,6 +4,9 @@ using Utility.Classes.Solvers.GraphBasedSolver;
 
 namespace Utility.Classes.Factories
 {
+    /// <summary>
+    /// The differential equation factory should be used to create the DE solvers for the forward and inverse problems.
+    /// </summary>
     public static class DifferentialEquationSolverFactory
     {
         public static IDifferentialEquationSolver Create(IMesh mesh, DifferentialEquationSolver des, INumericSolver numericSolver) => des switch

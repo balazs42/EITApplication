@@ -5,6 +5,9 @@ using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 
 namespace Utility.Classes.Factories
 {
+    /// <summary>
+    /// General mesh descriptor that can be used in both cases of the meshes
+    /// </summary>
     public struct MeshParameters
     {
         public MeshType MeshType { get; set; }
@@ -17,9 +20,12 @@ namespace Utility.Classes.Factories
         public int Radius { get; set; }
     }
 
+    /// <summary>
+    /// The mesh factory can be used to genreate Finite Element meshes and Lattice Boltzmann meshes
+    /// TODO: add generic perimeter description based mesh generation
+    /// </summary>
     public static class MeshFactory
     {
-        // TODO: create should use the MeshParameters
         public static IMesh Create(MeshParameters parameters, double inhomogenityValue = 1.0) => parameters.MeshType switch
         {
             MeshType.FEM => CreateCircularFEMMesh(layers: parameters.Layers,
