@@ -118,7 +118,7 @@ namespace Utility.Classes.Measurement
                 throw new ArgumentOutOfRangeException("Cannot set potentials, item count mismatch between potentials and electrodes. Check code!");
 
             for (int i = 0; i < Electrodes.Count; i++)
-                Electrodes[i].Current = potentials[i];
+                Electrodes[i].Potential = potentials[i];
         }
 
         private void SetElectrodePotentials(double[] potentials)
@@ -126,7 +126,7 @@ namespace Utility.Classes.Measurement
             if (potentials.Length != Electrodes.Count)
                 throw new ArgumentOutOfRangeException("Cannot set potentials, item count mismatch between potentials and electrodes. Check code!");
             for (int i = 0; i < Electrodes.Count; i++)
-                Electrodes[i].Current = potentials[i];
+                Electrodes[i].Potential = potentials[i];
         }
         #endregion
     }
