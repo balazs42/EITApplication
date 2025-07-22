@@ -232,5 +232,15 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
 
             return copy;
         }
+
+        public override GraphMesh.Graph ToGraph()
+        {
+            throw new NotImplementedException();
+        }
+
+        public override Mesh FromGraph()
+        {
+            throw new NotImplementedException();
+        }
     }
 }

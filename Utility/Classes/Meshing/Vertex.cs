@@ -12,7 +12,6 @@
         public int ElectrodeId { get; set; } = -1;
         public double Potential { get; set; } = 0.0;
 
-
         // Booelans help case checking
         public bool IsBoundary { get; set; } = false;
         public bool IsElectrode { get; set; } = false;

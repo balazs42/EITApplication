@@ -1,4 +1,5 @@
 ﻿using Utility.Classes.Meshing;
+using Utility.Classes.Meshing.GraphMesh;
 
 namespace Utility.Classes
 {
@@ -16,6 +17,9 @@ namespace Utility.Classes
         public List<MeshElement> GetElements();
         public double[] GetElectrodePotentials();
         public List<Vertex> GetElectrodeVertices();
+        public Mesh DeepCopy();
+        public Graph ToGraph();
+        public Mesh FromGraph();
     }
 
     /// <summary>
@@ -114,5 +118,7 @@ namespace Utility.Classes
         }
 
         public abstract Mesh DeepCopy();
+        public abstract Graph ToGraph();
+        public abstract Mesh FromGraph();
     }
 }

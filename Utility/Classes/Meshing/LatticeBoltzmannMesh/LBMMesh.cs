@@ -311,5 +311,14 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
 
             element.Conductivity = value;
         }
+        public override GraphMesh.Graph ToGraph()
+        {
+            throw new NotImplementedException();
+        }
+
+        public override Mesh FromGraph()
+        {
+            throw new NotImplementedException();
+        }
     }
 }
