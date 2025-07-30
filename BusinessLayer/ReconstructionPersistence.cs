@@ -1,5 +1,7 @@
 ﻿using DataAccessLayer;
+using MathNet.Numerics.Distributions;
 using System.Diagnostics;
+using System.Numerics;
 using Utility.Classes;
 using Utility.Classes.Factories;
 using Utility.Classes.Measurement;
@@ -8,6 +10,7 @@ using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.Models;
 using Utility.Classes.ReconstructionParameters;
 using Utility.Classes.Solvers.FiniteElementSolver;
+using Utility.Classes.Solvers.LatticeBoltzmannSolver;
 
 namespace BusinessLayer
 {
@@ -88,21 +91,107 @@ namespace BusinessLayer
             return _differentialEquationSolver.SolveForward(_mesh, bc);
         }
 
-        public ReconstructionResult LBMSolveInverse()
+        public ReconstructionResult LBMSolveInverse(int maxIterationCount)
         {
+            LBMMesh? mesh = (_mesh as LBMMesh);
+
+            if (_inverseModel == null || _mesh == null || mesh == null || _differentialEquationSolver == null || _errorMetric == null)
+                throw new NullReferenceException();
+
+            mesh = mesh.DeepCopy();
+
+            var electrodes = mesh.Electrodes;
+
+            LBMBoundaryCondition bc = new(electrodes);
+
+            // --- Simulate Measurements for the Inverse Solver ---
+            EITMeasurement measurementFrames = LBMSimulateMeasurements(mesh);
+
+            // --- Inverse Solver Iterations ---
+
+            // Loop to run the inverse iterations
+            for(int i = 0; i < maxIterationCount; i++)
+            {
+                // One iteration run on the whole measurement frame
+                for(int j = 0; j < measurementFrames.Frames.Count; j++)
+                {
+                    // Solve Forward to extract simulated potentials
+                    var phi = _differentialEquationSolver.SolveForward(mesh, bc);
+
+                    // Extract simulated potentials
+                    double[] simulatedPotentials = mesh.GetElectrodePotentials();
+
+                    double[] currentMeasurement = measurementFrames.GetNextFrame();
+
+                    double currentError = _errorMetric.Evaluate(mesh, currentMeasurement, simulatedPotentials);
+
+                    // Error metric based gradeint expression
+                    var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, currentMeasurement, simulatedPotentials);
+
+                    Complex[] adjointSource = new Complex[adjSrc.Length];
+                    for (int k = 0; k < adjSrc.Length; k++)
+                        adjointSource[k] = adjSrc[k];
+
+                    var mu = _differentialEquationSolver.SolveAdjoint(mesh, new LBMBoundaryCondition(electrodes), adjointSource);
+
+                    var dataGrad = new ConductivityDistribution(
+                        mesh.Elements.ToDictionary(
+                            el => el.Id,
+                            el => {
+                                // compute <∇φ, ∇μ> on this element
+                                var gPhi = LatticeBoltzmannOperators.CalculateGradient(mesh, phi).GetVector(el.Id);
+                                var gMu = LatticeBoltzmannOperators.CalculateGradient(mesh, mu).GetVector(el.Id);
+                                return (gMu.X * gPhi.X + gMu.Y * gPhi.Y);
+                            }
+                        )
+                    );
+
+                    // Update conductivities
+                }
+            }
+
             throw new NotImplementedException();
         }
 
-        private EITMeasurement LBMSimulateDummyMeasurement()
+        private EITMeasurement LBMSimulateMeasurements(LBMMesh mesh)
         {
-            const int size = 16;
+            int electrodeCount = mesh.Electrodes.Count;
 
-            double[,] meas = new double[size, size];
-            for (int i = 0; i < size; i++)
-                for (int j = 0; j < size; j++)
-                    meas[i, j] = 1.0;
+            double[,] measurementFrames = new double[electrodeCount, electrodeCount];
 
-            return new EITMeasurement(meas);
+            var electrodes = mesh.Electrodes;
+
+            for(int i = 0; i < electrodeCount; i++)
+            {
+                // Set the excitation electrodes
+                foreach(var el in electrodes)
+                {
+                    el.IsMeasuring = false;
+                    el.IsGround = false;
+                    el.IsExcitation = false;
+                    el.Potential = 0.0;
+                    el.Current = 0.0;
+                }
+
+                electrodes[i % electrodeCount].IsExcitation = true;
+                electrodes[i % electrodeCount].Current = 2.0;
+                electrodes[(i + 1) % electrodeCount].IsGround = true;
+                electrodes[(i + 1) % electrodeCount].Current = 0.0;
+
+                // Create boundary conditions for the solver
+                LBMBoundaryCondition boundaryCondition = new LBMBoundaryCondition(electrodes);
+
+                // Solve for the arising potentials
+                var solution = _differentialEquationSolver.SolveForward(mesh, boundaryCondition);
+                
+                // Extract simulated potentials
+                double[] electrodePotentials = mesh.GetElectrodePotentials();
+
+                for (int j = 0; j < electrodeCount; j++)
+                    measurementFrames[i, j] = electrodePotentials[j];
+            }
+
+            return new EITMeasurement(measurementFrames);
         }
 
         #region Finite Element Method Related Functions

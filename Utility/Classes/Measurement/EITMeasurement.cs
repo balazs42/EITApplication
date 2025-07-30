@@ -58,11 +58,11 @@ namespace Utility.Classes.Measurement
             if (Frames.Count == 0 || Frames == null)
                 throw new NullReferenceException("Cannot get next frame, since Frames list is null or empty. Check code!");
 
-            double[] frame = Frames[currentFrameIndex++ % FrameSize];
+            int frameCount = Frames.Count;
+
+            double[] frame = Frames[currentFrameIndex++ % frameCount];
 
             return frame;
         }
-
-
     }
 }

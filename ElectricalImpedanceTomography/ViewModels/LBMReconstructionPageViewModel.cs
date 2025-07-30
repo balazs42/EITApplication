@@ -127,6 +127,12 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public void OnSolveInverseClicked(object sender, EventArgs e)
         {
+            const int maxIterCount = 50;
+
+
+            _reconstructionService.LBMSolveInverse(maxIterCount);
+
+
             // TODO: implement
         }
 

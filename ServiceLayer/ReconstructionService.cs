@@ -49,11 +49,11 @@ namespace ServiceLayer
             }
         }
 
-        public ReconstructionResult LBMSolveInverse()
+        public ReconstructionResult LBMSolveInverse(int maxIterationCount)
         {
             try
             {
-                return _reconstructionPersistence.LBMSolveInverse();
+                return _reconstructionPersistence.LBMSolveInverse(maxIterationCount);
             }
             catch (Exception ex)
             {
