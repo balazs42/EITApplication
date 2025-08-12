@@ -227,7 +227,7 @@
         public ConductivityDistribution OptimizationStep(ConductivityDistribution sigmaK, ConductivityDistribution totalGradient, double alpha)
         {
             // compute grad norm
-            double normG = Math.Sqrt(sigmaK.Conductivities.Sum(KV => KV.Value * KV.Value));
+            double normG = Math.Sqrt(totalGradient.Conductivities.Sum(kv => kv.Value * kv.Value));
 
             if (normG > _tol || !_anchored)
             {

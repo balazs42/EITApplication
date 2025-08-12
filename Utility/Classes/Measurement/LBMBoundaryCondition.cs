@@ -12,7 +12,7 @@ namespace Utility.Classes.Measurement
         public LBMBoundaryCondition(List<LBMElectrode> electrodes)
         {
             Electrodes = electrodes;
-            
+            base.Electrodes = electrodes.Cast<LBMElectrode>().ToList();
             InitLBM(electrodes);
         }
 
@@ -38,11 +38,13 @@ namespace Utility.Classes.Measurement
 
             GroundElectrodeId = groundElectrode.Id;
             ExcitationElectrodeId = excitationElectrode.Id;
+            base.Electrodes = electrodes.Cast<LBMElectrode>().ToList();
         }
 
         public override void Initialize(IEnumerable<Electrode> electrodes)
         {
             InitLBM(electrodes.Cast<LBMElectrode>().ToList());
+            base.Electrodes = electrodes.Cast<LBMElectrode>().ToList();
         }
 
         public List<LBMElectrode> GetElectrodes() => this.Electrodes;

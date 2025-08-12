@@ -28,8 +28,8 @@ namespace Utility.Classes
     /// </summary>
     public abstract class Mesh : IMesh
     {
-        public List<Vertex> Vertices { get; protected set; } = [];
-        public List<MeshElement> Elements { get; protected set; } = [];
+        public List<Vertex> Vertices { get; set; } = [];
+        public List<MeshElement> Elements { get; set; } = [];
         public List<Electrode> Electrodes { get; set; } = [];
         public ConductivityDistribution ConductivityDistribution { get; set; }
         public PotentialDistribution PotentialDistribution { get; set; }

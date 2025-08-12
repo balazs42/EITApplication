@@ -2,6 +2,7 @@
 using System.Diagnostics.Tracing;
 using Utility.Classes.Meshing;
 using Utility.Classes.Meshing.FiniteElementMesh;
+using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 
 namespace Utility.Classes.Measurement
 {
@@ -20,6 +21,7 @@ namespace Utility.Classes.Measurement
             this.InitFEM(electrodes);
 
             Electrodes = electrodes;
+            base.Electrodes = electrodes.Cast<Electrode>().ToList();
         }
 
 
@@ -38,6 +40,7 @@ namespace Utility.Classes.Measurement
                     }
                 }
             }
+            base.Electrodes = electrodes.Cast<Electrode>().ToList();
         }
 
         public void InitFEM(List<FEMElectrode> electrodes)
@@ -62,11 +65,13 @@ namespace Utility.Classes.Measurement
 
             GroundElectrodeId = groundElectrode.Id;
             ExcitationElectrodeId = excitationElectrode.Id;
+            base.Electrodes = electrodes.Cast<Electrode>().ToList();
         }
 
         public override void Initialize(IEnumerable<Electrode> electrodes)
         {
             InitFEM(electrodes.Cast<FEMElectrode>().ToList());
+            base.Electrodes = electrodes.Cast<LBMElectrode>().ToList();
         }
     }
 }

@@ -88,34 +88,22 @@ namespace Utility.Classes.ReconstructionParameters
 
         public double[] SolveLinearSystem(double[,] A, double[] b)
         {
-            Matrix<double> matrixA = DenseMatrix.OfArray(A);
-            Vector<double> vectorB = DenseVector.OfArray(b);
+            var M = DenseMatrix.OfArray(A);
+            var y = DenseVector.OfArray(b);
+            var svd = M.Svd(computeVectors: true);
+            var U = svd.U; var VT = svd.VT; var s = svd.S;
 
-            // Perform SVD to get the components U, S, and V
-            var svd = matrixA.Svd();
-            Matrix<double> U = svd.U;
-            Vector<double> s = svd.S; // Vector of singular values
-            Matrix<double> V = svd.VT;
+            // Truncálás
+            for (int i = 0; i < s.Count; i++)
+                if (s[i] < _threshold) s[i] = 0.0;
 
-            // Manually compute the solution x = V * Σ_inv * U^T * b
-            // with truncation on the inverse of the singular values.
-            var s_inv = s.PointwiseMultiply(s.Map(x => x < _threshold ? 0.0 : 1.0)); // Zero out small values
-            s_inv = s_inv.PointwiseDivide(s); // Invert non-zero values
-            s_inv.CoerceZero(1e12); // Coerce large values resulting from near-zero division to 0
+            // x = V Σ⁻¹ Uᵀ b  (ahol Σ⁻¹[i]= 1/s[i] ha s[i]>0, különben 0)
+            var UTb = U.TransposeThisAndMultiply(y);
+            for (int i = 0; i < UTb.Count; i++)
+                UTb[i] = (s[i] > 0) ? UTb[i] / s[i] : 0.0;
 
-            var Sigma_inv = DenseMatrix.OfDiagonalVector(s_inv);
-
-            // The dimensions of Sigma_inv must match U^T.
-            // SVD factorization A = U*S*V' gives U (m x p), S (p x p diag), V (n x p) where p=min(m,n)
-            // We need a (p x m) Σ_inv matrix.
-            var correctSigmaInv = new DenseMatrix(V.ColumnCount, U.ColumnCount);
-            for (int i = 0; i < Math.Min(V.ColumnCount, U.ColumnCount); ++i)
-                correctSigmaInv[i, i] = s_inv[i];
-
-
-            Vector<double> resultX = V.Multiply(correctSigmaInv.Multiply(U.TransposeThisAndMultiply(vectorB)));
-
-            return resultX.ToArray();
+            var x = VT.TransposeThisAndMultiply(UTb);
+            return x.ToArray();
         }
     }
 

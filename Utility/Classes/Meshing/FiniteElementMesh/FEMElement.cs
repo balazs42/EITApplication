@@ -1,12 +1,10 @@
-﻿using System.Diagnostics.CodeAnalysis;
-
-namespace Utility.Classes.Meshing.FiniteElementMesh
+﻿namespace Utility.Classes.Meshing.FiniteElementMesh
 {
     public sealed class FEMElement : MeshElement
     {
         public double Area { get; set; }
         public List<Vertex> Vertices { get; set; } = [new Vertex(), new Vertex(), new Vertex()];
-        public double[,] GradPhi { get; private set; } = new double[3, 3]; // Gradients of shape functions
+        public double[,] GradPhi { get; private set; } = new double[3, 2]; // Gradients of shape functions
         public double[,] DotProducts { get; private set; } = new double[3, 3];
 
         public FEMElement(int id, Vertex v1, Vertex v2, Vertex v3) 
