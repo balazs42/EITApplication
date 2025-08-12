@@ -108,7 +108,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             var grad = new Dictionary<int, double>();
 
             // baseline
-            var φ0 = solver.RunForward(mesh, bc);
+            var φ0 = solver.SolveForward(mesh, bc);
             var u0 = mesh.GetElectrodePotentials();
             double J0 = 0;
             for (int e = 0; e < observed.Length; e++)
@@ -121,7 +121,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
                 // σ+δ
                 mesh.SetConductivity(id, σi + δ);
-                solver.RunForward(mesh, bc);
+                solver.SolveForward(mesh, bc);
                 var uPlus = mesh.GetElectrodePotentials();
                 double Jplus = 0;
                 for (int e = 0; e < observed.Length; e++)
@@ -129,7 +129,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
                 // σ-δ
                 mesh.SetConductivity(id, σi - δ);
-                solver.RunForward(mesh, bc);
+                solver.SolveForward(mesh, bc);
                 var uMinus = mesh.GetElectrodePotentials();
                 double Jminus = 0;
                 for (int e = 0; e < observed.Length; e++)

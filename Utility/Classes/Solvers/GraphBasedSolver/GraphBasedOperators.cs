@@ -50,7 +50,37 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
 
             return phi;
         }
+
+        public double[] SolveLaplacianGrounded(double[,] L, double[] b, int groundNode)
+        {
+            int n = L.GetLength(0);
+            var map = new int[n];
+            int m = 0;
+            for (int i = 0; i < n; i++) map[i] = (i == groundNode) ? -1 : m++;
+
+            var A = new double[m, m];
+            var rhs = new double[m];
+
+            for (int i = 0; i < n; i++)
+            {
+                if (map[i] < 0) continue;
+                int ii = map[i];
+                rhs[ii] = b[i];
+                for (int j = 0; j < n; j++)
+                {
+                    if (map[j] < 0) continue;
+                    int jj = map[j];
+                    A[ii, jj] = L[i, j];
+                }
+            }
+
+            var xReduced = _solver.SolveLinearSystem(A, rhs);
+            var x = new double[n];
+            for (int i = 0; i < n; i++) x[i] = (map[i] < 0) ? 0.0 : xReduced[map[i]];
+            return x;
+        }
     }
+
 
     /// <summary>
     /// Computes gradients ∂J/∂w̄ and ∂J/∂α using the adjoint state method.

@@ -4,7 +4,6 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
 {
     public class FEMMesh : Mesh
     {
-        public new List<Vertex> Vertices = [];
         public new List<FEMElement> Elements { get; set; } = [];
         public new List<FEMElectrode> Electrodes { get; set; } = [];
 
@@ -73,6 +72,8 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
                 }
             }
 
+            base.Electrodes = Electrodes.Cast<Electrode>().ToList();
+
             double[] potentials = new double[Electrodes.Count];
 
             for (int i = 0; i < potentials.Length; i++)
@@ -106,6 +107,8 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
                     }
                 }
             }
+
+            base.Elements = Elements.Cast<MeshElement>().ToList();
         }
 
         /// <summary>
@@ -148,27 +151,15 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
         /// </summary>
         /// <param name="potentials">List of potentials that will be set for the electrodes.</param>
         /// <exception cref="ArgumentOutOfRangeException">Throws if list sizes are not compatible.</exception>
-        public void SetElectrodePotentials(List<double> potentials)
+        public void SetElectrodePotentials(IList<double> potentials)
         {
             if (potentials.Count != Electrodes.Count)
                 throw new ArgumentOutOfRangeException("Cannot set electrode potentials, if list size mistamtch electrodes list count, check code!");
 
             for (int i = 0; i < potentials.Count; i++)
                 Electrodes[i].Potential = potentials[i];
-        }
 
-        /// <summary>
-        /// Sets the electrode potentials of the mesh to the provided array. The provided array should contain the electrode potentials ordered as 1st to last electrode.
-        /// </summary>
-        /// <param name="potentials">Array of potentials that will be set for the electrodes.</param>
-        /// <exception cref="ArgumentOutOfRangeException">Throws if array lengths are not compatible.</exception>
-        public void SetElectrodePotentials(double[] potentials)
-        {
-            if (potentials.Length != Electrodes.Count)
-                throw new ArgumentOutOfRangeException("Cannot set electrode potentials, if list size mistamtch electrodes list count, check code!");
-
-            for (int i = 0; i < potentials.Length; i++)
-                Electrodes[i].Potential = potentials[i];
+            base.Electrodes = Electrodes.Cast<Electrode>().ToList();
         }
 
         /// <summary>

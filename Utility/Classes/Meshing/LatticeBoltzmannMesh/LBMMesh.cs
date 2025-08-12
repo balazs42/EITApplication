@@ -86,6 +86,9 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
             // Place 16 equidistant electrodes inside the walls
             PlaceEquidistantElectrodes(electrodeNum);
 
+            base.Electrodes = Electrodes.Cast<Electrode>().ToList();
+            base.Elements = Elements.Cast<MeshElement>().ToList();
+
             //this.ConductivityDistribution = PriorConductivityDistributionGenerator.GenerateHomogeneousDistribution(this, 1.0);
         }
 
@@ -122,6 +125,9 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
                     _elementGrid[x, y] = correspondingElement;
                 }
             }
+
+            base.Electrodes = Electrodes.Cast<Electrode>().ToList();
+            base.Elements = Elements.Cast<MeshElement>().ToList();
         }
 
         /// <summary>
@@ -291,7 +297,6 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
         public new void SetPotentialDistribution(PotentialDistribution potentialDistribution)
         {
             PotentialDistribution = potentialDistribution;
-            base.PotentialDistribution = potentialDistribution;
 
             foreach(var kvp in PotentialDistribution.Potentials)
             {
@@ -300,6 +305,8 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
                 if(correspondingElectrode != null ) 
                     correspondingElectrode.Potential = kvp.Value;
             }
+
+            base.Electrodes = Electrodes.Cast<Electrode>().ToList();
         }
 
         public void SetConductivity(int id, double value)
@@ -310,6 +317,8 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
                 throw new NullReferenceException("Cannot set conductivity of element, can not find Id!");
 
             element.Conductivity = value;
+
+            base.Elements = Elements.Cast<MeshElement>().ToList();
         }
         public override GraphMesh.Graph ToGraph()
         {

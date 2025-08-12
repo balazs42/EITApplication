@@ -1,5 +1,4 @@
 ﻿using DataAccessLayer;
-using MathNet.Numerics.Distributions;
 using System.Diagnostics;
 using System.Numerics;
 using Utility.Classes;
@@ -69,9 +68,14 @@ namespace BusinessLayer
 
             LBMBoundaryCondition bc = new(electrodes);
 
-            return new ReconstructionResult((LBMMesh)_mesh, _differentialEquationSolver.SolveForward(_mesh, bc), new PotentialDistribution(new()), ConductivityDistributionFactory.CreateRandom(_mesh), ConductivityDistributionFactory.CreateRandom(_mesh), ConductivityDistributionFactory.CreateRandom(_mesh));
-
+            return new ReconstructionResult((LBMMesh)_mesh,
+                                            _differentialEquationSolver.Solve(_mesh, bc, null),
+                                            new PotentialDistribution(new()), 
+                                            ConductivityDistributionFactory.CreateRandom(_mesh), 
+                                            ConductivityDistributionFactory.CreateRandom(_mesh), 
+                                            ConductivityDistributionFactory.CreateRandom(_mesh));
             throw new NotImplementedException();
+
             //ConductivityDistribution result = new ConductivityDistribution(new());
             //ReconstructionResult reconstructionResult = new ReconstructionResult((_mesh is FEMMesh) ? (FEMMesh)_mesh : (LBMMesh)_mesh, result);
             //return reconstructionResult;
@@ -88,7 +92,7 @@ namespace BusinessLayer
 
             LBMBoundaryCondition bc = new(electrodes);
 
-            return _differentialEquationSolver.SolveForward(_mesh, bc);
+            return _differentialEquationSolver.Solve(_mesh, bc, null);
         }
 
         public ReconstructionResult LBMSolveInverse(int maxIterationCount)
@@ -116,7 +120,7 @@ namespace BusinessLayer
                 for(int j = 0; j < measurementFrames.Frames.Count; j++)
                 {
                     // Solve Forward to extract simulated potentials
-                    var phi = _differentialEquationSolver.SolveForward(mesh, bc);
+                    var phi = _differentialEquationSolver.Solve(mesh, bc, null);
 
                     // Extract simulated potentials
                     double[] simulatedPotentials = mesh.GetElectrodePotentials();
@@ -132,7 +136,7 @@ namespace BusinessLayer
                     for (int k = 0; k < adjSrc.Length; k++)
                         adjointSource[k] = adjSrc[k];
 
-                    var mu = _differentialEquationSolver.SolveAdjoint(mesh, new LBMBoundaryCondition(electrodes), adjointSource);
+                    var mu = _differentialEquationSolver.Solve(mesh, new LBMBoundaryCondition(electrodes), adjointSource);
 
                     var dataGrad = new ConductivityDistribution(
                         mesh.Elements.ToDictionary(
@@ -155,6 +159,9 @@ namespace BusinessLayer
 
         private EITMeasurement LBMSimulateMeasurements(LBMMesh mesh)
         {
+            if (_differentialEquationSolver == null)
+                throw new NullReferenceException("Differential equation solver was null, check initializiation code!");
+
             int electrodeCount = mesh.Electrodes.Count;
 
             double[,] measurementFrames = new double[electrodeCount, electrodeCount];
@@ -182,7 +189,7 @@ namespace BusinessLayer
                 LBMBoundaryCondition boundaryCondition = new LBMBoundaryCondition(electrodes);
 
                 // Solve for the arising potentials
-                var solution = _differentialEquationSolver.SolveForward(mesh, boundaryCondition);
+                var solution = _differentialEquationSolver.Solve(mesh, boundaryCondition, null);
                 
                 // Extract simulated potentials
                 double[] electrodePotentials = mesh.GetElectrodePotentials();
@@ -207,7 +214,7 @@ namespace BusinessLayer
 
             BoundaryCondition boundaryConditions = new FEMBoundaryCondition(electrodes);
 
-            PotentialDistribution potentialDistribution = _differentialEquationSolver.SolveForward(mesh, boundaryConditions);
+            PotentialDistribution potentialDistribution = _differentialEquationSolver.Solve(mesh, boundaryConditions, null);
             mesh.SetPotentialDistribution(potentialDistribution);
 
             return mesh;
@@ -242,7 +249,7 @@ namespace BusinessLayer
                 Debug.WriteLine($"\n=== Inverse iteration {iter} ===");
 
                 // 4a) Forward solve φ⁽ᵏ⁾ = S(σ⁽ᵏ⁾)   (thesis Eq. 1.1.16)
-                PotentialDistribution phi = _differentialEquationSolver.SolveForward(mesh, bc);
+                PotentialDistribution phi = _differentialEquationSolver.Solve(mesh, bc, null);
                 Debug.WriteLine("Forward φ computed.");
 
                 // 4b) Extract simulated boundary data d_sim
@@ -272,8 +279,8 @@ namespace BusinessLayer
 
                 // 4f) Adjoint solve μ: same forward‐solver but feed in adjSrc as boundary currents
                 var mu = _differentialEquationSolver
-                    .SolveForward(mesh,
-                                  new FEMBoundaryCondition(electrodes, srcDist));
+                    .Solve(mesh,
+                                  new FEMBoundaryCondition(electrodes, srcDist), null /*TODO: this should be adjoint source*/ );
                 Debug.WriteLine("Adjoint μ computed.");
 
                 // 4g) Compute gradient ∇J_data = ∇μ·∇φ elementwise  (thesis Eq. 2.1.20)
@@ -386,7 +393,7 @@ namespace BusinessLayer
                     bc = new FEMBoundaryCondition(mesh.Electrodes);
 
                     // 4a) Forward solve φ⁽ᵏ⁾ = S(σ⁽ᵏ⁾)   (thesis Eq. 1.1.16)
-                    PotentialDistribution phi = _differentialEquationSolver.SolveForward(mesh, bc);
+                    PotentialDistribution phi = _differentialEquationSolver.Solve(mesh, bc, null);
                     Debug.WriteLine("Forward φ computed.");
 
                     // 4b) Extract simulated boundary data d_sim
@@ -399,6 +406,12 @@ namespace BusinessLayer
 
                     // 4e) Build adjoint source s = EvaluateAdjointSource (L2: residual; W2: Kantorovich φ) 
                     var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, dObs, dSim);
+
+                    Complex[] adjointSource = new Complex[adjSrc.Length];
+                    for(int i = 0; i < adjSrc.Length; i++)
+                        adjointSource[i] = adjSrc[i];
+
+
                     // wrap into a PotentialDistribution on electrodes
                     var srcDist = new PotentialDistribution(
                         Enumerable.Range(0, adjSrc.Length)
@@ -406,7 +419,7 @@ namespace BusinessLayer
                     );
 
                     // 4f) Adjoint solve μ: same forward‐solver but feed in adjSrc as boundary currents
-                    var mu = _differentialEquationSolver.SolveForward(mesh, new FEMBoundaryCondition(electrodes, srcDist));
+                    var mu = _differentialEquationSolver.Solve(mesh, new FEMBoundaryCondition(electrodes, srcDist), adjointSource);
                     Debug.WriteLine("Adjoint μ computed.");
 
                     // 4g) Compute gradient ∇J_data = ∇μ·∇φ elementwise  (thesis Eq. 2.1.20)
@@ -471,7 +484,7 @@ namespace BusinessLayer
                     electrodes[(exc + 1) % electrodeCount].IsGround = true;
                     electrodes[(exc + 1) % electrodeCount].Current = -excitationAmplitude;
 
-                    var phiNew = _differentialEquationSolver.SolveForward(mesh, bc);
+                    var phiNew = _differentialEquationSolver.Solve(mesh, bc, null);
                     double[] dSimNew = mesh.GetElectrodePotentials();
                     double[] dObs = simulatedMeasurements[exc];
                     Jtotal += _errorMetric.Evaluate(mesh, dObs, dSimNew);
@@ -557,7 +570,7 @@ namespace BusinessLayer
             var electrodeCount = mesh.Electrodes.Count;
 
             // Forward solve  (thesis Eq. 1.1.16)
-            PotentialDistribution phi = _differentialEquationSolver.SolveForward(mesh, bc);
+            PotentialDistribution phi = _differentialEquationSolver.Solve(mesh, bc, null);
             Debug.WriteLine("Forward φ computed.");
 
             // Extract simulated boundary data d_sim
@@ -566,12 +579,16 @@ namespace BusinessLayer
 
             // Build adjoint source s = EvaluateAdjointSource (L2: residual; W2: Kantorovich φ) 
             var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, dObs, dSim);
-           
+
+            Complex[] adjointSource = new Complex[adjSrc.Length];
+            for (int i = 0; i < adjSrc.Length; i++)
+                adjointSource[i] = adjSrc[i];
+
             // wrap into a PotentialDistribution on electrodes
             var srcDist = new PotentialDistribution(Enumerable.Range(0, adjSrc.Length).ToDictionary(i => electrodes[i].Id, i => adjSrc[i]));
 
             // 4f) Adjoint solve μ: same forward‐solver but feed in adjSrc as boundary currents
-            var mu = _differentialEquationSolver.SolveForward(mesh, new FEMBoundaryCondition(electrodes, srcDist));
+            var mu = _differentialEquationSolver.Solve(mesh, new FEMBoundaryCondition(electrodes, srcDist), adjointSource);
             Debug.WriteLine("Adjoint μ computed.");
 
             // 4g) Compute gradient ∇J_data = ∇μ·∇φ elementwise  (thesis Eq. 2.1.20)

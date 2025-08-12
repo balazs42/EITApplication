@@ -220,6 +220,7 @@
 
         public GlobalTunnelingDescentOptimizer(double tolerance = 1e-3, double mu0 = 1.0)
         {
+            _anchor = new([]);
             _tol = tolerance;
             _mu0 = mu0;
         }
@@ -228,7 +229,7 @@
         {
             // compute grad norm
             double normG = Math.Sqrt(totalGradient.Conductivities.Sum(kv => kv.Value * kv.Value));
-
+    
             if (normG > _tol || !_anchored)
             {
                 // normal gradient descent

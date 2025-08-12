@@ -36,7 +36,8 @@ namespace Utility.Classes
 
         public Mesh()
         {
-
+            ConductivityDistribution = new(new());
+            PotentialDistribution = new(new());
         }
 
         public void LogMesh()

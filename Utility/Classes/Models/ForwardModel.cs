@@ -27,7 +27,7 @@ namespace Utility.Classes.Models
 
         public PotentialDistribution ForwardSolve()
         {
-            return _differentialEquationSolver.SolveForward(_mesh, _boundaryCondition);
+            return _differentialEquationSolver.Solve(_mesh, _boundaryCondition, null);
         }
 
         public ConductivityDistribution GetConductivityDistribution() => _conductivityDistribution;

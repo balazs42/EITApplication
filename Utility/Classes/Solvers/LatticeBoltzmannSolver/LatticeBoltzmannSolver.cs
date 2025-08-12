@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using System.Numerics;
+﻿using System.Numerics;
 using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 
@@ -10,7 +9,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
     /// Implements collision, streaming, bounce-back, and CEM boundary directly.
     /// Only uses LatticeBoltzmannOperators for inverse finite-difference gradient.
     /// </summary>
-    public sealed class LatticeBoltzmannSolver
+    public sealed class LatticeBoltzmannSolver : ISolver
     {
         // D2Q9 discrete velocities
         private static readonly (int cx, int cy)[] C =
@@ -22,16 +21,56 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         // Weights
         private static readonly double[] W =
         {
-            4.0/9.0,
-            1.0/9.0,1.0/9.0,1.0/9.0,1.0/9.0,
-            1.0/36.0,1.0/36.0,1.0/36.0,1.0/36.0
+            4.0 / 9.0,
+            1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0,
+            1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0
         };
+
+        private int MaxIterationCount = 1000;
+        private double SolutionTolerance = 1e-6;
+        private int ConvergenceCheckFrequency = 100;
+
+        public LatticeBoltzmannSolver(int maxIterationCount, double solutionTolerance, int convergenceCheckFrequency)
+        {
+            MaxIterationCount = maxIterationCount;
+            SolutionTolerance = solutionTolerance;
+            ConvergenceCheckFrequency = convergenceCheckFrequency;
+        }
+
+        public PotentialDistribution SolveForward(IMesh mesh, BoundaryCondition boundaryCondition)
+        {
+            var lbmMesh = mesh as LBMMesh ?? throw new InvalidCastException();
+            var bc = boundaryCondition as LBMBoundaryCondition ?? throw new InvalidCastException();
+
+            return RunForward(lbmMesh, bc);
+        }
+
+        public PotentialDistribution SolveAdjoint(IMesh mesh, BoundaryCondition boundaryCondition, Complex[] adjointSource)
+        {
+            var lbmMesh = mesh as LBMMesh ?? throw new InvalidCastException();
+            var bc = boundaryCondition as LBMBoundaryCondition ?? throw new InvalidCastException();
+
+            for(int i = 0; i < bc.Electrodes.Count; i++)
+            {
+                bc.Electrodes[i].Potential = 0.0;
+                lbmMesh.Electrodes[i].Potential = 0.0;
+
+                bc.Electrodes[i].Current = adjointSource[i].Real;   // TODO: add complex currents
+                lbmMesh.Electrodes[i].Current = adjointSource[i].Real;
+            }
+
+            return RunForward(lbmMesh, bc);
+        }
 
         /// <summary>
         /// Runs the forward LBM until steady-state, returning electrode potentials.
         /// </summary>
-        public PotentialDistribution RunForward(LBMMesh mesh, LBMBoundaryCondition bc, int maxIter = 10000, double tol = 1e-6, int checkFreq = 100)
+        private PotentialDistribution RunForward(LBMMesh mesh, LBMBoundaryCondition bc)
         {
+            int maxIter = MaxIterationCount;
+            double tol = SolutionTolerance;
+            int checkFreq = ConvergenceCheckFrequency;
+
             // 1) Initialize distributions Fi and Fi_next to zero
             foreach (var el in mesh.Elements)
             {
@@ -210,47 +249,6 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             mesh.SetPotentialDistribution(pd);
 
             return pd;
-        }
-
-        /// <summary>
-        /// Inverse solve using finite-difference gradient (calls LatticeBoltzmannOperators).
-        /// Implements steepest-descent iterations: σ_{k+1} = σ_k - stepSize * ∂J/∂σ.
-        /// </summary>
-        /// <summary>
-        /// Inverse: finite-difference gradient descent per σ_i.
-        /// </summary>
-        public ConductivityDistribution InverseSolve(LBMMesh mesh, LBMBoundaryCondition bc, Complex[] observed, int maxIter, double δ, double α)
-        {
-            // initial σ from mesh
-            var σ = mesh.GetConductivityDistribution();
-
-            for (int iter = 0; iter < maxIter; iter++)
-            {
-                // forward
-                var sim = RunForward(mesh, bc);
-                var φsim = mesh.GetElectrodePotentials();
-
-                // misfit logging
-                double J = 0;
-                for (int i = 0; i < observed.Length; i++)
-                    J += 0.5 * Math.Pow(φsim[i] - observed[i].Real, 2);
-                Debug.WriteLine($"Iter {iter} J={J:E3}");
-
-                // gradient w.r.t σ
-                var grad = LatticeBoltzmannOperators.ComputeFiniteDifferenceGradient(mesh, bc, observed, this, δ);
-
-                // update σ_i ← σ_i - α·grad_i
-                var next = new Dictionary<int, double>();
-                foreach (var kv in σ.Conductivities)
-                {
-                    double v = kv.Value - α * grad.IdValuePairs[kv.Key];
-                    next[kv.Key] = Math.Max(1e-6, v);
-                }
-                σ = new ConductivityDistribution(next);
-                mesh.SetConductivityDistribution(σ);
-            }
-
-            return mesh.GetConductivityDistribution();
         }
     }
 }

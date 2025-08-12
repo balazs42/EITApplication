@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Numerics;
+using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.ReconstructionParameters;
 
@@ -15,7 +16,7 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
     ///  • Sec 1.1.3: grounding removal
     ///  • Eq (2.1.20): gradient if needed
     /// </summary>
-    public sealed class FiniteElementSolver
+    public sealed class FiniteElementSolver : ISolver
     {
         private readonly INumericSolver _numericSolver;
 
@@ -50,6 +51,31 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             SystemRHS = new Complex[N_phi + L];
         }
 
+        public PotentialDistribution SolveForward(IMesh mesh, BoundaryCondition boundaryCondition)
+        {
+            var femMesh = mesh as FEMMesh ?? throw new InvalidCastException();
+            var bc = boundaryCondition as FEMBoundaryCondition ?? throw new InvalidCastException();
+
+            return Solve(femMesh, bc.Electrodes);
+        }
+
+        public PotentialDistribution SolveAdjoint(IMesh mesh, BoundaryCondition boundaryCondition, Complex[] adjointSource)
+        {
+            var femMesh = mesh as FEMMesh ?? throw new InvalidCastException();
+            var bc = boundaryCondition as FEMBoundaryCondition ?? throw new InvalidCastException();
+
+            for (int i = 0; i < bc.Electrodes.Count; i++)
+            {
+                femMesh.Electrodes[i].Potential = 0.0;  
+                bc.Electrodes[i].Potential = 0.0;
+
+                femMesh.Electrodes[i].Current = adjointSource[i].Real;  // TODO: add complex currents
+                bc.Electrodes[i].Current = adjointSource[i].Real;
+            }
+
+            return Solve(femMesh, bc.Electrodes);
+        }
+
         /// <summary>
         /// Solve forward CEM problem. First builds the saddle point system, applies grounding then solves with _numericSolver.
         /// Finally reinserts grounding and returing the arising potential distribution on the mesh.
@@ -57,7 +83,7 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         /// <param name="mesh"/> FEM mesh
         /// <param name="electrodes"/> electrode list with .Current, .IsGround set
         /// <returns>vector [alpha; U]</returns>
-        public PotentialDistribution Solve(FEMMesh mesh, List<FEMElectrode> electrodes)
+        private PotentialDistribution Solve(FEMMesh mesh, List<FEMElectrode> electrodes)
         {
             // Build sub-blocks of the Saddle-Point System
             BuildStiffnessMatrix(mesh);     // Eq (1.2.3)

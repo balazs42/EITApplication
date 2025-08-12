@@ -5,6 +5,8 @@ using Utility.Classes.Solvers.LatticeBoltzmannSolver;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.Solvers.GraphBasedSolver;
+using Utility.Classes.Solvers;
+using MathNet.Numerics.Financial;
 
 namespace Utility.Classes.ReconstructionParameters
 {
@@ -18,14 +20,14 @@ namespace Utility.Classes.ReconstructionParameters
     public interface IDifferentialEquationSolver
     {
         /// <summary>
-        /// Solves the forward problem to find the potential field φ.
+        /// This function can be called to solve the differential equations assocaited to the meshes. Proper 
+        /// mesh initialization should be done and boundary conditions in forward case should be set the measured values
+        /// in the adjoint case, should be set to the adjoint source.
         /// </summary>
-        PotentialDistribution SolveForward(IMesh mesh, BoundaryCondition bc);
-
-        /// <summary>
-        /// Solves the adjoint problem to find the adjoint variable μ.
-        /// </summary>
-        PotentialDistribution SolveAdjoint(IMesh mesh, BoundaryCondition bc, Complex[] adjointSource);
+        /// <param name="mesh">Mesh object that will be used to solve the equations.</param>
+        /// <param name="boundaryCondition">The specified boundaryConditions</param>
+        /// <returns></returns>
+        PotentialDistribution Solve(IMesh mesh, BoundaryCondition boundaryCondition, Complex[]? adjointSource);
     }
 
     public sealed class FiniteElementDESolver : IDifferentialEquationSolver
@@ -38,35 +40,23 @@ namespace Utility.Classes.ReconstructionParameters
             _mesh = mesh;
             _solver = new FiniteElementSolver(mesh, numericSolver);
         }
-        
-        public PotentialDistribution SolveForward(IMesh mesh, BoundaryCondition bc)
-        {
-            return Solve(mesh, bc as FEMBoundaryCondition ?? throw new InvalidCastException("Cannot cast to FEMBoundary conditions, check calling code!"));
-        }
-
-        public PotentialDistribution SolveAdjoint(IMesh mesh, BoundaryCondition bc, Complex[] adjointSource)
-        {
-            //var homogeneousBC = new BoundaryConditions(bc.Electrodes.Select(e => new Electrode(e.Id, e.VertexIds, 0.0, e.ZContact)), null);
-            return Solve(mesh, bc as FEMBoundaryCondition ?? throw new InvalidCastException("Cannot cast to FEMBoundary conditions, check calling code!"));
-        }
 
         /// <summary>
-        /// Calculates the arising potential distribution given the mesh's conductivity field, and the applied boundary conditions
+        /// Calculates the arising potential distribution given the mesh's conductivity field, and the applied boundary conditions.
+        /// Adjoint solve must be preinitialized appropriate boundary condition.
         /// </summary>
         /// <param name="mesh">The mesh which on we calculate the potential distribution.</param>
         /// <param name="bc">The boundary conditions which should be applied to the calculations.</param>
         /// <returns></returns>
         /// <exception cref="ArgumentException"></exception>
-        private PotentialDistribution Solve(IMesh mesh, FEMBoundaryCondition bc)
+        public PotentialDistribution Solve(IMesh mesh, BoundaryCondition bc, Complex[]? adjointSource)
         {
-            if (mesh is not FEMMesh femMesh)
-                throw new ArgumentException("FiniteElementSolver requires an FEMMesh.");
-
-            // It assembles matrices K, M, A, D, grounds the system, and solves.
-            // The BuildRhsVector helper will correctly use 'potentialSourceTerm'.
-            PotentialDistribution potentialDistribution = _solver.Solve(femMesh, bc.Electrodes);
-
-            return potentialDistribution;
+            // Standard forward solve
+            if(adjointSource == null)
+                return _solver.SolveForward(mesh, bc);
+            // Adjoint solve
+            else 
+                return _solver.SolveAdjoint(mesh, bc, adjointSource);
         }
     }
 
@@ -83,35 +73,15 @@ namespace Utility.Classes.ReconstructionParameters
             _convergenceThreshold = convergenceThreshold;
             _checkInterval = checkInterval;
 
-            _solver = new LatticeBoltzmannSolver();
+            _solver = new LatticeBoltzmannSolver(_maxIterations, _convergenceThreshold, _checkInterval);
         }
 
-        public PotentialDistribution SolveForward(IMesh mesh, BoundaryCondition bc)
+        public PotentialDistribution Solve(IMesh mesh, BoundaryCondition bc, Complex[]? adjointSource)
         {
-            if (mesh is not LBMMesh lbmMesh) 
-                throw new ArgumentException("LBM requires an LBMMesh.");
-
-            return _solver.RunForward(lbmMesh, 
-                                      bc as LBMBoundaryCondition ?? throw new InvalidCastException("Cannot cast boundary conditions to LBM boundary conditions, check calling code!"), 
-                                      _maxIterations, 
-                                      _convergenceThreshold, 
-                                      _checkInterval);
-        }
-
-        public PotentialDistribution SolveAdjoint(IMesh mesh, BoundaryCondition bc, Complex[] adjointSource)
-        {
-            if (mesh is not LBMMesh lbmMesh) 
-                throw new ArgumentException("LBM requires an LBMMesh.");
-
-            throw new NotImplementedException();
-
-            // Run simulation with dummy boundary conditions 
-            //return _solver.InverseSolve(lbmMesh,
-            //                            bc as LBMBoundaryCondition ?? throw new InvalidCastException("Cannot cast boundary conditions to LBM boundary conditions, check calling code!"),
-            //                            _maxIterations, 
-            //                            _convergenceThreshold, 
-            //                            _checkInterval, 
-            //                            adjointSource);
+            if (adjointSource == null)
+                return _solver.SolveForward(mesh, bc);
+            else
+                return _solver.SolveAdjoint(mesh, bc, adjointSource);
         }
     }
 
@@ -132,7 +102,8 @@ namespace Utility.Classes.ReconstructionParameters
         /// <summary>
         /// Solves the forward problem to find the potential field φ.
         /// </summary>
-        public PotentialDistribution SolveForward(IMesh mesh, BoundaryCondition bc)
+        /// TODO: Correct implementation for this
+        public PotentialDistribution Solve(IMesh mesh, BoundaryCondition bc, Complex[]? adjointSource)
         {
             if (mesh is FEMMesh femMesh)
             {

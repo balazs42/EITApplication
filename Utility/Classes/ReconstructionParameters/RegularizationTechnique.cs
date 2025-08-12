@@ -243,7 +243,7 @@ namespace Utility.Classes.ReconstructionParameters
             if (mesh is FEMMesh femMesh) // Note: Gradient is on elements, Divergence is on nodes. This needs careful handling.
                 gradSigma = FiniteElementOperators.CalculateElementWiseGradient(femMesh, sigma.ToPotentialDistribution());
             else if (mesh is LBMMesh)
-                gradSigma = LatticeBoltzmannOperators.CalculateGradient(mesh as LBMMesh, sigma.ToPotentialDistribution());
+                gradSigma = LatticeBoltzmannOperators.CalculateGradient(mesh as LBMMesh ?? throw new InvalidCastException("Cannot cast to LBMMesh"), sigma.ToPotentialDistribution());
             else
                 throw new NotSupportedException($"Mesh type {mesh.GetType().Name} not supported.");
 
