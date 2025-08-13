@@ -75,7 +75,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             double tol = SolutionTolerance;
             int checkFreq = ConvergenceCheckFrequency;
             var elements = mesh.GetElements().Cast<LBMElement>();
-            var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>();
+            var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
             var bcElectrodes = bc.GetElectrodes();
 
             // 1) Initialize distributions Fi and Fi_next to zero
@@ -88,7 +88,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 }
                 if(el.IsElectrode)
                 {
-                    var correspondingElectrode = electrodes.First(x => x.GridId == el.Id);
+                    var correspondingElectrode = electrodes.Find(x => x.GridId == el.Id);
 
                     if (correspondingElectrode != null && bc.IsNeumann)
                         correspondingElectrode.Current = bcElectrodes[correspondingElectrode.Id].Current;

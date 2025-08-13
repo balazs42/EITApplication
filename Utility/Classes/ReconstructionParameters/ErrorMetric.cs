@@ -108,7 +108,7 @@ namespace Utility.Classes.ReconstructionParameters
 
             // 1. Get the list of physical electrodes and their locations from the mesh.
             var electrodes = lbmMesh.GetElectrodes().Cast<LBMElectrode>().OrderBy(e => e.Id).ToList();
-            if (electrodes.Count != measured.Length)
+            if (electrodes.Count != measured.Length || electrodes.Count != simulated.Length)
                 throw new ArgumentException("Number of electrodes in mesh must match data length.");
 
             // 2. Normalize the data, filtering out any NaN values from driving electrodes.

@@ -99,8 +99,14 @@ namespace Utility.Classes.ReconstructionParameters
 
             // x = V Σ⁻¹ Uᵀ b  (ahol Σ⁻¹[i]= 1/s[i] ha s[i]>0, különben 0)
             var UTb = U.TransposeThisAndMultiply(y);
-            for (int i = 0; i < UTb.Count; i++)
+
+            // Only the first min(m,n) components have corresponding singular values;
+            // avoid accessing beyond s.Count for rectangular matrices.
+            for (int i = 0; i < s.Count; i++)
                 UTb[i] = (s[i] > 0) ? UTb[i] / s[i] : 0.0;
+
+            for (int i = s.Count; i < UTb.Count; i++)
+                UTb[i] = 0.0;
 
             var x = VT.TransposeThisAndMultiply(UTb);
             return x.ToArray();
@@ -116,29 +122,92 @@ namespace Utility.Classes.ReconstructionParameters
     {
         public double[] SolveLinearSystem(double[,] A, double[] b)
         {
-            // Note: GMRES is most efficient with sparse matrices. Here we build a dense
-            // one as required by the interface, but for production, you might want to
-            // build a sparse matrix directly inside your FEM/LBM assembler.
-            // Matrix<double> matrixA = DenseMatrix.OfArray(A);
-            // Vector<double> vectorB = DenseVector.OfArray(b);
+            if (A.Cast<double>().Any(d => double.IsNaN(d) || double.IsInfinity(d)) ||
+                                    b.Any(d => double.IsNaN(d) || double.IsInfinity(d)))
+                throw new InvalidOperationException("System contains invalid entries.");
 
-            // Create an iterative solver monitor to control the process if needed
-            // (e.g., set maximum iterations, check for convergence)
-            //var monitor = new IterationMonitor<double>(
-            //    new IterativeSolverStopCriterion<double>[]
-            //    {
-            //        new FailureStopCriterion<double>(),
-            //        new DivergenceStopCriterion<double>(),
-            //        new IterationCountStopCriterion<double>(1000),
-            //        new ResidualStopCriterion<double>(1e-10)
-            //    });
+            // Convert input arrays to MathNet types
+            Matrix<double> M = DenseMatrix.OfArray(A);
+            Vector<double> rhs = DenseVector.OfArray(b);
 
-            //new Gmres(monitor);
-            // Solve the system
-            //Vector<double> resultX = solver.Solve(matrixA, vectorB);
-            //
-            //return resultX.ToArray();
-            throw new NotImplementedException();
+            int n = rhs.Count;
+            int maxIter = Math.Min(1000, n);   // limit iterations to keep memory bounded
+            double tol = 1e-10;
+
+            // Initial guess is zero vector
+            Vector<double> x = DenseVector.Create(n, 0.0);
+
+            // Initial residual
+            Vector<double> r = rhs - M * x;
+            double beta = r.L2Norm();
+
+            if (beta < tol)
+                return x.ToArray();
+
+            var V = new List<Vector<double>> { r / beta };
+            Matrix<double> H = DenseMatrix.Create(maxIter + 1, maxIter, 0.0);
+            Vector<double> g = DenseVector.Create(maxIter + 1, 0.0);
+            g[0] = beta;
+
+            double[] c = new double[maxIter];
+            double[] s = new double[maxIter];
+
+            int k;
+            for (k = 0; k < maxIter; k++)
+            {
+                Vector<double> w = M * V[k];
+                for (int j = 0; j <= k; j++)
+                {
+                    H[j, k] = w.DotProduct(V[j]);
+                    w -= H[j, k] * V[j];
+                }
+
+                H[k + 1, k] = w.L2Norm();
+                if (H[k + 1, k] < 1e-14) // happy breakdown
+                    break;
+
+                V.Add(w / H[k + 1, k]);
+
+                // Apply existing Givens rotations
+                for (int j = 0; j < k; j++)
+                {
+                    double temp = c[j] * H[j, k] + s[j] * H[j + 1, k];
+                    H[j + 1, k] = -s[j] * H[j, k] + c[j] * H[j + 1, k];
+                    H[j, k] = temp;
+                }
+
+                // Create new Givens rotation
+                double rho = Math.Sqrt(H[k, k] * H[k, k] + H[k + 1, k] * H[k + 1, k]);
+                c[k] = H[k, k] / rho;
+                s[k] = H[k + 1, k] / rho;
+                H[k, k] = rho;
+                H[k + 1, k] = 0.0;
+
+                g[k + 1] = -s[k] * g[k];
+                g[k] = c[k] * g[k];
+
+                if (Math.Abs(g[k + 1]) < tol)
+                {
+                    k++;
+                    break;
+                }
+            }
+
+            // Solve upper triangular system H*y = g
+            var y = DenseVector.Create(k, 0.0);
+            for (int i = k - 1; i >= 0; i--)
+            {
+                double sum = g[i];
+                for (int j = i + 1; j < k; j++)
+                    sum -= H[i, j] * y[j];
+                y[i] = sum / H[i, i];
+            }
+
+            // Reconstruct solution x = V*y
+            for (int j = 0; j < k; j++)
+                x += V[j] * y[j];
+
+            return x.ToArray();
         }
     }
 }

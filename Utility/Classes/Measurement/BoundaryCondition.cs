@@ -17,6 +17,8 @@ namespace Utility.Classes.Measurement
         public abstract void SetElectrodeCurrents(double[] currents);
         public abstract void SetElectrodePotentials(IEnumerable<double> potentials);
         public abstract void SetElectrodePotentials(double[] potentials);
+
+        public abstract void Initialize(IEnumerable<Electrode> electrodes);
     }
 
     public abstract class BoundaryCondition<TElectrode> : BoundaryCondition
@@ -91,8 +93,6 @@ namespace Utility.Classes.Measurement
         }
 
         public List<TElectrode> GetElectrodes() => _electrodes;
-
-        public abstract void Initialize(IEnumerable<Electrode> electrodes);
 
         #region Getter and Setter Methods
 

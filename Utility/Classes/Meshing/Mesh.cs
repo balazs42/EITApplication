@@ -107,9 +107,6 @@ namespace Utility.Classes
 
         public void SetElectrodes(IList<TElectrode> electrodes)
         {
-            if (_electrodes.Count != electrodes.Count && _electrodes.Count > 0)
-                throw new ArgumentException("Cannot set electrodes, list count mismatch!");
-
             _electrodes.Clear();
 
             foreach (var el in electrodes)
@@ -147,8 +144,7 @@ namespace Utility.Classes
         protected abstract IEnumerable<int> StateKeys();                       
         protected abstract void ApplyPotentialToState(int key, double phi); 
         protected abstract double ReadPotentialOf(TElectrode electrode);       
-
-        // A valódi mezőben tárolt disztribúciók
+        
         public override ConductivityDistribution ConductivityDistribution { get; protected set; }
         public override PotentialDistribution PotentialDistribution { get; protected set; }
     }

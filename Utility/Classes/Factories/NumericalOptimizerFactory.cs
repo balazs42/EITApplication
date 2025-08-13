@@ -9,21 +9,21 @@ namespace Utility.Classes.Factories
     public static class NumericOptimizerFactory
     {
         // Creates the appropriate numeric optimizer. sigmaPrior should only be used when creating HomotopyOptimizer, else dummy can be passed
-        public static INumericOptimizer Create(NumericOptimizer no, ConductivityDistribution sigmaPrior) => no switch
+        public static INumericOptimizer Create(NumericOptimizer no, ConductivityDistribution? sigmaPrior) => no switch
         {
-            NumericOptimizer.GradientBased => CreateGradienBasedOptimizer(),
+            NumericOptimizer.GradientBased => CreateGradientBasedOptimizer(),
             NumericOptimizer.PolyakHeavyBall => CreatePolyakHeavyBallOptimizer(),
             NumericOptimizer.ADAM => CreateAdamGradientOptimizer(),
             NumericOptimizer.NesterovAcceleratedGradient => CreateNesterovAcceleratedGradientOptimizer(),
             NumericOptimizer.GlobalTunnelingDescent => CreateGlobalTunnelingDescentOptimizer(),
-            NumericOptimizer.HomotopyContinuation => CreateHomotopyContinuationOptimizer(sigmaPrior),
+            NumericOptimizer.HomotopyContinuation => CreateHomotopyContinuationOptimizer(sigmaPrior ?? throw new NullReferenceException()),
             NumericOptimizer.SimulatedAnnealing => CreateSimulatedAnnealingOptimizer(),
             NumericOptimizer.ParticleSwarm => CreateParticleSwarmOptimizer(),
             _ => throw new NotSupportedException()
         };
 
 
-        private static GradientBasedOptimizer CreateGradienBasedOptimizer() => new GradientBasedOptimizer();
+        private static GradientBasedOptimizer CreateGradientBasedOptimizer() => new GradientBasedOptimizer();
         private static PolyakHeavyBallOptimizer CreatePolyakHeavyBallOptimizer() => new PolyakHeavyBallOptimizer();
         private static AdamGradientOptimizer CreateAdamGradientOptimizer() => new AdamGradientOptimizer();
         private static NesterovAcceleratedGradientOptimizer CreateNesterovAcceleratedGradientOptimizer() => new NesterovAcceleratedGradientOptimizer();

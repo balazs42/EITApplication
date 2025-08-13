@@ -297,8 +297,10 @@ namespace Utility.Classes.Factories
             double cy = (ny - 1) / 2.0;
             double r2 = radius * radius;
 
+            var elements = mesh.GetElements().Cast<LBMElement>();
+
             // mark anything outside circle as wall
-            foreach (var el in mesh.GetElements().Cast<LBMElement>())
+            foreach (var el in elements)
             {
                 var (x, y) = mesh.ToLattice(el.Id);
                 double dx = x - cx;
@@ -317,7 +319,7 @@ namespace Utility.Classes.Factories
             // 2) rebuild electrode list along the new inner perimeter            
             mesh.PlaceEquidistantElectrodes(electrodeCount);
 
-            // 3) refresh conductivity distribution if you rely on it
+            // 3) refresh conductivity distribution
             var cd = mesh.GetElements().ToDictionary(e => e.Id, e => e.Conductivity);
             mesh.SetConductivityDistribution(new ConductivityDistribution(cd));
 
