@@ -157,7 +157,8 @@
                         HorizontalOptions="Center" VerticalOptions="Center">
                     <skia:SKCanvasView x:Name="PotentialResultCanvas"
                                        PaintSurface="OnPotentialResultPaintSurface"
-                                       EnableTouchEvents="False"
+                                       EnableTouchEvents="True"
+                                       Touch="OnPotentialTouch"
                                        HeightRequest="500"
                                        WidthRequest="500"
                                        Margin="10">
@@ -179,10 +180,11 @@
                         VerticalOptions="Center">
                     <skia:SKCanvasView x:Name="CurrentAmplitudeCanvas"
                                        PaintSurface="OnPaintCurrentAmplitudeSurface"
-                                       EnableTouchEvents="False"
+                                       EnableTouchEvents="True"
+                                       Touch="OnCurrentTouch"
                                        HeightRequest="500"
                                        WidthRequest="500"
-                                       Margin="10"> 
+                                       Margin="10">
                     </skia:SKCanvasView>
                 </Border>
             </Grid>

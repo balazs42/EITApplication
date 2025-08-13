@@ -2,6 +2,8 @@
 using ElectricalImpedanceTomography.ViewModels;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
+using System.Linq;
+using System.Collections.Generic;
 using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 
@@ -20,6 +22,10 @@ public partial class LBMReconstructionPage : ContentPage
     // hover state
     private LBMElement? _hoverElem;
     private SKPoint? _hoverElemCanvasPt;
+
+    private enum HoverData { Mesh, Potential, Current }
+    private HoverData _hoverData;
+    private double _hoverValue;
 
     private double _maxPot, _minPot;
 
@@ -100,9 +106,6 @@ public partial class LBMReconstructionPage : ContentPage
         var canvas = e.Surface.Canvas;
         canvas.Clear(SKColors.White);
 
-        // draw the base grid
-        OnCanvasViewPaintSurface(sender, e);
-
         var result = _viewModel.ReconstructionResult;
         if (result?.CurrentPotentialDistribution == null)
             return;
@@ -143,6 +146,8 @@ public partial class LBMReconstructionPage : ContentPage
                 canvas.DrawRect(r, _strokePaint);
             }
         }
+
+        DrawHoverInfo(canvas, e.Info);
     }
     private void OnCanvasViewPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
@@ -156,7 +161,6 @@ public partial class LBMReconstructionPage : ContentPage
         float cw = (float)(info.Width / mesh.Nx);
         float ch = (float)(info.Height / mesh.Ny);
 
-        // draw all cells
         for (int y = 0; y < mesh.Ny; y++)
             for (int x = 0; x < mesh.Nx; x++)
             {
@@ -170,72 +174,60 @@ public partial class LBMReconstructionPage : ContentPage
                 canvas.DrawRect(r, _strokePaint);
             }
 
-        // —— hover‐info box ——  
-        if (_hoverElem != null && _hoverElemCanvasPt.HasValue)
+        DrawHoverInfo(canvas, info);
+    }
+
+    private void DrawHoverInfo(SKCanvas canvas, SKImageInfo info)
+    {
+        if (_hoverElem == null || !_hoverElemCanvasPt.HasValue)
+            return;
+
+        var mesh = _viewModel.GetMesh() as LBMMesh;
+        var pt = _hoverElemCanvasPt.Value;
+        var el = _hoverElem;
+
+        var lines = new List<string> { $"ID: {el.Id}" };
+
+        switch (_hoverData)
         {
-            var pt = _hoverElemCanvasPt.Value;
-            var el = _hoverElem;
+            case HoverData.Potential:
+                lines.Add($"Potential: {_hoverValue:F3}");
+                break;
+            case HoverData.Current:
+                lines.Add($"Current: {_hoverValue:F3}");
+                break;
+            default:
+                lines.Add($"Wall: {el.IsWall}");
+                lines.Add($"Electrode: {el.IsElectrode}");
+                lines.Add($"σ: {el.Conductivity:F3}");
+                lines.Add($"Phi: {el.Fi.Sum()}");
+                break;
+        }
 
-            List<string> lines = [];
+        using var txtPaint = new SKPaint { IsAntialias = true, Color = SKColors.White };
+        using var font = new SKFont(SKTypeface.Default, 14);
+        float w = lines.Max(l => font.MeasureText(l)) + 8;
+        float h = lines.Count * (font.Size + 4) + 4;
 
-            var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
+        var center = new SKPoint(info.Width / 2f, info.Height / 2f);
+        var dir = new SKPoint(center.X - pt.X, center.Y - pt.Y);
+        const float off = 8f;
+        float bx = dir.X > 0 ? pt.X + off : pt.X - off - w;
+        float by = dir.Y > 0 ? pt.Y + off : pt.Y - off - h;
+        var box = new SKRect(bx, by, bx + w, by + h);
 
-            if(el.IsElectrode)
-            {
-                var elec = electrodes.Find(x => x.GridId == el.Id);
-                if (elec == null)
-                    throw new NullReferenceException("Cannot find electrode in mesh with the same id!");
+        using var bg = new SKPaint { Color = new SKColor(0, 0, 0, 200), IsAntialias = true };
+        canvas.DrawRoundRect(box, 4, 4, bg);
 
-                // lines to display
-                lines = new List<string>() {
-                        $"ID:   {el.Id}",
-                        $"Wall:      {el.IsWall}",
-                        $"Electrode: {el.IsElectrode}",
-                        $"Excitation: { ((elec.IsExcitation || elec.IsGround == true)  ? "True" : "False")}",
-                        $"σ:   {el.Conductivity:F3}",
-                        $"Phi: {el.Fi.Sum()}"
-                    };
-            }
-            else
-            {
-                lines = new List<string>() {
-                        $"ID:   {el.Id}",
-                        $"Wall:      {el.IsWall}",
-                        $"Electrode: {el.IsElectrode}",
-                        $"σ:   {el.Conductivity:F3}",
-                        $"Phi: {el.Fi.Sum()}"
-                    };
-            }
-
-            // measure
-            using var txtPaint = new SKPaint { IsAntialias = true, Color = SKColors.White };
-            using var font = new SKFont(SKTypeface.Default, 14);
-            float w = lines.Max(l => font.MeasureText(l)) + 8;
-            float h = lines.Count * (font.Size + 4) + 4;
-
-            // choose side relative to canvas center
-            var center = new SKPoint(info.Width / 2f, info.Height / 2f);
-            var dir = new SKPoint(center.X - pt.X, center.Y - pt.Y);
-            const float off = 8f;
-            float bx = dir.X > 0 ? pt.X + off : pt.X - off - w;
-            float by = dir.Y > 0 ? pt.Y + off : pt.Y - off - h;
-            var box = new SKRect(bx, by, bx + w, by + h);
-
-            // background
-            using var bg = new SKPaint { Color = new SKColor(0, 0, 0, 200), IsAntialias = true };
-            canvas.DrawRoundRect(box, 4, 4, bg);
-
-            // text
-            float ty = box.Top + font.Size + 2;
-            foreach (var line in lines)
-            {
-                canvas.DrawText(line, box.Left + 4, ty, SKTextAlign.Left, font, txtPaint);
-                ty += font.Size + 4;
-            }
+        float ty = box.Top + font.Size + 2;
+        foreach (var line in lines)
+        {
+            canvas.DrawText(line, box.Left + 4, ty, SKTextAlign.Left, font, txtPaint);
+            ty += font.Size + 4;
         }
     }
 
-    // —— TOUCH / HOVER ——  
+    // —— TOUCH / HOVER ——
     private void OnCanvasTouch(object sender, SKTouchEventArgs e)
     {
         var mesh = _viewModel.GetMesh();
@@ -256,6 +248,7 @@ public partial class LBMReconstructionPage : ContentPage
             // update hover
             _hoverElem = mesh.GetElementAt(col, row);
             _hoverElemCanvasPt = e.Location;
+            _hoverData = HoverData.Mesh;
         }
 
         // left-click toggles walls, right-click toggles electrodes
@@ -276,14 +269,67 @@ public partial class LBMReconstructionPage : ContentPage
         e.Handled = true;
     }
 
+    private void OnPotentialTouch(object sender, SKTouchEventArgs e)
+    {
+        var result = _viewModel.ReconstructionResult;
+        if (result?.CurrentPotentialDistribution == null)
+            return;
+
+        var mesh = (LBMMesh)result.Mesh;
+        var view = (SKCanvasView)sender;
+        float cw = (float)view.CanvasSize.Width / mesh.Nx;
+        float ch = (float)view.CanvasSize.Height / mesh.Ny;
+        int col = (int)(e.Location.X / cw);
+        int row = (int)(e.Location.Y / ch);
+
+        if (col < 0) col = 0; if (col >= mesh.Nx) col = mesh.Nx - 1;
+        if (row < 0) row = 0; if (row >= mesh.Ny) row = mesh.Ny - 1;
+
+        if (e.ActionType == SKTouchAction.Moved || e.ActionType == SKTouchAction.Pressed)
+        {
+            _hoverElem = mesh.GetElementAt(col, row);
+            _hoverElemCanvasPt = e.Location;
+            _hoverData = HoverData.Potential;
+            _hoverValue = result.CurrentPotentialDistribution.Potentials[_hoverElem.Id];
+        }
+
+        PotentialResultCanvas.InvalidateSurface();
+        e.Handled = true;
+    }
+
+    private void OnCurrentTouch(object sender, SKTouchEventArgs e)
+    {
+        var result = _viewModel.ReconstructionResult;
+        if (result?.CurrentPotentialDistribution == null)
+            return;
+
+        var mesh = (LBMMesh)result.Mesh;
+        var view = (SKCanvasView)sender;
+        float cw = (float)view.CanvasSize.Width / mesh.Nx;
+        float ch = (float)view.CanvasSize.Height / mesh.Ny;
+        int col = (int)(e.Location.X / cw);
+        int row = (int)(e.Location.Y / ch);
+
+        if (col < 0) col = 0; if (col >= mesh.Nx) col = mesh.Nx - 1;
+        if (row < 0) row = 0; if (row >= mesh.Ny) row = mesh.Ny - 1;
+
+        if (e.ActionType == SKTouchAction.Moved || e.ActionType == SKTouchAction.Pressed)
+        {
+            _hoverElem = mesh.GetElementAt(col, row);
+            _hoverElemCanvasPt = e.Location;
+            _hoverData = HoverData.Current;
+            _hoverValue = _hoverElem.GetCurrentAmplitude();
+        }
+
+        CurrentAmplitudeCanvas.InvalidateSurface();
+        e.Handled = true;
+    }
+
 
     private void OnPaintCurrentAmplitudeSurface(object sender, SKPaintSurfaceEventArgs e)
     {
         var canvas = e.Surface.Canvas;
         canvas.Clear(SKColors.White);
-
-        // draw the base grid
-        OnCanvasViewPaintSurface(sender, e);
 
         var result = _viewModel.ReconstructionResult;
         if (result?.CurrentPotentialDistribution == null)
@@ -328,6 +374,8 @@ public partial class LBMReconstructionPage : ContentPage
                 canvas.DrawRect(r, _strokePaint);
             }
         }
+
+        DrawHoverInfo(canvas, e.Info);
     }
     #endregion
     
