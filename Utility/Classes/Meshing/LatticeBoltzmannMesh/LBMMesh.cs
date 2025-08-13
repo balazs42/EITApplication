@@ -216,18 +216,24 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
         {
             var copy = new LBMMesh(Nx, Ny);
 
-            // elemek klónozása (Fi és Conductivity)
+            // copy element state
             for (int i = 0; i < _elements.Count; i++)
             {
                 copy.ElementsTyped[i].Conductivity = _elements[i].Conductivity;
-                for (int k = 0; k < 9; k++)
-                    copy.ElementsTyped[i].Fi[k] = _elements[i].Fi[k];
+                var src = _elements[i];
+                var dst = copy.ElementsTyped[i];
+
+                dst.Conductivity = src.Conductivity;
+                dst.IsWall = src.IsWall;
+                dst.IsElectrode = src.IsElectrode;
+
+                for (int k = 0; k < 9; k++) 
+                    dst.Fi[k] = src.Fi[k];
             }
 
-            // elektródák klónozása
-            foreach (var e in _electrodes)
-            {
-                var e2 = new LBMElectrode(
+            // clone electrodes list
+            var electrodes = _electrodes
+                .Select(e => new LBMElectrode(
                     id: e.Id,
                     gridId: e.GridId,
                     current: e.Current,
@@ -235,15 +241,20 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
                     contactImpedance: e.ZContact,
                     isExcitation: e.IsExcitation,
                     isGround: e.IsGround,
-                    isMeasuring: e.IsMeasuring
-                );
-                // nincs publikus add, ezért a konstruktorban adj át electrodes-t, vagy készíts SetElectrodes-t
-                // Ez egy lehetséges megoldás:
-                // (készítsünk egy belső listát és AddRange-eljük a ctor-ban)
-            }
+                    isMeasuring: e.IsMeasuring)).ToList();
 
-            copy.ConductivityDistribution = this.ConductivityDistribution;
-            copy.PotentialDistribution = this.PotentialDistribution;
+            copy.SetElectrodes(electrodes);
+
+            // clone distributions
+            var cd = copy.GetElements()
+                          .Cast<LBMElement>()
+                          .ToDictionary(el => el.Id, el => el.Conductivity);
+            copy.SetConductivityDistribution(new ConductivityDistribution(cd));
+
+            var pd = copy.GetElements()
+                          .Cast<LBMElement>()
+                          .ToDictionary(el => el.Id, el => el.Fi.Sum());
+            copy.SetPotentialDistribution(new PotentialDistribution(pd));
 
             return copy;
         }
