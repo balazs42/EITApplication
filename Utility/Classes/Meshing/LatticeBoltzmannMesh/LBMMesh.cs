@@ -256,6 +256,8 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
                           .ToDictionary(el => el.Id, el => el.Fi.Sum());
             copy.SetPotentialDistribution(new PotentialDistribution(pd));
 
+            copy.SetElements(copy.ElementsTyped.ToList());
+
             return copy;
         }
         public override GraphMesh.Graph ToGraph()

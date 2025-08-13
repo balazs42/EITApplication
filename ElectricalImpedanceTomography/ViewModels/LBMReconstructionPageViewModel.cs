@@ -138,6 +138,8 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             ReconstructionResult = await _reconstructionService.GetReconstructionResult();
 
+            _mesh = (LBMMesh)ReconstructionResult.Mesh.DeepCopy();
+
             OnPropertyChanged(nameof(ReconstructionResult));
         }
 

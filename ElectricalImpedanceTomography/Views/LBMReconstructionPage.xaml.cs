@@ -2,8 +2,8 @@
 using ElectricalImpedanceTomography.ViewModels;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
-using System.Linq;
-using System.Collections.Generic;
+using SkiaSharp.Views.Maui.Controls;
+using System.Collections.Immutable;
 using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 
@@ -101,7 +101,7 @@ public partial class LBMReconstructionPage : ContentPage
         };
     }
 
-    private void OnPotentialResultPaintSurface(object sender, SKPaintSurfaceEventArgs e)
+    private void OnPotentialResultPaintSurface(object sender, SkiaSharp.Views.Maui.SKPaintSurfaceEventArgs e)
     {
         var canvas = e.Surface.Canvas;
         canvas.Clear(SKColors.White);
@@ -149,7 +149,7 @@ public partial class LBMReconstructionPage : ContentPage
 
         DrawHoverInfo(canvas, e.Info);
     }
-    private void OnCanvasViewPaintSurface(object sender, SKPaintSurfaceEventArgs e)
+    private void OnCanvasViewPaintSurface(object sender, SkiaSharp.Views.Maui.SKPaintSurfaceEventArgs e)
     {
         var canvas = e.Surface.Canvas;
         canvas.Clear(SKColors.White);
@@ -276,7 +276,7 @@ public partial class LBMReconstructionPage : ContentPage
             return;
 
         var mesh = (LBMMesh)result.Mesh;
-        var view = (SKCanvasView)sender;
+        var view = sender as SKCanvasView;
         float cw = (float)view.CanvasSize.Width / mesh.Nx;
         float ch = (float)view.CanvasSize.Height / mesh.Ny;
         int col = (int)(e.Location.X / cw);
@@ -325,8 +325,7 @@ public partial class LBMReconstructionPage : ContentPage
         e.Handled = true;
     }
 
-
-    private void OnPaintCurrentAmplitudeSurface(object sender, SKPaintSurfaceEventArgs e)
+    private void OnPaintCurrentAmplitudeSurface(object sender, SkiaSharp.Views.Maui.SKPaintSurfaceEventArgs e)
     {
         var canvas = e.Surface.Canvas;
         canvas.Clear(SKColors.White);
@@ -335,14 +334,19 @@ public partial class LBMReconstructionPage : ContentPage
         if (result?.CurrentPotentialDistribution == null)
             return;
 
-        var mesh = (LBMMesh)result.Mesh;
+        var mesh = (LBMMesh)_viewModel.GetMesh().DeepCopy();
         float cw = e.Info.Width / mesh.Nx;
         float ch = e.Info.Height / mesh.Ny;
 
         // compute current amplitudes for each element without mutating the
         // potential distribution (which would wipe the potential display)
-        var elements = mesh.GetElements().Cast<LBMElement>();
-        var amplitudes = elements.ToDictionary(el => el.Id, el => el.GetCurrentAmplitude());
+        var elements = mesh.GetElements().Cast<LBMElement>().ToList();
+
+        var amplitudes = new Dictionary<int, double>();
+        foreach (var element in elements)
+            amplitudes.Add(element.Id, element.GetCurrentAmplitude());
+
+        //var amplitudes = elements.ToDictionary(el => el.Id, el => el.GetCurrentAmplitude());
 
         if (amplitudes.Count == 0)
             return;

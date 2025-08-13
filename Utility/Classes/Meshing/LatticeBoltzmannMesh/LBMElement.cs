@@ -56,12 +56,16 @@
 
         public double GetXCurrent()
         {
-            return Fi[2] - Fi[4] + Math.Sqrt(2) / 2.0 * (Fi[5] + Fi[8] - Fi[6] - Fi[7]);
+            //return Fi[2] - Fi[4] + Math.Sqrt(2) / 2.0 * (Fi[5] + Fi[8] - Fi[6] - Fi[7]);
+            // East-West contributions + diagonals (NE, SE, NW, SW)
+            return Fi[1] - Fi[3] + Math.Sqrt(2) / 2.0 * (Fi[5] + Fi[8] - Fi[6] - Fi[7]);
         }
 
         public double GetYCurrent()
         {
-            return Fi[1] - Fi[3] + Math.Sqrt(2) / 2.0 * (Fi[5] + Fi[6] - Fi[7] - Fi[8]);
+            //return Fi[1] - Fi[3] + Math.Sqrt(2) / 2.0 * (Fi[5] + Fi[6] - Fi[7] - Fi[8]);
+            // North-South contributions + diagonals
+            return Fi[2] - Fi[4] + Math.Sqrt(2) / 2.0 * (Fi[5] + Fi[6] - Fi[7] - Fi[8]);
         }
 
         public double GetCurrentAmplitude()

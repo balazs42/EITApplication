@@ -27,7 +27,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0
         };
 
-        private int MaxIterationCount = 1000;
+        private int MaxIterationCount = 250;
         private double SolutionTolerance = 1e-6;
         private int ConvergenceCheckFrequency = 100;
 
