@@ -18,7 +18,9 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         public static VectorField CalculateGradient(LBMMesh mesh, ScalarField φ)
         {
             var grad = new Dictionary<int, (double X, double Y)>();
-            foreach (LBMElement el in mesh.Elements)
+            var elements = mesh.GetElements().Cast<LBMElement>();
+
+            foreach (LBMElement el in elements)
             {
                 // cardinal neighbors
                 var R = el.Neighbors[1];
@@ -47,7 +49,9 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         public static ScalarField CalculateLaplacian(LBMMesh mesh, ScalarField φ)
         {
             var lap = new Dictionary<int, double>();
-            foreach (LBMElement el in mesh.Elements)
+            var elements = mesh.GetElements();
+
+            foreach (LBMElement el in elements)
             {
                 var R = el.Neighbors[1];
                 var U = el.Neighbors[2];
@@ -73,7 +77,9 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         public static ScalarField CalculateDivergence(LBMMesh mesh, VectorField F)
         {
             var div = new Dictionary<int, double>();
-            foreach (LBMElement el in mesh.Elements)
+            var elements = mesh.GetElements().Cast<LBMElement>();
+
+            foreach (LBMElement el in elements)
             {
                 var R = el.Neighbors[1];
                 var U = el.Neighbors[2];

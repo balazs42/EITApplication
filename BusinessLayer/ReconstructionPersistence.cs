@@ -64,7 +64,7 @@ namespace BusinessLayer
             //var result = await Task.Run(() => 
             //    _inverseModel.Solve(initialDistribution, measurement, 50)            
             //);
-            var electrodes = mesh.Electrodes;
+            var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
 
             LBMBoundaryCondition bc = new(electrodes);
 
@@ -88,7 +88,7 @@ namespace BusinessLayer
             if (_inverseModel == null || _mesh == null || mesh == null || _differentialEquationSolver == null)
                 throw new NullReferenceException();
 
-            var electrodes = mesh.Electrodes;
+            var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
 
             LBMBoundaryCondition bc = new(electrodes);
 
@@ -102,9 +102,9 @@ namespace BusinessLayer
             if (_inverseModel == null || _mesh == null || mesh == null || _differentialEquationSolver == null || _errorMetric == null)
                 throw new NullReferenceException();
 
-            mesh = mesh.DeepCopy();
+            mesh = (LBMMesh)mesh.DeepCopy();
 
-            var electrodes = mesh.Electrodes;
+            var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
 
             LBMBoundaryCondition bc = new(electrodes);
 
@@ -139,7 +139,7 @@ namespace BusinessLayer
                     var mu = _differentialEquationSolver.Solve(mesh, new LBMBoundaryCondition(electrodes), adjointSource);
 
                     var dataGrad = new ConductivityDistribution(
-                        mesh.Elements.ToDictionary(
+                        mesh.GetElements().ToDictionary(
                             el => el.Id,
                             el => {
                                 // compute <∇φ, ∇μ> on this element
@@ -161,12 +161,10 @@ namespace BusinessLayer
         {
             if (_differentialEquationSolver == null)
                 throw new NullReferenceException("Differential equation solver was null, check initializiation code!");
-
-            int electrodeCount = mesh.Electrodes.Count;
+            var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
+            int electrodeCount = electrodes.Count;
 
             double[,] measurementFrames = new double[electrodeCount, electrodeCount];
-
-            var electrodes = mesh.Electrodes;
 
             for(int i = 0; i < electrodeCount; i++)
             {
@@ -210,7 +208,7 @@ namespace BusinessLayer
 
             var conductivitiyDistribution = mesh.GetConductivityDistribution();
 
-            var electrodes = mesh.Electrodes.Cast<FEMElectrode>().ToList();
+            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
 
             BoundaryCondition boundaryConditions = new FEMBoundaryCondition(electrodes);
 
@@ -237,7 +235,7 @@ namespace BusinessLayer
             mesh.SetConductivityDistribution(sigma);
             
             // 3) Mark electrodes: 0=ground, 1=excitation
-            var electrodes = mesh.Electrodes.Cast<FEMElectrode>().ToList();
+            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
             var bc = new FEMBoundaryCondition(electrodes);
 
             // 4) Iterative loop
@@ -285,7 +283,7 @@ namespace BusinessLayer
 
                 // 4g) Compute gradient ∇J_data = ∇μ·∇φ elementwise  (thesis Eq. 2.1.20)
                 var dataGrad = new ConductivityDistribution(
-                    mesh.Elements.ToDictionary(
+                    mesh.GetElements().Cast<FEMElement>().ToDictionary(
                         el => el.Id,
                         el => {
                             // compute ∇φ, ∇μ on this element
@@ -335,9 +333,10 @@ namespace BusinessLayer
                     Debug.WriteLine($"{errors[i]:F6} ");
                 else Debug.Write($"{errors[i]:F6}, ");
 
+            var elements = mesh.GetElements();
 
             // 5) Update mesh ConductivityDistribution and return
-            foreach (var el in mesh.Elements)
+            foreach (var el in elements)
                 el.Conductivity = sigma.GetConductivity(el.Id);
 
             return mesh;
@@ -357,9 +356,12 @@ namespace BusinessLayer
             ConductivityDistribution sigma = ConductivityDistributionFactory.CreateSlightlyDiffering(mesh, 0.95);
             mesh.SetConductivityDistribution(sigma);
 
-            List<FEMElectrode> electrodes = mesh.Electrodes.Cast<FEMElectrode>().ToList();
+            List<FEMElectrode> electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
             var bc = new FEMBoundaryCondition(electrodes);
-            var electrodeCount = mesh.Electrodes.Count;
+            int electrodeCount = electrodes.Count;
+
+            var elements = mesh.GetElements().Cast<FEMElement>().ToList();
+            int elementCount = elements.Count;
 
             // 4) Iterative loop
             double prevJ = double.PositiveInfinity;
@@ -370,13 +372,13 @@ namespace BusinessLayer
                 Debug.WriteLine($"\n=== Inverse iteration {iter} ===");
 
                 Dictionary<int, double> totalGrad = new();
-                for (int i = 0; i < mesh.Elements.Count; i++)
+                for (int i = 0; i < elementCount; i++)
                     totalGrad.Add(i, 0.0);
 
-                for(int exc = 0; exc < mesh.Electrodes.Count; exc++)
+                for(int exc = 0; exc < electrodeCount; exc++)
                 {
                     // Clear electrode status
-                    foreach (var el in mesh.Electrodes)
+                    foreach (var el in electrodes)
                     {
                         el.Current = 0.0;
                         el.IsExcitation = false;
@@ -390,7 +392,7 @@ namespace BusinessLayer
                     electrodes[(exc + 1) % electrodeCount].IsGround = true;
                     electrodes[(exc + 1) % electrodeCount].Current = -excitationAmplitude;
 
-                    bc = new FEMBoundaryCondition(mesh.Electrodes);
+                    bc = new FEMBoundaryCondition(electrodes);
 
                     // 4a) Forward solve φ⁽ᵏ⁾ = S(σ⁽ᵏ⁾)   (thesis Eq. 1.1.16)
                     PotentialDistribution phi = _differentialEquationSolver.Solve(mesh, bc, null);
@@ -424,7 +426,7 @@ namespace BusinessLayer
 
                     // 4g) Compute gradient ∇J_data = ∇μ·∇φ elementwise  (thesis Eq. 2.1.20)
                     var dataGrad = new ConductivityDistribution(
-                        mesh.Elements.ToDictionary(
+                        mesh.GetElements().Cast<FEMElement>().ToDictionary(
                             el => el.Id,
                             el => {
                                 // compute ∇φ, ∇μ on this element
@@ -470,7 +472,7 @@ namespace BusinessLayer
                 for (int exc = 0; exc < electrodeCount; exc++)
                 {
                     // Clear electrode status
-                    foreach (var el in mesh.Electrodes)
+                    foreach (var el in electrodes)
                     {
                         el.Current = 0.0;
                         el.IsExcitation = false;
@@ -509,7 +511,7 @@ namespace BusinessLayer
             Debug.WriteLine("");
 
             // 5) Update mesh ConductivityDistribution and return
-            foreach (var el in mesh.Elements)
+            foreach (var el in elements)
                 el.Conductivity = sigma.GetConductivity(el.Id);
 
             return mesh;
@@ -519,13 +521,14 @@ namespace BusinessLayer
         {
             List<double[]> measurements = [];
 
-            FEMMesh deepCopy = mesh.DeepCopy();
-            var electrodes = deepCopy.Electrodes;
-            int electrodeCount = deepCopy.Electrodes.Count;
+            FEMMesh deepCopy = (FEMMesh)mesh.DeepCopy();
+            var electrodes = deepCopy.GetElectrodes().ToList();
+            int electrodeCount = electrodes.Count();
+
             for (int i = 0; i < electrodeCount; i++)
             {
                 // Clear electrode status
-                foreach(var el in deepCopy.Electrodes)
+                foreach(var el in electrodes)
                 {
                     el.Current = 0.0;
                     el.IsExcitation = false;
@@ -551,7 +554,7 @@ namespace BusinessLayer
 
         public ReconstructionResult InverseSolveStepFem(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double stepSize)
         {
-            FEMMesh deepCopy = mesh.DeepCopy();
+            FEMMesh deepCopy = (FEMMesh)mesh.DeepCopy();
             ConductivityDistribution originalConductivityDistribution = deepCopy.ConductivityDistribution;
 
             // Initialize inverse solver
@@ -565,9 +568,9 @@ namespace BusinessLayer
             mesh.SetConductivityDistribution(sigma0);
 
             // Create new boundary conditions that will be fed to the Finite Element Solver
-            List<FEMElectrode> electrodes = mesh.Electrodes.Cast<FEMElectrode>().ToList();
+            List<FEMElectrode> electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
             var bc = new FEMBoundaryCondition(electrodes);
-            var electrodeCount = mesh.Electrodes.Count;
+            var electrodeCount = electrodes.Count;
 
             // Forward solve  (thesis Eq. 1.1.16)
             PotentialDistribution phi = _differentialEquationSolver.Solve(mesh, bc, null);
@@ -593,7 +596,7 @@ namespace BusinessLayer
 
             // 4g) Compute gradient ∇J_data = ∇μ·∇φ elementwise  (thesis Eq. 2.1.20)
             var dataGrad = new ConductivityDistribution(
-                mesh.Elements.ToDictionary(
+                mesh.GetElements().Cast<FEMElement>().ToDictionary(
                     el => el.Id,
                     el => {
                         // compute ∇φ, ∇μ on this element
@@ -604,8 +607,9 @@ namespace BusinessLayer
                 )
             );
 
+            int elementCount = mesh.GetElements().Count();
             Dictionary<int, double> totalGrad = new();
-            for (int i = 0; i < mesh.Elements.Count; i++)
+            for (int i = 0; i < elementCount; i++)
                 totalGrad.Add(i, 0.0);
 
             foreach (var kvp in dataGrad.Conductivities)
@@ -624,7 +628,7 @@ namespace BusinessLayer
             Debug.WriteLine("Gradient ∇J computed.");
 
             // 4i) Apply optimization step
-            mesh.ConductivityDistribution = _numericOptimizer.OptimizationStep(mesh.ConductivityDistribution, grad, stepSize);
+            mesh.SetConductivityDistribution(_numericOptimizer.OptimizationStep(mesh.ConductivityDistribution, grad, stepSize));
 
             return new ReconstructionResult(mesh, mesh.PotentialDistribution, mu, originalConductivityDistribution, sigma0, mesh.ConductivityDistribution);
         }

@@ -39,7 +39,7 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         public FiniteElementSolver(FEMMesh mesh, INumericSolver numericSolver)
         {
             N_phi = mesh.Vertices.Count;
-            L = mesh.Electrodes.Count;
+            L = mesh.GetElectrodes().Count;
             _numericSolver = numericSolver ?? throw new ArgumentNullException(nameof(numericSolver));
 
             // allocate
@@ -55,25 +55,29 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         {
             var femMesh = mesh as FEMMesh ?? throw new InvalidCastException();
             var bc = boundaryCondition as FEMBoundaryCondition ?? throw new InvalidCastException();
+            var bcElectrodes = bc.GetElectrodes();
 
-            return Solve(femMesh, bc.Electrodes);
+            return Solve(femMesh, bcElectrodes);
         }
 
         public PotentialDistribution SolveAdjoint(IMesh mesh, BoundaryCondition boundaryCondition, Complex[] adjointSource)
         {
             var femMesh = mesh as FEMMesh ?? throw new InvalidCastException();
             var bc = boundaryCondition as FEMBoundaryCondition ?? throw new InvalidCastException();
+            var electrodes = femMesh.GetElectrodes();
+            var bcElectrodes = bc.GetElectrodes();
+            int bcElectrodeCount = bcElectrodes.Count();
 
-            for (int i = 0; i < bc.Electrodes.Count; i++)
+            for (int i = 0; i < bcElectrodeCount; i++)
             {
-                femMesh.Electrodes[i].Potential = 0.0;  
-                bc.Electrodes[i].Potential = 0.0;
+                electrodes[i].Potential = 0.0;  
+                bcElectrodes[i].Potential = 0.0;
 
-                femMesh.Electrodes[i].Current = adjointSource[i].Real;  // TODO: add complex currents
-                bc.Electrodes[i].Current = adjointSource[i].Real;
+                electrodes[i].Current = adjointSource[i].Real;  // TODO: add complex currents
+                bcElectrodes[i].Current = adjointSource[i].Real;
             }
 
-            return Solve(femMesh, bc.Electrodes);
+            return Solve(femMesh, bcElectrodes);
         }
 
         /// <summary>
@@ -131,8 +135,9 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         {
             Array.Clear(K, 0, K.Length);
             ConductivityDistribution sigma = mesh.GetConductivityDistribution();
+            var elements = mesh.GetElements().Cast<FEMElement>();
 
-            foreach (var elem in mesh.Elements)
+            foreach (var elem in elements)
             {
                 double area = elem.Area;
                 double sT = sigma.GetConductivity(elem.Id);
@@ -154,7 +159,9 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         private void BuildRobinMassMatrix(FEMMesh mesh)
         {
             Array.Clear(M, 0, M.Length);
-            foreach (var el in mesh.Electrodes)
+            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>();
+            
+            foreach (var el in electrodes)
             {
                 double invZ = 1.0 / el.ZContact;
                 double h = el.Length / el.VertexIds.Count;
@@ -169,7 +176,9 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         private void BuildCouplingMatrix(FEMMesh mesh)
         {
             Array.Clear(A_coup, 0, A_coup.Length);
-            foreach (var el in mesh.Electrodes)
+            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>();
+
+            foreach (var el in electrodes)
             {
                 double invZ = 1.0 / el.ZContact;
                 double h = el.Length / el.VertexIds.Count;
@@ -184,8 +193,9 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         private void BuildElectrodeMatrix(FEMMesh mesh)
         {
             Array.Clear(D, 0, D.Length);
+            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>();
 
-            foreach (var el in mesh.Electrodes)
+            foreach (var el in electrodes)
                 D[el.Id, el.Id] = el.Length / el.ZContact;
 
             //Debug.WriteLine("D:\n" + FormatComplexMatrix(D));

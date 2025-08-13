@@ -1,4 +1,5 @@
-﻿using System.Numerics;
+﻿using Google.OrTools.ConstraintSolver;
+using System.Numerics;
 using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 
@@ -49,14 +50,17 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         {
             var lbmMesh = mesh as LBMMesh ?? throw new InvalidCastException();
             var bc = boundaryCondition as LBMBoundaryCondition ?? throw new InvalidCastException();
+            var electrodes = lbmMesh.GetElectrodes();
+            var bcElectrodes = bc.GetElectrodes();
+            int bcElectrodeCount = bcElectrodes.Count();
 
-            for(int i = 0; i < bc.Electrodes.Count; i++)
+            for(int i = 0; i < bcElectrodeCount; i++)
             {
-                bc.Electrodes[i].Potential = 0.0;
-                lbmMesh.Electrodes[i].Potential = 0.0;
+                bcElectrodes[i].Potential = 0.0;
+                electrodes[i].Potential = 0.0;
 
-                bc.Electrodes[i].Current = adjointSource[i].Real;   // TODO: add complex currents
-                lbmMesh.Electrodes[i].Current = adjointSource[i].Real;
+                bcElectrodes[i].Current = adjointSource[i].Real;   // TODO: add complex currents
+                electrodes[i].Current = adjointSource[i].Real;
             }
 
             return RunForward(lbmMesh, bc);
@@ -70,9 +74,12 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             int maxIter = MaxIterationCount;
             double tol = SolutionTolerance;
             int checkFreq = ConvergenceCheckFrequency;
+            var elements = mesh.GetElements().Cast<LBMElement>();
+            var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>();
+            var bcElectrodes = bc.GetElectrodes();
 
             // 1) Initialize distributions Fi and Fi_next to zero
-            foreach (var el in mesh.Elements)
+            foreach (var el in elements)
             {
                 for (int k = 0; k < 9; k++)
                 {
@@ -81,10 +88,10 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 }
                 if(el.IsElectrode)
                 {
-                    var correspondingElectrode = mesh.Electrodes.Find(x => x.GridId == el.Id);
+                    var correspondingElectrode = electrodes.First(x => x.GridId == el.Id);
 
                     if (correspondingElectrode != null && bc.IsNeumann)
-                        correspondingElectrode.Current = bc.Electrodes[correspondingElectrode.Id].Current;
+                        correspondingElectrode.Current = bcElectrodes[correspondingElectrode.Id].Current;
                     else if (correspondingElectrode != null && !bc.IsNeumann)
                     {
                         if(correspondingElectrode.IsExcitation || correspondingElectrode.IsGround)
@@ -105,7 +112,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                         }
                         else
                         {
-                            correspondingElectrode.Potential = bc.Electrodes[correspondingElectrode.Id].Potential;
+                            correspondingElectrode.Potential = bcElectrodes[correspondingElectrode.Id].Potential;
                             for (int i = 0; i < 9; i++)
                                 el.Fi[i] = W[i] * correspondingElectrode.Potential;
                         }
@@ -114,16 +121,13 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 }
             }
 
-            var elements = mesh.Elements.Cast<LBMElement>();
-
-
             // 2) Load conductivity γ into each element
             var sigmaDist = mesh.GetConductivityDistribution();
             foreach (var el in elements)
                 el.Conductivity = sigmaDist.GetConductivity(el.Id);
 
             // 3) Mark electrodes as pinned Dirichlet
-            foreach (var electrode in bc.Electrodes)
+            foreach (var electrode in bcElectrodes)
             {
                 var cell = elements.First(e => e.Id == electrode.GridId);
                 if (cell != null)
@@ -131,7 +135,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             }
 
             // 4) Main loop
-            double[] prevPhi = new double[mesh.Elements.Count];
+            double[] prevPhi = new double[elements.Count()];
             for (int t = 0; t < maxIter; t++)
             {
                 // 4a) Collision
@@ -195,7 +199,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     // enforce boundary condtion Neumann or Dirichlet: Fi = W[k]*PinValue
                     if (el.IsElectrode)
                     {
-                        var electrode = mesh.Electrodes.First(x => x.GridId == el.Id);
+                        var electrode = electrodes.First(x => x.GridId == el.Id);
                         double potential = electrode.Potential;
 
                         // Neumann
@@ -242,8 +246,10 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
             // Set mesh variables
             var dict = new Dictionary<int, double>();
-            foreach (var elemenet in mesh.Elements)
+
+            foreach (var elemenet in elements)
                 dict.Add(elemenet.Id, elemenet.Fi.Sum());
+
             var pd = new PotentialDistribution(dict);
 
             mesh.SetPotentialDistribution(pd);

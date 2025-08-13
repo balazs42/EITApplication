@@ -178,9 +178,11 @@ public partial class LBMReconstructionPage : ContentPage
 
             List<string> lines = [];
 
+            var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
+
             if(el.IsElectrode)
             {
-                var elec = mesh.Electrodes.Find(x => x.GridId == el.Id);
+                var elec = electrodes.Find(x => x.GridId == el.Id);
                 if (elec == null)
                     throw new NullReferenceException("Cannot find electrode in mesh with the same id!");
 
@@ -294,10 +296,12 @@ public partial class LBMReconstructionPage : ContentPage
         // grab potentials, compute min/max
         var pd = result.CurrentPotentialDistribution.Potentials;
 
+        var elements = mesh.GetElements().Cast<LBMElement>().ToList();
+
         // Convert to current amplitudes
         foreach(var p in pd)
         {
-            var el = mesh.Elements.Find(x => x.Id == p.Key);
+            var el = elements.Find(x => x.Id == p.Key);
 
             if(el != null)
                 pd[p.Key] = el.GetCurrentAmplitude();
@@ -363,7 +367,7 @@ public partial class LBMReconstructionPage : ContentPage
     private async void OnEditBoundaryConditions(object sender, EventArgs e)
     {
         // build the appropriate BoundaryCondition subclass:
-        var electrodes = _viewModel.GetMesh().Electrodes;
+        var electrodes = _viewModel.GetMesh().GetElectrodes().Cast<LBMElectrode>().ToList();
 
         var bc = new LBMBoundaryCondition(electrodes);
 

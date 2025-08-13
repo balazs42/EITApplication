@@ -101,7 +101,9 @@ namespace Utility.Classes.Factories
         {
             var conductivityDistribution = new Dictionary<int, double>();
 
-            foreach(var element in mesh.Elements)
+            var elements = mesh.GetElements();
+
+            foreach(var element in elements)
                 conductivityDistribution.Add(element.Id, element.Conductivity);
 
             return new ConductivityDistribution(conductivityDistribution);

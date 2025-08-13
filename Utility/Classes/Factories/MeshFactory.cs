@@ -161,7 +161,7 @@ namespace Utility.Classes.Factories
                 electrodes.Add(el);
             }
 
-            mesh.Electrodes = electrodes;
+            mesh.SetElectrodes(electrodes);
 
             // Assing vertex neighbors
             foreach (var element in elements)
@@ -269,7 +269,7 @@ namespace Utility.Classes.Factories
             }
 
             // 3) rebuild distribution so downstream code sees it
-            var cd = mesh.Elements.ToDictionary(e => e.Id, e => e.Conductivity);
+            var cd = mesh.GetElements().ToDictionary(e => e.Id, e => e.Conductivity);
             mesh.SetConductivityDistribution(new ConductivityDistribution(cd));
 
             return mesh;
@@ -298,7 +298,7 @@ namespace Utility.Classes.Factories
             double r2 = radius * radius;
 
             // mark anything outside circle as wall
-            foreach (var el in mesh.Elements)
+            foreach (var el in mesh.GetElements().Cast<LBMElement>())
             {
                 var (x, y) = mesh.ToLattice(el.Id);
                 double dx = x - cx;
@@ -314,13 +314,12 @@ namespace Utility.Classes.Factories
                 }
             }
 
-            // 2) rebuild electrode list along the new inner perimeter
-            mesh.Electrodes.Clear();
+            // 2) rebuild electrode list along the new inner perimeter            
             mesh.PlaceEquidistantElectrodes(electrodeCount);
 
             // 3) refresh conductivity distribution if you rely on it
-            var cd = mesh.Elements.ToDictionary(e => e.Id, e => e.Conductivity);
-            mesh.ConductivityDistribution = new ConductivityDistribution(cd);
+            var cd = mesh.GetElements().ToDictionary(e => e.Id, e => e.Conductivity);
+            mesh.SetConductivityDistribution(new ConductivityDistribution(cd));
 
             return mesh;
         }

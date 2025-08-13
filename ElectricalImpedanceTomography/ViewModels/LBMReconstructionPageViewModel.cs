@@ -1,6 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ServiceLayer;
+using System.Diagnostics.CodeAnalysis;
 using Utility.Classes;
 using Utility.Classes.Factories;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
@@ -70,7 +71,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public LBMMesh GetMesh()
         {
-            return _mesh.DeepCopy();
+            return (LBMMesh)_mesh.DeepCopy();
         }
 
         [RelayCommand]
@@ -97,7 +98,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public async void OnSolveForwardClicked(object sender, EventArgs e)
         {
-            var electrodes = _mesh.Electrodes;
+            var electrodes = _mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
 
             foreach(var el in electrodes)
             {
@@ -113,9 +114,11 @@ namespace ElectricalImpedanceTomography.ViewModels
             electrodes[1].Current = 1.0;
 
             for (int i = 2; i < electrodes.Count; i++)
+            {
                 if (electrodes[i].IsGround || electrodes[i].IsExcitation) { }
                 else electrodes[i].Potential = (i % 2 == 0) ? 2.0: 1.0;
-                    _mesh.SetElectrodes(electrodes);
+            }
+            _mesh.SetElectrodes(electrodes);
 
 
             _reconstructionService.InitializeReconstruction(_mesh, ReconstructionParameters);

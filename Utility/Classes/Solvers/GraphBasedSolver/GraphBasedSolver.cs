@@ -56,7 +56,7 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
                 w[e] = _alpha[e] * _wbar[e];
 
             // 2) Build RHS currents I from electrodes in mesh
-            var electrodes = mesh.Electrodes;
+            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>();
             var I = new double[N];
             foreach (var el in electrodes)
                 I[el.MeshId] = el.Current;
@@ -90,7 +90,9 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
             // 4) Build the residual r_i = φ_i - U_obs at electrode nodes
             //    Initialize all entries to zero
             var r = new double[N];
-            foreach (var el in mesh.Electrodes)
+            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>();
+
+            foreach (var el in electrodes)
             {
                 // el.MeshId is the graph‐node index of this electrode
                 double phiVal = phiDict[el.MeshId];
@@ -131,8 +133,10 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
                 w[e] = _alpha[e] * _wbar[e];
 
             // 2) Build RHS currents I from electrodes in mesh
-            var electrodes = mesh.Electrodes;
+            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>();
+            int electrodeCount = electrodes.Count();
             var I = new double[N];
+
             foreach (var el in electrodes)
                 I[el.MeshId] = el.Current;
 
@@ -140,9 +144,9 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
             var phi = _lapSolver.SolveLaplacian(w, I);
 
             // 4) Collect observed voltages U_obs
-            var Uobs = new double[electrodes.Count];
-            for (int ell = 0; ell < electrodes.Count; ell++)
-                Uobs[ell] = electrodes[ell].Potential;
+            var Uobs = new double[electrodeCount];
+            for (int ell = 0; ell < electrodeCount; ell++)
+                Uobs[ell] = electrodes.ElementAt(ell).Potential;
 
             // 5) Compute adjoint gradients
             var (gradWbar, gradAlpha) = _adjGrad.Compute(_wbar, _alpha, phi, Uobs);
@@ -168,7 +172,9 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
         /// </summary>
         public ConductivityDistribution GetConductivityDistribution(FEMMesh mesh)
         {
-            var sigmaDict = new Dictionary<int, double>(mesh.Elements.Count);
+            var elements = mesh.GetElements().Cast<FEMElement>();
+            int elementCount = elements.Count();
+            var sigmaDict = new Dictionary<int, double>(elementCount);
             int E = _assembler.Edges.Count;
 
             // Precompute effective w = α·w̄ for each edge
@@ -177,7 +183,7 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
                 we[e] = _alpha[e] * _wbar[e];
 
             // For every element in the FEM mesh:
-            foreach (var elem in mesh.Elements)
+            foreach (var elem in elements)
             {
                 // The set of node‐IDs that this element touches
                 var vids = new int[] { elem.Vertices[0].GlobalId, elem.Vertices[1].GlobalId, elem.Vertices[2].GlobalId};

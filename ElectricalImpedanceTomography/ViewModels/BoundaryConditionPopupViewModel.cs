@@ -17,14 +17,22 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             BoundaryCondition = bc;
 
-            Electrodes = new ObservableCollection<Electrode>(bc.Electrodes);
+            var electrodes = bc.GetElectrodes();
+
+            Electrodes = new ObservableCollection<Electrode>(electrodes);
         }
 
         public BoundaryConditionsPopupViewModel(LBMBoundaryCondition bc)
         {
             BoundaryCondition = bc;
 
-            Electrodes = new ObservableCollection<Electrode>(bc.GetElectrodes());
+            var electrodes = bc.GetElectrodes();
+
+            Electrodes = new ObservableCollection<Electrode>(electrodes);
         }
+
+        public BoundaryCondition GetBoundaryCondition() => BoundaryCondition;
+
+        public void SetBoundaryCondition(BoundaryCondition boundaryCondition) => BoundaryCondition = boundaryCondition;
     }
 }

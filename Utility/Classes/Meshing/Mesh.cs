@@ -1,4 +1,6 @@
-﻿using Utility.Classes.Meshing;
+﻿using System.ComponentModel.DataAnnotations;
+using System.Xml.Linq;
+using Utility.Classes.Meshing;
 using Utility.Classes.Meshing.GraphMesh;
 
 namespace Utility.Classes
@@ -8,18 +10,20 @@ namespace Utility.Classes
     /// </summary>
     public interface IMesh
     {
-        public void LogMesh();
-        public ConductivityDistribution GetConductivityDistribution();
-        public PotentialDistribution GetPotentialDistribution();
-        public Mesh GetMesh();
-        public List<Electrode> GetElectrodes();
-        public List<Vertex> GetVertices();
-        public List<MeshElement> GetElements();
-        public double[] GetElectrodePotentials();
-        public List<Vertex> GetElectrodeVertices();
-        public Mesh DeepCopy();
-        public Graph ToGraph();
-        public Mesh FromGraph();
+        void LogMesh();
+
+        ConductivityDistribution GetConductivityDistribution();
+        PotentialDistribution GetPotentialDistribution();
+
+        Mesh GetMesh();
+
+        IReadOnlyList<Electrode> GetElectrodes();
+        IReadOnlyList<MeshElement> GetElements();
+        double[] GetElectrodePotentials();        
+
+        Mesh DeepCopy();
+        Graph ToGraph();
+        Mesh FromGraph();
     }
 
     /// <summary>
@@ -28,98 +32,120 @@ namespace Utility.Classes
     /// </summary>
     public abstract class Mesh : IMesh
     {
-        public List<Vertex> Vertices { get; set; } = [];
-        public List<MeshElement> Elements { get; set; } = [];
-        public List<Electrode> Electrodes { get; set; } = [];
-        public ConductivityDistribution ConductivityDistribution { get; set; }
-        public PotentialDistribution PotentialDistribution { get; set; }
-
-        public Mesh()
-        {
-            ConductivityDistribution = new(new());
-            PotentialDistribution = new(new());
-        }
-
-        public void LogMesh()
-        {
-
-        }
+        public abstract ConductivityDistribution ConductivityDistribution { get; protected set; }
+        public abstract PotentialDistribution PotentialDistribution { get; protected set; }
 
         public ConductivityDistribution GetConductivityDistribution() => ConductivityDistribution;
         public PotentialDistribution GetPotentialDistribution() => PotentialDistribution;
         public Mesh GetMesh() => this;
-        public List<Electrode> GetElectrodes() => Electrodes;
-        public List<Vertex> GetVertices() => Vertices;
-        public List<MeshElement> GetElements() => Elements;
 
-        /// <summary>
-        /// Finds all electrode nodes, and extracts the potential values of the PotentialDistributon.
-        /// </summary>
-        /// <returns>The array of electrode potentials.</returns>
+        public abstract IReadOnlyList<MeshElement> GetElements();
+        public abstract IReadOnlyList<Electrode> GetElectrodes();
         public abstract double[] GetElectrodePotentials();
 
-        public List<Vertex> GetElectrodeVertices()
-        {
-            List<Vertex> electrodeVertices = [];
-            foreach (Vertex v in Vertices)
-                if (v.IsElectrode)
-                    electrodeVertices.Add(v);
+        public abstract void SetConductivityDistribution(ConductivityDistribution cd);
+        public abstract void SetPotentialDistribution(PotentialDistribution pd);        
 
-            return electrodeVertices;
-        }
-
-        public void SetConductivityDistribution(ConductivityDistribution conductivityDistribution)
-        {
-            if (conductivityDistribution == null || conductivityDistribution.Conductivities.Count != ConductivityDistribution.Conductivities.Count)
-                throw new ArgumentOutOfRangeException("Cannot set conductivity distribution to differing size, check code!");
-
-            var keys1 = conductivityDistribution.Conductivities.Keys.OrderBy(x => x).ToList();
-            var keys2 = ConductivityDistribution.Conductivities.Keys.OrderBy(x => x).ToList();
-
-            for (int i = 0; i < keys1.Count; i++)
-                if (keys1[i] != keys2[i])
-                    throw new ArgumentOutOfRangeException("Cannot set new conductivity distribution, if not all keys match!");
-
-            ConductivityDistribution = conductivityDistribution;
-
-            foreach (var kvp in conductivityDistribution.Conductivities)
-            {
-                var element = Elements.Find(x => x.Id == kvp.Key);
-
-                if (element == null)
-                    throw new NullReferenceException("Could not update LBM mesh element value, since the id of the element does not match any insatnces in the provided conducitivty distribution keys. Check code!");
-
-                element.Conductivity = kvp.Value;
-            }
-        }
-
-        public void SetPotentialDistribution(PotentialDistribution potentialDistribution)
-        {
-            if (potentialDistribution == null || potentialDistribution.Potentials.Count != PotentialDistribution.Potentials.Count)
-                throw new ArgumentOutOfRangeException("Cannot set conductivity distribution to differing size, check code!");
-
-            var keys1 = potentialDistribution.Potentials.Keys.OrderBy(x => x).ToList();
-            var keys2 = PotentialDistribution.Potentials.Keys.OrderBy(x => x).ToList();
-
-            for (int i = 0; i < keys1.Count; i++)
-                if (keys1[i] != keys2[i])
-                    throw new ArgumentOutOfRangeException("Cannot set new conductivity distribution, if not all keys match!");
-
-            foreach (var kvp in potentialDistribution.Potentials)
-                PotentialDistribution.Potentials[kvp.Key] = kvp.Value;
-
-            // Set electrode potentials
-            foreach(var kvp in potentialDistribution.Potentials)
-            {
-                var correspondingElectrode = Electrodes.Find(x => x.Id == kvp.Key);
-
-                if(correspondingElectrode != null)
-                    correspondingElectrode.Potential = kvp.Value;
-            }
-        }
-
+        public abstract void LogMesh();
         public abstract Mesh DeepCopy();
         public abstract Graph ToGraph();
         public abstract Mesh FromGraph();
+
+        protected static void ValidateSameKeys(IEnumerable<int> a, IEnumerable<int> b)
+        {
+            var A = a.OrderBy(x => x).ToArray();
+            var B = b.OrderBy(x => x).ToArray();
+            if (A.Length != B.Length || !A.SequenceEqual(B))
+                throw new ArgumentOutOfRangeException("Key-set mismatch between provided data and mesh state.");
+        }
+    }
+
+    public abstract class Mesh<TElement, TElectrode> : Mesh
+        where TElement : MeshElement
+        where TElectrode : Electrode
+    {
+        protected readonly List<TElement> _elements = [];
+        protected readonly List<TElectrode> _electrodes = [];
+
+        public IReadOnlyList<TElement> ElementsTyped => _elements;
+        public IReadOnlyList<TElectrode> ElectrodesTyped => _electrodes;
+
+        public sealed override IReadOnlyList<MeshElement> GetElements()
+            => _elements.Cast<MeshElement>().ToList();
+        public sealed override IReadOnlyList<Electrode> GetElectrodes()
+            => _electrodes.Cast<Electrode>().ToList();
+
+        public sealed override double[] GetElectrodePotentials()
+            => _electrodes.Select(ReadPotentialOf).ToArray();
+
+        public sealed override void SetConductivityDistribution(ConductivityDistribution cd)
+        {
+            if (cd is null) throw new ArgumentNullException(nameof(cd));
+            ValidateSameKeys(cd.Conductivities.Keys, _elements.Select(e => e.Id));
+
+            ConductivityDistribution = cd;
+            foreach (var e in _elements)
+                if (cd.Conductivities.TryGetValue(e.Id, out var value))
+                    e.Conductivity = value;
+        }
+
+        public sealed override void SetPotentialDistribution(PotentialDistribution pd)
+        {
+            if (pd is null) throw new ArgumentNullException(nameof(pd));
+            ValidateSameKeys(pd.Potentials.Keys, StateKeys());
+
+            PotentialDistribution = pd;
+            foreach (var kv in pd.Potentials)
+                ApplyPotentialToState(kv.Key, kv.Value);
+
+            RefreshElectrodePotentialsFromState();
+        }
+
+        public void SetElectrodes(IList<TElectrode> electrodes)
+        {
+            if (_electrodes.Count != electrodes.Count && _electrodes.Count > 0)
+                throw new ArgumentException("Cannot set electrodes, list count mismatch!");
+
+            _electrodes.Clear();
+
+            foreach (var el in electrodes)
+                _electrodes.Add(el);
+        }
+
+        public void SetElements(IList<TElement> elements)
+        {
+            if (_elements.Count != elements.Count)
+                throw new ArgumentException("Cannot set elements, list count mismatch!");
+
+            _elements.Clear();
+
+            foreach (var el in elements)
+                _elements.Add(el);
+        }
+
+        public void SetConductivity(int id, double value)
+        {
+            var el = _elements.Find(x => x.Id == id);
+
+            if (el == null)
+                throw new ArgumentOutOfRangeException("Cannot set conductivity, id not found in elements. Check lists!");
+
+            el.Conductivity = value;
+            ConductivityDistribution.Conductivities[id] = value;
+        }
+
+        protected virtual void RefreshElectrodePotentialsFromState()
+        {
+            for (int i = 0; i < _electrodes.Count; i++)
+                _electrodes[i].Potential = ReadPotentialOf(_electrodes[i]);
+        }
+
+        protected abstract IEnumerable<int> StateKeys();                       
+        protected abstract void ApplyPotentialToState(int key, double phi); 
+        protected abstract double ReadPotentialOf(TElectrode electrode);       
+
+        // A valódi mezőben tárolt disztribúciók
+        public override ConductivityDistribution ConductivityDistribution { get; protected set; }
+        public override PotentialDistribution PotentialDistribution { get; protected set; }
     }
 }

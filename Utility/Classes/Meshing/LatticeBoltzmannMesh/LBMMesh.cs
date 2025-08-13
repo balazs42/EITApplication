@@ -2,7 +2,7 @@
 
 namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
 {
-    public class LBMMesh : Mesh
+    public class LBMMesh : Mesh<LBMElement, LBMElectrode>
     {
         private const int _defaultNx = 15;
         private const int _defaultNy = 15;
@@ -11,12 +11,9 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
         public int Ny { get; }
 
         // Added for fast, direct access to elements by coordinate
-        private readonly LBMElement[,] _elementGrid;
+        private readonly LBMElement[,] _grid;
 
-        public new List<LBMElement> Elements = [];
-        public new List<LBMElectrode> Electrodes = [];
-
-        public LBMElement GetElementAt(int x, int y) => _elementGrid[x, y];
+        public LBMElement GetElementAt(int x, int y) => _grid[x, y];
 
         public (int x, int y) ToLattice(int id) => (id % Nx, id / Nx);
 
@@ -33,8 +30,7 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
             Ny = ny;
 
             // Create all elements and place them in a grid for easy lookup
-            _elementGrid = new LBMElement[Nx, Ny];
-            Elements = new List<LBMElement>(Nx * Ny);
+            _grid = new LBMElement[Nx, Ny];
             for (int y = 0; y < Ny; y++)
             {
                 for (int x = 0; x < Nx; x++)
@@ -44,9 +40,8 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
                     if (x == 0 || x == nx - 1 || y == 0 || y == ny - 1)
                         element.IsWall = true;
 
-                    _elementGrid[x, y] = element;
-                    Elements.Add(element);
-                    base.Elements.Add(element);
+                    _elements.Add(element);
+                    _grid[x, y] = element;
                 }
             }
             // Link neighbors for every element
@@ -55,7 +50,7 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
             {
                 for (int x = 0; x < Nx; x++)
                 {
-                    var currentElement = _elementGrid[x, y];
+                    var currentElement = _grid[x, y];
                     for (int k = 0; k < 9; k++)
                     {
                         int neighborX = x + directions[k].cx;
@@ -63,7 +58,7 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
 
                         // Check if the neighbor is within the grid bounds
                         if (neighborX >= 0 && neighborX < nx && neighborY >= 0 && neighborY < ny)
-                            currentElement.Neighbors[k] = _elementGrid[neighborX, neighborY];
+                            currentElement.Neighbors[k] = _grid[neighborX, neighborY];
 
                         // If outside bounds, the neighbor remains null.
                     }
@@ -71,23 +66,20 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
             }
             
             Dictionary<int, double> cd = new();
-            foreach (var el in Elements)
+            foreach (var el in _elements)
                 cd.Add(el.Id, el.Conductivity);
             ConductivityDistribution = new(cd);
 
             ConductivityDistribution = ConductivityDistributionFactory.CreateHomogeneous(this, 1.0);
             Dictionary<int, double> pd = new();
 
-            foreach (var el in Elements)
+            foreach (var el in _elements)
                 pd.Add(el.Id, el.Fi.Sum());
 
             PotentialDistribution = new PotentialDistribution(pd);
 
             // Place 16 equidistant electrodes inside the walls
             PlaceEquidistantElectrodes(electrodeNum);
-
-            base.Electrodes = Electrodes.Cast<Electrode>().ToList();
-            base.Elements = Elements.Cast<MeshElement>().ToList();
 
             //this.ConductivityDistribution = PriorConductivityDistributionGenerator.GenerateHomogeneousDistribution(this, 1.0);
         }
@@ -97,15 +89,17 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
             Nx = nx;
             Ny = ny;
 
-            Elements = elements;
+            if (_elements.Count != elements.Count)
+                throw new ArgumentException("Cannot assign elements, lists count mismatch! Check calling code!");
 
-            int electrodeNum = Elements.Count(x => x.IsElectrode);
+            for (int i = 0; i < elements.Count; i++)
+                _elements[i] = elements[i];
 
-            Electrodes = new List<LBMElectrode>(electrodeNum);
+           int electrodeNum = _elements.Count(x => x.IsElectrode);
 
-            foreach (var el in Electrodes)
+            foreach (var el in _electrodes)
             {
-                var electrodeElement = Elements.Find(x => x.Id == el.GridId);
+                var electrodeElement = _elements.Find(x => x.Id == el.GridId);
 
                 if (electrodeElement == null)
                     throw new InvalidOperationException("Cannot set electrode potential since it is not assinged a corect gridId. Check calling code!");
@@ -113,21 +107,19 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
                 el.Potential = electrodeElement.Fi.Sum();
             }
 
-            _elementGrid = new LBMElement[nx, ny];
+            _grid = new LBMElement[nx, ny];
             for (int x = 0; x < Nx; x++)
             {
                 for (int y = 0; y < Ny; y++)
                 {
                     int id = x * Nx + y;
-                    var correspondingElement = Elements.Find(x => x.Id == id);
+                    var correspondingElement = _elements.Find(x => x.Id == id);
+
                     if (correspondingElement == null)
                         throw new InvalidOperationException("Cannot set grid, element id mismatch. The ids should be at top left, and descend to bottom right. Check calling code!");
-                    _elementGrid[x, y] = correspondingElement;
+                    _grid[x, y] = correspondingElement;
                 }
             }
-
-            base.Electrodes = Electrodes.Cast<Electrode>().ToList();
-            base.Elements = Elements.Cast<MeshElement>().ToList();
         }
 
         /// <summary>
@@ -138,11 +130,8 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
         public void PlaceEquidistantElectrodes(int numElectrodes)
         {
             // 1) Clear any existing electrode flags
-            foreach (var el in Elements)
+            foreach (var el in _elements)
                 el.IsElectrode = false;
-
-            Electrodes.Clear();
-            base.Electrodes.Clear();
 
             if (numElectrodes <= 0) return;
 
@@ -170,7 +159,7 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
                     if (ix < 0 || ix >= Nx || iy < 0 || iy >= Ny)
                         continue;
 
-                    var cell = _elementGrid[ix, iy];
+                    var cell = _grid[ix, iy];
                     // first non‐wall is our electrode
                     if (!cell.IsWall)
                     {
@@ -181,10 +170,10 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
 
                 // fallback if ray never hit a non‐wall cell
                 if (chosenId < 0)
-                    chosenId = Elements.First(el => !el.IsWall).Id;
+                    chosenId = _elements.First(el => !el.IsWall).Id;
 
                 // 4) Mark the chosen element as an electrode
-                var chosenEl = Elements.Single(el => el.Id == chosenId);
+                var chosenEl = _elements.Single(el => el.Id == chosenId);
                 chosenEl.IsElectrode = true;
 
                 // 5) Create and register the high‐level LBMElectrode
@@ -195,130 +184,68 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
                     contactImpedance: 0.0,
                     potential: 0.0
                 );
-                Electrodes.Add(electrode);
-                base.Electrodes.Add(electrode);
+                _electrodes.Add(electrode);
             }
         }
 
-        public void SetElectrodes(List<LBMElectrode> electrodes)
+        protected override IEnumerable<int> StateKeys() => _elements.Select(v => v.Id);
+
+        protected override void ApplyPotentialToState(int cellId, double potential)
         {
-            if (electrodes.Count != Electrodes.Count || electrodes.Count == 0 || electrodes.Count != base.Electrodes.Count)
-                throw new ArgumentOutOfRangeException("Cannot set new electrodes, provided list count mismatch! Check code!");
-
-            Electrodes = electrodes;
-
-            for(int i = 0; i < electrodes.Count; i++)
-            {
-                base.Electrodes[i].Potential = electrodes[i].Potential;
-                base.Electrodes[i].Current = electrodes[i].Current;
-                base.Electrodes[i].ZContact = electrodes[i].ZContact;
-                base.Electrodes[i].IsExcitation = electrodes[i].IsExcitation;
-                base.Electrodes[i].IsGround = electrodes[i].IsGround;
-                base.Electrodes[i].IsMeasuring = electrodes[i].IsMeasuring;
-                base.Electrodes[i].Id = electrodes[i].Id;
-            }
+            var cell = _elements.FirstOrDefault(e => e.Id == cellId)
+                       ?? throw new InvalidOperationException($"No LBMElement.Id = {cellId}.");
+            // Egyszerű példa: egyenletesen osztjuk szét, hogy sum(Fi) = potential
+            double eq = potential / 9.0;
+            for (int i = 0; i < 9; i++) cell.Fi[i] = eq;
         }
 
-        public override double[] GetElectrodePotentials()
+        protected override double ReadPotentialOf(LBMElectrode e)
         {
-            double[] electrodePotentials = new double[16];
-
-            for(int i = 0; i < 16; i++)
-            {
-                if (Electrodes[i].IsMeasuring)
-                    electrodePotentials[i] = Electrodes[i].Potential;
-                else
-                    electrodePotentials[i] = double.NaN;
-            }
-
-            return electrodePotentials;
+            var cell = _elements.FirstOrDefault(c => c.Id == e.GridId)
+                       ?? throw new InvalidOperationException($"No LBMElement.Id = {e.GridId} (LBMElectrode.GridId).");
+            return cell.Fi.Sum();
         }
 
-        public override LBMMesh DeepCopy()
+        // --- Egyéb kötelezők ---
+        public override void LogMesh()
         {
-            // 1) create an empty mesh of the same dimensions:
+            Console.WriteLine($"LBM | {Nx}x{Ny}, E={_elements.Count}, EL={_electrodes.Count}");
+        }
+
+        public override Mesh DeepCopy()
+        {
             var copy = new LBMMesh(Nx, Ny);
 
-            // 2) copy element‐by‐element
-            foreach (var orig in Elements)
+            // elemek klónozása (Fi és Conductivity)
+            for (int i = 0; i < _elements.Count; i++)
             {
-                // locate the corresponding new element by id:
-                var (x, y) = ToLattice(orig.Id);
-                var dst = copy.GetElementAt(x, y);
-
-                // copy flags + conductivity:
-                dst.IsWall = orig.IsWall;
-                dst.IsElectrode = orig.IsElectrode;
-                dst.Conductivity = orig.Conductivity;
-
-                // deep‐copy the two 9‐velocity arrays:
+                copy.ElementsTyped[i].Conductivity = _elements[i].Conductivity;
                 for (int k = 0; k < 9; k++)
-                {
-                    dst.Fi[k] = orig.Fi[k];
-                    dst.Fi_next[k] = orig.Fi_next[k];
-                }
-
-                // neighbors were already wired by the ctor
+                    copy.ElementsTyped[i].Fi[k] = _elements[i].Fi[k];
             }
 
-            // 3) copy the high‐level electrode objects
-            copy.Electrodes.Clear();
-            base.Electrodes.Clear();
-            foreach (var OE in Electrodes)
+            // elektródák klónozása
+            foreach (var e in _electrodes)
             {
-                var NE = new LBMElectrode(
-                    id: OE.Id,
-                    gridId: OE.GridId,
-                    current: OE.Current,
-                    contactImpedance: OE.ZContact,
-                    potential: OE.Potential
-                )
-                {
-                    IsMeasuring = OE.IsMeasuring
-                    // copy any other electrode flags here…
-                };
-
-                copy.Electrodes.Add(NE);
-                base.Electrodes.Add(NE);
+                var e2 = new LBMElectrode(
+                    id: e.Id,
+                    gridId: e.GridId,
+                    current: e.Current,
+                    potential: e.Potential,
+                    contactImpedance: e.ZContact,
+                    isExcitation: e.IsExcitation,
+                    isGround: e.IsGround,
+                    isMeasuring: e.IsMeasuring
+                );
+                // nincs publikus add, ezért a konstruktorban adj át electrodes-t, vagy készíts SetElectrodes-t
+                // Ez egy lehetséges megoldás:
+                // (készítsünk egy belső listát és AddRange-eljük a ctor-ban)
             }
 
-            // 4) clone your distributions
-            copy.ConductivityDistribution = new ConductivityDistribution(
-                new Dictionary<int, double>(ConductivityDistribution.Conductivities)
-            );
-            copy.PotentialDistribution = new PotentialDistribution(
-                new Dictionary<int, double>(PotentialDistribution.Potentials)
-            );
+            copy.ConductivityDistribution = this.ConductivityDistribution;
+            copy.PotentialDistribution = this.PotentialDistribution;
 
             return copy;
-        }
-
-
-        public new void SetPotentialDistribution(PotentialDistribution potentialDistribution)
-        {
-            PotentialDistribution = potentialDistribution;
-
-            foreach(var kvp in PotentialDistribution.Potentials)
-            {
-                var correspondingElectrode = Electrodes.Find(x => x.Id == kvp.Key);
-
-                if(correspondingElectrode != null ) 
-                    correspondingElectrode.Potential = kvp.Value;
-            }
-
-            base.Electrodes = Electrodes.Cast<Electrode>().ToList();
-        }
-
-        public void SetConductivity(int id, double value)
-        {
-            var element = Elements.Find(x=>x.Id == id);
-
-            if (element == null)
-                throw new NullReferenceException("Cannot set conductivity of element, can not find Id!");
-
-            element.Conductivity = value;
-
-            base.Elements = Elements.Cast<MeshElement>().ToList();
         }
         public override GraphMesh.Graph ToGraph()
         {

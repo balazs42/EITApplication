@@ -1,5 +1,6 @@
 ﻿using Utility.Classes.Meshing;
 using Utility.Classes.Meshing.FiniteElementMesh;
+using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 
 namespace Utility.Classes.Solvers.FiniteElementSolver
 {
@@ -15,8 +16,9 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         public static VectorField CalculateElementWiseGradient(FEMMesh femMesh, ScalarField scalarField)
         {
             var gradientData = new Dictionary<int, (double Gx, double Gy)>();
+            var elements = femMesh.GetElements().Cast<FEMElement>();
 
-            foreach (var element in femMesh.Elements)
+            foreach (var element in elements)
             {
                 var v1 = element.Vertices[0];
                 var v2 = element.Vertices[1];
@@ -62,6 +64,7 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         {
             var laplacianData = new Dictionary<int, double>();
             var adjacency = BuildAdjacencyMap(femMesh);
+            var elements = femMesh.GetElements().Cast<FEMElement>();
 
             foreach (var vertex in femMesh.Vertices)
             {
@@ -76,7 +79,7 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
                     double s_j = scalarField.GetValue(j);
 
                     // Find the two triangles sharing the edge (i, j)
-                    var sharedTriangles = femMesh.Elements.Where(e =>
+                    var sharedTriangles = elements.Where(e =>
                         e.Vertices[0].GlobalId == i && (e.Vertices[1].GlobalId == j || e.Vertices[2].GlobalId == j) ||
                         e.Vertices[1].GlobalId == i && (e.Vertices[0].GlobalId == j || e.Vertices[2].GlobalId == j) ||
                         e.Vertices[2].GlobalId == i && (e.Vertices[0].GlobalId == j || e.Vertices[1].GlobalId == j)
@@ -128,7 +131,9 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         private static Dictionary<int, List<int>> BuildAdjacencyMap(FEMMesh mesh)
         {
             var adjacency = new Dictionary<int, List<int>>();
-            foreach (var element in mesh.Elements)
+            var elements = mesh.GetElements().Cast<FEMElement>();
+
+            foreach (var element in elements)
             {
                 AddEdge(adjacency, element.Vertices[0].GlobalId, element.Vertices[1].GlobalId);
                 AddEdge(adjacency, element.Vertices[1].GlobalId, element.Vertices[2].GlobalId);

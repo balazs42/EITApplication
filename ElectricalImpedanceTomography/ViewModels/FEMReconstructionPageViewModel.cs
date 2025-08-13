@@ -89,8 +89,8 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             var newMesh =  (FEMMesh)MeshFactory.Create(parameters, InhomogenityValue);
 
-            _mesh = newMesh.DeepCopy();
-            _reconstructedMesh = newMesh.DeepCopy();
+            _mesh = (FEMMesh)newMesh.DeepCopy();
+            _reconstructedMesh = (FEMMesh)newMesh.DeepCopy();
 
             return newMesh;
         }
@@ -100,7 +100,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public FEMMesh SolveForward(FEMMesh mesh)
         {
-            var electrodes = mesh.Electrodes;
+            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
 
             foreach(var el in electrodes)
             {
@@ -125,7 +125,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             var retMesh = _reconstructionService.SolveFemForward(mesh);;
 
-            _reconstructedMesh.PotentialDistribution = retMesh.PotentialDistribution;
+            _reconstructedMesh.SetPotentialDistribution(retMesh.PotentialDistribution);
 
             return retMesh;
         }
@@ -134,7 +134,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             _reconstructionService.InitializeReconstruction(_mesh, reconstructionParameters);
 
-            var electrodes = mesh.Electrodes;
+            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
 
             foreach (var el in electrodes)
             {
@@ -155,7 +155,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             electrodes[GroundElectrodeId % ElectrodeCount].IsGround = true;
             electrodes[GroundElectrodeId % ElectrodeCount].Current = -ExcitationCurrentAmplitude;
 
-            _reconstructedMesh.Electrodes = [.. electrodes];
+            _reconstructedMesh.SetElectrodes(electrodes);
 
             return _reconstructionService.SolveFemInverse(mesh,
                                                           maxIterCount: MaxIterationCount,
@@ -172,7 +172,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             double[] currentSimulatedMeasurement = _simulatedMeasurements[_simulatedMeasurementsIndex % ElectrodeCount];
 
             // TODO: create the appropirate boundary conditions
-            FEMBoundaryCondition bc = new(_mesh.Electrodes);
+            FEMBoundaryCondition bc = new(_mesh.GetElectrodes().Cast<FEMElectrode>().ToList());
 
             ReconstructionResult reconstructionResult = _reconstructionService.InverseSolveStepFem(mesh: _mesh,
                                                                                                    measurement: currentSimulatedMeasurement,

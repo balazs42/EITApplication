@@ -107,7 +107,9 @@ namespace Utility.Classes.ReconstructionParameters
                 // For FEM, gradient is constant per element.
                 gradientField = FiniteElementOperators.CalculateElementWiseGradient(femMesh, sigma.ToPotentialDistribution());
                 double integral = 0;
-                foreach (var element in femMesh.Elements)
+                var elements = femMesh.GetElements().Cast<FEMElement>();
+
+                foreach (var element in elements)
                 {
                     var grad = gradientField.GetVector(element.Id);
                     integral += (grad.X * grad.X + grad.Y * grad.Y) * element.Area;
@@ -218,7 +220,9 @@ namespace Utility.Classes.ReconstructionParameters
             {
                 gradientField = FiniteElementOperators.CalculateElementWiseGradient(femMesh, sigma.ToPotentialDistribution());
                 double integral = 0;
-                foreach (var element in femMesh.Elements)
+                var elements = femMesh.GetElements().Cast<FEMElement>();
+
+                foreach (var element in elements)
                 {
                     var grad = gradientField.GetVector(element.Id);
                     integral += Math.Sqrt(grad.X * grad.X + grad.Y * grad.Y) * element.Area;

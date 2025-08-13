@@ -41,8 +41,10 @@ namespace Utility.Classes
             // 2) Collect unique edges from mesh elements
             var edgeSet = new HashSet<(int, int)>();
 
+            var elements = mesh.GetElements().Cast<FEMElement>();
+
             // Loop each element in mesh
-            foreach (var elem in mesh.Elements)
+            foreach (var elem in elements)
             {
                 // elem.VertexIds gives the node indices for this element (e.g. triangle)
                 var vids = new int[] { elem.Vertices[0].GlobalId, elem.Vertices[1].GlobalId, elem.Vertices[2].GlobalId };
@@ -77,8 +79,9 @@ namespace Utility.Classes
             {
                 var (i, j) = Edges[e];
                 double sum = 0.0;
+
                 // Sum element contributions where both nodes appear
-                foreach (var elem in mesh.Elements)
+                foreach (var elem in elements)
                 {
                     var vids = new int[] { elem.Vertices[0].GlobalId, elem.Vertices[1].GlobalId, elem.Vertices[2].GlobalId };
                     // check if element shares this edge

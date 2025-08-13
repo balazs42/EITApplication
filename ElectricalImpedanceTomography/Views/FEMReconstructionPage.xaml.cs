@@ -93,13 +93,16 @@ public partial class FEMReconstructionPage : ContentPage
         _marginX = pad + (availW - usedW) / 2f;
         _marginY = pad + (availH - usedH) / 2f;
 
+        var meshElements = _mesh.GetElements();
+        var reconstructionMeshElements = _reconstructedMesh.GetElements();
+
         // update ranges
         _minPot = verts.Min(v => v.Potential);
         _maxPot = verts.Max(v => v.Potential);
-        _minCond = _mesh.Elements.Min(el => el.Conductivity);
-        _maxCond = _mesh.Elements.Max(el => el.Conductivity);
-        _minRecon = _reconstructedMesh.Elements.Min(el => el.Conductivity);
-        _maxRecon = _reconstructedMesh.Elements.Max(el => el.Conductivity);
+        _minCond = meshElements.Min(el => el.Conductivity);
+        _maxCond = meshElements.Max(el => el.Conductivity);
+        _minRecon = reconstructionMeshElements.Min(el => el.Conductivity);
+        _maxRecon = reconstructionMeshElements.Max(el => el.Conductivity);
     }
 
     SKPoint ToCanvas(Vertex v)
@@ -202,9 +205,10 @@ public partial class FEMReconstructionPage : ContentPage
 
         using var fill = new SKPaint { Style = SKPaintStyle.Fill, IsAntialias = true };
         using var stroke = new SKPaint { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1, IsAntialias = true };
+        var elements = _mesh.GetElements().Cast<FEMElement>().ToList();
 
         // draw mesh elements
-        foreach (var elem in _mesh.Elements)
+        foreach (var elem in elements)
         {
             // average potential
             var avg = elem.Vertices.Average(v => v.Potential);
@@ -315,8 +319,10 @@ public partial class FEMReconstructionPage : ContentPage
             ? _maxCond
             : _maxRecon;
 
+        var elements = mesh.GetElements().Cast<FEMElement>();
+
         // fill
-        foreach (var elem in mesh.Elements)
+        foreach (var elem in elements)
         {
             fill.Color = ColorForValue(elem.Conductivity, minVal, maxVal);
             using var path = new SKPath();
@@ -327,7 +333,7 @@ public partial class FEMReconstructionPage : ContentPage
             canvas.DrawPath(path, fill);
         }
         // outline
-        foreach (var elem in mesh.Elements)
+        foreach (var elem in elements)
         {
             using var path = new SKPath();
             path.MoveTo(ToCanvas(elem.Vertices[0]));
@@ -407,7 +413,7 @@ public partial class FEMReconstructionPage : ContentPage
     private async void OnEditBoundaryConditions(object sender, EventArgs e)
     {
         // build the appropriate BoundaryCondition subclass:
-        var electrodes = _viewModel.GetMesh().Electrodes;
+        var electrodes = _viewModel.GetMesh().GetElectrodes().Cast<FEMElectrode>().ToList();
 
         var bc = new FEMBoundaryCondition(electrodes);
 
@@ -435,7 +441,9 @@ public partial class FEMReconstructionPage : ContentPage
             _hoverCondElem = null;
             _hoverCondCanvasPt = null;
 
-            foreach (var elem in mesh.Elements)
+            var elements = mesh.GetElements().Cast<FEMElement>();
+
+            foreach (var elem in elements)
             {
                 var c0 = ToCanvas(elem.Vertices[0]);
                 var c1 = ToCanvas(elem.Vertices[1]);
@@ -584,8 +592,8 @@ public partial class FEMReconstructionPage : ContentPage
     // ---- BUTTON HANDLERS ----
     private void OnGenerateMeshClicked(object s, EventArgs e)
     {
-        _mesh = _viewModel.GenerateMesh().DeepCopy();
-        _reconstructedMesh = _viewModel.GenerateMesh().DeepCopy();
+        _mesh = (FEMMesh)_viewModel.GenerateMesh().DeepCopy();
+        _reconstructedMesh = (FEMMesh)_viewModel.GenerateMesh().DeepCopy();
         PotentialCanvas.InvalidateSurface();
         PotentialColorbar.InvalidateSurface();
         ConductivityCanvas.InvalidateSurface();
@@ -596,18 +604,20 @@ public partial class FEMReconstructionPage : ContentPage
 
     private void OnSolveForwardClicked(object s, EventArgs e)
     {
-        _mesh = _viewModel.SolveForward(_mesh).DeepCopy();
+        _mesh = (FEMMesh)_viewModel.SolveForward(_mesh).DeepCopy();
         PotentialCanvas.InvalidateSurface();
         PotentialColorbar.InvalidateSurface();
     }
 
     private void OnSolveInverseClicked(object s, EventArgs e)
     {
-        _reconstructedMesh = _mesh.DeepCopy();
-        _reconstructedMesh = _viewModel.SolveInverse(_reconstructedMesh).DeepCopy();
+        _reconstructedMesh = (FEMMesh)_mesh.DeepCopy();
+        _reconstructedMesh = (FEMMesh)_viewModel.SolveInverse(_reconstructedMesh).DeepCopy();
 
-        _minRecon = _reconstructedMesh.Elements.Min(el => el.Conductivity);
-        _maxRecon = _reconstructedMesh.Elements.Max(el => el.Conductivity);
+        var reconstrucionMeshElements = _reconstructedMesh.GetElements();
+
+        _minRecon = reconstrucionMeshElements.Min(el => el.Conductivity);
+        _maxRecon = reconstrucionMeshElements.Max(el => el.Conductivity);
 
         ReconstructionCanvas.InvalidateSurface();
         ReconstructionColorbar.InvalidateSurface();
