@@ -293,56 +293,35 @@ public partial class LBMReconstructionPage : ContentPage
         float cw = e.Info.Width / mesh.Nx;
         float ch = e.Info.Height / mesh.Ny;
 
-        // grab potentials, compute min/max
-        var pd = result.CurrentPotentialDistribution.Potentials;
+        // compute current amplitudes for each element without mutating the
+        // potential distribution (which would wipe the potential display)
+        var elements = mesh.GetElements().Cast<LBMElement>();
+        var amplitudes = elements.ToDictionary(el => el.Id, el => el.GetCurrentAmplitude());
 
-        var elements = mesh.GetElements().Cast<LBMElement>().ToList();
+        if (amplitudes.Count == 0)
+            return;
 
-        // Convert to current amplitudes
-        foreach(var p in pd)
-        {
-            var el = elements.Find(x => x.Id == p.Key);
+        // compute min/max and reuse the existing color logic
+        _minPot = amplitudes.Values.Min();
+        _maxPot = amplitudes.Values.Max();
+        if (Math.Abs(_maxPot - _minPot) < 1e-12)
+            _maxPot = _minPot + 1e-12; // avoid division by zero
 
-            if(el != null)
-                pd[p.Key] = el.GetCurrentAmplitude();
-        }
-
-
-        double min = pd.Values.Min();
-        double max = pd.Values.Max();
-
-        // rainbow: blue at t=0 → red at t=1
-        SKColor Rainbow(double v)
-        {
-            float t = (float)((v - min) / (max - min));
-            t = Math.Clamp(t, 0f, 1f);
-
-            // hue: 240° (blue) → 0° (red)
-            float hue = 240f * (1f - t);
-            return SKColor.FromHsv(hue, 100f, 100f);
-        }
-
-        // draw cells
+        // draw cells using the selected display mode
         for (int y = 0; y < mesh.Ny; y++)
         {
             for (int x = 0; x < mesh.Nx; x++)
             {
                 var el = mesh.GetElementAt(x, y);
-                var pot = pd[el.Id];
+                double amp = amplitudes[el.Id];
 
-                SKPaint fill;
-                if (el.IsWall)
-                {
-                    fill = _wallPaint;      // remain black
-                }
-                else
-                {
-                    fill = new SKPaint       // rainbow fill
+                SKPaint fill = el.IsWall
+                    ? _wallPaint
+                    : new SKPaint
                     {
                         Style = SKPaintStyle.Fill,
-                        Color = Rainbow(pot)
+                        Color = GetPotentialColor(amp)
                     };
-                }
 
                 var r = SKRect.Create(x * cw, y * ch, cw, ch);
                 canvas.DrawRect(r, fill);
@@ -386,5 +365,6 @@ public partial class LBMReconstructionPage : ContentPage
     {
         _potMode = (PotentialDisplayMode)PotentialModePicker.SelectedIndex;
         PotentialResultCanvas.InvalidateSurface();
+        CurrentAmplitudeCanvas.InvalidateSurface();
     }
 }
