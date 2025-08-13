@@ -12,7 +12,7 @@ namespace ElectricalImpedanceTomography.Views
         {
             InitializeComponent();
 
-            _viewModel = Utility.Composition.Container.ResolveViewModelWithParam<BoundaryConditionsPopupViewModel, FEMBoundaryCondition>(bc);
+            _viewModel = new BoundaryConditionsPopupViewModel(bc);
             
             BindingContext = _viewModel;
         }
@@ -21,7 +21,7 @@ namespace ElectricalImpedanceTomography.Views
         {
             InitializeComponent();
 
-            _viewModel = Utility.Composition.Container.ResolveViewModelWithParam<BoundaryConditionsPopupViewModel, LBMBoundaryCondition>(bc);
+            _viewModel = new BoundaryConditionsPopupViewModel(bc);
 
             BindingContext = _viewModel;
         }

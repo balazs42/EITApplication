@@ -27,8 +27,8 @@ namespace Utility.Classes
     }
 
     /// <summary>
-    /// All mesh types have to inherit from ths Mesh abstract class. 
-    /// This implements basic mesh functionality, like holding vertex, electrode, etc. data.
+    /// This class provides a bridging abstraction between the interface and the actual abstract class
+    /// from which mesh structures should inherit from
     /// </summary>
     public abstract class Mesh : IMesh
     {
@@ -60,6 +60,10 @@ namespace Utility.Classes
         }
     }
 
+    /// <summary>
+    /// All mesh types have to inherit from ths Mesh abstract class. 
+    /// This implements basic mesh functionality, like holding electrodes and elements, etc. data.
+    /// </summary>
     public abstract class Mesh<TElement, TElectrode> : Mesh
         where TElement : MeshElement
         where TElectrode : Electrode
