@@ -53,6 +53,9 @@ namespace ElectricalImpedanceTomography.ViewModels
         private FEMMesh _mesh;
         private FEMMesh _reconstructedMesh;
 
+        [ObservableProperty]
+        private FEMBoundaryCondition? boundaryCondition;
+
         private bool _isSimulationRunning = false;
 
         private List<double[]> _simulatedMeasurements = [];
@@ -100,30 +103,40 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public FEMMesh SolveForward(FEMMesh mesh)
         {
-            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
-
-            foreach(var el in electrodes)
+            if (BoundaryCondition != null)
             {
-                el.IsExcitation = false;
-                el.IsGround = false;
-                el.Current = 0.0;
-                el.Potential = 0.0;
-                el.ZContact = 0.1;
-                el.Length = ElectrodeSurfaceLength;
-                el.ZContact = ContactImpedance;
+                var bcElectrodes = BoundaryCondition.GetElectrodes().Cast<FEMElectrode>().ToList();
+                mesh.SetElectrodes(bcElectrodes);
             }
+            else
+            {
+                var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
 
-            if (ExcitationElectrodeId == GroundElectrodeId)
-                ExcitationElectrodeId++;
+                foreach (var el in electrodes)
+                {
+                    el.IsExcitation = false;
+                    el.IsGround = false;
+                    el.Current = 0.0;
+                    el.Potential = 0.0;
+                    el.ZContact = 0.1;
+                    el.Length = ElectrodeSurfaceLength;
+                    el.ZContact = ContactImpedance;
+                }
 
-            electrodes[ExcitationElectrodeId  % ElectrodeCount].IsExcitation = true;
-            electrodes[ExcitationElectrodeId % ElectrodeCount].Current = ExcitationCurrentAmplitude;
-            electrodes[GroundElectrodeId % ElectrodeCount].IsGround = true;
-            electrodes[GroundElectrodeId % ElectrodeCount].Current = -ExcitationCurrentAmplitude;
+                if (ExcitationElectrodeId == GroundElectrodeId)
+                    ExcitationElectrodeId++;
+
+                electrodes[ExcitationElectrodeId % ElectrodeCount].IsExcitation = true;
+                electrodes[ExcitationElectrodeId % ElectrodeCount].Current = ExcitationCurrentAmplitude;
+                electrodes[GroundElectrodeId % ElectrodeCount].IsGround = true;
+                electrodes[GroundElectrodeId % ElectrodeCount].Current = -ExcitationCurrentAmplitude;
+
+                mesh.SetElectrodes(electrodes);
+            }
 
             _reconstructionService.InitializeReconstruction(_mesh, reconstructionParameters);
 
-            var retMesh = _reconstructionService.SolveFemForward(mesh);;
+            var retMesh = _reconstructionService.SolveFemForward(mesh);
 
             _reconstructedMesh.SetPotentialDistribution(retMesh.PotentialDistribution);
 
@@ -134,28 +147,38 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             _reconstructionService.InitializeReconstruction(_mesh, reconstructionParameters);
 
-            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
-
-            foreach (var el in electrodes)
+            if (BoundaryCondition != null)
             {
-                el.IsExcitation = false;
-                el.IsGround = false;
-                el.Current = 0.0;
-                el.Potential = 0.0;
-                el.ZContact = 0.1;
-                el.Length = ElectrodeSurfaceLength;
-                el.ZContact = ContactImpedance;
+                var bcElectrodes = BoundaryCondition.GetElectrodes().Cast<FEMElectrode>().ToList();
+                _reconstructedMesh.SetElectrodes(bcElectrodes);
+                mesh.SetElectrodes(bcElectrodes);
             }
+            else
+            {
+                var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
 
-            if (ExcitationElectrodeId == GroundElectrodeId)
-                ExcitationElectrodeId++;
+                foreach (var el in electrodes)
+                {
+                    el.IsExcitation = false;
+                    el.IsGround = false;
+                    el.Current = 0.0;
+                    el.Potential = 0.0;
+                    el.ZContact = 0.1;
+                    el.Length = ElectrodeSurfaceLength;
+                    el.ZContact = ContactImpedance;
+                }
 
-            electrodes[ExcitationElectrodeId % ElectrodeCount].IsExcitation = true;
-            electrodes[ExcitationElectrodeId % ElectrodeCount].Current = ExcitationCurrentAmplitude;
-            electrodes[GroundElectrodeId % ElectrodeCount].IsGround = true;
-            electrodes[GroundElectrodeId % ElectrodeCount].Current = -ExcitationCurrentAmplitude;
+                if (ExcitationElectrodeId == GroundElectrodeId)
+                    ExcitationElectrodeId++;
 
-            _reconstructedMesh.SetElectrodes(electrodes);
+                electrodes[ExcitationElectrodeId % ElectrodeCount].IsExcitation = true;
+                electrodes[ExcitationElectrodeId % ElectrodeCount].Current = ExcitationCurrentAmplitude;
+                electrodes[GroundElectrodeId % ElectrodeCount].IsGround = true;
+                electrodes[GroundElectrodeId % ElectrodeCount].Current = -ExcitationCurrentAmplitude;
+
+                _reconstructedMesh.SetElectrodes(electrodes);
+                mesh.SetElectrodes(electrodes);
+            }
 
             return _reconstructionService.SolveFemInverse(mesh,
                                                           maxIterCount: MaxIterationCount,
@@ -172,7 +195,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             double[] currentSimulatedMeasurement = _simulatedMeasurements[_simulatedMeasurementsIndex % ElectrodeCount];
 
             // TODO: create the appropirate boundary conditions
-            FEMBoundaryCondition bc = new(_mesh.GetElectrodes().Cast<FEMElectrode>().ToList());
+            FEMBoundaryCondition bc = BoundaryCondition ?? new FEMBoundaryCondition(_mesh.GetElectrodes().Cast<FEMElectrode>().ToList());
 
             ReconstructionResult reconstructionResult = _reconstructionService.InverseSolveStepFem(mesh: _mesh,
                                                                                                    measurement: currentSimulatedMeasurement,
@@ -182,6 +205,14 @@ namespace ElectricalImpedanceTomography.ViewModels
             _simulatedMeasurementsIndex++;
 
             return reconstructionResult;
+        }
+
+        public void ApplyBoundaryCondition(FEMBoundaryCondition bc)
+        {
+            BoundaryCondition = bc;
+            var electrodes = bc.GetElectrodes().Cast<FEMElectrode>().ToList();
+            _mesh.SetElectrodes(electrodes);
+            _reconstructedMesh.SetElectrodes(electrodes);
         }
     }
 }

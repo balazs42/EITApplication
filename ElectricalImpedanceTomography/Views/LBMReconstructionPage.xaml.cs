@@ -366,21 +366,19 @@ public partial class LBMReconstructionPage : ContentPage
 
     private async void OnEditBoundaryConditions(object sender, EventArgs e)
     {
-        // build the appropriate BoundaryCondition subclass:
+        // Build a boundary condition based on the current mesh or use the
+        // previously edited one if available.
         var electrodes = _viewModel.GetMesh().GetElectrodes().Cast<LBMElectrode>().ToList();
-
-        var bc = new LBMBoundaryCondition(electrodes);
+        var bc = _viewModel.BoundaryCondition ?? new LBMBoundaryCondition(electrodes);
 
         var popup = new BoundaryConditionsPopup(bc);
-        // ShowPopupAsync returns whatever you passed to Close(...)
         var result = await this.ShowPopupAsync(popup) as BoundaryCondition;
-        if (result != null)
+
+        if (result is LBMBoundaryCondition lbmBc)
         {
-            // user clicked SAVE
-            // apply it to your solver / view‐model:
-            //            _viewModel.BoundaryCondition = result;
-            // re‐solve or redraw:
-            //          _viewModel.RunForwardSolve();
+            // Apply updated boundary conditions to the view model and refresh the view
+            _viewModel.ApplyBoundaryCondition(lbmBc);
+            canvasView.InvalidateSurface();
         }
     }
 
