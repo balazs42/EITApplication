@@ -30,14 +30,11 @@ namespace ElectricalImpedanceTomography.Views
         void OnCancelClicked(object sender, EventArgs e)
           => Close(null);
 
-        // TODO: save really
         void OnSaveClicked(object sender, EventArgs e)
         {
-            // push any list‐level changes back into the BoundaryCondition:
-            //_viewModel.SetBoundaryCondition(_viewModel.GetBoundaryCondition().Electrodes .ToList());
-
-            // re‐initialize ground/excitation indices:
-            //_viewModel.BoundaryCondition.Initialize(_viewModel.BoundaryCondition.Electrodes);
+            // Apply any edits from the popup back into the boundary condition
+            // instance before returning it to the caller.
+            _viewModel.BoundaryCondition.Initialize(_viewModel.Electrodes);
 
             // return the updated BC:
             Close(_viewModel.BoundaryCondition);

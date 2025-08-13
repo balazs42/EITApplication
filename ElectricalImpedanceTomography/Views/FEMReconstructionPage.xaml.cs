@@ -412,22 +412,16 @@ public partial class FEMReconstructionPage : ContentPage
 
     private async void OnEditBoundaryConditions(object sender, EventArgs e)
     {
-        // build the appropriate BoundaryCondition subclass:
+        // Build a boundary condition from the current mesh or use the one already set
         var electrodes = _viewModel.GetMesh().GetElectrodes().Cast<FEMElectrode>().ToList();
-
-        var bc = new FEMBoundaryCondition(electrodes);
-
+        var bc = _viewModel.BoundaryCondition ?? new FEMBoundaryCondition(electrodes);
 
         var popup = new BoundaryConditionsPopup(bc);
-        // ShowPopupAsync returns whatever you passed to Close(...)
         var result = await this.ShowPopupAsync(popup) as BoundaryCondition;
-        if (result != null)
+        if (result is FEMBoundaryCondition femBc)
         {
-            // user clicked SAVE
-            // apply it to your solver / view‐model:
-//            _viewModel.BoundaryCondition = result;
-            // re‐solve or redraw:
-  //          _viewModel.RunForwardSolve();
+            _viewModel.ApplyBoundaryCondition(femBc);
+            // refresh canvases to reflect any electrode role changes
             PotentialCanvas.InvalidateSurface();
             ConductivityCanvas.InvalidateSurface();
         }

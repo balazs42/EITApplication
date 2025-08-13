@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using Utility.Classes;
 using Utility.Classes.Factories;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
+using Utility.Classes.Measurement;
 using Utility.Classes.ReconstructionParameters;
 namespace ElectricalImpedanceTomography.ViewModels
 {
@@ -39,6 +40,9 @@ namespace ElectricalImpedanceTomography.ViewModels
         private ReconstructionResult reconstructionResult;
 
         private LBMMesh _mesh;
+
+        [ObservableProperty]
+        private LBMBoundaryCondition? boundaryCondition;
 
         [ObservableProperty]
         private int gridSizeNx = 32;
@@ -98,34 +102,49 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public async void OnSolveForwardClicked(object sender, EventArgs e)
         {
-            var electrodes = _mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
-
-            foreach(var el in electrodes)
+            if (BoundaryCondition != null)
             {
-                el.IsExcitation = false;
-                el.IsGround = false;
-                el.Current = 0.0;
-                el.Potential = 0.0;
+                // Use the user‐defined boundary condition
+                _mesh.SetElectrodes(BoundaryCondition.GetElectrodes());
             }
-
-            electrodes[0].IsExcitation = true;
-            electrodes[1].IsGround = true;
-            electrodes[0].Current = 3.0;
-            electrodes[1].Current = 1.0;
-
-            for (int i = 2; i < electrodes.Count; i++)
+            else
             {
-                if (electrodes[i].IsGround || electrodes[i].IsExcitation) { }
-                else electrodes[i].Potential = (i % 2 == 0) ? 2.0: 1.0;
-            }
-            _mesh.SetElectrodes(electrodes);
+                // Fall back to a simple default configuration
+                var electrodes = _mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
 
+                foreach (var el in electrodes)
+                {
+                    el.IsExcitation = false;
+                    el.IsGround = false;
+                    el.Current = 0.0;
+                    el.Potential = 0.0;
+                }
+
+                electrodes[0].IsExcitation = true;
+                electrodes[1].IsGround = true;
+                electrodes[0].Current = 3.0;
+                electrodes[1].Current = 1.0;
+
+                for (int i = 2; i < electrodes.Count; i++)
+                {
+                    if (!(electrodes[i].IsGround || electrodes[i].IsExcitation))
+                        electrodes[i].Potential = (i % 2 == 0) ? 2.0 : 1.0;
+                }
+
+                _mesh.SetElectrodes(electrodes);
+            }
 
             _reconstructionService.InitializeReconstruction(_mesh, ReconstructionParameters);
 
             ReconstructionResult = await _reconstructionService.GetReconstructionResult();
 
             OnPropertyChanged(nameof(ReconstructionResult));
+        }
+
+        public void ApplyBoundaryCondition(LBMBoundaryCondition bc)
+        {
+            BoundaryCondition = bc;
+            _mesh.SetElectrodes(bc.GetElectrodes());
         }
 
         public void OnSolveInverseClicked(object sender, EventArgs e)
