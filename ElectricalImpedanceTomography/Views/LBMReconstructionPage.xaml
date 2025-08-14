@@ -116,77 +116,125 @@
                         Clicked="OnEditBoundaryConditions"/>
             </Grid>
             <Grid Grid.Row="2"
-                  RowDefinitions="Auto, *"
-                  ColumnDefinitions="Auto, Auto, Auto"
+                  RowDefinitions="Auto, Auto"
+                  ColumnDefinitions="Auto, Auto"
+                  RowSpacing="10"
                   ColumnSpacing="10"
                   Padding="10">
-                
-                <Label Grid.Row="0"
-                       Grid.Column="0" 
-                       FontAttributes="Bold"
-                       HorizontalOptions="Center"
-                       Text="LBM Grid:"/>
-                <Border Grid.Row="1"
-                        Grid.Column="0"
-                        Stroke="DarkGray" 
-                        StrokeThickness="2"
-                        Margin="10"
-                        HorizontalOptions="Center" 
-                        VerticalOptions="Center">
-                    
-                    <skia:SKCanvasView x:Name="canvasView"
-                                       WidthRequest="500" 
-                                       HeightRequest="500"
-                                       PaintSurface="OnCanvasViewPaintSurface"
-                                       EnableTouchEvents="True"
-                                       Touch="OnCanvasTouch">
-                    </skia:SKCanvasView>
-                </Border>
 
-                <Label Text="Potential Field" 
-                       Grid.Row="0" 
-                       Grid.Column="1"
-                       FontAttributes="Bold" 
-                       HorizontalOptions="Center" />
-                
-                <Border Grid.Row="1"
-                        Grid.Column="1"
-                        Stroke="DarkGray" 
-                        StrokeThickness="2"
-                        Margin="10"
-                        HorizontalOptions="Center" VerticalOptions="Center">
-                    <skia:SKCanvasView x:Name="PotentialResultCanvas"
-                                       PaintSurface="OnPotentialResultPaintSurface"
-                                       EnableTouchEvents="True"
-                                       Touch="OnPotentialTouch"
-                                       HeightRequest="500"
-                                       WidthRequest="500"
-                                       Margin="10">
-                    </skia:SKCanvasView>
-                </Border>
+                <!-- LBM grid -->
+                <VerticalStackLayout Grid.Row="0"
+                                     Grid.Column="0"
+                                     HorizontalOptions="Center">
+                    <Label Text="LBM Grid"
+                           FontAttributes="Bold"
+                           HorizontalOptions="Center" />
+                    <Border Stroke="DarkGray"
+                            StrokeThickness="2"
+                            Margin="10"
+                            HorizontalOptions="Center"
+                            VerticalOptions="Center">
+                        <skia:SKCanvasView x:Name="canvasView"
+                                           WidthRequest="500"
+                                           HeightRequest="500"
+                                           PaintSurface="OnCanvasViewPaintSurface"
+                                           EnableTouchEvents="True"
+                                           Touch="OnCanvasTouch" />
+                    </Border>
+                </VerticalStackLayout>
 
-                <Label Text="Current Amplitude Field" 
-                       Grid.Row="0" 
-                       Grid.Column="2"
-                       FontAttributes="Bold" 
-                       HorizontalOptions="Center" />
+                <!-- Potential field -->
+                <VerticalStackLayout Grid.Row="0"
+                                     Grid.Column="1"
+                                     HorizontalOptions="Center">
+                    <Label Text="Potential Field"
+                           FontAttributes="Bold"
+                           HorizontalOptions="Center" />
+                    <Grid ColumnDefinitions="Auto, Auto">
+                        <Border Grid.Column="0"
+                                Stroke="DarkGray"
+                                StrokeThickness="2"
+                                Margin="10"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center">
+                            <skia:SKCanvasView x:Name="PotentialResultCanvas"
+                                               PaintSurface="OnPotentialResultPaintSurface"
+                                               EnableTouchEvents="True"
+                                               Touch="OnPotentialTouch"
+                                               HeightRequest="500"
+                                               WidthRequest="500"
+                                               Margin="10" />
+                        </Border>
+                        <skia:SKCanvasView Grid.Column="1"
+                                           x:Name="PotentialColorBar"
+                                           WidthRequest="40"
+                                           HeightRequest="500"
+                                           Margin="10"
+                                           PaintSurface="OnPotentialColorBarPaintSurface" />
+                    </Grid>
+                </VerticalStackLayout>
 
-                <Border Grid.Row="1"
-                        Grid.Column="2"
-                        Stroke="DarkGray" 
-                        StrokeThickness="2"
-                        Margin="10"
-                        HorizontalOptions="Center" 
-                        VerticalOptions="Center">
-                    <skia:SKCanvasView x:Name="CurrentAmplitudeCanvas"
-                                       PaintSurface="OnPaintCurrentAmplitudeSurface"
-                                       EnableTouchEvents="True"
-                                       Touch="OnCurrentTouch"
-                                       HeightRequest="500"
-                                       WidthRequest="500"
-                                       Margin="10">
-                    </skia:SKCanvasView>
-                </Border>
+                <!-- Current amplitude field -->
+                <VerticalStackLayout Grid.Row="1"
+                                     Grid.Column="0"
+                                     HorizontalOptions="Center">
+                    <Label Text="Current Amplitude Field"
+                           FontAttributes="Bold"
+                           HorizontalOptions="Center" />
+                    <Grid ColumnDefinitions="Auto, Auto">
+                        <Border Grid.Column="0"
+                                Stroke="DarkGray"
+                                StrokeThickness="2"
+                                Margin="10"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center">
+                            <skia:SKCanvasView x:Name="CurrentAmplitudeCanvas"
+                                               PaintSurface="OnPaintCurrentAmplitudeSurface"
+                                               EnableTouchEvents="True"
+                                               Touch="OnCurrentTouch"
+                                               HeightRequest="500"
+                                               WidthRequest="500"
+                                               Margin="10" />
+                        </Border>
+                        <skia:SKCanvasView Grid.Column="1"
+                                           x:Name="CurrentColorBar"
+                                           WidthRequest="40"
+                                           HeightRequest="500"
+                                           Margin="10"
+                                           PaintSurface="OnCurrentColorBarPaintSurface" />
+                    </Grid>
+                </VerticalStackLayout>
+
+                <!-- Conductivity field -->
+                <VerticalStackLayout Grid.Row="1"
+                                     Grid.Column="1"
+                                     HorizontalOptions="Center">
+                    <Label Text="Conductivity Field"
+                           FontAttributes="Bold"
+                           HorizontalOptions="Center" />
+                    <Grid ColumnDefinitions="Auto, Auto">
+                        <Border Grid.Column="0"
+                                Stroke="DarkGray"
+                                StrokeThickness="2"
+                                Margin="10"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center">
+                            <skia:SKCanvasView x:Name="ConductivityCanvas"
+                                               PaintSurface="OnPaintConductivitySurface"
+                                               EnableTouchEvents="True"
+                                               Touch="OnConductivityTouch"
+                                               HeightRequest="500"
+                                               WidthRequest="500"
+                                               Margin="10" />
+                        </Border>
+                        <skia:SKCanvasView Grid.Column="1"
+                                           x:Name="ConductivityColorBar"
+                                           WidthRequest="40"
+                                           HeightRequest="500"
+                                           Margin="10"
+                                           PaintSurface="OnConductivityColorBarPaintSurface" />
+                    </Grid>
+                </VerticalStackLayout>
             </Grid>
         </Grid>
     </Grid>

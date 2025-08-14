@@ -4,6 +4,7 @@ using SkiaSharp;
 using SkiaSharp.Views.Maui;
 using SkiaSharp.Views.Maui.Controls;
 using System.Collections.Immutable;
+using System.Linq;
 using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 
@@ -23,11 +24,13 @@ public partial class LBMReconstructionPage : ContentPage
     private LBMElement? _hoverElem;
     private SKPoint? _hoverElemCanvasPt;
 
-    private enum HoverData { Mesh, Potential, Current }
+    private enum HoverData { Mesh, Potential, Current, Conductivity }
     private HoverData _hoverData;
     private double _hoverValue;
 
-    private double _maxPot, _minPot;
+    private double _potMin, _potMax;
+    private double _currentMin, _currentMax;
+    private double _condMin, _condMax;
 
     private enum PotentialDisplayMode
     {
@@ -56,18 +59,6 @@ public partial class LBMReconstructionPage : ContentPage
 
     #region Mesh Drawin Functions 
 
-    SKColor BlueToRed(double v)
-    {
-        // normalize into [0,1]
-        float t = (float)((v - _minPot) / (_maxPot - _minPot));
-        t = Math.Clamp(t, 0f, 1f);
-
-        // interpolate: blue=(0,0,255) → red=(255,0,0)
-        byte r = (byte)(t * 255);
-        byte b = (byte)((1 - t) * 255);
-        return new SKColor(r, 0, b);
-    }
-
     SKColor ColorForValue(double val, double min, double max)
     {
         double mid = (min + max) * 0.5;
@@ -87,17 +78,19 @@ public partial class LBMReconstructionPage : ContentPage
         }
     }
 
-    private SKColor GetPotentialColor(double val)
+    private SKColor GetColor(double val, double min, double max)
     {
-        var norm = (float)((val - _minPot) / (_maxPot - _minPot));
+        var norm = (float)((val - min) / (max - min));
         norm = Math.Clamp(norm, 0f, 1f);
         return _potMode switch
         {
             PotentialDisplayMode.Grayscale => new SKColor((byte)(norm * 255), (byte)(norm * 255), (byte)(norm * 255)),
-            PotentialDisplayMode.Inverted => new SKColor((byte)(255 - ColorForValue(val, _minPot, _maxPot).Red), (byte)(255 - ColorForValue(val, _minPot, _maxPot).Green), (byte)(255 - ColorForValue(val, _minPot, _maxPot).Blue)),
+            PotentialDisplayMode.Inverted => new SKColor((byte)(255 - ColorForValue(val, min, max).Red),
+                                                         (byte)(255 - ColorForValue(val, min, max).Green),
+                                                         (byte)(255 - ColorForValue(val, min, max).Blue)),
             PotentialDisplayMode.Heatmap => new SKColor(255, (byte)(255 * (1 - norm)), 0),
             PotentialDisplayMode.Rainbow => SKColor.FromHsv(norm * 360f, 100f, 100f),
-            _ => ColorForValue(val, _minPot, _maxPot),
+            _ => ColorForValue(val, min, max),
         };
     }
 
@@ -116,8 +109,10 @@ public partial class LBMReconstructionPage : ContentPage
 
         // grab potentials, compute min/max
         var pd = result.CurrentPotentialDistribution.Potentials;
-        _minPot = pd.Values.Min();
-        _maxPot = pd.Values.Max();
+        _potMin = pd.Values.Min();
+        _potMax = pd.Values.Max();
+        if (Math.Abs(_potMax - _potMin) < 1e-12)
+            _potMax = _potMin + 1e-12;
 
         // draw cells
         for (int y = 0; y < mesh.Ny; y++)
@@ -137,7 +132,7 @@ public partial class LBMReconstructionPage : ContentPage
                     fill = new SKPaint       // color according to mode
                     {
                         Style = SKPaintStyle.Fill,
-                        Color = GetPotentialColor(pot)
+                        Color = GetColor(pot, _potMin, _potMax)
                     };
                 }
 
@@ -148,6 +143,8 @@ public partial class LBMReconstructionPage : ContentPage
         }
 
         DrawHoverInfo(canvas, e.Info);
+
+        PotentialColorBar.InvalidateSurface();
     }
     private void OnCanvasViewPaintSurface(object sender, SkiaSharp.Views.Maui.SKPaintSurfaceEventArgs e)
     {
@@ -195,6 +192,9 @@ public partial class LBMReconstructionPage : ContentPage
                 break;
             case HoverData.Current:
                 lines.Add($"Current: {_hoverValue:F3}");
+                break;
+            case HoverData.Conductivity:
+                lines.Add($"Conductivity: {_hoverValue:F3}");
                 break;
             default:
                 lines.Add($"Wall: {el.IsWall}");
@@ -325,6 +325,34 @@ public partial class LBMReconstructionPage : ContentPage
         e.Handled = true;
     }
 
+    private void OnConductivityTouch(object sender, SKTouchEventArgs e)
+    {
+        var result = _viewModel.ReconstructionResult;
+        if (result?.Mesh == null)
+            return;
+
+        var mesh = (LBMMesh)result.Mesh;
+        var view = (SKCanvasView)sender;
+        float cw = (float)view.CanvasSize.Width / mesh.Nx;
+        float ch = (float)view.CanvasSize.Height / mesh.Ny;
+        int col = (int)(e.Location.X / cw);
+        int row = (int)(e.Location.Y / ch);
+
+        if (col < 0) col = 0; if (col >= mesh.Nx) col = mesh.Nx - 1;
+        if (row < 0) row = 0; if (row >= mesh.Ny) row = mesh.Ny - 1;
+
+        if (e.ActionType == SKTouchAction.Moved || e.ActionType == SKTouchAction.Pressed)
+        {
+            _hoverElem = mesh.GetElementAt(col, row);
+            _hoverElemCanvasPt = e.Location;
+            _hoverData = HoverData.Conductivity;
+            _hoverValue = _hoverElem.Conductivity;
+        }
+
+        ConductivityCanvas.InvalidateSurface();
+        e.Handled = true;
+    }
+
     private void OnPaintCurrentAmplitudeSurface(object sender, SkiaSharp.Views.Maui.SKPaintSurfaceEventArgs e)
     {
         var canvas = e.Surface.Canvas;
@@ -352,10 +380,10 @@ public partial class LBMReconstructionPage : ContentPage
             return;
 
         // compute min/max and reuse the existing color logic
-        _minPot = amplitudes.Values.Min();
-        _maxPot = amplitudes.Values.Max();
-        if (Math.Abs(_maxPot - _minPot) < 1e-12)
-            _maxPot = _minPot + 1e-12; // avoid division by zero
+        _currentMin = amplitudes.Values.Min();
+        _currentMax = amplitudes.Values.Max();
+        if (Math.Abs(_currentMax - _currentMin) < 1e-12)
+            _currentMax = _currentMin + 1e-12; // avoid division by zero
 
         // draw cells using the selected display mode
         for (int y = 0; y < mesh.Ny; y++)
@@ -370,7 +398,7 @@ public partial class LBMReconstructionPage : ContentPage
                     : new SKPaint
                     {
                         Style = SKPaintStyle.Fill,
-                        Color = GetPotentialColor(amp)
+                        Color = GetColor(amp, _currentMin, _currentMax)
                     };
 
                 var r = SKRect.Create(x * cw, y * ch, cw, ch);
@@ -380,7 +408,80 @@ public partial class LBMReconstructionPage : ContentPage
         }
 
         DrawHoverInfo(canvas, e.Info);
+
+        CurrentColorBar.InvalidateSurface();
     }
+
+    private void OnPaintConductivitySurface(object sender, SKPaintSurfaceEventArgs e)
+    {
+        var canvas = e.Surface.Canvas;
+        canvas.Clear(SKColors.White);
+
+        var result = _viewModel.ReconstructionResult;
+        if (result?.Mesh == null)
+            return;
+
+        var mesh = (LBMMesh)result.Mesh;
+        float cw = e.Info.Width / mesh.Nx;
+        float ch = e.Info.Height / mesh.Ny;
+
+        var elements = mesh.GetElements().Cast<LBMElement>().ToList();
+        _condMin = elements.Min(el => el.Conductivity);
+        _condMax = elements.Max(el => el.Conductivity);
+        if (Math.Abs(_condMax - _condMin) < 1e-12)
+            _condMax = _condMin + 1e-12;
+
+        for (int y = 0; y < mesh.Ny; y++)
+        {
+            for (int x = 0; x < mesh.Nx; x++)
+            {
+                var el = mesh.GetElementAt(x, y);
+                double cond = el.Conductivity;
+
+                SKPaint fill = el.IsWall
+                    ? _wallPaint
+                    : new SKPaint
+                    {
+                        Style = SKPaintStyle.Fill,
+                        Color = GetColor(cond, _condMin, _condMax)
+                    };
+
+                var r = SKRect.Create(x * cw, y * ch, cw, ch);
+                canvas.DrawRect(r, fill);
+                canvas.DrawRect(r, _strokePaint);
+            }
+        }
+
+        DrawHoverInfo(canvas, e.Info);
+
+        ConductivityColorBar.InvalidateSurface();
+    }
+
+    private void DrawColorBar(SKCanvas canvas, SKImageInfo info, double min, double max)
+    {
+        var rect = new SKRect(0, 0, info.Width, info.Height);
+        using var shader = SKShader.CreateLinearGradient(
+            new SKPoint(rect.Left, rect.Bottom),
+            new SKPoint(rect.Left, rect.Top),
+            new[] { GetColor(min, min, max), GetColor(max, min, max) },
+            null,
+            SKShaderTileMode.Clamp);
+        using var paint = new SKPaint { Shader = shader };
+        canvas.DrawRect(rect, paint);
+
+        using var textPaint = new SKPaint { Color = SKColors.Black, TextSize = 20, IsAntialias = true };
+        canvas.DrawText(max.ToString("F2"), rect.Left + 5, 20, textPaint);
+        canvas.DrawText(min.ToString("F2"), rect.Left + 5, rect.Bottom - 5, textPaint);
+    }
+
+    private void OnPotentialColorBarPaintSurface(object sender, SKPaintSurfaceEventArgs e) =>
+        DrawColorBar(e.Surface.Canvas, e.Info, _potMin, _potMax);
+
+    private void OnCurrentColorBarPaintSurface(object sender, SKPaintSurfaceEventArgs e) =>
+        DrawColorBar(e.Surface.Canvas, e.Info, _currentMin, _currentMax);
+
+    private void OnConductivityColorBarPaintSurface(object sender, SKPaintSurfaceEventArgs e) =>
+        DrawColorBar(e.Surface.Canvas, e.Info, _condMin, _condMax);
     #endregion
     
     private void OnSolveForwardClicked(object sender, EventArgs e)
@@ -388,11 +489,15 @@ public partial class LBMReconstructionPage : ContentPage
         _viewModel.OnSolveForwardClicked(sender, e);
         PotentialResultCanvas.InvalidateSurface();
         CurrentAmplitudeCanvas.InvalidateSurface();
+        ConductivityCanvas.InvalidateSurface();
     }
 
     private void OnSolveInverseClicked(object sender, EventArgs e)
     {
         _viewModel.OnSolveInverseClicked(sender, e);
+        PotentialResultCanvas.InvalidateSurface();
+        CurrentAmplitudeCanvas.InvalidateSurface();
+        ConductivityCanvas.InvalidateSurface();
     }
 
     private async void OnEditBoundaryConditions(object sender, EventArgs e)
@@ -418,5 +523,6 @@ public partial class LBMReconstructionPage : ContentPage
         _potMode = (PotentialDisplayMode)PotentialModePicker.SelectedIndex;
         PotentialResultCanvas.InvalidateSurface();
         CurrentAmplitudeCanvas.InvalidateSurface();
+        ConductivityCanvas.InvalidateSurface();
     }
 }
