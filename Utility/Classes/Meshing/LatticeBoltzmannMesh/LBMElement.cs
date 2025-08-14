@@ -56,23 +56,32 @@
 
         public double GetXCurrent()
         {
-            //return Fi[2] - Fi[4] + Math.Sqrt(2) / 2.0 * (Fi[5] + Fi[8] - Fi[6] - Fi[7]);
+            return Fi[2] - Fi[4] + Math.Sqrt(2) / 2.0 * (Fi[5] + Fi[8] - Fi[6] - Fi[7]);
             // East-West contributions + diagonals (NE, SE, NW, SW)
-            return Fi[1] - Fi[3] + Math.Sqrt(2) / 2.0 * (Fi[5] + Fi[8] - Fi[6] - Fi[7]);
+            //return Fi[1] - Fi[3] + Math.Sqrt(2) / 2.0 * (Fi[5] + Fi[8] - Fi[6] - Fi[7]);
         }
 
         public double GetYCurrent()
         {
-            //return Fi[1] - Fi[3] + Math.Sqrt(2) / 2.0 * (Fi[5] + Fi[6] - Fi[7] - Fi[8]);
+            return Fi[1] - Fi[3] + Math.Sqrt(2) / 2.0 * (Fi[5] + Fi[6] - Fi[7] - Fi[8]);
             // North-South contributions + diagonals
-            return Fi[2] - Fi[4] + Math.Sqrt(2) / 2.0 * (Fi[5] + Fi[6] - Fi[7] - Fi[8]);
+            //return Fi[2] - Fi[4] + Math.Sqrt(2) / 2.0 * (Fi[5] + Fi[6] - Fi[7] - Fi[8]);
         }
 
         public double GetCurrentAmplitude()
         {
-            double vx = GetXCurrent();
-            double vy = GetYCurrent();
-            return Math.Sqrt(vx * vx + vy * vy);
+            //double vx = GetXCurrent();
+            //double vy = GetYCurrent();
+            //return Math.Sqrt(vx * vx + vy * vy);
+            double phiE = Neighbors[1]?.GetPotential() ?? 0.0;
+            double phiW = Neighbors[3]?.GetPotential() ?? 0.0;
+            double phiN = Neighbors[2]?.GetPotential() ?? 0.0;
+            double phiS = Neighbors[4]?.GetPotential() ?? 0.0;
+
+            double jx = -Conductivity * 0.5 * (phiE - phiW);
+            double jy = -Conductivity * 0.5 * (phiN - phiS);
+            double J = Math.Sqrt(jx * jx + jy * jy);
+            return J;
         }
     }
 }

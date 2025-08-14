@@ -47,7 +47,7 @@ namespace BusinessLayer
 
         public async Task<ReconstructionResult> GetReconstructionResult()
         {
-        LBMMesh? mesh = _mesh as LBMMesh;
+            LBMMesh? mesh = _mesh as LBMMesh;
             
             if (_inverseModel == null || _mesh == null || mesh == null || _differentialEquationSolver == null)
                 throw new NullReferenceException();
@@ -74,7 +74,6 @@ namespace BusinessLayer
                                             ConductivityDistributionFactory.CreateRandom(_mesh), 
                                             ConductivityDistributionFactory.CreateRandom(_mesh), 
                                             ConductivityDistributionFactory.CreateRandom(_mesh));
-            throw new NotImplementedException();
 
             //ConductivityDistribution result = new ConductivityDistribution(new());
             //ReconstructionResult reconstructionResult = new ReconstructionResult((_mesh is FEMMesh) ? (FEMMesh)_mesh : (LBMMesh)_mesh, result);

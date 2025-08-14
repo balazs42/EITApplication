@@ -79,7 +79,7 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
             PotentialDistribution = new PotentialDistribution(pd);
 
             // Place 16 equidistant electrodes inside the walls
-            PlaceEquidistantElectrodes(electrodeNum);
+            //PlaceEquidistantElectrodes(electrodeNum);
 
             //this.ConductivityDistribution = PriorConductivityDistributionGenerator.GenerateHomogeneousDistribution(this, 1.0);
         }

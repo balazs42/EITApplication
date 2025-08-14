@@ -299,9 +299,13 @@ namespace Utility.Classes.Factories
 
             var elements = mesh.GetElements().Cast<LBMElement>();
 
+
             // mark anything outside circle as wall
             foreach (var el in elements)
             {
+                el.IsElectrode = false;
+                el.IsWall = true;
+
                 var (x, y) = mesh.ToLattice(el.Id);
                 double dx = x - cx;
                 double dy = y - cy;

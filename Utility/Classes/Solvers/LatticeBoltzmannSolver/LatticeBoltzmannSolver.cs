@@ -1,5 +1,6 @@
 ﻿using Google.OrTools.ConstraintSolver;
 using System.Numerics;
+using System.Security;
 using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 
@@ -26,6 +27,8 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0,
             1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0
         };
+
+        private static double csSquared = 1.0 / 3.0;
 
         private int MaxIterationCount = 250;
         private double SolutionTolerance = 1e-6;
@@ -74,32 +77,34 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             int maxIter = MaxIterationCount;
             double tol = SolutionTolerance;
             int checkFreq = ConvergenceCheckFrequency;
-            var elements = mesh.GetElements().Cast<LBMElement>();
+
+            var elements = mesh.GetElements().Cast<LBMElement>().ToList();
             var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
-            var bcElectrodes = bc.GetElectrodes();
+            var bcElectrodes = bc.GetElectrodes().ToList();
 
             // 1) Initialize distributions Fi and Fi_next to zero
             foreach (var el in elements)
             {
                 for (int k = 0; k < 9; k++)
                 {
-                    el.Fi[k] = W[k] * 0.0;      // equilibrium with φ=1
+                    el.Fi[k] = W[k];        // equilibrium with φ=1
                     el.Fi_next[k] = 0.0;
                 }
                 if(el.IsElectrode)
                 {
                     var correspondingElectrode = electrodes.Find(x => x.GridId == el.Id);
 
-                    if (correspondingElectrode != null && bc.IsNeumann)
-                        correspondingElectrode.Current = bcElectrodes[correspondingElectrode.Id].Current;
-                    else if (correspondingElectrode != null && !bc.IsNeumann)
+                    if (correspondingElectrode != null)
                     {
                         if(correspondingElectrode.IsExcitation || correspondingElectrode.IsGround)
                         {
+                            // Set the current going out of the electrode
                             double current = correspondingElectrode.Current;
                             for (int i = 0; i < 9; i++)
                                 el.Fi[i] = W[i] * current;
 
+                            // Reverse the directions which would go into walls 
+                            // TODO: Ground electrode should point outsidde?,
                             var neighbors = el.Neighbors;
                             for (int i = 0; i < 9; i++)
                             {
@@ -110,7 +115,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                                 }
                             }
                         }
-                        else
+                        else // Prescribe the potential onn the electrodes
                         {
                             correspondingElectrode.Potential = bcElectrodes[correspondingElectrode.Id].Potential;
                             for (int i = 0; i < 9; i++)
@@ -149,14 +154,13 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     for (int k = 0; k < 9; k++)
                         phi += el.Fi[k];
 
-                    // Relaxation time τ = D + 0.5, D = γ
-                    double tau = el.Conductivity + 0.5;
-
+                    // Relaxation time τ = D / cs^2 + 0.5, D = γ
+                    double tau = el.Conductivity / csSquared + 0.5;
                     if (tau <= 0.5)
                         throw new InvalidOperationException("Nonphysical tau <= 0.5");
                     double omega = 1.0 / tau;
 
-                    // BGK collision towards equilibrium geq = W[k]*phi
+                    // BGK collision towards equilibrium geq = W[k]*phi (thesis eq. 4.3.1)
                     for (int k = 0; k < 9; k++)
                     {
                         double geq = W[k] * phi;
@@ -167,7 +171,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 // 4b) Streaming + bounce-back
                 foreach (var el in elements)
                 {
-                    if (el.IsWall) 
+                    if (el.IsWall)
                         continue;
 
                     for (int k = 0; k < 9; k++)
@@ -199,12 +203,15 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     // enforce boundary condtion Neumann or Dirichlet: Fi = W[k]*PinValue
                     if (el.IsElectrode)
                     {
-                        var electrode = electrodes.First(x => x.GridId == el.Id);
+                        var electrode = electrodes.Find(x => x.GridId == el.Id) ?? throw new ArgumentNullException("Cannot find electrode with specified id!");
                         double potential = electrode.Potential;
-
                         // Neumann
                         if(electrode.IsExcitation || electrode.IsGround)
                         {
+                            double current = electrode.Current;
+                            for (int i = 0; i < 9; i++)
+                                el.Fi[i] = W[i] * current;
+
                             var neighbors = el.Neighbors;
                             for(int i = 0; i < 9; i++)
                             {

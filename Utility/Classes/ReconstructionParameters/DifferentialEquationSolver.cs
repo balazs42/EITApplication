@@ -67,7 +67,7 @@ namespace Utility.Classes.ReconstructionParameters
         private readonly double _convergenceThreshold;
         private readonly int _checkInterval;
 
-        public LatticeBoltzmannDESolver(int maxIterations = 20000, double convergenceThreshold = 1e-7, int checkInterval = 100)
+        public LatticeBoltzmannDESolver(int maxIterations = 2000, double convergenceThreshold = 1e-7, int checkInterval = 200)
         {
             _maxIterations = maxIterations;
             _convergenceThreshold = convergenceThreshold;

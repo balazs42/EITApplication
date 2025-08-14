@@ -334,7 +334,7 @@ public partial class LBMReconstructionPage : ContentPage
         if (result?.CurrentPotentialDistribution == null)
             return;
 
-        var mesh = (LBMMesh)_viewModel.GetMesh().DeepCopy();
+        var mesh = (LBMMesh)_viewModel.ReconstructionResult.Mesh.DeepCopy();
         float cw = e.Info.Width / mesh.Nx;
         float ch = e.Info.Height / mesh.Ny;
 
@@ -342,7 +342,6 @@ public partial class LBMReconstructionPage : ContentPage
         // potential distribution (which would wipe the potential display)
         var elements = mesh.GetElements().Cast<LBMElement>().ToList();
 
-        // TODO: figure out why current amplitudes sum to 0
         var amplitudes = new Dictionary<int, double>();
         foreach (var element in elements)
             amplitudes.Add(element.Id, element.GetCurrentAmplitude());

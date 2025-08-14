@@ -66,7 +66,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             parameters.MeshType = Utility.Classes.Meshing.MeshType.LBM;
             parameters.Nx = GridSizeNx;
             parameters.Ny = GridSizeNy;
-            parameters.Radius = 10;
+            parameters.Radius = 14;
             parameters.ElectrodeCount = 16;
 
             // Create the underlying data model
@@ -121,14 +121,14 @@ namespace ElectricalImpedanceTomography.ViewModels
                 }
 
                 electrodes[0].IsExcitation = true;
-                electrodes[1].IsGround = true;
-                electrodes[0].Current = 3.0;
-                electrodes[1].Current = 1.0;
+                electrodes[5].IsGround = true;
+                electrodes[0].Current = 10.0;
+                electrodes[5].Current = -10.0;
 
                 for (int i = 2; i < electrodes.Count; i++)
                 {
                     if (!(electrodes[i].IsGround || electrodes[i].IsExcitation))
-                        electrodes[i].Potential = (i % 2 == 0) ? 2.0 : 1.0;
+                        electrodes[i].Potential = 2.0;
                 }
 
                 _mesh.SetElectrodes(electrodes);
