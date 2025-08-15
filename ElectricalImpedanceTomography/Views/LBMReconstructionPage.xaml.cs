@@ -277,6 +277,10 @@ public partial class LBMReconstructionPage : ContentPage
 
         var mesh = (LBMMesh)result.Mesh;
         var view = sender as SKCanvasView;
+
+        if (view == null)
+            throw new NullReferenceException("View was null, check code!");
+
         float cw = (float)view.CanvasSize.Width / mesh.Nx;
         float ch = (float)view.CanvasSize.Height / mesh.Ny;
         int col = (int)(e.Location.X / cw);

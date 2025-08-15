@@ -35,10 +35,9 @@ namespace Utility.Classes.Factories
             double stepAlpha = 1.0;
             double epsilon = 1e-3;
 
-            GraphAssembler assembler = new();
-            GraphBasedSolver s = new(mesh, numericSolver, lambdaW, lambdaAlpha, stepW, stepAlpha, epsilon);
+            GraphBasedSolver graphBasedSolver = new(mesh, numericSolver, lambdaW, lambdaAlpha, stepW, stepAlpha, epsilon);
 
-            GraphSolver solver = new(numericSolver, s, assembler);
+            GraphSolver solver = new(numericSolver, graphBasedSolver);
 
             return solver;
         }

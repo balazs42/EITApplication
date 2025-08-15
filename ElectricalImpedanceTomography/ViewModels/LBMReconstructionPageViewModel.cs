@@ -38,8 +38,6 @@ namespace ElectricalImpedanceTomography.ViewModels
         [ObservableProperty]
         private ReconstructionResult reconstructionResult;
 
-        private LBMMesh _mesh;
-
         [ObservableProperty]
         private LBMBoundaryCondition? boundaryCondition;
 
@@ -48,6 +46,8 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         [ObservableProperty]
         private int gridSizeNy = 32;
+
+        private LBMMesh _mesh;
 
         public LBMReconstructionPageViewModel(IReconstructionService reconstructionService)
         {

@@ -1,12 +1,10 @@
-﻿using Utility.Classes.Measurement;
-using System.Numerics;
-using Utility.Classes.Solvers.FiniteElementSolver;
-using Utility.Classes.Solvers.LatticeBoltzmannSolver;
+﻿using System.Numerics;
+using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.FiniteElementMesh;
-using Utility.Classes.Meshing.LatticeBoltzmannMesh;
+using Utility.Classes.Meshing.GraphMesh;
+using Utility.Classes.Solvers.FiniteElementSolver;
 using Utility.Classes.Solvers.GraphBasedSolver;
-using Utility.Classes.Solvers;
-using MathNet.Numerics.Financial;
+using Utility.Classes.Solvers.LatticeBoltzmannSolver;
 
 namespace Utility.Classes.ReconstructionParameters
 {
@@ -89,53 +87,87 @@ namespace Utility.Classes.ReconstructionParameters
     {
         private readonly INumericSolver _numericSolver;
         private readonly GraphBasedSolver _solver;
-        private readonly GraphAssembler _assembler;
-
-
-        public GraphSolver(INumericSolver numericSolver, GraphBasedSolver solver, GraphAssembler assembler)
+        
+        public GraphSolver(INumericSolver numericSolver, GraphBasedSolver solver)
         {
             _numericSolver = numericSolver;
-            _solver = solver;
-            _assembler = assembler;
+            _solver = solver;            
         }
 
         /// <summary>
-        /// Solves the forward problem to find the potential field φ.
+        /// Forward = null adjointSource; Adjoint = non-null adjointSource.
+        /// BoundaryCondition 'bc' is expected to have been applied to the mesh
+        /// before invoking (same convention as the other DESolvers).
         /// </summary>
-        /// TODO: Correct implementation for this
         public PotentialDistribution Solve(IMesh mesh, BoundaryCondition bc, Complex[]? adjointSource)
         {
             if (mesh is FEMMesh femMesh)
             {
-                _assembler.Build(femMesh);
-
-                return _solver.SolveForward(femMesh, _numericSolver);
+                if (adjointSource == null)
+                {
+                    // FORWARD: use FEMMesh.ToGraph() -> CEM solve on graph -> FEMMesh.FromGraph()
+                    return _solver.SolveForward(femMesh, _numericSolver);
+                }
+                else
+                {
+                    // ADJOINT: same CEM operator, RHS injected at electrode equations
+                    //return _solver.SolveAdjoint(femMesh, _numericSolver, adjointSource);
+                    throw new NotImplementedException();
+                }
             }
             else
-                throw new NotImplementedException("Cannot use graph based solver, the LBM mesh -> graph representation implmenetiation is not yet done!");
+            {
+                throw new NotImplementedException(
+                    "Graph-based DE solver currently supports FEM meshes. " +
+                    "LBM path can be enabled once LBMMesh graph mapping is integrated here.");
+            }
         }
 
         /// <summary>
-        /// Solves the adjoint problem to find the adjoint variable μ.
+        /// Adjoint (graph) solve: use the SAME KKT/CEM operator, but stamp the RHS
+        /// on the electrode equations with the provided adjoint source y_ell
+        /// (e.g., measurement residuals in volts). U_ground = 0 is enforced
+        /// by the same grounding used in the forward system.
         /// </summary>
-        public PotentialDistribution SolveAdjoint(IMesh mesh, BoundaryCondition bc, Complex[] adjointSource)
+        public PotentialDistribution SolveAdjoint(FEMMesh mesh, INumericSolver _, Complex[] adjointSource)
         {
-            if(mesh is FEMMesh femMesh)
-            {
-                _assembler.Build(femMesh);
+            if (adjointSource == null || adjointSource.Length == 0)
+                throw new ArgumentException("Adjoint source must be provided (non-empty).");
 
-                return _solver.SolveAdjoint(femMesh, _numericSolver);
+            // 1) Temporarily set electrode “currents” to the adjoint RHS (volt residuals),
+            //    because the bottom block row is where the electrode equations live.
+            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
+            var saved = electrodes.Select(e => e.Current).ToArray();
+            for (int k = 0; k < electrodes.Count; k++)
+            {
+                double rhs_k = (k < adjointSource.Length) ? adjointSource[k].Real : 0.0;
+                electrodes[k].Current = rhs_k;
             }
-            else
-                throw new NotImplementedException("Cannot use graph based solver, the LBM mesh -> graph representation implmenetiation is not yet done!");
+
+            // 2) Solve the same CEM KKT system on the graph
+            GraphBasedOperators _ops = _solver.GetOperators();
+            Graph _graph = _solver.GetGraph();
+
+            var (phi, U, _) = _ops.SolveCEM(_solver.CurrentEdgeWeights(), mesh);
+            _solver.LatestElectrodePotentials = U;
+
+            // 3) Write φ back to the graph and convert to a FEM potential distribution
+            for (int i = 0; i < _graph.Vertices.Count; i++)
+                _graph.Vertices[i].Potential = phi[i];
+
+            var newMesh = mesh.FromGraph(_graph);
+
+            // 4) Restore original currents (important when iterating)
+            for (int k = 0; k < electrodes.Count; k++)
+                electrodes[k].Current = saved[k];
+
+            return newMesh!.GetPotentialDistribution();
         }
 
         public ConductivityDistribution InverseSolve(IMesh mesh, BoundaryCondition bc, Complex[] ajdointSource)
         {
             if (mesh is FEMMesh femMesh)
             {
-                _assembler.Build(femMesh);
-
                 return _solver.Iteration(femMesh, _numericSolver);
             }
             else
