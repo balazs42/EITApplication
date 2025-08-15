@@ -3,6 +3,7 @@ using System.Diagnostics;
 using Utility.Classes;
 using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.FiniteElementMesh;
+using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.ReconstructionParameters;
 using Utility.Logger;
 
@@ -34,11 +35,11 @@ namespace ServiceLayer
             }
         }
 
-        public PotentialDistribution LBMSolveForward()
+        public PotentialDistribution SolveLbmForward()
         {
             try
             {
-                return _reconstructionPersistence.LBMSolveForward();
+                return _reconstructionPersistence.SolveLbmForward();
             }
             catch (Exception ex) 
             {
@@ -49,13 +50,28 @@ namespace ServiceLayer
             }
         }
 
-        public ReconstructionResult LBMSolveInverse(int maxIterationCount)
+        public ReconstructionResult SolveLbmInverse(int maxIterationCount)
         {
             try
             {
-                return _reconstructionPersistence.LBMSolveInverse(maxIterationCount);
+                return _reconstructionPersistence.SolveLbmInverse(maxIterationCount);
             }
             catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                Console.WriteLine(ex.Message);
+                Debug.WriteLine(ex.Message);
+                throw;
+            }
+        }
+
+        public EITMeasurement SimulateLbmMeasurements(LBMMesh mesh, double excitaionAmplitude)
+        {
+            try
+            {
+                return _reconstructionPersistence.SimulateLbmMeasurements(mesh, excitaionAmplitude);
+            }
+            catch(Exception ex)
             {
                 _logger.LogError(ex.Message);
                 Console.WriteLine(ex.Message);

@@ -1,7 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ServiceLayer;
-using System.Diagnostics.CodeAnalysis;
 using Utility.Classes;
 using Utility.Classes.Factories;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
@@ -136,9 +135,18 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             _reconstructionService.InitializeReconstruction(_mesh, ReconstructionParameters);
 
-            ReconstructionResult = await _reconstructionService.GetReconstructionResult();
+            PotentialDistribution potentialDistribution = _reconstructionService.SolveLbmForward();
 
-            _mesh = (LBMMesh)ReconstructionResult.Mesh.DeepCopy();
+            _mesh.SetPotentialDistribution(potentialDistribution);
+
+            ReconstructionResult = new ReconstructionResult((LBMMesh)_mesh,
+                                                            potentialDistribution,
+                                                            new PotentialDistribution(new()),
+                                                            ConductivityDistributionFactory.CreateRandom(_mesh),
+                                                            ConductivityDistributionFactory.CreateRandom(_mesh),
+                                                            ConductivityDistributionFactory.CreateRandom(_mesh));
+
+            ReconstructionResult.CurrentPotentialDistribution = _mesh.GetPotentialDistribution();
 
             OnPropertyChanged(nameof(ReconstructionResult));
         }
@@ -154,7 +162,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             const int maxIterCount = 50;
 
 
-            _reconstructionService.LBMSolveInverse(maxIterCount);
+            _reconstructionService.SolveLbmInverse(maxIterCount);
 
 
             // TODO: implement

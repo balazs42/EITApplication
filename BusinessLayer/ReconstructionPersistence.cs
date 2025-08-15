@@ -83,7 +83,9 @@ namespace BusinessLayer
             //return reconstructionResult;
         }
 
-        public PotentialDistribution LBMSolveForward()
+        #region Lattice Boltzmann Reconstruction
+
+        public PotentialDistribution SolveLbmForward()
         {
             LBMMesh? mesh = _mesh as LBMMesh;
 
@@ -97,7 +99,7 @@ namespace BusinessLayer
             return _differentialEquationSolver.Solve(_mesh, bc, null);
         }
 
-        public ReconstructionResult LBMSolveInverse(int maxIterationCount)
+        public ReconstructionResult SolveLbmInverse(int maxIterationCount)
         {
             double stepSize = _gradientStepSize;
             LBMMesh? mesh = (_mesh as LBMMesh);
@@ -113,7 +115,7 @@ namespace BusinessLayer
             LBMBoundaryCondition bc = new(electrodes);
 
             // --- Simulate Measurements for the Inverse Solver ---
-            EITMeasurement measurementFrames = LBMSimulateMeasurements(mesh);
+            EITMeasurement measurementFrames = SimulateLbmMeasurements(mesh, 1.0);
 
             // --- Inverse Solver Iterations ---
 
@@ -179,7 +181,7 @@ namespace BusinessLayer
                                             reconstructedConductivityDistribution);
         }
 
-        private EITMeasurement LBMSimulateMeasurements(LBMMesh mesh)
+        public EITMeasurement SimulateLbmMeasurements(LBMMesh mesh, double exciationAmplitude)
         {
             if (_differentialEquationSolver == null)
                 throw new NullReferenceException("Differential equation solver was null, check initializiation code!");
@@ -222,7 +224,9 @@ namespace BusinessLayer
             return new EITMeasurement(measurementFrames);
         }
 
-        #region Finite Element Method Related Functions
+        #endregion
+
+        #region Finite Element Method Reconstrucion
 
         public FEMMesh SolveFemForward(FEMMesh mesh)
         {
