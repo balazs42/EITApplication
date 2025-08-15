@@ -1,165 +1,194 @@
-﻿
+﻿using Utility.Classes.Meshing.FiniteElementMesh;
+using Utility.Classes.Meshing.GraphMesh;
+using Utility.Classes.ReconstructionParameters;
+
 namespace Utility.Classes.Solvers.GraphBasedSolver
 {
-    using Utility.Classes;
-    using Utility.Classes.ReconstructionParameters;
-
-    public class GraphBasedOperators
-    {
-        public readonly INumericSolver _solver;
-        public readonly GraphAssembler _graph;
-        /// <summary>
-        /// Constructs the solver with the assembled graph and a linear solver.
-        /// </summary>
-        public GraphBasedOperators(GraphAssembler graph, INumericSolver solver)
-        {
-            _graph = graph;
-            _solver = solver;
-        }
-
-        /// <summary>
-        /// Solve L(w) φ = f for φ, where w_e = α_e * w̄_e.
-        /// </summary>
-        /// <param name="w">Edge weights after multiplying α·w̄</param>
-        /// <param name="f">Right-hand side (injected currents) at nodes</param>
-        /// <returns>Node potentials φ of length NodeCount</returns>
-        public double[] SolveLaplacian(double[] w, double[] f)
-        {
-            int N = _graph.NodeCount;
-            int E = _graph.Edges.Count;
-
-            // 1) Allocate L as a dense matrix for simplicity
-            var L = new double[N, N];
-
-            // 2) Build Laplacian
-            for (int e = 0; e < E; e++)
-            {
-                var (i, j) = _graph.Edges[e];
-                double weight = w[e];
-                // Degree contributions
-                L[i, i] += weight;
-                L[j, j] += weight;
-                // Off-diagonal
-                L[i, j] -= weight;
-                L[j, i] -= weight;
-            }
-
-            // 3) Solve linear system L φ = f
-            // using your FEM numeric solver
-            var phi = _solver.SolveLinearSystem(L, f);
-
-            return phi;
-        }
-
-        public double[] SolveLaplacianGrounded(double[,] L, double[] b, int groundNode)
-        {
-            int n = L.GetLength(0);
-            var map = new int[n];
-            int m = 0;
-            for (int i = 0; i < n; i++) map[i] = (i == groundNode) ? -1 : m++;
-
-            var A = new double[m, m];
-            var rhs = new double[m];
-
-            for (int i = 0; i < n; i++)
-            {
-                if (map[i] < 0) continue;
-                int ii = map[i];
-                rhs[ii] = b[i];
-                for (int j = 0; j < n; j++)
-                {
-                    if (map[j] < 0) continue;
-                    int jj = map[j];
-                    A[ii, jj] = L[i, j];
-                }
-            }
-
-            var xReduced = _solver.SolveLinearSystem(A, rhs);
-            var x = new double[n];
-            for (int i = 0; i < n; i++) x[i] = (map[i] < 0) ? 0.0 : xReduced[map[i]];
-            return x;
-        }
-    }
-
 
     /// <summary>
-    /// Computes gradients ∂J/∂w̄ and ∂J/∂α using the adjoint state method.
+    /// Operators that act directly on a Graph (from FEMMesh.ToGraph()).
+    /// Builds K (Laplacian) from graph edge weights, stamps CEM shunts,
+    /// maps FEM electrodes to graph boundary nodes by nearest (x,y).
     /// </summary>
-    public class AdjointGradient
+    public class GraphBasedOperators
     {
-        private readonly GraphBasedOperators _lapSolver;
-        private readonly double _lambdaW;
-        private readonly double _lambdaAlpha;
-        private readonly double _epsilon;
+        private readonly INumericSolver _solver;
+        private readonly Graph _graph;
+        private readonly Dictionary<int, int> _vidx;   // graph GlobalId -> 0..N-1
 
-        /// <summary>
-        /// Constructor: set up adjoint solver and regularization weights.
-        /// </summary>
-        public AdjointGradient(GraphBasedOperators lapSolver, double lambdaW, double lambdaAlpha, double epsilon)
+        public GraphBasedOperators(Graph graph, INumericSolver solver)
         {
-            _lapSolver = lapSolver;
-            _lambdaW = lambdaW;
-            _lambdaAlpha = lambdaAlpha;
-            _epsilon = epsilon;
+            _graph = graph ?? throw new ArgumentNullException(nameof(graph));
+            _solver = solver ?? throw new ArgumentNullException(nameof(solver));
+
+            _vidx = new Dictionary<int, int>(graph.Vertices.Count);
+            for (int i = 0; i < graph.Vertices.Count; i++)
+                _vidx[graph.Vertices[i].GlobalId] = i;
         }
 
-        /// <summary>
-        /// Compute gradients given current w̄, α, state φ, and observed U_obs.
-        /// </summary>
-        public (double[] gradWbar, double[] gradAlpha) Compute(double[] wbar, double[] alpha, double[] phi, double[] Uobs)
+        public int NodeCount => _graph.NodeCount;
+        public int EdgeCount => _graph.EdgeCount;
+
+        private double[,] BuildLaplacian(double[] w)
         {
-            int E = wbar.Length;
-            int N = _lapSolver._graph.NodeCount;
+            int N = _graph.NodeCount;
+            var K = new double[N, N];
 
-            // 1) Direct misfit measurement: M = ½||Sφ - Uobs||²
-            // residual rell = φ[nodeell] - Uobs[ell]
-            var electrodes = _lapSolver._graph.Electrodes;
+            for (int e = 0; e < _graph.Edges.Count; e++)
+            {
+                var ge = _graph.Edges[e];
+                int i = _vidx[ge.Vertices[0].GlobalId];
+                int j = _vidx[ge.Vertices[1].GlobalId];
+                double we = Math.Max(w[e], 0.0);
+                K[i, i] += we; K[j, j] += we;
+                K[i, j] -= we; K[j, i] -= we;
+            }
+            return K;
+        }
+
+        private static int PickGround(IReadOnlyList<FEMElectrode> el)
+        {
+            int g = el.ToList().FindIndex(e => e.IsGround);
+            return (g >= 0) ? g : 0;
+        }
+
+        // FEM electrodes -> graph boundary nodes (nearest by (x,y))
+        private Dictionary<int, List<int>> MapElectrodesToGraphNodes(FEMMesh mesh)
+        {
+            var map = new Dictionary<int, List<int>>();
+
+            var boundary = _graph.Vertices
+                                 .Select((v, i) => (v, i))
+                                 .Where(t => t.v.BoundaryId != 0)
+                                 .Select(t => t.i)
+                                 .ToList();
+            if (boundary.Count == 0) boundary = Enumerable.Range(0, _graph.Vertices.Count).ToList();
+
+            (double x, double y) VPos(int id)
+            {
+                var v = mesh.Vertices.FirstOrDefault(p => p.GlobalId == id) ?? mesh.Vertices[id];
+                return (v.X, v.Y);
+            }
+            int Nearest((double x, double y) p)
+            {
+                double best = double.MaxValue; int bestIdx = 0;
+                foreach (var i in boundary)
+                {
+                    double dx = _graph.Vertices[i].X - p.x, dy = _graph.Vertices[i].Y - p.y;
+                    double d2 = dx * dx + dy * dy;
+                    if (d2 < best) { best = d2; bestIdx = i; }
+                }
+                return bestIdx;
+            }
+
+            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
+            for (int ell = 0; ell < electrodes.Count; ell++)
+            {
+                var e = electrodes[ell];
+                var set = new HashSet<int>();
+
+                if (!e.PointElectrode && e.VertexIds != null && e.VertexIds.Count > 0)
+                    foreach (var vid in e.VertexIds) set.Add(Nearest(VPos(vid)));
+                else
+                    set.Add(Nearest(VPos(e.MeshId)));
+
+                map[ell] = set.ToList();
+            }
+            return map;
+        }
+
+        private void AssembleCEM(double[] w, FEMMesh mesh,
+                                 out double[,] Kt, out double[,] A, out double[,] D,
+                                 out int ground, out Dictionary<int, List<int>> emap)
+        {
+            var K = BuildLaplacian(w);
+            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
+
+            int N = _graph.NodeCount, L = electrodes.Count;
+            A = new double[N, L];
+            D = new double[L, L];
+            emap = MapElectrodesToGraphNodes(mesh);
+
+            for (int ell = 0; ell < L; ell++)
+            {
+                var el = electrodes[ell];
+                double beta = (el.ZContact > 0.0) ? 1.0 / el.ZContact : 1e12;
+
+                foreach (var b in emap[ell])
+                {
+                    K[b, b] += beta;
+                    A[b, ell] += beta;
+                    D[ell, ell] += beta;
+                }
+            }
+            Kt = K;
+            ground = PickGround(electrodes);
+        }
+
+        public (double[] phi, double[] U, Dictionary<int, List<int>> map) SolveCEM(double[] w, FEMMesh mesh)
+        {
+            AssembleCEM(w, mesh, out var Kt, out var A, out var D, out int g, out var map);
+
+            int N = _graph.NodeCount;
+            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
+            int L = electrodes.Count, Lr = L - 1, nTot = N + Lr;
+
+            var S = new double[nTot, nTot];
+            var rhs = new double[nTot];
+
+            for (int i = 0; i < N; i++)
+                for (int j = 0; j < N; j++)
+                    S[i, j] = Kt[i, j];
+
+            int ColU(int ell) => (ell < g) ? (N + ell) : (N + ell - 1);
+
+            for (int b = 0; b < N; b++)
+                for (int ell = 0; ell < L; ell++)
+                    if (ell != g) S[b, ColU(ell)] = -A[b, ell];
+
+            for (int ell = 0; ell < L; ell++)
+            {
+                if (ell == g) continue;
+                int irow = ColU(ell);
+                for (int b = 0; b < N; b++) S[irow, b] = -A[b, ell];
+                for (int m = 0; m < L; m++)
+                    if (m != g) S[irow, ColU(m)] = (ell == m) ? D[ell, ell] : 0.0;
+            }
+
+            for (int ell = 0; ell < L; ell++)
+                if (ell != g) rhs[ColU(ell)] = electrodes[ell].Current;
+
+            var x = _solver.SolveLinearSystem(S, rhs);
+
+            var phi = new double[N];
+            Array.Copy(x, 0, phi, 0, N);
+
+            var U = new double[L];
+            for (int ell = 0; ell < L; ell++) U[ell] = (ell == g) ? 0.0 : x[ColU(ell)];
+
+            return (phi, U, map);
+        }
+
+        public double[,] ElectrodeResponse(double[] w, FEMMesh mesh)
+        {
+            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
             int L = electrodes.Count;
-            double[] residual = new double[L];
+            if (L == 0) return new double[0, 0];
+
+            var resp = new double[L, L];
+            var saved = electrodes.Select(e => e.Current).ToArray();
+
             for (int ell = 0; ell < L; ell++)
             {
-                int node = electrodes[ell].MeshId;
-                residual[ell] = phi[node] - Uobs[ell];
+                for (int k = 0; k < L; k++) electrodes[k].Current = 0.0;
+                electrodes[ell].Current = +1.0;
+
+                var (_, U, _) = SolveCEM(w, mesh);
+                for (int r = 0; r < L; r++) resp[r, ell] = U[r];
             }
+            for (int k = 0; k < L; k++) electrodes[k].Current = saved[k];
 
-            // 2) Adjoint RHS: Sᵀ residual → nodal injection
-            double[] adjSource = new double[N];
-            for (int ell = 0; ell < L; ell++)
-            {
-                int node = electrodes[ell].MeshId;
-                // add residual back at node
-                adjSource[node] = residual[ell];
-            }
-
-            // 3) Solve adjoint state: L ψ = Sᵀ residual
-            var psi = _lapSolver.SolveLaplacian(alpha.Zip(wbar, (a, wb) => a * wb).ToArray(), adjSource);
-
-            // 4) Compute ∂J/∂w̄ and ∂J/∂α per edge
-            var gradWbar = new double[E];
-            var gradAlpha = new double[E];
-
-            for (int e = 0; e < E; e++)
-            {
-                var (i, j) = _lapSolver._graph.Edges[e];
-
-                // w_ij = α_e * w̄_e
-                double wij = alpha[e] * wbar[e];
-
-                // kernel: -(ψ_i-ψ_j)(φ_i-φ_j)
-                double kernel = -(psi[i] - psi[j]) * (phi[i] - phi[j]);
-
-                // ∂J/∂w_ij = kernel + 2λ_w w_ij
-                double dJdw = kernel + 2.0 * _lambdaW * wij;
-
-                // chain rule: ∂J/∂w̄ = α * ∂J/∂w
-                gradWbar[e] = alpha[e] * dJdw;
-
-                // ∂J/∂α = w̄ * ∂J/∂w + λ_α [logα - log(1-α)]
-                double reg = Math.Log(alpha[e] + _epsilon) - Math.Log(1.0 - alpha[e] + _epsilon);
-                gradAlpha[e] = wbar[e] * dJdw + _lambdaAlpha * reg;
-            }
-
-            return (gradWbar, gradAlpha);
+            return resp;
         }
     }
 }
