@@ -116,6 +116,7 @@
                         Clicked="OnEditBoundaryConditions"/>
             </Grid>
             <Grid Grid.Row="2"
+                  HorizontalOptions="Center"
                   RowDefinitions="Auto, Auto"
                   ColumnDefinitions="Auto, Auto"
                   RowSpacing="10"
@@ -135,8 +136,8 @@
                             HorizontalOptions="Center"
                             VerticalOptions="Center">
                         <skia:SKCanvasView x:Name="canvasView"
-                                           WidthRequest="500"
-                                           HeightRequest="500"
+                                           WidthRequest="450"
+                                           HeightRequest="450"
                                            PaintSurface="OnCanvasViewPaintSurface"
                                            EnableTouchEvents="True"
                                            Touch="OnCanvasTouch" />
@@ -161,8 +162,8 @@
                                                PaintSurface="OnPotentialResultPaintSurface"
                                                EnableTouchEvents="True"
                                                Touch="OnPotentialTouch"
-                                               HeightRequest="500"
-                                               WidthRequest="500"
+                                               HeightRequest="450"
+                                               WidthRequest="450"
                                                Margin="10" />
                         </Border>
                         <skia:SKCanvasView Grid.Column="1"
@@ -192,8 +193,8 @@
                                                PaintSurface="OnPaintCurrentAmplitudeSurface"
                                                EnableTouchEvents="True"
                                                Touch="OnCurrentTouch"
-                                               HeightRequest="500"
-                                               WidthRequest="500"
+                                               HeightRequest="450"
+                                               WidthRequest="450"
                                                Margin="10" />
                         </Border>
                         <skia:SKCanvasView Grid.Column="1"
@@ -223,8 +224,8 @@
                                                PaintSurface="OnPaintConductivitySurface"
                                                EnableTouchEvents="True"
                                                Touch="OnConductivityTouch"
-                                               HeightRequest="500"
-                                               WidthRequest="500"
+                                               HeightRequest="450"
+                                               WidthRequest="450"
                                                Margin="10" />
                         </Border>
                         <skia:SKCanvasView Grid.Column="1"

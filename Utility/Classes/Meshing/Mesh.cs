@@ -22,8 +22,6 @@ namespace Utility.Classes
         double[] GetElectrodePotentials();        
 
         Mesh DeepCopy();
-        Graph ToGraph();
-        Mesh FromGraph();
     }
 
     /// <summary>
@@ -48,8 +46,6 @@ namespace Utility.Classes
 
         public abstract void LogMesh();
         public abstract Mesh DeepCopy();
-        public abstract Graph ToGraph();
-        public abstract Mesh FromGraph();
 
         protected static void ValidateSameKeys(IEnumerable<int> a, IEnumerable<int> b)
         {
@@ -147,5 +143,25 @@ namespace Utility.Classes
         
         public override ConductivityDistribution ConductivityDistribution { get; protected set; }
         public override PotentialDistribution PotentialDistribution { get; protected set; }
+
+        /// <summary>
+        /// Refines the mesh object to a higher resolution one.
+        /// </summary>
+        /// <param name="n">Number of leves of refinement.</param>
+        /// <returns>The refined mesh object.</returns>
+        public abstract Mesh<TElement, TElectrode> RefineUniform(int n);
+        
+        /// <summary>
+        /// Convert the spatial discretization of the domain to a graph representation.
+        /// </summary>
+        /// <returns>A graph object that resembles the original mesh.</returns>
+        public abstract Graph ToGraph();
+
+        /// <summary>
+        /// Converst a graph object to a spatial discretization of the domain.
+        /// </summary>
+        /// <param name="graphToConvert">The graph to convert.</param>
+        /// <returns>A mesh object that resembles the original graph.</returns>
+        public abstract Mesh<TElement, TElectrode> FromGraph(Graph graphToConvert);
     }
 }

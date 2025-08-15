@@ -15,10 +15,13 @@
         /// </summary>
         public Vertex End { get; set; } = new(0, 0.0, 0.0);
 
-        public Edge(Vertex start, Vertex end)
+        public int Id { get; set; } 
+
+        public Edge(Vertex start, Vertex end, int id)
         {
             Start = start;
             End = end;
+            Id = id;
         }
     }
 }

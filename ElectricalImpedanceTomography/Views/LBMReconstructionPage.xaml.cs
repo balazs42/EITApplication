@@ -469,7 +469,7 @@ public partial class LBMReconstructionPage : ContentPage
         using var paint = new SKPaint { Shader = shader };
         canvas.DrawRect(rect, paint);
 
-        using var textPaint = new SKPaint { Color = SKColors.Black, TextSize = 20, IsAntialias = true };
+        using var textPaint = new SKPaint { Color = SKColors.Black, TextSize = 14, IsAntialias = true };
         canvas.DrawText(max.ToString("F2"), rect.Left + 5, 20, textPaint);
         canvas.DrawText(min.ToString("F2"), rect.Left + 5, rect.Bottom - 5, textPaint);
     }

@@ -26,6 +26,9 @@ namespace BusinessLayer
         private IErrorMetric? _errorMetric = null;
         private INumericOptimizer? _numericOptimizer = null;
 
+        private double _gradientStepSize = 0.001;
+        private double _regularizationWeight = 0.001;
+
         public ReconstructionPersistence(IDAQRepository daqRepository)
         {
             _daqRepository = daqRepository;
@@ -96,11 +99,13 @@ namespace BusinessLayer
 
         public ReconstructionResult LBMSolveInverse(int maxIterationCount)
         {
+            double stepSize = _gradientStepSize;
             LBMMesh? mesh = (_mesh as LBMMesh);
 
             if (_inverseModel == null || _mesh == null || mesh == null || _differentialEquationSolver == null || _errorMetric == null)
                 throw new NullReferenceException();
 
+            ConductivityDistribution originalConductivityDistribution = ((LBMMesh)mesh.DeepCopy()).GetConductivityDistribution();
             mesh = (LBMMesh)mesh.DeepCopy();
 
             var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
@@ -149,17 +154,36 @@ namespace BusinessLayer
                         )
                     );
 
-                    // Update conductivities
+                    // --- Set new conductivities ---
+                    double step = stepSize;  // choose small enough for stability
+                    var sigma = mesh.GetConductivityDistribution();
+
+                    var newSigmaDict = sigma.Conductivities.ToDictionary(
+                        kvp => kvp.Key,
+                        // Clamp conductivites which got below 0
+                        kvp => ((kvp.Value - step * dataGrad.GetConductivity(kvp.Key)) < 0.0) ? 1e-1 : kvp.Value - step * dataGrad.GetConductivity(kvp.Key)
+                    );
+
+                    sigma = new ConductivityDistribution(newSigmaDict);
+                    mesh.SetConductivityDistribution(sigma);
                 }
             }
 
-            throw new NotImplementedException();
+            ConductivityDistribution reconstructedConductivityDistribution = mesh.GetConductivityDistribution();
+
+            return new ReconstructionResult((LBMMesh)_mesh,
+                                            _differentialEquationSolver.Solve(_mesh, bc, null),
+                                            new PotentialDistribution(new()),
+                                            originalConductivityDistribution,
+                                            originalConductivityDistribution,
+                                            reconstructedConductivityDistribution);
         }
 
         private EITMeasurement LBMSimulateMeasurements(LBMMesh mesh)
         {
             if (_differentialEquationSolver == null)
                 throw new NullReferenceException("Differential equation solver was null, check initializiation code!");
+
             var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
             int electrodeCount = electrodes.Count;
 

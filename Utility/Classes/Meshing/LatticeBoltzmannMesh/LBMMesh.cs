@@ -1,4 +1,5 @@
 ﻿using Utility.Classes.Factories;
+using Utility.Classes.Meshing.Graph.Graph;
 
 namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
 {
@@ -260,14 +261,211 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
 
             return copy;
         }
-        public override GraphMesh.Graph ToGraph()
+
+        /// <summary>
+        /// Uniform grid upsampling by an integer factor (e.g., 2 = each coarse cell becomes 2x2 fine cells).
+        /// Conductivity is replicated; potentials are copied.
+        /// Electrodes are re-centered inside the corresponding refined block.
+        /// </summary>
+        public override LBMMesh RefineUniform(int factor = 2)
         {
-            throw new NotImplementedException();
+            if (factor <= 1) return (LBMMesh)this.DeepCopy();
+
+            int NX = Nx * factor;
+            int NY = Ny * factor;
+            var fine = new LBMMesh(NX, NY);
+
+            // Map conductivity/potential
+            for (int y = 0; y < Ny; y++)
+                for (int x = 0; x < Nx; x++)
+                {
+                    var src = _grid[x, y];
+                    for (int fy = y * factor; fy < (y + 1) * factor; fy++)
+                        for (int fx = x * factor; fx < (x + 1) * factor; fx++)
+                        {
+                            var dst = fine._grid[fx, fy];
+                            dst.IsWall = src.IsWall && (fx == 0 || fy == 0 || fx == NX - 1 || fy == NY - 1);
+                            dst.Conductivity = src.Conductivity;
+
+                            double pot = src.Fi.Sum();
+                            double eq = pot / 9.0;
+                            for (int k = 0; k < 9; k++) dst.Fi[k] = eq;
+                        }
+                }
+
+            // Recreate electrodes roughly at the center of each refined block that had one
+            var newElectrodes = new List<LBMElectrode>();
+            foreach (var el in _electrodes)
+            {
+                var (cx, cy) = ToLattice(el.GridId);
+                int nx = cx * factor + factor / 2;
+                int ny = cy * factor + factor / 2;
+                nx = Math.Clamp(nx, 1, NX - 2);
+                ny = Math.Clamp(ny, 1, NY - 2);
+
+                int newId = ny * NX + nx;
+                newElectrodes.Add(new LBMElectrode(
+                    id: el.Id,
+                    gridId: newId,
+                    current: el.Current,
+                    potential: el.Potential,
+                    contactImpedance: el.ZContact,
+                    isExcitation: el.IsExcitation,
+                    isGround: el.IsGround,
+                    isMeasuring: el.IsMeasuring));
+            }
+            fine.SetElectrodes(newElectrodes);
+
+            // Refresh distributions for fine
+            var cd = fine.GetElements().ToDictionary(e => e.Id, e => ((LBMElement)e).Conductivity);
+            fine.SetConductivityDistribution(new ConductivityDistribution(cd));
+
+            var pd = fine.GetElements().ToDictionary(e => e.Id, e => ((LBMElement)e).Fi.Sum());
+            fine.SetPotentialDistribution(new PotentialDistribution(pd));
+
+            return fine;
         }
 
-        public override Mesh FromGraph()
+        public override GraphMesh.Graph ToGraph()
         {
-            throw new NotImplementedException();
+            // Build a graph from NON-WALL cells only.
+            // Nodes: interior lattice cells (x,y) with !IsWall
+            // Edges: 4-neighbor (E,N,W,S) connections between interior cells
+            // Weight: two-point flux τ_ij = |Γ| / (d_i/σ_i + d_j/σ_j)
+            // On a unit grid: |Γ|=1, d_i=d_j=0.5  => τ_ij = 2 / (1/σ_i + 1/σ_j) (harmonic mean).
+
+            var verts = new List<GraphVertex>();
+            var idToVtx = new Dictionary<int, GraphVertex>();
+
+            for (int y = 0; y < Ny; y++)
+                for (int x = 0; x < Nx; x++)
+                {
+                    var cell = _grid[x, y];
+                    if (cell.IsWall) continue; // exclude walls from the domain graph
+
+                    int boundaryId = 0;
+                    // mark interior boundary if any 4-neighbor is a wall or out of bounds
+                    bool touchesWall =
+                        x == 0 || x == Nx - 1 || y == 0 || y == Ny - 1 ||
+                        _grid[Math.Max(0, x - 1), y].IsWall ||
+                        _grid[Math.Min(Nx - 1, x + 1), y].IsWall ||
+                        _grid[x, Math.Max(0, y - 1)].IsWall ||
+                        _grid[x, Math.Min(Ny - 1, y + 1)].IsWall;
+
+                    if (touchesWall) boundaryId = 1;
+
+                    var gv = new GraphVertex(x, y, cell.Id, domainId: 0, boundaryId: boundaryId)
+                    {
+                        Potential = cell.Fi.Sum()
+                    };
+                    verts.Add(gv);
+                    idToVtx[cell.Id] = gv;
+                }
+
+            var edges = new List<GraphEdge>();
+
+            // Only add each edge once (east and north)
+            for (int y = 0; y < Ny; y++)
+                for (int x = 0; x < Nx; x++)
+                {
+                    var c = _grid[x, y];
+                    if (c.IsWall || !idToVtx.ContainsKey(c.Id)) continue;
+
+                    void AddEdgeTo(int nx, int ny)
+                    {
+                        if (nx < 0 || nx >= Nx || ny < 0 || ny >= Ny) return;
+                        var n = _grid[nx, ny];
+                        if (n.IsWall) return;
+                        if (!idToVtx.ContainsKey(n.Id)) return;
+
+                        double sig_i = Math.Max(c.Conductivity, 1e-15);
+                        double sig_j = Math.Max(n.Conductivity, 1e-15);
+                        double tau = 2.0 / (1.0 / sig_i + 1.0 / sig_j); // harmonic mean on unit grid
+
+                        edges.Add(new GraphEdge(idToVtx[c.Id], idToVtx[n.Id], tau));
+                    }
+
+                    // East and North to avoid duplicates
+                    if (x + 1 < Nx) AddEdgeTo(x + 1, y);
+                    if (y + 1 < Ny) AddEdgeTo(x, y + 1);
+                }
+
+            return new GraphMesh.Graph(verts, edges);
+        }
+
+        public override LBMMesh FromGraph(GraphMesh.Graph graphToConvert)
+        {
+            if (graphToConvert == null) throw new ArgumentNullException(nameof(graphToConvert));
+            if (graphToConvert.Vertices.Count == 0)
+                throw new InvalidOperationException("Graph has no vertices.");
+
+            // Infer a rectangular interior grid from graph vertex (x,y) coords.
+            // We assume the graph came from ToGraph(): integer coords for interior cells only.
+            int minX = (int)Math.Round(graphToConvert.Vertices.Min(v => v.X));
+            int maxX = (int)Math.Round(graphToConvert.Vertices.Max(v => v.X));
+            int minY = (int)Math.Round(graphToConvert.Vertices.Min(v => v.Y));
+            int maxY = (int)Math.Round(graphToConvert.Vertices.Max(v => v.Y));
+
+            // Add a 1-cell wall border around interior domain
+            int NX = (maxX - minX + 1) + 2;
+            int NY = (maxY - minY + 1) + 2;
+
+            var mesh = new LBMMesh(NX, NY);
+
+            // Map graph vertex -> new grid cell index (shift by +1,+1 due to wall border)
+            var lookup = graphToConvert.Vertices.ToDictionary(
+                v => v.GlobalId,
+                v =>
+                {
+                    int ix = (int)Math.Round(v.X) - minX + 1;
+                    int iy = (int)Math.Round(v.Y) - minY + 1;
+                    return (ix, iy);
+                });
+
+            // Build adjacency for averaging edge weights per node
+            var adj = new Dictionary<int, List<double>>();
+            foreach (var e in graphToConvert.Edges)
+            {
+                int i = e.Vertices[0].GlobalId;
+                int j = e.Vertices[1].GlobalId;
+                if (!adj.ContainsKey(i)) adj[i] = new List<double>();
+                if (!adj.ContainsKey(j)) adj[j] = new List<double>();
+                adj[i].Add(e.Weight);
+                adj[j].Add(e.Weight);
+            }
+
+            // Assign conductivity and potentials to corresponding interior cells
+            foreach (var v in graphToConvert.Vertices)
+            {
+                var (ix, iy) = lookup[v.GlobalId];
+                var cell = mesh._grid[ix, iy];
+                cell.IsWall = false;
+
+                // Average incident edge weights as a proxy for local conductivity
+                double sigma =
+                    (adj.TryGetValue(v.GlobalId, out var lst) && lst.Count > 0)
+                    ? Math.Max(lst.Average(), 1e-6)
+                    : 1.0;
+
+                cell.Conductivity = sigma;
+
+                // Set potential (distribute equally among Fi)
+                double eq = v.Potential / 9.0;
+                for (int k = 0; k < 9; k++) cell.Fi[k] = eq;
+            }
+
+            // Refresh distributions
+            var cd = mesh.GetElements().ToDictionary(el => el.Id, el => ((LBMElement)el).Conductivity);
+            mesh.SetConductivityDistribution(new ConductivityDistribution(cd));
+
+            var pd = mesh.GetElements().ToDictionary(el => el.Id, el =>
+            {
+                var c = (LBMElement)el;
+                return c.Fi.Sum();
+            });
+            mesh.SetPotentialDistribution(new PotentialDistribution(pd));
+
+            return mesh;
         }
     }
 }
