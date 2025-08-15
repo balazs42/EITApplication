@@ -1,0 +1,155 @@
+﻿using Utility.Classes.Meshing;
+using Utility.Classes.Meshing.FiniteElementMesh;
+using Utility.Classes.Meshing.LatticeBoltzmannMesh;
+
+namespace Utility.Classes.Solvers.FiniteElementSolver
+{
+    public static class FiniteElementOperators
+    {
+        /// <summary>
+        /// Calculates the gradient of a scalar field, assuming linear basis functions.
+        /// The gradient is constant within each element.
+        /// </summary>
+        /// <param name="femMesh">The FEM mesh.</param>
+        /// <param name="scalarField">A scalar field defined per-vertex (e.g., PotentialDistribution).</param>
+        /// <returns>A VectorField where the key is the ElementId.</returns>
+        public static VectorField CalculateElementWiseGradient(FEMMesh femMesh, ScalarField scalarField)
+        {
+            var gradientData = new Dictionary<int, (double Gx, double Gy)>();
+            var elements = femMesh.GetElements().Cast<FEMElement>();
+
+            foreach (var element in elements)
+            {
+                var v1 = element.Vertices[0];
+                var v2 = element.Vertices[1];
+                var v3 = element.Vertices[2];
+
+                // Potentials at the vertices of the element
+                double s1 = scalarField.GetValue(v1.GlobalId);
+                double s2 = scalarField.GetValue(v2.GlobalId);
+                double s3 = scalarField.GetValue(v3.GlobalId);
+
+                // Denominator for shape function derivatives: 2 * Area
+                double twoA = 2 * element.Area;
+                if (Math.Abs(twoA) < 1e-12) continue; // Avoid division by zero for degenerate triangles
+
+                // Gradients of the shape functions (N1, N2, N3)
+                double dN1dx = (v2.Y - v3.Y) / twoA;
+                double dN1dy = (v3.X - v2.X) / twoA;
+                double dN2dx = (v3.Y - v1.Y) / twoA;
+                double dN2dy = (v1.X - v3.X) / twoA;
+                double dN3dx = (v1.Y - v2.Y) / twoA;
+                double dN3dy = (v2.X - v1.X) / twoA;
+
+                // Gradient of the field σ = s1*N1 + s2*N2 + s3*N3
+                // ∇σ = s1*∇N1 + s2*∇N2 + s3*∇N3
+                double gx = s1 * dN1dx + s2 * dN2dx + s3 * dN3dx;
+                double gy = s1 * dN1dy + s2 * dN2dy + s3 * dN3dy;
+
+                gradientData[element.Id] = (gx, gy);
+            }
+
+            return new VectorField(gradientData);
+        }
+
+        /// <summary>
+        /// Computes the discrete Laplacian of a scalar field using the cotangent formula.
+        /// This is a common and robust method for unstructured triangular meshes.
+        /// The scalar field must be defined per-vertex.
+        /// </summary>
+        /// <param name="femMesh">The FEM mesh.</param>
+        /// <param name="scalarField">A scalar field defined per-vertex.</param>
+        /// <returns>A scalar field representing the Laplacian at each vertex.</returns>
+        public static PotentialDistribution CalculateLaplacian(FEMMesh femMesh, ScalarField scalarField)
+        {
+            var laplacianData = new Dictionary<int, double>();
+            var adjacency = BuildAdjacencyMap(femMesh);
+            var elements = femMesh.GetElements().Cast<FEMElement>();
+
+            foreach (var vertex in femMesh.Vertices)
+            {
+                int i = vertex.GlobalId;
+                double laplacianValue = 0.0;
+
+                if (!adjacency.ContainsKey(i)) continue;
+
+                foreach (int j in adjacency[i]) // For each neighbor j of vertex i
+                {
+                    double s_i = scalarField.GetValue(i);
+                    double s_j = scalarField.GetValue(j);
+
+                    // Find the two triangles sharing the edge (i, j)
+                    var sharedTriangles = elements.Where(e =>
+                        e.Vertices[0].GlobalId == i && (e.Vertices[1].GlobalId == j || e.Vertices[2].GlobalId == j) ||
+                        e.Vertices[1].GlobalId == i && (e.Vertices[0].GlobalId == j || e.Vertices[2].GlobalId == j) ||
+                        e.Vertices[2].GlobalId == i && (e.Vertices[0].GlobalId == j || e.Vertices[1].GlobalId == j)
+                    ).ToList();
+
+                    double cotAlpha = 0;
+                    double cotBeta = 0;
+
+                    if (sharedTriangles.Count > 0)
+                    {
+                        var p_k = sharedTriangles[0].Vertices[0].GlobalId != i && sharedTriangles[0].Vertices[0].GlobalId != j ? sharedTriangles[0].Vertices[0] :
+                                  sharedTriangles[0].Vertices[1].GlobalId != i && sharedTriangles[0].Vertices[1].GlobalId != j ? sharedTriangles[0].Vertices[1] :
+                                  sharedTriangles[0].Vertices[2];
+                        cotAlpha = Cotangent(femMesh.Vertices[i], femMesh.Vertices[j], p_k);
+                    }
+                    if (sharedTriangles.Count > 1)
+                    {
+                        var p_l = sharedTriangles[1].Vertices[0].GlobalId != i && sharedTriangles[1].Vertices[0].GlobalId != j ? sharedTriangles[1].Vertices[0] :
+                                  sharedTriangles[1].Vertices[1].GlobalId != i && sharedTriangles[1].Vertices[1].GlobalId != j ? sharedTriangles[1].Vertices[1] :
+                                  sharedTriangles[1].Vertices[2];
+                        cotBeta = Cotangent(femMesh.Vertices[i], femMesh.Vertices[j], p_l);
+                    }
+
+                    laplacianValue += (cotAlpha + cotBeta) * (s_j - s_i);
+                }
+                laplacianData[i] = 0.5 * laplacianValue;
+            }
+
+            return new PotentialDistribution(laplacianData);
+        }
+
+        #region Private Helpers
+
+        private static double Cotangent(Vertex p1, Vertex p2, Vertex p3)
+        {
+            // Calculate cotangent of the angle at p3 for the triangle p1-p2-p3
+            double v1x = p1.X - p3.X;
+            double v1y = p1.Y - p3.Y;
+            double v2x = p2.X - p3.X;
+            double v2y = p2.Y - p3.Y;
+
+            double dotProduct = v1x * v2x + v1y * v2y;
+            // Using Cross Product for sin: |v1 x v2| = |v1| |v2| sin(theta) -> in 2D, |v1x*v2y - v1y*v2x|
+            double crossProductMagnitude = v1x * v2y - v1y * v2x;
+
+            return Math.Abs(crossProductMagnitude) < 1e-12 ? 0 : dotProduct / crossProductMagnitude;
+        }
+
+        private static Dictionary<int, List<int>> BuildAdjacencyMap(FEMMesh mesh)
+        {
+            var adjacency = new Dictionary<int, List<int>>();
+            var elements = mesh.GetElements().Cast<FEMElement>();
+
+            foreach (var element in elements)
+            {
+                AddEdge(adjacency, element.Vertices[0].GlobalId, element.Vertices[1].GlobalId);
+                AddEdge(adjacency, element.Vertices[1].GlobalId, element.Vertices[2].GlobalId);
+                AddEdge(adjacency, element.Vertices[2].GlobalId, element.Vertices[0].GlobalId);
+            }
+            return adjacency;
+        }
+
+        private static void AddEdge(Dictionary<int, List<int>> adjacency, int u, int v)
+        {
+            if (!adjacency.ContainsKey(u)) adjacency[u] = [];
+            if (!adjacency.ContainsKey(v)) adjacency[v] = [];
+            if (!adjacency[u].Contains(v)) adjacency[u].Add(v);
+            if (!adjacency[v].Contains(u)) adjacency[v].Add(u);
+        }
+
+        #endregion
+    }
+}

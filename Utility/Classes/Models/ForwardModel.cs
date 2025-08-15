@@ -1,0 +1,37 @@
+﻿using Utility.Classes.Measurement;
+using Utility.Classes.ReconstructionParameters;
+
+namespace Utility.Classes.Models
+{
+    public interface IForwardModel
+    {
+        public PotentialDistribution ForwardSolve();
+    }
+
+    public class ForwardModel : IForwardModel
+    {
+        private readonly INumericSolver _numericSolver;
+        private readonly IDifferentialEquationSolver _differentialEquationSolver;
+        private readonly IMesh _mesh;
+        private readonly ConductivityDistribution _conductivityDistribution;
+        private readonly FEMBoundaryCondition _boundaryCondition;
+
+        public ForwardModel(INumericSolver numericSolver, IDifferentialEquationSolver differentialEquationSolver, IMesh mesh, ConductivityDistribution conductivityDistribution, FEMBoundaryCondition boundaryCondition)
+        {
+            _numericSolver = numericSolver;
+            _differentialEquationSolver = differentialEquationSolver;
+            _mesh = mesh;
+            _conductivityDistribution = conductivityDistribution;
+            _boundaryCondition = boundaryCondition;
+        }
+
+        public PotentialDistribution ForwardSolve()
+        {
+            return _differentialEquationSolver.Solve(_mesh, _boundaryCondition, null);
+        }
+
+        public ConductivityDistribution GetConductivityDistribution() => _conductivityDistribution;
+        public FEMBoundaryCondition GetBoundaryConditions() => _boundaryCondition;
+        public IMesh GetMesh() => _mesh;
+    }
+}

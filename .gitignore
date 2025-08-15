@@ -14,6 +14,12 @@ SemanticSymbols.db*
 # .NET & Mono
 bin/
 obj/
+<<<<<<< HEAD
+=======
+obj/Debug/
+obj/Release/
+obj/Debug/net9.0-android/    # ignore Android debug build outputs
+>>>>>>> develop
 *.dll
 *.pdb
 

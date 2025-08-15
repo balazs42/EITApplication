@@ -1,8 +1,10 @@
 ﻿namespace ElectricalImpedanceTomography.ViewModels
 {
-    public class MainPageViewModel : BaseViewModel
-    {
+    public partial class MainPageViewModel : BaseViewModel
+    {        
+        public MainPageViewModel()
+        {
 
-
+        }
     }
 }

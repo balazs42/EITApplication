@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<toolkit:Popup
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:toolkit="clr-namespace:CommunityToolkit.Maui.Views;assembly=CommunityToolkit.Maui"
+    xmlns:meshing="clr-namespace:Utility.Classes.Meshing;assembly=Utility"
+    xmlns:viewmodel="clr-namespace:ElectricalImpedanceTomography.ViewModels"
+    x:Class="ElectricalImpedanceTomography.Views.BoundaryConditionsPopup"
+    x:DataType="viewmodel:BoundaryConditionsPopupViewModel">
+
+    <Border
+        Padding="16"
+        BackgroundColor="Gray"
+        WidthRequest="500"
+        HeightRequest="500">
+
+        <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8" ColumnSpacing="10">
+            <!-- Title -->
+            <Label
+                Text="Boundary Conditions"
+                FontAttributes="Bold"
+                FontSize="18"
+                HorizontalOptions="Center" />
+
+            <!-- List of electrodes -->
+            <CollectionView ItemsSource="{Binding Electrodes}"
+                            Grid.Row="1"
+                            Margin="0,8,0,8">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="meshing:Electrode">
+                        <Border Padding="8" Margin="0,4">
+                            <Grid ColumnDefinitions="*,*,*,*,*" RowDefinitions="Auto, Auto, Auto" ColumnSpacing="6" RowSpacing="5">
+                                <!-- Electrode ID -->
+                                <Label Text="{Binding Id, StringFormat='Id:#{0}'}"
+                                       FontAttributes="Bold"
+                                       Grid.RowSpan="2" />
+
+                                <!-- Role checkboxes -->
+                                <Label Text="Measuring" Grid.Column="1" Grid.Row="0" HorizontalOptions="Center" />
+                                <CheckBox IsChecked="{Binding IsMeasuring}"
+                                          Grid.Row="1"
+                                          Grid.Column="1"
+                                          Margin="0"
+                                          IsEnabled="True"
+                                          HorizontalOptions="Center"
+                                          VerticalOptions="Center" />
+
+                                <Label Text="Excitetation" Grid.Column="2" Grid.Row="0" HorizontalOptions="Center" />
+                                <CheckBox IsChecked="{Binding IsExcitation}"
+                                          Grid.Column="2"
+                                          Grid.Row="1"
+                                          Margin="0"
+                                          IsEnabled="True"
+                                          HorizontalOptions="Center"                                          
+                                          VerticalOptions="Center" />
+
+                                <Label Text="Ground" Grid.Column="3" Grid.Row="0" HorizontalOptions="Center" />
+                                <CheckBox IsChecked="{Binding IsGround}"
+                                          Grid.Column="3"
+                                          Grid.Row="1"
+                                          Margin="0"
+                                          IsEnabled="True"
+                                          HorizontalOptions="Center"                                          
+                                          VerticalOptions="Center" />
+
+                                <!-- Potential (only measuring) -->
+                                <Entry Text="{Binding Potential}"
+                                       Placeholder="Potential"
+                                       Keyboard="Numeric"
+                                       IsVisible="{Binding IsMeasuring}"
+                                       Grid.Row="2"
+                                       Grid.Column="1"
+                                       Grid.ColumnSpan="2" />
+
+                                <!-- Current (only source) -->
+                                <Entry Text="{Binding Current}"
+                                       Placeholder="Current"
+                                       Keyboard="Numeric"
+                                       IsVisible="{Binding IsSource}"
+                                       Grid.Row="2"
+                                       Grid.Column="3"
+                                       Grid.ColumnSpan="2" />
+
+                                <!-- Contact impedance always -->
+                                <Entry Text="{Binding ZContact}"
+                                       Placeholder="Z-contact"
+                                       Keyboard="Numeric"
+                                       Grid.Row="2"
+                                       Grid.Column="0" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+
+            <!-- Cancel / Save -->
+            <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="10">
+                <Button Text="Cancel"
+                        Clicked="OnCancelClicked"
+                        Grid.Column="0" />
+                <Button Text="Save"
+                        Clicked="OnSaveClicked"
+                        Grid.Column="1" />
+            </Grid>
+        </Grid>
+    </Border>
+</toolkit:Popup>

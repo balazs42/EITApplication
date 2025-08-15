@@ -4,11 +4,23 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:local="clr-namespace:ElectricalImpedanceTomography"
+    xmlns:views="clr-namespace:ElectricalImpedanceTomography.Views"
     Title="ElectricalImpedanceTomography">
 
     <ShellContent
         Title="Home"
-        ContentTemplate="{DataTemplate local:MainPage}"
+        ContentTemplate="{DataTemplate views:MainPage}"
         Route="MainPage" />
-
+    <ShellContent
+        Title="DAQ"
+        ContentTemplate="{DataTemplate views:DAQPage}"
+        Route="DAQPage"/>
+    <ShellContent
+        Title="LBM Reconstruction"
+        ContentTemplate="{DataTemplate views:LBMReconstructionPage}"
+        Route="LBMReconstructionPage"/>
+    <ShellContent
+         Title="FEM Reconstruction"
+         ContentTemplate="{DataTemplate views:FEMReconstructionPage}"
+         Route="FEMReconstructionPage"/>
 </Shell>

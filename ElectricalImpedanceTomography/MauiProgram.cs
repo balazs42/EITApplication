@@ -1,4 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
+using SkiaSharp.Views.Maui.Controls.Hosting;
+using OxyPlot.Maui.Skia;
+using CommunityToolkit.Maui;
 
 namespace ElectricalImpedanceTomography
 {
@@ -9,6 +12,9 @@ namespace ElectricalImpedanceTomography
             var builder = MauiApp.CreateBuilder();
             builder
                 .UseMauiApp<App>()
+                .UseMauiCommunityToolkit()      // Register the toolkit
+                .UseSkiaSharp()                 // Skia sharp for the canvases
+                .UseOxyPlotSkia()               // Oxyplot for the plots
                 .ConfigureFonts(fonts =>
                 {
                     fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
