@@ -5,6 +5,8 @@ using SkiaSharp.Views.Maui;
 using SkiaSharp.Views.Maui.Controls;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 
@@ -42,6 +44,10 @@ public partial class LBMReconstructionPage : ContentPage
     }
 
     private PotentialDisplayMode _potMode = PotentialDisplayMode.Default;
+
+    private Task? _simulationTask;
+    private CancellationTokenSource? _simulationCts;
+    private bool _isPaused = false;
 
     public LBMReconstructionPage()
 	{
@@ -488,20 +494,87 @@ public partial class LBMReconstructionPage : ContentPage
         DrawColorBar(e.Surface.Canvas, e.Info, _condMin, _condMax);
     #endregion
     
-    private void OnSolveForwardClicked(object sender, EventArgs e)
+    private async void OnSolveForwardClicked(object sender, EventArgs e)
     {
-        _viewModel.OnSolveForwardClicked(sender, e);
-        PotentialResultCanvas.InvalidateSurface();
-        CurrentAmplitudeCanvas.InvalidateSurface();
-        ConductivityCanvas.InvalidateSurface();
+        await Task.Run(() => _viewModel.OnSolveForwardClicked(sender, e));
+        Dispatcher.Dispatch(() =>
+        {
+            PotentialResultCanvas.InvalidateSurface();
+            CurrentAmplitudeCanvas.InvalidateSurface();
+            ConductivityCanvas.InvalidateSurface();
+        });
     }
 
-    private void OnSolveInverseClicked(object sender, EventArgs e)
+    private async void OnSolveInverseClicked(object sender, EventArgs e)
     {
-        _viewModel.OnSolveInverseClicked(sender, e);
-        PotentialResultCanvas.InvalidateSurface();
-        CurrentAmplitudeCanvas.InvalidateSurface();
-        ConductivityCanvas.InvalidateSurface();
+        await Task.Run(() => _viewModel.OnSolveInverseClicked(sender, e));
+        Dispatcher.Dispatch(() =>
+        {
+            PotentialResultCanvas.InvalidateSurface();
+            CurrentAmplitudeCanvas.InvalidateSurface();
+            ConductivityCanvas.InvalidateSurface();
+        });
+    }
+
+    private async void StepButtonClicked(object sender, EventArgs e)
+    {
+        await Task.Run(() => _viewModel.InverseSolveStep());
+        Dispatcher.Dispatch(() =>
+        {
+            PotentialResultCanvas.InvalidateSurface();
+            CurrentAmplitudeCanvas.InvalidateSurface();
+            ConductivityCanvas.InvalidateSurface();
+        });
+    }
+
+    private void StartStopButtonClicked(object sender, EventArgs e)
+    {
+        if (_simulationTask == null || _simulationTask.IsCompleted)
+        {
+            _simulationCts = new CancellationTokenSource();
+            _isPaused = false;
+            _simulationTask = RunSimulationLoop(_simulationCts.Token);
+            StartStopButton.Text = "Pause";
+        }
+        else if (!_isPaused)
+        {
+            _isPaused = true;
+            StartStopButton.Text = "Resume";
+        }
+        else
+        {
+            _isPaused = false;
+            StartStopButton.Text = "Pause";
+        }
+    }
+
+    private void StopButtonClicked(object sender, EventArgs e)
+    {
+        _simulationCts?.Cancel();
+        _simulationTask = null;
+        _isPaused = false;
+        StartStopButton.Text = "Start";
+    }
+
+    private async Task RunSimulationLoop(CancellationToken token)
+    {
+        while (!token.IsCancellationRequested)
+        {
+            if (_isPaused)
+            {
+                await Task.Delay(100, token);
+                continue;
+            }
+
+            await Task.Run(() => _viewModel.InverseSolveStep());
+
+            Dispatcher.Dispatch(() =>
+            {
+                PotentialResultCanvas.InvalidateSurface();
+                CurrentAmplitudeCanvas.InvalidateSurface();
+                ConductivityCanvas.InvalidateSurface();
+            });
+        }
     }
 
     private async void OnEditBoundaryConditions(object sender, EventArgs e)

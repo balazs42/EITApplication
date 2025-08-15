@@ -130,9 +130,9 @@
 
         <!-- buttons -->
         <Grid Grid.Row="2"
-              RowDefinitions="Auto" 
-              ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto" 
-              HorizontalOptions="Center" 
+              RowDefinitions="Auto"
+              ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto"
+              HorizontalOptions="Center"
               Padding="10"
               ColumnSpacing="10">
 
@@ -167,15 +167,22 @@
             <Button x:Name="StartStopButton"
                     Style="{StaticResource ButtonStyle}"
                     Grid.Column="4"
-                    Text="Stop"
+                    Text="Start"
                     Clicked="StartStopButtonClicked"/>
 
-            <Button Style="{StaticResource ButtonStyle}"
+            <Button x:Name="StopButton"
+                    Style="{StaticResource ButtonStyle}"
                     Grid.Column="5"
-                    Text="Step"
-                    Clicked="StepButtonClicked"/>
+                    Text="Stop"
+                    Clicked="StopButtonClicked"/>
+
             <Button Style="{StaticResource ButtonStyle}"
                     Grid.Column="6"
+                    Text="Step"
+                    Clicked="StepButtonClicked"/>
+
+            <Button Style="{StaticResource ButtonStyle}"
+                    Grid.Column="7"
                     Text="Edit Boundary Conditions"
                     Clicked="OnEditBoundaryConditions"/>
 
