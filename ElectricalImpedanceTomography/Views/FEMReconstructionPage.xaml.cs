@@ -6,6 +6,8 @@ using SkiaSharp.Views.Maui.Controls;
 using Utility.Classes.Measurement;
 using Utility.Classes.Meshing;
 using Utility.Classes.Meshing.FiniteElementMesh;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace ElectricalImpedanceTomography.Views;
 
@@ -38,6 +40,9 @@ public partial class FEMReconstructionPage : ContentPage
     const float ElectrodeRadius = 6f;
 
     private bool _isSimulationRunning = false;
+    private bool _isPaused = false;
+    private Task? _simulationTask;
+    private CancellationTokenSource? _simulationCts;
 
     // Defining the modes
     private enum PotentialDisplayMode
@@ -401,13 +406,66 @@ public partial class FEMReconstructionPage : ContentPage
 
     private void StartStopButtonClicked(object sender, EventArgs e)
     {
-        _isSimulationRunning = !_isSimulationRunning;
-        // TODO: stop
+        if (_simulationTask == null || _simulationTask.IsCompleted)
+        {
+            _simulationCts = new CancellationTokenSource();
+            _isPaused = false;
+            _simulationTask = RunSimulationLoop(_simulationCts.Token);
+            StartStopButton.Text = "Pause";
+        }
+        else if (!_isPaused)
+        {
+            _isPaused = true;
+            StartStopButton.Text = "Resume";
+        }
+        else
+        {
+            _isPaused = false;
+            StartStopButton.Text = "Pause";
+        }
     }
 
-    private void StepButtonClicked(object sender, EventArgs e)
+    private void StopButtonClicked(object sender, EventArgs e)
     {
-        var result = _viewModel.InverseSolveStep();
+        _simulationCts?.Cancel();
+        _simulationTask = null;
+        _isPaused = false;
+        StartStopButton.Text = "Start";
+    }
+
+    private async void StepButtonClicked(object sender, EventArgs e)
+    {
+        await Task.Run(() => _viewModel.InverseSolveStep());
+        Dispatcher.Dispatch(() =>
+        {
+            PotentialCanvas.InvalidateSurface();
+            ConductivityCanvas.InvalidateSurface();
+            ReconstructionCanvas.InvalidateSurface();
+        });
+    }
+
+    private async Task RunSimulationLoop(CancellationToken token)
+    {
+        _isSimulationRunning = true;
+        while (!token.IsCancellationRequested)
+        {
+            if (_isPaused)
+            {
+                await Task.Delay(100, token);
+                continue;
+            }
+
+            await Task.Run(() => _viewModel.InverseSolveStep());
+
+            Dispatcher.Dispatch(() =>
+            {
+                PotentialCanvas.InvalidateSurface();
+                ConductivityCanvas.InvalidateSurface();
+                ReconstructionCanvas.InvalidateSurface();
+            });
+        }
+
+        _isSimulationRunning = false;
     }
 
     private async void OnEditBoundaryConditions(object sender, EventArgs e)
@@ -596,24 +654,33 @@ public partial class FEMReconstructionPage : ContentPage
         ReconstructionColorbar.InvalidateSurface();
     }
 
-    private void OnSolveForwardClicked(object s, EventArgs e)
+    private async void OnSolveForwardClicked(object s, EventArgs e)
     {
-        _mesh = (FEMMesh)_viewModel.SolveForward(_mesh).DeepCopy();
-        PotentialCanvas.InvalidateSurface();
-        PotentialColorbar.InvalidateSurface();
+        await Task.Run(() =>
+        {
+            _mesh = (FEMMesh)_viewModel.SolveForward(_mesh).DeepCopy();
+        });
+        Dispatcher.Dispatch(() =>
+        {
+            PotentialCanvas.InvalidateSurface();
+            PotentialColorbar.InvalidateSurface();
+        });
     }
 
-    private void OnSolveInverseClicked(object s, EventArgs e)
+    private async void OnSolveInverseClicked(object s, EventArgs e)
     {
-        _reconstructedMesh = (FEMMesh)_mesh.DeepCopy();
-        _reconstructedMesh = (FEMMesh)_viewModel.SolveInverse(_reconstructedMesh).DeepCopy();
-
-        var reconstrucionMeshElements = _reconstructedMesh.GetElements();
-
-        _minRecon = reconstrucionMeshElements.Min(el => el.Conductivity);
-        _maxRecon = reconstrucionMeshElements.Max(el => el.Conductivity);
-
-        ReconstructionCanvas.InvalidateSurface();
-        ReconstructionColorbar.InvalidateSurface();
+        await Task.Run(() =>
+        {
+            _reconstructedMesh = (FEMMesh)_mesh.DeepCopy();
+            _reconstructedMesh = (FEMMesh)_viewModel.SolveInverse(_reconstructedMesh).DeepCopy();
+            var reconstrucionMeshElements = _reconstructedMesh.GetElements();
+            _minRecon = reconstrucionMeshElements.Min(el => el.Conductivity);
+            _maxRecon = reconstrucionMeshElements.Max(el => el.Conductivity);
+        });
+        Dispatcher.Dispatch(() =>
+        {
+            ReconstructionCanvas.InvalidateSurface();
+            ReconstructionColorbar.InvalidateSurface();
+        });
     }
 }
