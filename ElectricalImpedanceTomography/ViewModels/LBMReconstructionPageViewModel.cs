@@ -168,6 +168,14 @@ namespace ElectricalImpedanceTomography.ViewModels
             // TODO: implement
         }
 
+        public ReconstructionResult InverseSolveStep()
+        {
+            var result = _reconstructionService.SolveLbmInverse(1);
+            ReconstructionResult = result;
+            OnPropertyChanged(nameof(ReconstructionResult));
+            return result;
+        }
+
         public void OnReconstructionParametersChanged(object sender, EventArgs e)
         {
             if(sender is Picker picker)
