@@ -1,6 +1,7 @@
 ﻿using Utility.Classes;
 using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.FiniteElementMesh;
+using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.ReconstructionParameters;
 
 namespace ServiceLayer
@@ -9,8 +10,15 @@ namespace ServiceLayer
     {
         public Task<ReconstructionResult> GetReconstructionResult();
         public void InitializeReconstruction(IMesh mesh, EITReconstructionParameters parameters);
-        public PotentialDistribution LBMSolveForward();
-        public ReconstructionResult LBMSolveInverse(int maxIterationCount);
+
+        // --- LBM Reconstruction ---
+
+        public PotentialDistribution SolveLbmForward();
+        public ReconstructionResult SolveLbmInverse(int maxIterationCount);
+        public EITMeasurement SimulateLbmMeasurements(LBMMesh mesh, double excitaionAmplitude);
+
+        // --- FEM Reconstruction
+
         public FEMMesh SolveFemForward(FEMMesh mesh);
         public FEMMesh SolveFemInverse(FEMMesh mesh, int maxIterCount, double stepSize, double regularization);
         public ReconstructionResult InverseSolveStepFem(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double stepSize);
