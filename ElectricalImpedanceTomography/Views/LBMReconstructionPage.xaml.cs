@@ -281,7 +281,8 @@ public partial class LBMReconstructionPage : ContentPage
         if (result?.CurrentPotentialDistribution == null)
             return;
 
-        var mesh = (LBMMesh)result.Mesh;
+        LBMMesh? mesh = (LBMMesh)(result.Mesh  ?? throw new NullReferenceException("Cannot convert result.Mesh to LBMMesh! Check code!"));
+
         var view = sender as SKCanvasView;
 
         if (view == null)
@@ -372,7 +373,8 @@ public partial class LBMReconstructionPage : ContentPage
         if (result?.CurrentPotentialDistribution == null)
             return;
 
-        var mesh = (LBMMesh)_viewModel.ReconstructionResult.Mesh.DeepCopy();
+        var lbmMesh = _viewModel.ReconstructionResult.GetMesh() ?? throw new NullReferenceException();
+        var mesh = (LBMMesh)lbmMesh.DeepCopy();
         float cw = e.Info.Width / mesh.Nx;
         float ch = e.Info.Height / mesh.Ny;
 

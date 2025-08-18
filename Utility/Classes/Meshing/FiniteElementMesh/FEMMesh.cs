@@ -330,8 +330,6 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
             //    First collect which mesh edges are boundary: an edge that belongs to exactly one element.
             var edgeToElements = new Dictionary<(int a, int b), List<int>>(); // undirected key by sorted vertex ids
 
-            int ElemIdFor(int idx) => elements[idx].Id;
-
             for (int ei = 0; ei < ne; ei++)
             {
                 var el = elements[ei];
