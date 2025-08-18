@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="ElectricalImpedanceTomography.Controls.ReconstructionParametersControl"
+             xmlns:converters="clr-namespace:ElectricalImpedanceTomography.Converters">
+    <ContentView.Resources>
+        <Style TargetType="Picker">
+            <Setter Property="FontAttributes" Value="Bold"/>
+        </Style>
+        <converters:EnumDescriptionConverter x:Key="EnumDesc" />
+    </ContentView.Resources>
+    <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*" RowSpacing="5" ColumnSpacing="10">
+        <!-- LBM parameters -->
+        <Grid x:Name="LBMParametersGrid"
+              Grid.Row="0"
+              ColumnDefinitions="Auto,Auto,Auto,Auto,Auto"
+              ColumnSpacing="10">
+            <Picker Grid.Column="0"
+                    Title="Differential Eq. Solver"
+                    ItemsSource="{Binding DifferentialEquationSolverOptions}"
+                    SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}"
+                    ItemDisplayBinding="{Binding ., Converter={StaticResource EnumDesc}}"/>
+            <Picker Grid.Column="1"
+                    Title="Regularisation"
+                    ItemsSource="{Binding RegularizationTechniqueOptions}"
+                    SelectedItem="{Binding ReconstructionParameters.RegularizationTechnique}"
+                    ItemDisplayBinding="{Binding ., Converter={StaticResource EnumDesc}}"/>
+            <Picker Grid.Column="2"
+                    Title="Error metric"
+                    ItemsSource="{Binding ErrorMetricOptions}"
+                    SelectedItem="{Binding ReconstructionParameters.ErrorMetric}"
+                    ItemDisplayBinding="{Binding ., Converter={StaticResource EnumDesc}}"/>
+            <Picker Grid.Column="3"
+                    Title="Numeric solver"
+                    ItemsSource="{Binding NumericSolverOptions}"
+                    SelectedItem="{Binding ReconstructionParameters.NumericSolver}"
+                    ItemDisplayBinding="{Binding ., Converter={StaticResource EnumDesc}}"/>
+            <Picker Grid.Column="4"
+                    Title="Optimizer"
+                    ItemsSource="{Binding NumericOptimizerOptions}"
+                    SelectedItem="{Binding ReconstructionParameters.NumericOptimizer}"
+                    ItemDisplayBinding="{Binding ., Converter={StaticResource EnumDesc}}"/>
+        </Grid>
+        <!-- FEM parameters -->
+        <Grid x:Name="FEMParametersGrid"
+              Grid.Row="1"
+              RowDefinitions="Auto,Auto,Auto,Auto"
+              ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto"
+              RowSpacing="5"
+              ColumnSpacing="10">
+            <!-- Row 0 labels -->
+            <Label Grid.Row="0" Grid.Column="0" Text="Layers:" VerticalOptions="Center" HorizontalOptions="Center"/>
+            <Label Grid.Row="0" Grid.Column="1" Text="Boundary nodes:" VerticalOptions="Center" HorizontalOptions="Center"/>
+            <Label Grid.Row="0" Grid.Column="2" Text="Electrode Count:" VerticalOptions="Center" HorizontalOptions="Center"/>
+            <Label Grid.Row="0" Grid.Column="3" Text="Excitation Id:" VerticalOptions="Center" HorizontalOptions="Center"/>
+            <Label Grid.Row="0" Grid.Column="4" Text="Ground Id:" VerticalOptions="Center" HorizontalOptions="Center"/>
+            <Label Grid.Row="0" Grid.Column="5" Text="Current[mA]:" VerticalOptions="Center" HorizontalOptions="Center"/>
+            <!-- Row 1 entries -->
+            <Entry Grid.Row="1" Grid.Column="0" WidthRequest="80" Keyboard="Numeric" Text="{Binding Layers}"/>
+            <Entry Grid.Row="1" Grid.Column="1" WidthRequest="80" Keyboard="Numeric" Text="{Binding BoundaryNodeCount}"/>
+            <Entry Grid.Row="1" Grid.Column="2" WidthRequest="80" Keyboard="Numeric" Text="{Binding ElectrodeCount}"/>
+            <Entry Grid.Row="1" Grid.Column="3" WidthRequest="80" Keyboard="Numeric" Text="{Binding ExcitationElectrodeId}"/>
+            <Entry Grid.Row="1" Grid.Column="4" WidthRequest="80" Keyboard="Numeric" Text="{Binding GroundElectrodeId}"/>
+            <Entry Grid.Row="1" Grid.Column="5" WidthRequest="80" Keyboard="Numeric" Text="{Binding ExcitationCurrentAmplitude}"/>
+            <!-- Row 2 labels -->
+            <Label Grid.Row="2" Grid.Column="0" Text="Electrode Size[%]:" VerticalOptions="Center" HorizontalOptions="Center"/>
+            <Label Grid.Row="2" Grid.Column="1" Text="Contact Impedance [mΩ]:" VerticalOptions="Center" HorizontalOptions="Center"/>
+            <Label Grid.Row="2" Grid.Column="2" Text="Inhomogenity [mS]:" VerticalOptions="Center" HorizontalOptions="Center"/>
+            <Label Grid.Row="2" Grid.Column="3" Text="Max iteration count:" VerticalOptions="Center" HorizontalOptions="Center"/>
+            <Label Grid.Row="2" Grid.Column="4" Text="Gradient Step Size (β):" VerticalOptions="Center" HorizontalOptions="Center"/>
+            <Label Grid.Row="2" Grid.Column="5" Text="Regularization Weight (θ):" VerticalOptions="Center" HorizontalOptions="Center"/>
+            <!-- Row 3 entries -->
+            <Entry Grid.Row="3" Grid.Column="0" WidthRequest="80" Keyboard="Numeric" Text="{Binding ElectrodeSurfaceLength}"/>
+            <Entry Grid.Row="3" Grid.Column="1" WidthRequest="80" Keyboard="Numeric" Text="{Binding ContactImpedance}"/>
+            <Entry Grid.Row="3" Grid.Column="2" WidthRequest="80" Keyboard="Numeric" Text="{Binding InhomogenityValue}"/>
+            <Entry Grid.Row="3" Grid.Column="3" WidthRequest="80" Keyboard="Numeric" Text="{Binding MaxIterationCount}"/>
+            <Entry Grid.Row="3" Grid.Column="4" WidthRequest="80" Keyboard="Numeric" Text="{Binding StepSize}"/>
+            <Entry Grid.Row="3" Grid.Column="5" WidthRequest="80" Keyboard="Numeric" Text="{Binding RegularizationWeight}"/>
+        </Grid>
+        <!-- Potential mode picker -->
+        <Picker x:Name="PotentialModePicker"
+                Grid.Row="2"
+                Title="Potential Display Mode">
+            <Picker.Items>
+                <x:String>Default</x:String>
+                <x:String>Grayscale</x:String>
+                <x:String>Inverted</x:String>
+                <x:String>Heatmap</x:String>
+                <x:String>Rainbow</x:String>
+            </Picker.Items>
+        </Picker>
+    </Grid>
+</ContentView>

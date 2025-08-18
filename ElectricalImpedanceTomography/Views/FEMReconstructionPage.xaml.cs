@@ -397,9 +397,9 @@ public partial class FEMReconstructionPage : ContentPage
     private void OnReconstructionTouch(object sender, SKTouchEventArgs e)
         => HandleConductivityTouch(e, _reconstructedMesh, ReconstructionCanvas);
 
-    private void OnPotentialModeChanged(object sender, EventArgs e)
+    private void OnPotentialModeChanged(object sender, int selectedIndex)
     {
-        _potMode = (PotentialDisplayMode)PotentialModePicker.SelectedIndex;
+        _potMode = (PotentialDisplayMode)selectedIndex;
         PotentialCanvas.InvalidateSurface();
         PotentialColorbar.InvalidateSurface();
     }
