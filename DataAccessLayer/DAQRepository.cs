@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
 using System.IO.Ports;
 using System.Text.Json;
 using Utility.Classes.Configurations;
@@ -6,7 +7,7 @@ using Utility.Classes.Measurement;
 
 namespace DataAccessLayer
 {
-    // Example measurement data:
+    // Example measurement data V1:
     /*     1.  |   2.   |    3.  |    4.  |    5.  |    6.  |    7.  |    8.  |    9.  |   10.  |   11.  |   12.  |   13.  |   14.  |   15.  |   16.  |
      *    NAN  |  NAN   | +0.014 | +0.012 | +0.012 | +0.012 | +0.013 | +0.010 | +0.013 | +0.012 | +0.012 | +0.014 | +0.014 | +0.014 | +0.013 |   NAN  |  
      *    NAN  |  NAN   |   NAN  | +0.014 | +0.012 | +0.011 | +0.013 | +0.012 | +0.010 | +0.014 | +0.013 | +0.013 | +0.012 | +0.012 | +0.012 | +0.014 | 
@@ -27,6 +28,8 @@ namespace DataAccessLayer
      *  1. = NaN & 2. = NaN means 1 = GND & 2 = VCC -> 3. means measurement between 3.-4. electodes. 4. meash measurement between 4.-5. ... 
      *  15. means measurement between 15.-16. 16. = NaN since 16. = 16.-1. and 1. is used for excitation.
      */
+
+   
 
     public class DAQRepository : IDAQRepository
     {
@@ -229,5 +232,61 @@ namespace DataAccessLayer
             catch { /* ignore */ }
             _cts.Dispose();
         }
+
+        private static Dictionary<Int16, string> _errorCodes = new()
+        {
+            {0, "No error detected!"},
+            {10, "Unknown error occured!"},
+
+            // --- Multiplexer Circuit Related Errors ---
+            {200, "Multiplexer errror occured!"},
+            {201, "Multiplexer address setting error!"},
+            {202, "Multiplexer enabple pin setting error!"},
+            {203, "Multiplexer direction setting error!"},
+            {204, "Multiplexer excitation setting out of range!"},
+
+            // --- ADC Related Errors ---
+            {300, "ADC error occured!"},
+            {301, "ADC reset error occured!"},
+            {302, "ADC start error occured!"},
+            {303, "ADC invalid register address!"},
+            {305, "No electrode or ADC overdrive detected!"},
+            {306, "ADC Device id error!"},
+            {307, "ADC Analog supply low-voltage!"},
+            {308, "ADC Power on reset set."},
+            {309, "ADC SPI CRC error."},
+            {310, "ADC Register map error."},
+            {311, "ADC internal error."},
+            {312, "ADC register address error."},
+            {313, "ADC SCLK count error."},
+            {314, "ADC invalid channel configuration."},
+            {315, "ADC status enable failed."},
+            {316, "ADC Resolution setting failed!"},
+            {317, "ADC Oscillator mode setting failed!"},
+            {318, "ADC clock divider setting failed!"},
+            {319, "ADC DCLK divider setting failed!"},
+            {320, "ADC invalid clock divider value."},
+            {321, "ADC invalid DCLK divider value."},
+            {322, "ADC daisy chain setting failed!"},
+            {323, "ADC Speed mode setting failed!"},
+            {324, "ADC Speed mode value error."},
+            {325, "ADC Start mode setting failed!"},
+            {3260, "ADC Over sampling Ratio (OSR) CH0 setting failed!"},
+            {3261, "ADC Over sampling Ratio (OSR) CH1 setting failed!"},
+            {3262, "ADC Over sampling Ratio (OSR) CH2 setting failed!"},
+            {3263, "ADC Over sampling Ratio (OSR) CH3 setting failed!"},
+            {3264, "ADC Over sampling Ratio (OSR) CH4 setting failed!"},
+            {3265, "ADC Over sampling Ratio (OSR) CH5 setting failed!"},
+            {3266, "ADC Over sampling Ratio (OSR) CH6 setting failed!"},
+            {3267, "ADC Over sampling Ratio (OSR) CH7 setting failed!"},
+            {327, "ADC general config3 configuration failed!"},
+            {328, "ADC Data port configuration failed!"},
+
+            // --- Current Sense Related Errors ---
+            {400, "Current sense error occured!"},
+
+            // --- Serial Command Task Related Errors ---
+            {50, "Serial command errror occured!"}
+        };
     }
 }
