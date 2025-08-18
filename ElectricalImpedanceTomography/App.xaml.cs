@@ -1,4 +1,6 @@
-﻿namespace ElectricalImpedanceTomography
+﻿using Utility.Tests;
+
+namespace ElectricalImpedanceTomography
 {
     public partial class App : Application
     {
@@ -12,6 +14,9 @@
             // Apply registrations will resolve the necessary objects
             Utility.Composition.Settings.ApplyContainerRegistration();
             ServiceLayer.Settings.ApplyContainerRegistration();
+
+            // TODO: run tests
+            StartupSelfTests.RunAll();
         }
 
         protected override Window CreateWindow(IActivationState? activationState)
