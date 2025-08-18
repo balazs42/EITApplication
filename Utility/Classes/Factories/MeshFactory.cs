@@ -359,7 +359,7 @@ namespace Utility.Classes.Factories
         public static LBMMesh CreateLBMMeshFromPerimeter(int nx, int ny, IList<(double x, double y)> perimeter, int electrodeCount = 16)
         {
             ValidatePerimeter(perimeter);
-            var mesh = new LBMMesh(nx, ny, electrodeCount: 0);
+            var mesh = new LBMMesh(nx, ny, electrodeNum: 0);
 
             for (int y = 0; y < ny; y++)
             {

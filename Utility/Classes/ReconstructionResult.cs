@@ -32,7 +32,7 @@
         #endregion
         #region Getters
         // --- Getter Functrions ---
-        public Mesh GetMesh() => Mesh;
+        public Mesh? GetMesh() => Mesh;
         public PotentialDistribution GetCurrentPotentialDistribution() => CurrentAdjointDistribution;
         public PotentialDistribution GetCurrentAdjointDistribution() => CurrentAdjointDistribution;
         public ConductivityDistribution GetOriginalConductivityDistribution() => OriginalConductivityDistribution;
