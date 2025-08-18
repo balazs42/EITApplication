@@ -79,159 +79,170 @@ namespace Utility.Classes.ReconstructionParameters
     }
 
     /// <summary>
-    /// Implements the Wasserstein-2 metric by solving the dual optimal transport problem using Google OR-Tools.
+    /// W₂²(μ,ν) via the Kantorovich dual:
+    ///   maximize  ⟨u, a⟩ + ⟨v, b⟩   subject to  u_i + v_j ≤ c_{ij}
+    /// where a,b are probability masses over simulated/measured electrodes (NaNs & non-measuring filtered),
+    /// and c_{ij} = ||x_i - y_j||² built from LBMMesh lattice coordinates.
+    /// The adjoint source equals the (discretized) Kantorovich potential φ ≡ u, mapped back to all electrodes.
     /// </summary>
     public sealed class Wasserstein2ErrorMetric : IErrorMetric
     {
-        // Cache the result of the latest LP solve to avoid re-computing
-        private OptimalTransportResult? _lastResult;
+        // Cache last result to reuse φ when EvaluateAdjointSource() called after Evaluate()
+        private OptimalTransportResult? _last;
 
         public double Evaluate(IMesh mesh, double[] measured, double[] simulated)
         {
-            _lastResult = SolveOptimalTransport(mesh, measured, simulated);
-            return 0.5 * _lastResult.OptimalValue;
+            var ot = SolveOT(mesh, measured, simulated);
+            _last = ot;
+            return ot.OptimalValue;
         }
 
         public double[] EvaluateAdjointSource(IMesh mesh, double[] measured, double[] simulated)
         {
-            if (_lastResult == null || !_lastResult.MatchesInputs(measured, simulated))
-            {
-                _lastResult = SolveOptimalTransport(mesh, measured, simulated);
-            }
-            return _lastResult.Phi;
+            if (_last != null && _last.MatchesInputs(measured, simulated))
+                return _last.Phi;
+
+            // If called independently, solve once to obtain φ then return it
+            return SolveOT(mesh, measured, simulated).Phi;
         }
 
-        private OptimalTransportResult SolveOptimalTransport(IMesh mesh, double[] measured, double[] simulated)
+        private OptimalTransportResult SolveOT(IMesh mesh, double[] measured, double[] simulated)
         {
-            if (mesh is not LBMMesh lbmMesh)
-                throw new ArgumentException("Wasserstein2ErrorMetric currently requires an LBMMesh to get element coordinates.");
+            if (mesh is not LBMMesh lbm)
+                throw new ArgumentException("Wasserstein-2 currently implemented for LBMMesh because it needs lattice coordinates.");
 
-            // 1. Get the list of physical electrodes and their locations from the mesh.
-            var electrodes = lbmMesh.GetElectrodes().Cast<LBMElectrode>().OrderBy(e => e.Id).ToList();
-            if (electrodes.Count != measured.Length || electrodes.Count != simulated.Length)
-                throw new ArgumentException("Number of electrodes in mesh must match data length.");
+            // (1) Pick electrodes, filter to *measuring* ones and ignore NaNs.
+            var all = lbm.GetElectrodes().Cast<LBMElectrode>().OrderBy(e => e.Id).ToList();
+            if (all.Count != measured.Length || all.Count != simulated.Length)
+                throw new ArgumentException("Electrode count must match data length.");
 
-            // 2. Normalize the data, filtering out any NaN values from driving electrodes.
-            // This gives us the valid "masses" (mu and nu) and their corresponding locations.
-            var (mu, muLocations) = LBMNormalize(simulated, electrodes, lbmMesh);
-            var (nu, nuLocations) = LBMNormalize(measured, electrodes, lbmMesh);
+            var (a, aLoc, aIndexMap) = BuildDistribution(simulated, all, lbm); // source: simulated
+            var (b, bLoc, _) = BuildDistribution(measured, all, lbm); // target: measured
 
-            // It's possible for the sets of measuring electrodes to be different, but for EIT they are usually the same.
-            // We'll proceed assuming we are comparing the distribution of `mu` to `nu`.
-            int n_mu = mu.Length;
-            int n_nu = nu.Length;
+            // If nothing valid (e.g., all NaN), return zero
+            if (a.Length == 0 || b.Length == 0)
+                return new OptimalTransportResult(measured, simulated, 0.0, new double[all.Count]);
 
-            // 3. Build the cost matrix C_ij = ||x_i - y_j||^2 between the valid locations.
-            var costMatrix = new double[n_mu, n_nu];
-            for (int i = 0; i < n_mu; i++)
+            // (2) Cost matrix c_{ij} = squared Euclidean distance on lattice
+            int m = a.Length, n = b.Length;
+            double[,] C = new double[m, n];
+            for (int i = 0; i < m; i++)
             {
-                for (int j = 0; j < n_nu; j++)
+                for (int j = 0; j < n; j++)
                 {
-                    double dx = muLocations[i].x - nuLocations[j].x;
-                    double dy = muLocations[i].y - nuLocations[j].y;
-                    costMatrix[i, j] = dx * dx + dy * dy;
+                    double dx = aLoc[i].x - bLoc[j].x;
+                    double dy = aLoc[i].y - bLoc[j].y;
+                    C[i, j] = dx * dx + dy * dy;
                 }
             }
 
-            // 4. Formulate and solve the dual LP problem using Google OR-Tools.
-            Solver solver = Solver.CreateSolver("GLOP");
+            // (3) Dual LP: maximize <u,a> + <v,b>  s.t. u_i + v_j ≤ C_ij
+            var solver = Solver.CreateSolver("GLOP"); // linear programming (continuous)
+            if (solver is null)
+                throw new InvalidOperationException("OR-Tools LP solver 'GLOP' not available.");
 
-            Variable[] phi_vars = new Variable[n_mu];
-            Variable[] psi_vars = new Variable[n_nu];
-            for (int i = 0; i < n_mu; ++i) phi_vars[i] = solver.MakeNumVar(double.NegativeInfinity, double.PositiveInfinity, $"phi_{i}");
-            for (int i = 0; i < n_nu; ++i) psi_vars[i] = solver.MakeNumVar(double.NegativeInfinity, double.PositiveInfinity, $"psi_{i}");
+            var u = new Variable[m];
+            var v = new Variable[n];
 
-            for (int i = 0; i < n_mu; i++)
-            {
-                for (int j = 0; j < n_nu; j++)
+            for (int i = 0; i < m; i++) u[i] = solver.MakeNumVar(double.NegativeInfinity, double.PositiveInfinity, $"u[{i}]");
+            for (int j = 0; j < n; j++) v[j] = solver.MakeNumVar(double.NegativeInfinity, double.PositiveInfinity, $"v[{j}]");
+
+            // Constraints u_i + v_j ≤ C_ij
+            for (int i = 0; i < m; i++)
+                for (int j = 0; j < n; j++)
                 {
-                    Constraint constraint = solver.MakeConstraint(double.NegativeInfinity, costMatrix[i, j]);
-                    constraint.SetCoefficient(phi_vars[i], 1);
-                    constraint.SetCoefficient(psi_vars[j], 1);
+                    var c = solver.MakeConstraint(double.NegativeInfinity, C[i, j], $"c[{i},{j}]");
+                    c.SetCoefficient(u[i], 1.0);
+                    c.SetCoefficient(v[j], 1.0);
                 }
-            }
 
-            Objective objective = solver.Objective();
-            for (int i = 0; i < n_mu; ++i) objective.SetCoefficient(phi_vars[i], mu[i]);
-            for (int i = 0; i < n_nu; ++i) objective.SetCoefficient(psi_vars[i], nu[i]);
-            objective.SetMaximization();
+            // Objective: maximize sum_i u_i a_i + sum_j v_j b_j
+            var obj = solver.Objective();
+            for (int i = 0; i < m; i++)
+                obj.SetCoefficient(u[i], a[i]);
+            for (int j = 0; j < n; j++) 
+                obj.SetCoefficient(v[j], b[j]);
 
-            if (solver.Solve() != Solver.ResultStatus.OPTIMAL)
-                throw new Exception("Could not solve the Optimal Transport LP problem.");
+            obj.SetMaximization();
 
-            // 5. Extract results and map them back to the full 16-electrode vector.
-            double optimalValue = solver.Objective().Value();
-            var phi_result_dense = phi_vars.Select(v => v.SolutionValue()).ToArray();
+            var status = solver.Solve();
+            if (status != Solver.ResultStatus.OPTIMAL)
+                throw new InvalidOperationException($"W₂ dual LP not optimal. Status={status}");
 
-            var phi_full = new double[electrodes.Count]; // Initialize to zeros
-            int mu_idx = 0;
-            for (int i = 0; i < electrodes.Count; i++)
-            {
-                // If the simulated potential at this electrode was a valid number,
-                // it was included in the 'mu' distribution. Place its calculated
-                // Kantorovich potential back into the full-size array.
-                if (!double.IsNaN(simulated[i]))
-                {
-                    phi_full[i] = phi_result_dense[mu_idx];
-                    mu_idx++;
-                }
-                // Otherwise, it remains zero.
-            }
+            double optimal = obj.Value();
 
-            return new OptimalTransportResult(measured, simulated, optimalValue, phi_full);
+            // Kantorovich potential φ ≡ u on the (simulated) support; map back to all electrodes length
+            var phiFull = new double[all.Count]; // default 0 where simulated was NaN or not measuring
+            foreach (var (iSrc, iElectrode) in aIndexMap)
+                phiFull[iElectrode] = u[iSrc].SolutionValue();
+
+            return new OptimalTransportResult(measured, simulated, optimal, phiFull);
         }
 
-        /// <summary>
-        /// Normalizes a vector, filtering out NaN values, to create a probability distribution.
-        /// Returns the valid "masses" and their corresponding (x, y) coordinates.
-        /// </summary>
-        private (double[] dist, List<(int x, int y)> locs) LBMNormalize(double[] vector, List<LBMElectrode> allElectrodes, LBMMesh mesh)
+        private static (double[] mass, List<(int x, int y)> loc, List<(int srcIdx, int electrodeIdx)> indexMap)
+            BuildDistribution(double[] raw, List<LBMElectrode> electrodes, LBMMesh mesh)
         {
-            var validData = new List<double>();
-            var validLocations = new List<(int x, int y)>();
+            var vals = new List<double>();
+            var coords = new List<(int x, int y)>();
+            var map = new List<(int, int)>();
 
-            for (int i = 0; i < vector.Length; i++)
+            double minVal = double.PositiveInfinity;
+            for (int i = 0; i < raw.Length; i++)
             {
-                if (!double.IsNaN(vector[i]))
-                {
-                    validData.Add(vector[i]);
-                    // Find the location of this valid data point using the electrode's MeshId
-                    validLocations.Add(mesh.ToLattice(allElectrodes[i].GridId));
-                }
+                var e = electrodes[i];
+                if (!e.IsMeasuring) continue;
+                double v = raw[i];
+                if (double.IsNaN(v)) continue;
+
+                minVal = Math.Min(minVal, v);
+                vals.Add(v);
+                coords.Add(ToXY(mesh, e.GridId));
+                map.Add((vals.Count - 1, i)); // (index in 'vals', electrode index)
             }
 
-            if (validData.Count == 0) return (Array.Empty<double>(), validLocations);
+            // Shift to nonnegative, then normalize to probability
+            if (vals.Count == 0)
+                return (Array.Empty<double>(), new List<(int, int)>(), new List<(int, int)>());
 
-            var V = validData.ToArray();
-            double min = V.Min();
-            if (min < 0)
+            if (minVal < 0.0)
+                for (int k = 0; k < vals.Count; k++) vals[k] -= minVal;
+
+            double sum = vals.Sum();
+            if (sum <= 0.0)
             {
-                for (int i = 0; i < V.Length; i++) V[i] -= min;
+                // fallback: uniform over valid measuring electrodes
+                double p = 1.0 / vals.Count;
+                for (int k = 0; k < vals.Count; k++) vals[k] = p;
             }
-            double sum = V.Sum();
-            if (sum < 1e-9) return (new double[V.Length], validLocations);
+            else
+            {
+                for (int k = 0; k < vals.Count; k++) vals[k] /= sum;
+            }
 
-            for (int i = 0; i < V.Length; i++) V[i] /= sum;
+            return (vals.ToArray(), coords, map);
+        }
 
-            return (V, validLocations);
+        private static (int x, int y) ToXY(LBMMesh mesh, int gridId)
+        {
+            // Prefer mesh API if public; otherwise decode (id = y*Nx + x)
+            int x = gridId % mesh.Nx;
+            int y = gridId / mesh.Nx;
+            return (x, y);
         }
 
         private sealed class OptimalTransportResult
         {
-            private readonly double[] _inputMeasured;
-            private readonly double[] _inputSimulated;
+            private readonly double[] _m;
+            private readonly double[] _s;
             public double OptimalValue { get; }
             public double[] Phi { get; }
 
             public OptimalTransportResult(double[] measured, double[] simulated, double value, double[] phi)
             {
-                _inputMeasured = measured;
-                _inputSimulated = simulated;
-                OptimalValue = value;
-                Phi = phi;
+                _m = measured; _s = simulated;
+                OptimalValue = value; Phi = phi;
             }
-            public bool MatchesInputs(double[] measured, double[] simulated) =>
-                 _inputMeasured.SequenceEqual(measured) && _inputSimulated.SequenceEqual(simulated);
+            public bool MatchesInputs(double[] measured, double[] simulated) => ReferenceEquals(_m, measured) && ReferenceEquals(_s, simulated);
         }
     }
 }
