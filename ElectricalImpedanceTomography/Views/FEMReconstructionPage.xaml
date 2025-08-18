@@ -45,144 +45,51 @@
     <Grid RowDefinitions="Auto,Auto,Auto,*" ColumnDefinitions="*" RowSpacing="10">
         
         <controls:NavBarControl Grid.Row="0" Grid.ColumnSpan="2" CurrentPageName="FEMReconstructionPage"/>
-        <!-- radius & boundary nodes -->
-
-        <Grid Grid.Row="1"
-              HorizontalOptions="Center"
-              RowSpacing="5"
-              ColumnSpacing="10"              
-              RowDefinitions="Auto, Auto, Auto, Auto"
-              ColumnDefinitions="*, *, *, *, *,*, *, *, *, *">
-            
-            <Label Grid.Row="0" Grid.Column="0" Text="Layers:" VerticalOptions="Center" HorizontalOptions="Center"/>
-            <Entry Grid.Row="1" Grid.Column="0"
-                   WidthRequest="80"
-                   Keyboard="Numeric"
-                   Text="{Binding Layers}"/>
-
-            <Label Grid.Row="0" Grid.Column="1" Text="Boundary nodes:" VerticalOptions="Center" HorizontalOptions="Center"/>
-            <Entry Grid.Row="1" Grid.Column="1"
-                   WidthRequest="80" 
-                   Keyboard="Numeric"
-                   Text="{Binding BoundaryNodeCount}"/>
-
-            <Label Grid.Row="0" Grid.Column="2" Text="Electrode Count:" VerticalOptions="Center" HorizontalOptions="Center"/>
-            <Entry Grid.Row="1" Grid.Column="2"
-                   WidthRequest="80" 
-                   Keyboard="Numeric"
-                   Text="{Binding ElectrodeCount}"/>
-
-            <Label Grid.Row="0" Grid.Column="3" Text="Excitation Id:" VerticalOptions="Center" HorizontalOptions="Center"/>
-            <Entry Grid.Row="1" Grid.Column="3"
-                   WidthRequest="80" 
-                   Keyboard="Numeric"
-                   Text="{Binding ExcitationElectrodeId}"/>
-
-            <Label Grid.Row="0" Grid.Column="4" Text="Ground Id:" VerticalOptions="Center" HorizontalOptions="Center"/>
-            <Entry Grid.Row="1" Grid.Column="4"
-                   WidthRequest="80" 
-                   Keyboard="Numeric"
-                   Text="{Binding GroundElectrodeId}"/>
-
-            <Label Grid.Row="0" Grid.Column="5" Text="Current[mA]:" VerticalOptions="Center" HorizontalOptions="Center"/>
-            <Entry Grid.Row="1" Grid.Column="5"
-                   WidthRequest="80" 
-                   Keyboard="Numeric"
-                   Text="{Binding ExcitationCurrentAmplitude}"/>
-
-            <Label Grid.Row="2" Grid.Column="0" Text="Electrode Size[%]:" VerticalOptions="Center" HorizontalOptions="Center"/>
-            <Entry Grid.Row="4" Grid.Column="0"
-                   WidthRequest="80" 
-                   Keyboard="Numeric"
-                   Text="{Binding ElectrodeSurfaceLength}"/>
-
-            <Label Grid.Row="2" Grid.Column="1" Text="Contact Impedance [mΩ]:" VerticalOptions="Center" HorizontalOptions="Center"/>
-            <Entry Grid.Row="4" Grid.Column="1"
-                   WidthRequest="80" 
-                   Keyboard="Numeric"
-                   Text="{Binding ContactImpedance}"/>
-
-            <Label Grid.Row="2" Grid.Column="2" Text="Inhomogenity [mS]:" VerticalOptions="Center" HorizontalOptions="Center"/>
-            <Entry Grid.Row="4" Grid.Column="2"
-                   WidthRequest="80" 
-                   Keyboard="Numeric"
-                   Text="{Binding InhomogenityValue}"/>
-
-            <Label Grid.Row="2" Grid.Column="3" Text="Max iteration count:" VerticalOptions="Center" HorizontalOptions="Center"/>
-            <Entry Grid.Row="4" Grid.Column="3"
-                   WidthRequest="80" 
-                   Keyboard="Numeric"
-                   Text="{Binding MaxIterationCount}"/>
-
-            <Label Grid.Row="2" Grid.Column="4" Text="Gradient Step Size (β):" VerticalOptions="Center" HorizontalOptions="Center"/>
-            <Entry Grid.Row="4" Grid.Column="4"
-                   WidthRequest="80" 
-                   Keyboard="Numeric"
-                   Text="{Binding StepSize}"/>
-
-            <Label Grid.Row="2" Grid.Column="5" Text="Regularization Weight (θ):" VerticalOptions="Center" HorizontalOptions="Center"/>
-            <Entry Grid.Row="4" Grid.Column="5"
-                   WidthRequest="80" 
-                   Keyboard="Numeric"
-                   Text="{Binding RegularizationWeight}"/>
-        </Grid>
+        <controls:ReconstructionParametersControl Grid.Row="1" PotentialModeChanged="OnPotentialModeChanged" />
 
 
         <!-- buttons -->
         <Grid Grid.Row="2"
               RowDefinitions="Auto"
-              ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto"
+              ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto"
               HorizontalOptions="Center"
               Padding="10"
               ColumnSpacing="10">
 
             <Button Style="{StaticResource ButtonStyle}"
                     Grid.Column="0"
-                    Text="Generate Mesh" 
+                    Text="Generate Mesh"
                     Clicked="OnGenerateMeshClicked"/>
-            
-            <Picker Grid.Column="1"
-                    x:Name="PotentialModePicker"
-                    Title="Potential Display Mode"
-                    SelectedIndexChanged="OnPotentialModeChanged">
-                <Picker.Items>
-                    <x:String>Default</x:String>
-                    <x:String>Grayscale</x:String>
-                    <x:String>Inverted</x:String>
-                    <x:String>Heatmap</x:String>
-                    <x:String>Rainbow</x:String>
-                </Picker.Items>
-            </Picker>
-            
+
             <Button Style="{StaticResource ButtonStyle}"
-                    Grid.Column="2" 
-                    Text="Solve Forward" 
+                    Grid.Column="1"
+                    Text="Solve Forward"
                     Clicked="OnSolveForwardClicked"/>
 
             <Button Style="{StaticResource ButtonStyle}"
-                    Grid.Column="3" 
-                    Text="Solve Inverse"  
+                    Grid.Column="2"
+                    Text="Solve Inverse"
                     Clicked="OnSolveInverseClicked"/>
 
             <Button x:Name="StartStopButton"
                     Style="{StaticResource ButtonStyle}"
-                    Grid.Column="4"
+                    Grid.Column="3"
                     Text="Start"
                     Clicked="StartStopButtonClicked"/>
 
             <Button x:Name="StopButton"
                     Style="{StaticResource ButtonStyle}"
-                    Grid.Column="5"
+                    Grid.Column="4"
                     Text="Stop"
                     Clicked="StopButtonClicked"/>
 
             <Button Style="{StaticResource ButtonStyle}"
-                    Grid.Column="6"
+                    Grid.Column="5"
                     Text="Step"
                     Clicked="StepButtonClicked"/>
 
             <Button Style="{StaticResource ButtonStyle}"
-                    Grid.Column="7"
+                    Grid.Column="6"
                     Text="Edit Boundary Conditions"
                     Clicked="OnEditBoundaryConditions"/>
 

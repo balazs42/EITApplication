@@ -13,7 +13,35 @@ namespace ElectricalImpedanceTomography.ViewModels
     {
         private const int defaultMaxIterationCount = 50;
         private readonly ReconstructionService _reconstructionService;
-        
+
+        public IEnumerable<DifferentialEquationSolver> DifferentialEquationSolverOptions
+            => Enum.GetValues(typeof(DifferentialEquationSolver))
+                   .Cast<DifferentialEquationSolver>();
+
+        public IEnumerable<RegularizationTechnique> RegularizationTechniqueOptions
+            => Enum.GetValues(typeof(RegularizationTechnique))
+                   .Cast<RegularizationTechnique>();
+
+        public IEnumerable<ErrorMetric> ErrorMetricOptions
+            => Enum.GetValues(typeof(ErrorMetric))
+                   .Cast<ErrorMetric>();
+
+        public IEnumerable<NumericSolver> NumericSolverOptions
+            => Enum.GetValues(typeof(NumericSolver))
+                   .Cast<NumericSolver>();
+
+        public IEnumerable<NumericOptimizer> NumericOptimizerOptions
+            => Enum.GetValues(typeof(NumericOptimizer))
+                   .Cast<NumericOptimizer>();
+
+        [ObservableProperty]
+        private EITReconstructionParameters reconstructionParameters = new(
+            DifferentialEquationSolver.FiniteElementMethod,
+            RegularizationTechnique.ZeroOrderTikhonov,
+            ErrorMetric.L2,
+            NumericSolver.SVD,
+            NumericOptimizer.GradientBased);
+
         [ObservableProperty]
         private int layers = 2;
 
@@ -61,12 +89,6 @@ namespace ElectricalImpedanceTomography.ViewModels
         private List<double[]> _simulatedMeasurements = [];
         private int _simulatedMeasurementsIndex = 0;
 
-        private EITReconstructionParameters reconstructionParameters = new (DifferentialEquationSolver.FiniteElementMethod, 
-                                                                            RegularizationTechnique.ZeroOrderTikhonov, 
-                                                                            ErrorMetric.L2, 
-                                                                            NumericSolver.SVD, 
-                                                                            NumericOptimizer.GradientBased);
-
         public FEMReconstructionPageViewModel(ReconstructionService reconstructionService)
         {
             _reconstructionService = reconstructionService;
@@ -75,7 +97,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             _reconstructedMesh = GenerateMesh();
 
             // Initialize solver
-            _reconstructionService.InitializeReconstruction(_mesh, reconstructionParameters);            
+            _reconstructionService.InitializeReconstruction(_mesh, ReconstructionParameters);
         }
 
 
@@ -134,7 +156,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 mesh.SetElectrodes(electrodes);
             }
 
-            _reconstructionService.InitializeReconstruction(_mesh, reconstructionParameters);
+            _reconstructionService.InitializeReconstruction(_mesh, ReconstructionParameters);
 
             var retMesh = _reconstructionService.SolveFemForward(mesh);
 
@@ -145,7 +167,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public FEMMesh SolveInverse(FEMMesh mesh)
         {
-            _reconstructionService.InitializeReconstruction(_mesh, reconstructionParameters);
+            _reconstructionService.InitializeReconstruction(_mesh, ReconstructionParameters);
 
             if (BoundaryCondition != null)
             {

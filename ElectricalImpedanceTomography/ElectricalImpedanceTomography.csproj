@@ -68,21 +68,24 @@
 		<PackageReference Include="SkiaSharp" Version="3.119.0" />
 	</ItemGroup>
 
-	<ItemGroup>
-	  <ProjectReference Include="..\ServiceLayer\ServiceLayer.csproj" />
-	  <ProjectReference Include="..\Utility\Utility.csproj" />
-	</ItemGroup>
+        <ItemGroup>
+          <ProjectReference Include="..\ServiceLayer\ServiceLayer.csproj" />
+          <ProjectReference Include="..\Utility\Utility.csproj" />
+        </ItemGroup>
 
-	<ItemGroup>
-	  <Compile Update="Controls\NavBarControl.xaml.cs">
-	    <DependentUpon>NavBarControl.xaml</DependentUpon>
-	  </Compile>
-	  <Compile Update="Views\LBMReconstructionPage.xaml.cs">
-	    <DependentUpon>LBMReconstructionPage.xaml</DependentUpon>
-	  </Compile>
-	</ItemGroup>
+        <ItemGroup>
+          <Compile Update="Controls\NavBarControl.xaml.cs">
+            <DependentUpon>NavBarControl.xaml</DependentUpon>
+          </Compile>
+          <Compile Update="Controls\ReconstructionParametersControl.xaml.cs">
+            <DependentUpon>ReconstructionParametersControl.xaml</DependentUpon>
+          </Compile>
+          <Compile Update="Views\LBMReconstructionPage.xaml.cs">
+            <DependentUpon>LBMReconstructionPage.xaml</DependentUpon>
+          </Compile>
+        </ItemGroup>
 
-	<ItemGroup>
+        <ItemGroup>
 	  <MauiXaml Update="Controls\NavBarControl.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
@@ -92,12 +95,15 @@
 	  <MauiXaml Update="Views\DAQPage.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
-	  <MauiXaml Update="Views\FEMReconstructionPage.xaml">
-	    <Generator>MSBuild:Compile</Generator>
-	  </MauiXaml>
-	  <MauiXaml Update="Views\LBMReconstructionPage.xaml">
-	    <Generator>MSBuild:Compile</Generator>
-	  </MauiXaml>
-	</ItemGroup>
+          <MauiXaml Update="Views\FEMReconstructionPage.xaml">
+            <Generator>MSBuild:Compile</Generator>
+          </MauiXaml>
+          <MauiXaml Update="Views\LBMReconstructionPage.xaml">
+            <Generator>MSBuild:Compile</Generator>
+          </MauiXaml>
+          <MauiXaml Update="Controls\ReconstructionParametersControl.xaml">
+            <Generator>MSBuild:Compile</Generator>
+          </MauiXaml>
+        </ItemGroup>
 
 </Project>
