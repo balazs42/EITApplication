@@ -4,6 +4,5 @@ namespace ElectricalImpedanceTomography.ViewModels
 {
     public partial class BaseViewModel : ObservableObject
     {
-
     }
 }
