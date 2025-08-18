@@ -47,52 +47,53 @@
                 </Setter>
             </Style>
         </ContentPage.Resources>
-        <Grid RowDefinitions="Auto, Auto, Auto, *" ColumnDefinitions="*">
-            <controls:NavBarControl Grid.Row="0" Grid.ColumnSpan="1" CurrentPageName="LBMReconstructionPage"/>
-            <controls:ReconstructionParametersControl Grid.Row="1" PotentialModeChanged="OnPotentialModeChanged" />
-            <Grid Grid.Row="2"
-                  ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto"
-                  HorizontalOptions="Center"
-                  Padding="10"
-                  ColumnSpacing="10">
-                <Button Grid.Column="0"
+    <ScrollView>
+    <Grid RowDefinitions="Auto, Auto, Auto, *" ColumnDefinitions="*">
+        <controls:NavBarControl Grid.Row="0" Grid.ColumnSpan="1" CurrentPageName="LBMReconstructionPage"/>
+        <controls:ReconstructionParametersControl Grid.Row="1" PotentialModeChanged="OnPotentialModeChanged" />
+        <Grid Grid.Row="2"
+            ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto"
+            HorizontalOptions="Center"
+            Padding="10"
+            ColumnSpacing="10">
+            <Button Grid.Column="0"
                         Style="{StaticResource ButtonStyle}"
                         Padding="10"
                         Margin="10"
                         Text="Solve Forward"
                         Clicked="OnSolveForwardClicked"/>
-                <Button Grid.Column="1"
+            <Button Grid.Column="1"
                         Style="{StaticResource ButtonStyle}"
                         Padding="10"
                         Margin="10"
                         Text="Solve Inverse"
                         Clicked="OnSolveInverseClicked"/>
-                <Button x:Name="StartStopButton"
+            <Button x:Name="StartStopButton"
                         Grid.Column="2"
                         Style="{StaticResource ButtonStyle}"
                         Padding="10"
                         Margin="10"
                         Text="Start"
                         Clicked="StartStopButtonClicked"/>
-                <Button x:Name="StopButton"
+            <Button x:Name="StopButton"
                         Grid.Column="3"
                         Style="{StaticResource ButtonStyle}"
                         Padding="10"
                         Margin="10"
                         Text="Stop"
                         Clicked="StopButtonClicked"/>
-                <Button Grid.Column="4"
+            <Button Grid.Column="4"
                         Style="{StaticResource ButtonStyle}"
                         Padding="10"
                         Margin="10"
                         Text="Step"
                         Clicked="StepButtonClicked"/>
-                <Button Grid.Column="5"
+            <Button Grid.Column="5"
                         Style="{StaticResource ButtonStyle}"
                         Text="Edit Boundary Conditions"
                         Clicked="OnEditBoundaryConditions"/>
-            </Grid>
-            <Grid Grid.Row="3"
+        </Grid>
+        <Grid Grid.Row="3"
                   HorizontalOptions="Center"
                   RowDefinitions="Auto, Auto"
                   ColumnDefinitions="Auto, Auto"
@@ -100,120 +101,120 @@
                   ColumnSpacing="10"
                   Padding="10">
 
-                <!-- LBM grid -->
-                <VerticalStackLayout Grid.Row="0"
+            <!-- LBM grid -->
+            <VerticalStackLayout Grid.Row="0"
                                      Grid.Column="0"
                                      HorizontalOptions="Center">
-                    <Label Text="LBM Grid"
+                <Label Text="LBM Grid"
                            FontAttributes="Bold"
                            HorizontalOptions="Center" />
-                    <Border Stroke="DarkGray"
+                <Border Stroke="DarkGray"
                             StrokeThickness="2"
                             Margin="10"
                             HorizontalOptions="Center"
                             VerticalOptions="Center">
-                        <skia:SKCanvasView x:Name="canvasView"
+                    <skia:SKCanvasView x:Name="canvasView"
                                            WidthRequest="450"
                                            HeightRequest="450"
                                            PaintSurface="OnCanvasViewPaintSurface"
                                            EnableTouchEvents="True"
                                            Touch="OnCanvasTouch" />
-                    </Border>
-                </VerticalStackLayout>
+                </Border>
+            </VerticalStackLayout>
 
-                <!-- Potential field -->
-                <VerticalStackLayout Grid.Row="0"
+            <!-- Potential field -->
+            <VerticalStackLayout Grid.Row="0"
                                      Grid.Column="1"
                                      HorizontalOptions="Center">
-                    <Label Text="Potential Field"
+                <Label Text="Potential Field"
                            FontAttributes="Bold"
                            HorizontalOptions="Center" />
-                    <Grid ColumnDefinitions="Auto, Auto">
-                        <Border Grid.Column="0"
+                <Grid ColumnDefinitions="Auto, Auto">
+                    <Border Grid.Column="0"
                                 Stroke="DarkGray"
                                 StrokeThickness="2"
                                 Margin="10"
                                 HorizontalOptions="Center"
                                 VerticalOptions="Center">
-                            <skia:SKCanvasView x:Name="PotentialResultCanvas"
+                        <skia:SKCanvasView x:Name="PotentialResultCanvas"
                                                PaintSurface="OnPotentialResultPaintSurface"
                                                EnableTouchEvents="True"
                                                Touch="OnPotentialTouch"
                                                HeightRequest="450"
                                                WidthRequest="450"
                                                Margin="10" />
-                        </Border>
-                        <skia:SKCanvasView Grid.Column="1"
+                    </Border>
+                    <skia:SKCanvasView Grid.Column="1"
                                            x:Name="PotentialColorBar"
                                            WidthRequest="40"
                                            HeightRequest="500"
                                            Margin="10"
                                            PaintSurface="OnPotentialColorBarPaintSurface" />
-                    </Grid>
-                </VerticalStackLayout>
+                </Grid>
+            </VerticalStackLayout>
 
-                <!-- Current amplitude field -->
-                <VerticalStackLayout Grid.Row="1"
+            <!-- Current amplitude field -->
+            <VerticalStackLayout Grid.Row="1"
                                      Grid.Column="0"
                                      HorizontalOptions="Center">
-                    <Label Text="Current Amplitude Field"
+                <Label Text="Current Amplitude Field"
                            FontAttributes="Bold"
                            HorizontalOptions="Center" />
-                    <Grid ColumnDefinitions="Auto, Auto">
-                        <Border Grid.Column="0"
+                <Grid ColumnDefinitions="Auto, Auto">
+                    <Border Grid.Column="0"
                                 Stroke="DarkGray"
                                 StrokeThickness="2"
                                 Margin="10"
                                 HorizontalOptions="Center"
                                 VerticalOptions="Center">
-                            <skia:SKCanvasView x:Name="CurrentAmplitudeCanvas"
+                        <skia:SKCanvasView x:Name="CurrentAmplitudeCanvas"
                                                PaintSurface="OnPaintCurrentAmplitudeSurface"
                                                EnableTouchEvents="True"
                                                Touch="OnCurrentTouch"
                                                HeightRequest="450"
                                                WidthRequest="450"
                                                Margin="10" />
-                        </Border>
-                        <skia:SKCanvasView Grid.Column="1"
+                    </Border>
+                    <skia:SKCanvasView Grid.Column="1"
                                            x:Name="CurrentColorBar"
                                            WidthRequest="40"
                                            HeightRequest="500"
                                            Margin="10"
                                            PaintSurface="OnCurrentColorBarPaintSurface" />
-                    </Grid>
-                </VerticalStackLayout>
+                </Grid>
+            </VerticalStackLayout>
 
-                <!-- Conductivity field -->
-                <VerticalStackLayout Grid.Row="1"
+            <!-- Conductivity field -->
+            <VerticalStackLayout Grid.Row="1"
                                      Grid.Column="1"
                                      HorizontalOptions="Center">
-                    <Label Text="Conductivity Field"
+                <Label Text="Conductivity Field"
                            FontAttributes="Bold"
                            HorizontalOptions="Center" />
-                    <Grid ColumnDefinitions="Auto, Auto">
-                        <Border Grid.Column="0"
+                <Grid ColumnDefinitions="Auto, Auto">
+                    <Border Grid.Column="0"
                                 Stroke="DarkGray"
                                 StrokeThickness="2"
                                 Margin="10"
                                 HorizontalOptions="Center"
                                 VerticalOptions="Center">
-                            <skia:SKCanvasView x:Name="ConductivityCanvas"
+                        <skia:SKCanvasView x:Name="ConductivityCanvas"
                                                PaintSurface="OnPaintConductivitySurface"
                                                EnableTouchEvents="True"
                                                Touch="OnConductivityTouch"
                                                HeightRequest="450"
                                                WidthRequest="450"
                                                Margin="10" />
-                        </Border>
-                        <skia:SKCanvasView Grid.Column="1"
+                    </Border>
+                    <skia:SKCanvasView Grid.Column="1"
                                            x:Name="ConductivityColorBar"
                                            WidthRequest="40"
                                            HeightRequest="500"
                                            Margin="10"
                                            PaintSurface="OnConductivityColorBarPaintSurface" />
-                    </Grid>
-                </VerticalStackLayout>
-            </Grid>
+                </Grid>
+            </VerticalStackLayout>
         </Grid>
     </Grid>
+    </ScrollView>
 </ContentPage>
