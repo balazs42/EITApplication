@@ -595,9 +595,9 @@ public partial class LBMReconstructionPage : ContentPage
         }
     }
 
-    private void OnPotentialModeChanged(object sender, EventArgs e)
+    private void OnPotentialModeChanged(object sender, int selectedIndex)
     {
-        _potMode = (PotentialDisplayMode)PotentialModePicker.SelectedIndex;
+        _potMode = (PotentialDisplayMode)selectedIndex;
         PotentialResultCanvas.InvalidateSurface();
         CurrentAmplitudeCanvas.InvalidateSurface();
         ConductivityCanvas.InvalidateSurface();
