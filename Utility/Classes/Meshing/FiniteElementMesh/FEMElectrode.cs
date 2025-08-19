@@ -16,13 +16,13 @@
         // Determines wether the electode is interpreted over a single FEMVertex or several vertices
         public bool PointElectrode { get; set; } = true;
 
-        public FEMElectrode(int meshId, List<int> FEMVertexIds, double current = double.NaN, double zContact = 0.1, double voltage = double.NaN, bool pointElectrode = true)
+        public FEMElectrode(int meshId, List<int> femVertexIds, double current = double.NaN, double zContact = 0.1, double voltage = double.NaN, bool pointElectrode = true)
         {
             MeshId = meshId;
             Current = current;
             ZContact = zContact;
             Potential = voltage;
-            FEMVertexIds = FEMVertexIds;
+            FEMVertexIds = femVertexIds;
             PointElectrode = pointElectrode;
         }
 
