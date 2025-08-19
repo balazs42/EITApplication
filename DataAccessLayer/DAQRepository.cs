@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO.Ports;
+using System.Numerics;
 using System.Text.Json;
 using Utility.Classes.Configurations;
 using Utility.Classes.Measurement;
@@ -49,12 +50,16 @@ namespace DataAccessLayer
         // --- Event To Invoke When a Measurement is Received ---
         public event EventHandler<EITMeasurement>? MeasurementReceived;
 
-        private const int _frameLength = 16;
+        private readonly int _frameLength;
         private const char _dataSeparator = ';';
 
 
-        public DAQRepository()
+        public DAQRepository() : this(16) { }
+
+        public DAQRepository(int frameLength)
         {
+            _frameLength = frameLength;
+
             // Load Serial Port Configuration from default path
             _ = LoadConfigurationFromJson();
 
@@ -75,7 +80,7 @@ namespace DataAccessLayer
                     if (meas == null) 
                         continue;
 
-                    for(int i = 0; i < 16; i++)
+                    for(int i = 0; i < _frameLength; i++)
                         await SaveToJsonAsync(meas, token);
 
                     MeasurementReceived?.Invoke(this, meas);
@@ -111,7 +116,7 @@ namespace DataAccessLayer
                 do { line = port.ReadLine().Trim(); }
                 while (!line.StartsWith("Measurements", StringComparison.OrdinalIgnoreCase));
 
-                /*–– read 16 data rows –––––––––––––––––––––––––––––––––––––*/
+                /*–– read data rows –––––––––––––––––––––––––––––––––––––––*/
                 List<double[]> frames = [];
                 for (int row = 0; row < _frameLength; ++row)
                 {
@@ -141,6 +146,150 @@ namespace DataAccessLayer
             }
         }
 
+        public Complex[][] ComputeFourierTransform(EITMeasurement measurement)
+        {
+            return ComputeDFT(measurement);
+        }
+
+        public Complex[][] ComputeDFT(EITMeasurement measurement)
+        {
+            if (measurement == null)
+                throw new ArgumentNullException(nameof(measurement));
+
+            int frames = measurement.Frames.Count;
+            int frameSize = measurement.FrameSize;
+
+            Complex[][] spectra = new Complex[frameSize][];
+            for (int electrode = 0; electrode < frameSize; electrode++)
+            {
+                double[] timeSeries = new double[frames];
+                for (int f = 0; f < frames; f++)
+                    timeSeries[f] = measurement.Frames[f][electrode];
+
+                spectra[electrode] = DiscreteFourierTransform(timeSeries);
+            }
+
+            return spectra;
+        }
+
+        public double[][] ComputeDCT(EITMeasurement measurement)
+        {
+            if (measurement == null)
+                throw new ArgumentNullException(nameof(measurement));
+
+            int frames = measurement.Frames.Count;
+            int frameSize = measurement.FrameSize;
+
+            double[][] spectra = new double[frameSize][];
+            for (int electrode = 0; electrode < frameSize; electrode++)
+            {
+                double[] timeSeries = new double[frames];
+                for (int f = 0; f < frames; f++)
+                    timeSeries[f] = measurement.Frames[f][electrode];
+
+                spectra[electrode] = DiscreteCosineTransform(timeSeries);
+            }
+
+            return spectra;
+        }
+
+        public Complex[][] ComputeFFT(EITMeasurement measurement)
+        {
+            if (measurement == null)
+                throw new ArgumentNullException(nameof(measurement));
+
+            int frames = measurement.Frames.Count;
+            int frameSize = measurement.FrameSize;
+
+            Complex[][] spectra = new Complex[frameSize][];
+            for (int electrode = 0; electrode < frameSize; electrode++)
+            {
+                double[] timeSeries = new double[frames];
+                for (int f = 0; f < frames; f++)
+                    timeSeries[f] = measurement.Frames[f][electrode];
+
+                spectra[electrode] = FastFourierTransform(timeSeries);
+            }
+
+            return spectra;
+        }
+
+        private static double[] DiscreteCosineTransform(double[] input)
+        {
+            int N = input.Length;
+            double[] output = new double[N];
+            for (int k = 0; k < N; k++)
+            {
+                double sum = 0;
+                for (int n = 0; n < N; n++)
+                {
+                    double angle = Math.PI * (n + 0.5) * k / N;
+                    sum += input[n] * Math.Cos(angle);
+                }
+                output[k] = sum;
+            }
+            return output;
+        }
+
+        private static Complex[] FastFourierTransform(double[] input)
+        {
+            int N = input.Length;
+            if ((N & (N - 1)) != 0)
+                return DiscreteFourierTransform(input);
+
+            Complex[] data = new Complex[N];
+            for (int i = 0; i < N; i++)
+                data[i] = new Complex(input[i], 0);
+
+            return FFTRecursive(data);
+        }
+
+        private static Complex[] FFTRecursive(Complex[] input)
+        {
+            int N = input.Length;
+            if (N == 1)
+                return new Complex[] { input[0] };
+
+            Complex[] even = new Complex[N / 2];
+            Complex[] odd = new Complex[N / 2];
+            for (int i = 0; i < N / 2; i++)
+            {
+                even[i] = input[2 * i];
+                odd[i] = input[2 * i + 1];
+            }
+
+            Complex[] fftEven = FFTRecursive(even);
+            Complex[] fftOdd = FFTRecursive(odd);
+
+            Complex[] output = new Complex[N];
+            for (int k = 0; k < N / 2; k++)
+            {
+                double angle = -2 * Math.PI * k / N;
+                Complex twiddle = new Complex(Math.Cos(angle), Math.Sin(angle)) * fftOdd[k];
+                output[k] = fftEven[k] + twiddle;
+                output[k + N / 2] = fftEven[k] - twiddle;
+            }
+
+            return output;
+        }
+
+        private static Complex[] DiscreteFourierTransform(double[] input)
+        {
+            int N = input.Length;
+            Complex[] output = new Complex[N];
+            for (int k = 0; k < N; k++)
+            {
+                Complex sum = Complex.Zero;
+                for (int n = 0; n < N; n++)
+                {
+                    double angle = -2.0 * Math.PI * k * n / N;
+                    sum += input[n] * new Complex(Math.Cos(angle), Math.Sin(angle));
+                }
+                output[k] = sum;
+            }
+            return output;
+        }
+
         /*───────────────────────────────────────────────────────────────────
          *  Persist measurement to disk (jagged JSON)
          *──────────────────────────────────────────────────────────────────*/
@@ -152,14 +301,12 @@ namespace DataAccessLayer
             string file = Path.Combine(dir,
                 $"EIT_{DateTime.UtcNow:yyyyMMdd_HHmmss_fff}.json");
 
-            var jagged = new double[16][];
-            for (int i = 0; i < 16; ++i)
+            var jagged = new double[m.Frames.Count][];
+            for (int i = 0; i < m.Frames.Count; ++i)
             {
-                //jagged[i] = new double[16];
-                //SixteenElectrodeMeasurement measurement = m.GetMeasurement(i);
-                //
-                //for (int j = 0; j < 16; ++j)
-                //    jagged[i][j] = measurement.Measurement[j];
+                jagged[i] = new double[m.FrameSize];
+                for (int j = 0; j < m.FrameSize; ++j)
+                    jagged[i][j] = m.Frames[i][j];
             }
 
             var opts = new JsonSerializerOptions { WriteIndented = true };
