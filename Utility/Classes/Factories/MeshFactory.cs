@@ -13,7 +13,7 @@ namespace Utility.Classes.Factories
     {
         public MeshType MeshType { get; set; }
         public int Layers { get; set; }
-        public int BoundaryVertexCount { get; set; }
+        public int BoundaryFEMVertexCount { get; set; }
         public int ElectrodeCount { get; set; }
         public int Nx { get; set; }
         public int Ny { get; set; }
@@ -30,7 +30,7 @@ namespace Utility.Classes.Factories
         public static IMesh Create(MeshParameters parameters, double inhomogenityValue = 1.0) => parameters.MeshType switch
         {
             MeshType.FEM => CreateCircularFEMMesh(layers: parameters.Layers,
-                                                  boundaryVertexCount: parameters.BoundaryVertexCount,
+                                                  boundaryFEMVertexCount: parameters.BoundaryFEMVertexCount,
                                                   electrodeCount: parameters.ElectrodeCount,
                                                   inhomogeneityValue: inhomogenityValue),
             MeshType.LBM => LBMCreateCircular(parameters.Nx, parameters.Ny, parameters.Radius, parameters.ElectrodeCount),
@@ -43,41 +43,41 @@ namespace Utility.Classes.Factories
         /// Builds a circular FEM mesh with given concentric layers and boundary vertices,
         /// then distributes `electrodeCount` electrodes evenly around the outer boundary.
         /// </summary>
-        public static FEMMesh CreateCircularFEMMesh(int layers, int boundaryVertexCount, int electrodeCount = 16)
+        public static FEMMesh CreateCircularFEMMesh(int layers, int boundaryFEMVertexCount, int electrodeCount = 16)
         {
-            return CreateCircularFEMMeshInternal(layers, boundaryVertexCount, electrodeCount, inhomogeneityValue: 3.0);
+            return CreateCircularFEMMeshInternal(layers, boundaryFEMVertexCount, electrodeCount, inhomogeneityValue: 3.0);
         }
 
         /// <summary>
         /// Builds an inhomogeneous circular FEM mesh where elements in the inner rings
         /// have conductivity scaled by inhomogeneityValue (default 3.0).
         /// </summary>
-        public static FEMMesh CreateCircularFEMMesh(int layers, int boundaryVertexCount, int electrodeCount = 16, double inhomogeneityValue = 3.0)
+        public static FEMMesh CreateCircularFEMMesh(int layers, int boundaryFEMVertexCount, int electrodeCount = 16, double inhomogeneityValue = 3.0)
         {
-            return CreateCircularFEMMeshInternal(layers, boundaryVertexCount, electrodeCount, inhomogeneityValue);
+            return CreateCircularFEMMeshInternal(layers, boundaryFEMVertexCount, electrodeCount, inhomogeneityValue);
         }
 
         // common implementation with inhomogeneity scaling
-        private static FEMMesh CreateCircularFEMMeshInternal(int layers, int boundaryVertexCount, int electrodeCount, double inhomogeneityValue)
+        private static FEMMesh CreateCircularFEMMeshInternal(int layers, int boundaryFEMVertexCount, int electrodeCount, double inhomogeneityValue)
         {
-            if (electrodeCount > boundaryVertexCount)
-                electrodeCount = boundaryVertexCount;
+            if (electrodeCount > boundaryFEMVertexCount)
+                electrodeCount = boundaryFEMVertexCount;
 
             // 1) build vertices (center + rings)
-            var vertices = new List<Vertex>();
+            var vertices = new List<FEMVertex>();
             int vid = 0;
 
             // center
-            vertices.Add(new Vertex(vid++, 0, 0) { IsBoundary = (layers == 0) });
+            vertices.Add(new FEMVertex(vid++, 0, 0) { IsBoundary = (layers == 0) });
 
             // concentric rings
             for (int layer = 1; layer <= layers; layer++)
             {
                 double rnorm = (double)layer / layers;
-                for (int i = 0; i < boundaryVertexCount; i++)
+                for (int i = 0; i < boundaryFEMVertexCount; i++)
                 {
-                    double theta = 2 * Math.PI * i / boundaryVertexCount;
-                    vertices.Add(new Vertex(globalId: vid++,
+                    double theta = 2 * Math.PI * i / boundaryFEMVertexCount;
+                    vertices.Add(new FEMVertex(globalId: vid++,
                                             x: rnorm * Math.Cos(theta),
                                             y: rnorm * Math.Sin(theta))
                     {
@@ -88,8 +88,8 @@ namespace Utility.Classes.Factories
             }
 
             // 2) triangulate
-            var triVerts = vertices.Select(v => new TriVertex(v)).ToArray();
-            var delaunay = DelaunayTriangulation<TriVertex, DefaultTriangulationCell<TriVertex>>.Create(triVerts, 1e-3);
+            var triVerts = vertices.Select(v => new TriFEMVertex(v)).ToArray();
+            var delaunay = DelaunayTriangulation<TriFEMVertex, DefaultTriangulationCell<TriFEMVertex>>.Create(triVerts, 1e-3);
 
             // 3) create elements with inhomogeneous conductivity
             var elements = new List<FEMElement>();
@@ -143,11 +143,11 @@ namespace Utility.Classes.Factories
             var electrodes = new List<FEMElectrode>(electrodeCount);
             for (int elId = 0; elId < electrodeCount; elId++)
             {
-                // pick every 'increment' boundary vertex
+                // pick every 'increment' boundary FEMVertex
                 int idx = elId * increment;
                 if (idx >= boundaryCount) idx = boundaryCount - 1;
 
-                Vertex v = boundaryVerts[idx];
+                FEMVertex v = boundaryVerts[idx];
                 v.IsElectrode = true;
                 v.ElectrodeId = elId;
 
@@ -158,18 +158,18 @@ namespace Utility.Classes.Factories
                     zContact: 0.1,
                     voltage: 1.0);
 
-                el.VertexIds.Add(v.GlobalId);
+                el.FEMVertexIds.Add(v.GlobalId);
                 electrodes.Add(el);
             }
 
             mesh.SetElectrodes(electrodes);
 
-            // Assing vertex neighbors
+            // Assing FEMVertex neighbors
             foreach (var element in elements)
             {
-                Vertex V1 = element.Vertices[0];
-                Vertex V2 = element.Vertices[1];
-                Vertex V3 = element.Vertices[2];
+                FEMVertex V1 = element.Vertices[0];
+                FEMVertex V2 = element.Vertices[1];
+                FEMVertex V3 = element.Vertices[2];
 
                 //  ---------------
                 //  |             |
@@ -185,11 +185,11 @@ namespace Utility.Classes.Factories
                 for (int i = 0; i < 3; i++)
                 {
                     // Find any duplicates
-                    Vertex v = element.Vertices[i];
+                    FEMVertex v = element.Vertices[i];
 
                     for (int j = 0; j < v.Neighbors.Count; j++)
                     {
-                        List<Vertex> neighbors = v.Neighbors;
+                        List<FEMVertex> neighbors = v.Neighbors;
                         for (int k = 0; k < v.Neighbors.Count; k++)
                         {
                             if ((neighbors[k].GlobalId == neighbors[j].GlobalId) && k != j)
@@ -233,18 +233,18 @@ namespace Utility.Classes.Factories
         {
             ValidatePerimeter(perimeter);
 
-            var vertices = new List<Vertex>();
+            var vertices = new List<FEMVertex>();
             int vid = 0;
 
             double cx = perimeter.Average(p => p.x);
             double cy = perimeter.Average(p => p.y);
-            var center = new Vertex(vid++, cx, cy);
+            var center = new FEMVertex(vid++, cx, cy);
             vertices.Add(center);
 
             for (int i = 0; i < perimeter.Count; i++)
             {
                 var p = perimeter[i];
-                vertices.Add(new Vertex(vid++, p.x, p.y)
+                vertices.Add(new FEMVertex(vid++, p.x, p.y)
                 {
                     IsBoundary = true,
                     BoundaryId = i
@@ -279,7 +279,7 @@ namespace Utility.Classes.Factories
                     current: 0.0,
                     zContact: 0.1,
                     voltage: 1.0);
-                el.VertexIds.Add(v.GlobalId);
+                el.FEMVertexIds.Add(v.GlobalId);
                 electrodes.Add(el);
             }
 
@@ -341,12 +341,12 @@ namespace Utility.Classes.Factories
         public static FEMMesh CreateThoraxFEMMesh(IList<(double x, double y)> perimeter, int electrodeCount = 16)
             => CreatePolygonFEMMesh(perimeter, electrodeCount);
 
-        private class TriVertex : IVertex
+        private class TriFEMVertex : IVertex
         {
             public double[] Position { get; }
-            public Vertex Original { get; }
+            public FEMVertex Original { get; }
 
-            public TriVertex(Vertex v)
+            public TriFEMVertex(FEMVertex v)
             {
                 Original = v;
                 Position = new[] { v.X, v.Y };

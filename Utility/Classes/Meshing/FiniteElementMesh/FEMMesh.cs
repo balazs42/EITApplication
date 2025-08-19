@@ -5,10 +5,10 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
 {
     public class FEMMesh : Mesh<FEMElement, FEMElectrode>
     {
-        public List<Vertex> Vertices { get; set; } = [];
+        public List<FEMVertex> Vertices { get; set; } = [];
         private List<Edge> _edges { get; set; } = [];
 
-        public FEMMesh(IEnumerable<Vertex> vertices,
+        public FEMMesh(IEnumerable<FEMVertex> vertices,
                        IEnumerable<FEMElement> elements,
                        IEnumerable<FEMElectrode>? electrodes = null)
         {
@@ -27,7 +27,7 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
             Initialize();
         }
 
-        public List<Vertex> GetVertice() => Vertices;
+        public List<FEMVertex> GetVertice() => Vertices;
 
         public void Initialize()
         {
@@ -36,8 +36,8 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
 
             Dictionary<int, double> potentialDistribution = new Dictionary<int, double>();
 
-            foreach (var vertex in Vertices)
-                potentialDistribution.Add(vertex.GlobalId, vertex.Potential);
+            foreach (var FEMVertex in Vertices)
+                potentialDistribution.Add(FEMVertex.GlobalId, FEMVertex.Potential);
 
             PotentialDistribution = new PotentialDistribution(potentialDistribution);
 
@@ -62,23 +62,23 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
         protected override void ApplyPotentialToState(int stateKey, double potential)
         {
             var v = Vertices.FirstOrDefault(x => x.GlobalId == stateKey)
-                    ?? throw new InvalidOperationException($"No Vertex.GlobalId = {stateKey}.");
+                    ?? throw new InvalidOperationException($"No FEMVertex.GlobalId = {stateKey}.");
             v.Potential = potential;
         }
 
         protected override double ReadPotentialOf(FEMElectrode e)
         {
-            if (!e.PointElectrode && e.VertexIds != null && e.VertexIds.Count > 0)
+            if (!e.PointElectrode && e.FEMVertexIds != null && e.FEMVertexIds.Count > 0)
             {
-                return e.VertexIds
+                return e.FEMVertexIds
                         .Select(id => Vertices.FirstOrDefault(v => v.GlobalId == id)
-                                      ?? throw new InvalidOperationException($"No Vertex.GlobalId = {id}."))
+                                      ?? throw new InvalidOperationException($"No FEMVertex.GlobalId = {id}."))
                         .Select(v => v.Potential)
                         .Average();
             }
 
             var vv = Vertices.FirstOrDefault(v => v.GlobalId == e.MeshId)
-                     ?? throw new InvalidOperationException($"No Vertex.GlobalId = {e.MeshId} (FEMElectrode.MeshId).");
+                     ?? throw new InvalidOperationException($"No FEMVertex.GlobalId = {e.MeshId} (FEMElectrode.MeshId).");
             return vv.Potential;
         }
 
@@ -89,12 +89,12 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
         /// </summary>
         public override Mesh DeepCopy()
         {
-            var vertexMap = new Dictionary<int, Vertex>(Vertices.Count);
-            var newVertices = new List<Vertex>(Vertices.Count);
+            var FEMVertexMap = new Dictionary<int, FEMVertex>(Vertices.Count);
+            var newVertices = new List<FEMVertex>(Vertices.Count);
 
             foreach (var v in Vertices)
             {
-                var v2 = new Vertex
+                var v2 = new FEMVertex
                 {
                     GlobalId = v.GlobalId,
                     BoundaryId = v.BoundaryId,
@@ -105,16 +105,16 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
                     IsElectrode = v.IsElectrode,
                     Potential = v.Potential
                 };
-                vertexMap[v.GlobalId] = v2;
+                FEMVertexMap[v.GlobalId] = v2;
                 newVertices.Add(v2);
             }
 
             var newElements = new List<FEMElement>(_elements.Count);
             foreach (var el in _elements)
             {
-                var a = vertexMap[el.Vertices[0].GlobalId];
-                var b = vertexMap[el.Vertices[1].GlobalId];
-                var c = vertexMap[el.Vertices[2].GlobalId];
+                var a = FEMVertexMap[el.Vertices[0].GlobalId];
+                var b = FEMVertexMap[el.Vertices[1].GlobalId];
+                var c = FEMVertexMap[el.Vertices[2].GlobalId];
 
                 var el2 = new FEMElement(el.Id, a, b, c)
                 {
@@ -140,8 +140,8 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
                         isMeasuring: e.IsMeasuring,
                         pointElectrode: e.PointElectrode
                     );
-                    if (e.VertexIds?.Count > 0)
-                        e2.VertexIds.AddRange(e.VertexIds);
+                    if (e.FEMVertexIds?.Count > 0)
+                        e2.FEMVertexIds.AddRange(e.FEMVertexIds);
 
                     copy.ElectrodesTyped.ToList().Add(e2); 
                 }
@@ -176,15 +176,15 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
             var oldVerts = this.Vertices;
             var oldElems = this.ElementsTyped.Cast<FEMElement>().ToList();
 
-            // Midpoint cache per edge (min,max) -> vertex
-            var mpt = new Dictionary<(int, int), Vertex>();
-            var newVerts = new List<Vertex>(oldVerts.Count * 2);
+            // Midpoint cache per edge (min,max) -> FEMVertex
+            var mpt = new Dictionary<(int, int), FEMVertex>();
+            var newVerts = new List<FEMVertex>(oldVerts.Count * 2);
 
             // Copy old vertices first
-            var idMap = new Dictionary<int, Vertex>(oldVerts.Count);
+            var idMap = new Dictionary<int, FEMVertex>(oldVerts.Count);
             foreach (var v in oldVerts)
             {
-                var nv = new Vertex
+                var nv = new FEMVertex
                 {
                     GlobalId = v.GlobalId,
                     X = v.X,
@@ -199,14 +199,14 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
                 idMap[v.GlobalId] = nv;
             }
 
-            // Helper to get/add midpoint vertex
-            Vertex Midpoint(Vertex a, Vertex b)
+            // Helper to get/add midpoint FEMVertex
+            FEMVertex Midpoint(FEMVertex a, FEMVertex b)
             {
                 int ia = a.GlobalId, ib = b.GlobalId;
                 var key = (Math.Min(ia, ib), Math.Max(ia, ib));
                 if (mpt.TryGetValue(key, out var mv)) return mv;
 
-                var m = new Vertex
+                var m = new FEMVertex
                 {
                     GlobalId = newVerts.Count,
                     X = 0.5 * (a.X + b.X),
@@ -243,7 +243,7 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
 
             var refined = new FEMMesh(newVerts, newElems);
 
-            // Re-map electrodes to nearest vertex by position
+            // Re-map electrodes to nearest FEMVertex by position
             if (this.ElectrodesTyped.Count > 0)
             {
                 var newEls = new List<FEMElectrode>(this.ElectrodesTyped.Count);
@@ -272,7 +272,7 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
                         isMeasuring: e.IsMeasuring,
                         pointElectrode: e.PointElectrode
                     );
-                    if (e.VertexIds?.Count > 0) e2.VertexIds.AddRange(e.VertexIds);
+                    if (e.FEMVertexIds?.Count > 0) e2.FEMVertexIds.AddRange(e.FEMVertexIds);
                     newEls.Add(e2);
                 }
                 refined.SetElectrodes(newEls);
@@ -296,7 +296,7 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
         /// <returns>The graph object created from the FEM discretization.</returns>
         public override Utility.Classes.Meshing.GraphMesh.Graph ToGraph()
         {
-            // -- Build dual graph: one GraphVertex per FEM element (at its centroid),
+            // -- Build dual graph: one GraphFEMVertex per FEM element (at its centroid),
             //    connect elements that share an edge, with two-point flux/transmissibility weight.
 
             // Local helpers
@@ -306,14 +306,14 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
                 return ((v0.X + v1.X + v2.X) / 3.0, (v0.Y + v1.Y + v2.Y) / 3.0);
             }
 
-            static double EdgeLength(Vertex a, Vertex b)
+            static double EdgeLength(FEMVertex a, FEMVertex b)
             {
                 double dx = a.X - b.X, dy = a.Y - b.Y;
                 return Math.Sqrt(dx * dx + dy * dy);
             }
 
             // distance from point P to the infinite line through A-B (2D)
-            static double DistancePointToLine((double x, double y) P, Vertex A, Vertex B)
+            static double DistancePointToLine((double x, double y) P, FEMVertex A, FEMVertex B)
             {
                 double ux = B.X - A.X, uy = B.Y - A.Y;
                 double vx = P.x - A.X, vy = P.y - A.Y;
@@ -328,13 +328,13 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
 
             // 1) Build vertices: one per element (centroid), mark boundary if element has a boundary edge
             //    First collect which mesh edges are boundary: an edge that belongs to exactly one element.
-            var edgeToElements = new Dictionary<(int a, int b), List<int>>(); // undirected key by sorted vertex ids
+            var edgeToElements = new Dictionary<(int a, int b), List<int>>(); // undirected key by sorted FEMVertex ids
 
             for (int ei = 0; ei < ne; ei++)
             {
                 var el = elements[ei];
                 var v = el.Vertices;
-                var triples = new (Vertex A, Vertex B)[] { (v[0], v[1]), (v[1], v[2]), (v[2], v[0]) };
+                var triples = new (FEMVertex A, FEMVertex B)[] { (v[0], v[1]), (v[1], v[2]), (v[2], v[0]) };
                 foreach (var (A, B) in triples)
                 {
                     var key = (Math.Min(A.GlobalId, B.GlobalId), Math.Max(A.GlobalId, B.GlobalId));
@@ -358,8 +358,8 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
                 }
             }
 
-            // Create GraphVertex list
-            var gVertices = new List<Utility.Classes.Meshing.Graph.Graph.GraphVertex>(ne);
+            // Create GraphFEMVertex list
+            var gVertices = new List<Utility.Classes.Meshing.Graph.Graph.GraphFEMVertex>(ne);
             for (int ei = 0; ei < ne; ei++)
             {
                 var el = elements[ei];
@@ -367,7 +367,7 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
                 int domainId = 0;               
                 int boundaryId = isBoundaryElement[ei] ? 1 : 0;
                 // Use element Id for GlobalId so it’s easy to map back
-                gVertices.Add(new Utility.Classes.Meshing.Graph.Graph.GraphVertex(cx, cy, el.Id, domainId, boundaryId));
+                gVertices.Add(new Utility.Classes.Meshing.Graph.Graph.GraphFEMVertex(cx, cy, el.Id, domainId, boundaryId));
             }
 
             // 2) Build edges between neighboring elements that share a mesh edge,
@@ -389,8 +389,8 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
                 int aId = kvp.Key.a;
                 int bId = kvp.Key.b;
 
-                Vertex Ai = Ei.Vertices.First(v => v.GlobalId == aId || v.GlobalId == bId);
-                Vertex Bi = Ei.Vertices.First(v => (v.GlobalId == aId || v.GlobalId == bId) && !ReferenceEquals(v, Ai));
+                FEMVertex Ai = Ei.Vertices.First(v => v.GlobalId == aId || v.GlobalId == bId);
+                FEMVertex Bi = Ei.Vertices.First(v => (v.GlobalId == aId || v.GlobalId == bId) && !ReferenceEquals(v, Ai));
                 // (Ai,Bi) is the common edge (in practice Ai!=Bi and same A/B for Ej)
 
                 double faceLen = EdgeLength(Ai, Bi);
@@ -429,14 +429,14 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
             if (graphToConvert.Vertices.Count < 3)
                 throw new InvalidOperationException("Graph has too few vertices to build a FEM mesh.");
 
-            // Create one Vertex per GraphVertex
-            var vtx = new List<Vertex>(graphToConvert.Vertices.Count);
-            var idMap = new Dictionary<int, Vertex>(graphToConvert.Vertices.Count);
+            // Create one FEMVertex per GraphFEMVertex
+            var vtx = new List<FEMVertex>(graphToConvert.Vertices.Count);
+            var idMap = new Dictionary<int, FEMVertex>(graphToConvert.Vertices.Count);
 
             int vid = 0;
             foreach (var gv in graphToConvert.Vertices)
             {
-                var v = new Vertex
+                var v = new FEMVertex
                 {
                     GlobalId = vid++,
                     X = gv.X,

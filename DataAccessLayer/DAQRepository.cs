@@ -194,31 +194,28 @@ namespace DataAccessLayer
 
         public void SaveEITMeasurement()
         {
-        
+            throw new NotImplementedException();
         }
 
         public void LoadEITMeasurement(DateTime dateTime)
         {
-        
+            throw new NotImplementedException();
         }
 
         public void LoadEITMeasurement(int id)
         {
-        
+            throw new NotImplementedException();
         }
 
         public void DeleteEITMeasurement(int id)
         {
-        
+            throw new NotImplementedException();
         }
 
         public void DeleteEITMeasurement(DateTime dateTime)
         {
-
+            throw new NotImplementedException();
         }
-
-
-
 
         /*───────────────────────────────────────────────────────────────────*/
         public void Dispose()

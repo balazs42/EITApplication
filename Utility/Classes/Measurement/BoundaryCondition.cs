@@ -27,6 +27,7 @@ namespace Utility.Classes.Measurement
         protected readonly List<TElectrode> _electrodes = [];
         public IReadOnlyList<TElectrode> ElectrodesTyped => _electrodes;
 
+        #region Constructors
         public BoundaryCondition()
         {
 
@@ -83,7 +84,9 @@ namespace Utility.Classes.Measurement
 
             SetElectrodeCurrents(currents);
         }
+        #endregion
 
+        #region Getter and Setter Methods
         public void SetElectrodes(IList<TElectrode> electrodes)
         {
             _electrodes.Clear();
@@ -93,8 +96,6 @@ namespace Utility.Classes.Measurement
         }
 
         public List<TElectrode> GetElectrodes() => _electrodes;
-
-        #region Getter and Setter Methods
 
         public override List<double> GetElectrodeCurrentsList() => _electrodes.Select(x => x.Current).ToList();
 

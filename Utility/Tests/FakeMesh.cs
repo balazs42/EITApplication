@@ -7,7 +7,7 @@ namespace Utility.Tests
     internal sealed class FakeMesh : IMesh
     {
         private readonly List<Electrode> _electrodes = new();
-        private readonly List<Vertex> _vertices = new();
+        private readonly List<FEMVertex> _vertices = new();
         private readonly List<MeshElement> _elements = new();
 
         private ConductivityDistribution _sigma = new(new Dictionary<int, double>());
@@ -26,11 +26,11 @@ namespace Utility.Tests
         public Mesh GetMesh() => null!; // not used in these tests
 
         public IReadOnlyList<Electrode> GetElectrodes() => _electrodes;
-        public IReadOnlyList<Vertex> GetVertices() => _vertices;
+        public IReadOnlyList<FEMVertex> GetVertices() => _vertices;
         public IReadOnlyList<MeshElement> GetElements() => _elements;
 
         public double[] GetElectrodePotentials() => _electrodes.Select(e => e.Potential).ToArray();
-        public IReadOnlyList<Vertex> GetElectrodeVertices() => _vertices.Where(v => v.IsElectrode).ToList();
+        public IReadOnlyList<FEMVertex> GetElectrodeVertices() => _vertices.Where(v => v.IsElectrode).ToList();
 
         public Mesh DeepCopy() => null!;
         public Classes.Meshing.GraphMesh.Graph ToGraph() => null!;

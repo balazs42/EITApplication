@@ -2,16 +2,16 @@
 {
     public class GraphEdge
     {
-        public GraphVertex[] Vertices { get; set; } = new GraphVertex[2];
+        public GraphFEMVertex[] Vertices { get; set; } = new GraphFEMVertex[2];
         public double Weight { get; set; } = 0.0;
 
-        public GraphEdge(GraphVertex vertex1, GraphVertex vertex2, double weight) 
+        public GraphEdge(GraphFEMVertex FEMVertex1, GraphFEMVertex FEMVertex2, double weight) 
         {
-            Vertices = [vertex1, vertex2];
+            Vertices = [FEMVertex1, FEMVertex2];
             Weight = weight;
         }
 
-        public GraphEdge(GraphVertex[] vertices, double weight)
+        public GraphEdge(GraphFEMVertex[] vertices, double weight)
         {
             if (vertices.Length != 2)
                 throw new ArgumentOutOfRangeException("Cannot initialize graph edge, you should provide exactly 2 nodes for each edge, check code!");

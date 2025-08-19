@@ -28,8 +28,8 @@ public partial class FEMReconstructionPage : ContentPage
     // hover state for potential:
     private SKPoint? _hoverPotCanvasPt;
 
-    // hover state for potential vertex
-    private Vertex? _hoverPotVertex;
+    // hover state for potential FEMVertex
+    private FEMVertex? _hoverPotFEMVertex;
 
     // hover state for conductivity element
     private FEMElement? _hoverCondElem;
@@ -110,7 +110,7 @@ public partial class FEMReconstructionPage : ContentPage
         _maxRecon = reconstructionMeshElements.Max(el => el.Conductivity);
     }
 
-    SKPoint ToCanvas(Vertex v)
+    SKPoint ToCanvas(FEMVertex v)
         => new SKPoint(
               (float)(v.X - _minX) * _scale + _marginX,
               // flip Y:
@@ -234,10 +234,10 @@ public partial class FEMReconstructionPage : ContentPage
         DrawElectrodes(canvas);
 
         // draw hover info
-        if (_hoverPotVertex != null && _hoverPotCanvasPt.HasValue)
+        if (_hoverPotFEMVertex != null && _hoverPotCanvasPt.HasValue)
         {
             var pt = _hoverPotCanvasPt.Value;
-            var v = _hoverPotVertex;
+            var v = _hoverPotFEMVertex;
 
             // info lines
             var lines = new[]
@@ -284,8 +284,8 @@ public partial class FEMReconstructionPage : ContentPage
             e.ActionType == SKTouchAction.Moved)
         {
             var p = e.Location;
-            // find nearest vertex
-            _hoverPotVertex = _mesh.Vertices
+            // find nearest FEMVertex
+            _hoverPotFEMVertex = _mesh.Vertices
                 .OrderBy(v => (ToCanvas(v) - p).LengthSquared)
                 .First();
             _hoverPotCanvasPt = p;
@@ -294,7 +294,7 @@ public partial class FEMReconstructionPage : ContentPage
         }
         else if (e.ActionType == SKTouchAction.Released)
         {
-            _hoverPotVertex = null;
+            _hoverPotFEMVertex = null;
             _hoverPotCanvasPt = null;
             ((SKCanvasView)sender).InvalidateSurface();
             e.Handled = true;

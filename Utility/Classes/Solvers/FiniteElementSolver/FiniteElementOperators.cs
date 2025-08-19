@@ -11,7 +11,7 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         /// The gradient is constant within each element.
         /// </summary>
         /// <param name="femMesh">The FEM mesh.</param>
-        /// <param name="scalarField">A scalar field defined per-vertex (e.g., PotentialDistribution).</param>
+        /// <param name="scalarField">A scalar field defined per-FEMVertex (e.g., PotentialDistribution).</param>
         /// <returns>A VectorField where the key is the ElementId.</returns>
         public static VectorField CalculateElementWiseGradient(FEMMesh femMesh, ScalarField scalarField)
         {
@@ -55,25 +55,25 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         /// <summary>
         /// Computes the discrete Laplacian of a scalar field using the cotangent formula.
         /// This is a common and robust method for unstructured triangular meshes.
-        /// The scalar field must be defined per-vertex.
+        /// The scalar field must be defined per-FEMVertex.
         /// </summary>
         /// <param name="femMesh">The FEM mesh.</param>
-        /// <param name="scalarField">A scalar field defined per-vertex.</param>
-        /// <returns>A scalar field representing the Laplacian at each vertex.</returns>
+        /// <param name="scalarField">A scalar field defined per-FEMVertex.</param>
+        /// <returns>A scalar field representing the Laplacian at each FEMVertex.</returns>
         public static PotentialDistribution CalculateLaplacian(FEMMesh femMesh, ScalarField scalarField)
         {
             var laplacianData = new Dictionary<int, double>();
             var adjacency = BuildAdjacencyMap(femMesh);
             var elements = femMesh.GetElements().Cast<FEMElement>();
 
-            foreach (var vertex in femMesh.Vertices)
+            foreach (var FEMVertex in femMesh.Vertices)
             {
-                int i = vertex.GlobalId;
+                int i = FEMVertex.GlobalId;
                 double laplacianValue = 0.0;
 
                 if (!adjacency.ContainsKey(i)) continue;
 
-                foreach (int j in adjacency[i]) // For each neighbor j of vertex i
+                foreach (int j in adjacency[i]) // For each neighbor j of FEMVertex i
                 {
                     double s_i = scalarField.GetValue(i);
                     double s_j = scalarField.GetValue(j);
@@ -113,7 +113,7 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
 
         #region Private Helpers
 
-        private static double Cotangent(Vertex p1, Vertex p2, Vertex p3)
+        private static double Cotangent(FEMVertex p1, FEMVertex p2, FEMVertex p3)
         {
             // Calculate cotangent of the angle at p3 for the triangle p1-p2-p3
             double v1x = p1.X - p3.X;

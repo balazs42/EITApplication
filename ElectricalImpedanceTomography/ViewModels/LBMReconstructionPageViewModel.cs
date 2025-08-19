@@ -6,31 +6,12 @@ using Utility.Classes.Factories;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.Measurement;
 using Utility.Classes.ReconstructionParameters;
+
 namespace ElectricalImpedanceTomography.ViewModels
 {
-    public partial class LBMReconstructionPageViewModel : BaseViewModel
-    {
+    public partial class LBMReconstructionPageViewModel : BaseReconstructionPageViewModel
+    {     
         private readonly IReconstructionService _reconstructionService;
-
-        public IEnumerable<DifferentialEquationSolver> DifferentialEquationSolverOptions
-           => Enum.GetValues(typeof(DifferentialEquationSolver))
-                  .Cast<DifferentialEquationSolver>();
-
-        public IEnumerable<RegularizationTechnique> RegularizationTechniqueOptions
-            => Enum.GetValues(typeof(RegularizationTechnique))
-                   .Cast<RegularizationTechnique>();
-
-        public IEnumerable<ErrorMetric> ErrorMetricOptions
-            => Enum.GetValues(typeof(ErrorMetric))
-                   .Cast<ErrorMetric>();
-
-        public IEnumerable<NumericSolver> NumericSolverOptions
-            => Enum.GetValues(typeof(NumericSolver))
-                   .Cast<NumericSolver>();
-
-        public IEnumerable<NumericOptimizer> NumericOptimizerOptions
-            => Enum.GetValues(typeof(NumericOptimizer))
-                   .Cast<NumericOptimizer>();
 
         [ObservableProperty]
         private EITReconstructionParameters reconstructionParameters;

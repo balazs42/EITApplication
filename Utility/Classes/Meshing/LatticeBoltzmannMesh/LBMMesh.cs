@@ -334,8 +334,8 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
             // Weight: two-point flux τ_ij = |Γ| / (d_i/σ_i + d_j/σ_j)
             // On a unit grid: |Γ|=1, d_i=d_j=0.5  => τ_ij = 2 / (1/σ_i + 1/σ_j) (harmonic mean).
 
-            var verts = new List<GraphVertex>();
-            var idToVtx = new Dictionary<int, GraphVertex>();
+            var verts = new List<GraphFEMVertex>();
+            var idToVtx = new Dictionary<int, GraphFEMVertex>();
 
             for (int y = 0; y < Ny; y++)
                 for (int x = 0; x < Nx; x++)
@@ -354,7 +354,7 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
 
                     if (touchesWall) boundaryId = 1;
 
-                    var gv = new GraphVertex(x, y, cell.Id, domainId: 0, boundaryId: boundaryId)
+                    var gv = new GraphFEMVertex(x, y, cell.Id, domainId: 0, boundaryId: boundaryId)
                     {
                         Potential = cell.Fi.Sum()
                     };
@@ -399,7 +399,7 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
             if (graphToConvert.Vertices.Count == 0)
                 throw new InvalidOperationException("Graph has no vertices.");
 
-            // Infer a rectangular interior grid from graph vertex (x,y) coords.
+            // Infer a rectangular interior grid from graph FEMVertex (x,y) coords.
             // We assume the graph came from ToGraph(): integer coords for interior cells only.
             int minX = (int)Math.Round(graphToConvert.Vertices.Min(v => v.X));
             int maxX = (int)Math.Round(graphToConvert.Vertices.Max(v => v.X));
@@ -412,7 +412,7 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
 
             var mesh = new LBMMesh(NX, NY);
 
-            // Map graph vertex -> new grid cell index (shift by +1,+1 due to wall border)
+            // Map graph FEMVertex -> new grid cell index (shift by +1,+1 due to wall border)
             var lookup = graphToConvert.Vertices.ToDictionary(
                 v => v.GlobalId,
                 v =>
