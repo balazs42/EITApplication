@@ -142,7 +142,8 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             const int maxIterCount = 50;
 
-
+            _reconstructionService.InitializeReconstruction(_mesh, ReconstructionParameters);
+            
             _reconstructionService.SolveLbmInverse(maxIterCount);
 
 

@@ -37,7 +37,7 @@ namespace Utility.Tests
         {
             private readonly double _tol;
             public DoubleArrayComparer(double tol) => _tol = tol;
-            public bool Equals(double[] x, double[] y)
+            public bool Equals(double[]? x, double[]? y)
             {
                 if (x == null || y == null || x.Length != y.Length) return false;
                 for (int i = 0; i < x.Length; i++)

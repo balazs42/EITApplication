@@ -247,6 +247,7 @@ namespace BusinessLayer
 
         public FEMMesh SolveFemInverse(FEMMesh mesh, int maxIterCount, double stepSize, double regularization)
         {
+            _regularizationWeight = regularization;
             return SolveFemInverseAllFrames(mesh, maxIterCount, stepSize, regularization);
 
             // Forward step computes the correct potential values
@@ -377,6 +378,8 @@ namespace BusinessLayer
                 _numericOptimizer == null)
                 throw new NullReferenceException("Some solver parameter is null, the solver must properly be initialized, throguh the layer, check code!");
 
+            _regularizationWeight = regularization;
+
             List<double[]> simulatedMeasurements = SimulateFemMeasurements(mesh, excitationAmplitude);
             
             // 2) Initialize conductivity (σ^{(0)}) to homogeneous distribution
@@ -478,7 +481,7 @@ namespace BusinessLayer
                 // 4h) Total gradient ∇J = ∇J_data + ∇R  (Eq. 2.1.31)
                 var totalGradDict = totalGrad.ToDictionary(
                     kvp => kvp.Key,
-                    kvp => kvp.Value + regGrad.GetConductivity(kvp.Key)
+                    kvp => kvp.Value + _regularizationWeight * regGrad.GetConductivity(kvp.Key)
                 );
 
                 // Normalize gradient

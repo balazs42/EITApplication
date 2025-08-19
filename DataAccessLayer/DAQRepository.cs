@@ -1,5 +1,4 @@
-﻿using System;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO.Ports;
 using System.Numerics;
 using System.Text.Json;
@@ -377,7 +376,10 @@ namespace DataAccessLayer
             _cts.Dispose();
         }
 
-        private static Dictionary<Int16, string> _errorCodes = new()
+        /// <summary>
+        /// Possible error messages from the V2 hardware. Currently HW does not support reactions to the messages, it is for debug purposes.
+        /// </summary>
+        private static Dictionary<Int16, string> _errorCodesV2 = new()
         {
             {0, "No error detected!"},
             {10, "Unknown error occured!"},

@@ -139,10 +139,10 @@ namespace Utility.Classes
 
         protected abstract IEnumerable<int> StateKeys();                       
         protected abstract void ApplyPotentialToState(int key, double phi); 
-        protected abstract double ReadPotentialOf(TElectrode electrode);       
-        
-        public override ConductivityDistribution ConductivityDistribution { get; protected set; }
-        public override PotentialDistribution PotentialDistribution { get; protected set; }
+        protected abstract double ReadPotentialOf(TElectrode electrode);
+
+        public override ConductivityDistribution ConductivityDistribution { get; protected set; } = new(new());
+        public override PotentialDistribution PotentialDistribution { get; protected set; } = new(new());
 
         /// <summary>
         /// Refines the mesh object to a higher resolution one.

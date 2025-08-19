@@ -2,7 +2,9 @@
 <ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="ElectricalImpedanceTomography.Controls.ReconstructionParametersControl"
-             xmlns:converters="clr-namespace:ElectricalImpedanceTomography.Converters">
+             xmlns:converters="clr-namespace:ElectricalImpedanceTomography.Converters"
+             xmlns:viewmodels="clr-namespace:ElectricalImpedanceTomography.ViewModels"
+             x:DataType="viewmodels:BaseReconstructionPageViewModel">
     <ContentView.Resources>
         <Style TargetType="Picker">
             <Setter Property="FontAttributes" Value="Bold"/>
