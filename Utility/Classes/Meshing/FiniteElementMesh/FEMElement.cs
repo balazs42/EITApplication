@@ -3,11 +3,11 @@
     public sealed class FEMElement : MeshElement
     {
         public double Area { get; set; }
-        public List<Vertex> Vertices { get; set; } = [new Vertex(), new Vertex(), new Vertex()];
+        public List<FEMVertex> Vertices { get; set; } = [new FEMVertex(), new FEMVertex(), new FEMVertex()];
         public double[,] GradPhi { get; private set; } = new double[3, 2]; // Gradients of shape functions
         public double[,] DotProducts { get; private set; } = new double[3, 3];
 
-        public FEMElement(int id, Vertex v1, Vertex v2, Vertex v3) 
+        public FEMElement(int id, FEMVertex v1, FEMVertex v2, FEMVertex v3) 
         {
             Id = id;
             Vertices = [v1, v2, v3];
@@ -15,7 +15,7 @@
             Initialize();
         }
 
-        public FEMElement(int id, Vertex v1, Vertex v2, Vertex v3, double conductivity)
+        public FEMElement(int id, FEMVertex v1, FEMVertex v2, FEMVertex v3, double conductivity)
         {
             Id = id;
             Vertices = [v1, v2, v3];
@@ -43,9 +43,9 @@
             if(Vertices.Count == 0)
                 throw new ArgumentNullException(nameof(Vertices));
 
-            Vertex V1 = Vertices[0];
-            Vertex V2 = Vertices[1];
-            Vertex V3 = Vertices[2];
+            FEMVertex V1 = Vertices[0];
+            FEMVertex V2 = Vertices[1];
+            FEMVertex V3 = Vertices[2];
 
             Area = 0.5 *  Math.Abs(V1.X * (V2.Y - V3.Y) +
                                     V2.X * (V3.Y - V1.Y) +
@@ -55,9 +55,9 @@
         // Calculate gradients of spahe functions beforehand
         private void CalculateGradients()
         {
-            Vertex V1 = Vertices[0];
-            Vertex V2 = Vertices[1];
-            Vertex V3 = Vertices[2];
+            FEMVertex V1 = Vertices[0];
+            FEMVertex V2 = Vertices[1];
+            FEMVertex V3 = Vertices[2];
 
             // Gradients of the linear shape functions are constant within the element
             double x1 = V1.X, y1 = V1.Y;

@@ -164,9 +164,9 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             foreach (var el in electrodes)
             {
                 double invZ = 1.0 / el.ZContact;
-                double h = el.Length / el.VertexIds.Count;
+                double h = el.Length / el.FEMVertexIds.Count;
 
-                foreach (int vid in el.VertexIds)
+                foreach (int vid in el.FEMVertexIds)
                     M[vid, vid] += invZ * h;
             }
             //Debug.WriteLine("M:\n" + FormatComplexMatrix(M));
@@ -181,9 +181,9 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             foreach (var el in electrodes)
             {
                 double invZ = 1.0 / el.ZContact;
-                double h = el.Length / el.VertexIds.Count;
+                double h = el.Length / el.FEMVertexIds.Count;
 
-                foreach (int vid in el.VertexIds)
+                foreach (int vid in el.FEMVertexIds)
                     A_coup[vid, el.Id] += invZ * h;
             }
             //Debug.WriteLine("A_coup:\n" + FormatComplexMatrix(A_coup));

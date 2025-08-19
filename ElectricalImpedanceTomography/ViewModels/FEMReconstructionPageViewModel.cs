@@ -1,4 +1,5 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
+using Google.OrTools.ConstraintSolver;
 using ServiceLayer;
 using Utility.Classes;
 using Utility.Classes.Factories;
@@ -9,74 +10,11 @@ using Utility.Classes.ReconstructionParameters;
 
 namespace ElectricalImpedanceTomography.ViewModels
 {
-    public partial class FEMReconstructionPageViewModel : BaseViewModel
+    public partial class FEMReconstructionPageViewModel : BaseReconstructionPageViewModel
     {
+        private readonly IReconstructionService _reconstructionService;
+
         private const int defaultMaxIterationCount = 50;
-        private readonly ReconstructionService _reconstructionService;
-
-        public IEnumerable<DifferentialEquationSolver> DifferentialEquationSolverOptions
-            => Enum.GetValues(typeof(DifferentialEquationSolver))
-                   .Cast<DifferentialEquationSolver>();
-
-        public IEnumerable<RegularizationTechnique> RegularizationTechniqueOptions
-            => Enum.GetValues(typeof(RegularizationTechnique))
-                   .Cast<RegularizationTechnique>();
-
-        public IEnumerable<ErrorMetric> ErrorMetricOptions
-            => Enum.GetValues(typeof(ErrorMetric))
-                   .Cast<ErrorMetric>();
-
-        public IEnumerable<NumericSolver> NumericSolverOptions
-            => Enum.GetValues(typeof(NumericSolver))
-                   .Cast<NumericSolver>();
-
-        public IEnumerable<NumericOptimizer> NumericOptimizerOptions
-            => Enum.GetValues(typeof(NumericOptimizer))
-                   .Cast<NumericOptimizer>();
-
-        [ObservableProperty]
-        private EITReconstructionParameters reconstructionParameters = new(
-            DifferentialEquationSolver.FiniteElementMethod,
-            RegularizationTechnique.ZeroOrderTikhonov,
-            ErrorMetric.L2,
-            NumericSolver.SVD,
-            NumericOptimizer.GradientBased);
-
-        [ObservableProperty]
-        private int layers = 2;
-
-        [ObservableProperty]
-        private int boundaryNodeCount = 8;
-
-        [ObservableProperty]
-        private int electrodeCount = 8;
-
-        [ObservableProperty]
-        private int excitationElectrodeId = 1;
-
-        [ObservableProperty]
-        private int groundElectrodeId = 0;
-
-        [ObservableProperty]
-        private double excitationCurrentAmplitude = 1.0;
-
-        [ObservableProperty]
-        private double electrodeSurfaceLength = 1.0;
-
-        [ObservableProperty]
-        private double contactImpedance = 1.0;
-
-        [ObservableProperty]
-        private double inhomogenityValue = 2.0;
-
-        [ObservableProperty]
-        private int maxIterationCount = defaultMaxIterationCount;
-
-        [ObservableProperty]
-        private double stepSize = 0.001;
-
-        [ObservableProperty]
-        private double regularizationWeight = 1e-3;
 
         private FEMMesh _mesh;
         private FEMMesh _reconstructedMesh;
@@ -89,9 +27,11 @@ namespace ElectricalImpedanceTomography.ViewModels
         private List<double[]> _simulatedMeasurements = [];
         private int _simulatedMeasurementsIndex = 0;
 
-        public FEMReconstructionPageViewModel(ReconstructionService reconstructionService)
+        public FEMReconstructionPageViewModel(IReconstructionService reconstructionService)
         {
             _reconstructionService = reconstructionService;
+
+            MaxIterationCount = defaultMaxIterationCount;
 
             _mesh = GenerateMesh();
             _reconstructedMesh = GenerateMesh();
@@ -109,7 +49,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             MeshParameters parameters = new MeshParameters();
             parameters.MeshType = MeshType.FEM;
             parameters.Layers = Layers;
-            parameters.BoundaryVertexCount = BoundaryNodeCount;
+            parameters.BoundaryFEMVertexCount = BoundaryNodeCount;
             parameters.ElectrodeCount = ElectrodeCount;
 
             var newMesh =  (FEMMesh)MeshFactory.Create(parameters, InhomogenityValue);

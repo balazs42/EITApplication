@@ -87,8 +87,8 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
                 var e = electrodes[ell];
                 var set = new HashSet<int>();
 
-                if (!e.PointElectrode && e.VertexIds != null && e.VertexIds.Count > 0)
-                    foreach (var vid in e.VertexIds) set.Add(Nearest(VPos(vid)));
+                if (!e.PointElectrode && e.FEMVertexIds != null && e.FEMVertexIds.Count > 0)
+                    foreach (var vid in e.FEMVertexIds) set.Add(Nearest(VPos(vid)));
                 else
                     set.Add(Nearest(VPos(e.MeshId)));
 

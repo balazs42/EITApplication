@@ -11,12 +11,12 @@ namespace Utility.Tests
         {
             var failures = new List<string>();
 
-            Try("L2 metric", Test_L2, failures);
-            Try("Zero-Order Tikhonov", Test_ZeroOrder, failures);
-            Try("First-Order Tikhonov (LBM tiny grid)", Test_FirstOrder_LBM, failures);
-            Try("Laplace (LBM tiny grid)", Test_Laplace_LBM, failures);
-            Try("Total Variation (LBM tiny grid)", Test_TV_LBM, failures);
-            Try("Wasserstein-2 (LBM + OR-Tools)", Test_W2_LBM, failures, soft: true); // soft: skip OK if OR-Tools not present
+            Try("L2 metric Test", Test_L2, failures);
+            Try("Zero-Order Tikhonov Test", Test_ZeroOrder, failures);
+            Try("First-Order Tikhonov (LBM tiny grid) Test", Test_FirstOrder_LBM, failures);
+            Try("Laplace (LBM tiny grid) Test", Test_Laplace_LBM, failures);
+            Try("Total Variation (LBM tiny grid) Test", Test_TV_LBM, failures);
+            Try("Wasserstein-2 (LBM + OR-Tools) Test", Test_W2_LBM, failures, soft: true); // soft: skip OK if OR-Tools not present
 
             if (failures.Count > 0)
             {

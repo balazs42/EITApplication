@@ -1,5 +1,4 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
-using MathNet.Numerics.Statistics;
 using OxyPlot;
 using OxyPlot.Axes;
 using OxyPlot.Series;
@@ -14,7 +13,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         private readonly IDAQService _daqService;
 
         [ObservableProperty]
-        private ObservableCollection<PlotModel> plotModels = new(); // Plots that dispaly the voltage measurements
+        private ObservableCollection<PlotModel> plotModels = []; // Plots that dispaly the voltage measurements
 
         private const int MaxPoints = 60;   // Max points present on a plot at once
         private const int TimeWindowSecs = 5;

@@ -1,8 +1,8 @@
 ﻿namespace Utility.Classes.Meshing
 {
-    public class Vertex
+    public class FEMVertex
     {
-        // X,Y is the location of the vertex in the mesh
+        // X,Y is the location of the FEMVertex in the mesh
         public double X { get; set; } = 0.0;
         public double Y { get; set; } = 0.0;
 
@@ -16,21 +16,21 @@
         public bool IsBoundary { get; set; } = false;
         public bool IsElectrode { get; set; } = false;
 
-        public List<Vertex> Neighbors { get; set; } = [];
+        public List<FEMVertex> Neighbors { get; set; } = [];
 
-        public Vertex(int globalId)
+        public FEMVertex(int globalId)
         {
             GlobalId = globalId;
             X = 0.0;
             Y = 0.0;
         }
 
-        public Vertex()
+        public FEMVertex()
         {
 
         }
 
-        public Vertex(double x, double y, int globalId, List<Vertex> neighbors, int boundaryId = -1, int electrodeId = -1)
+        public FEMVertex(double x, double y, int globalId, List<FEMVertex> neighbors, int boundaryId = -1, int electrodeId = -1)
         {
             X = x;
             Y = y;
@@ -49,14 +49,14 @@
             }
         }
 
-        public Vertex(int globalId, double x, double y)
+        public FEMVertex(int globalId, double x, double y)
         {
             GlobalId = globalId;
             X = x;
             Y = y;
         }
 
-        public Vertex(int globalId, int boundaryId, int electrodeId, double x, double y, bool isBoundary, bool isElectrode)
+        public FEMVertex(int globalId, int boundaryId, int electrodeId, double x, double y, bool isBoundary, bool isElectrode)
         {
             GlobalId = globalId;
             BoundaryId = boundaryId;
@@ -67,7 +67,7 @@
             IsElectrode = isElectrode;
         }
 
-        public Vertex(int globalId, int boundaryId, int electrodeId, double x, double y, bool isBoundary, bool isElectrode, double potential)
+        public FEMVertex(int globalId, int boundaryId, int electrodeId, double x, double y, bool isBoundary, bool isElectrode, double potential)
         {
             GlobalId = globalId;
             BoundaryId = boundaryId;

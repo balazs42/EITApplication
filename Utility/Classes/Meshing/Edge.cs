@@ -6,18 +6,18 @@
     public class Edge
     {
         /// <summary>
-        /// Start vertex of the edge.
+        /// Start FEMVertex of the edge.
         /// </summary>
-        public Vertex Start { get; set; } = new(0, 0.0, 0.0);
+        public FEMVertex Start { get; set; } = new(0, 0.0, 0.0);
 
         /// <summary>
-        /// End vertex of the edge.
+        /// End FEMVertex of the edge.
         /// </summary>
-        public Vertex End { get; set; } = new(0, 0.0, 0.0);
+        public FEMVertex End { get; set; } = new(0, 0.0, 0.0);
 
         public int Id { get; set; } 
 
-        public Edge(Vertex start, Vertex end, int id)
+        public Edge(FEMVertex start, FEMVertex end, int id)
         {
             Start = start;
             End = end;

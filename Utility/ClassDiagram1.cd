@@ -165,11 +165,11 @@
       <FileName>Classes\Meshing\MeshElement.cs</FileName>
     </TypeIdentifier>
   </Class>
-  <Class Name="Utility.Classes.Meshing.Vertex" Collapsed="true">
+  <Class Name="Utility.Classes.Meshing.FEMVertex" Collapsed="true">
     <Position X="2.5" Y="3.25" Width="1.5" />
     <TypeIdentifier>
       <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAEAAECAAAYAE=</HashCode>
-      <FileName>Classes\Meshing\Vertex.cs</FileName>
+      <FileName>Classes\Meshing\FEMVertex.cs</FileName>
     </TypeIdentifier>
   </Class>
   <Class Name="Utility.Classes.Models.ForwardModel" BaseTypeListCollapsed="true">

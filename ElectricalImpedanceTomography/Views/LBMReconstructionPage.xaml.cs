@@ -105,7 +105,7 @@ public partial class LBMReconstructionPage : ContentPage
         if (result?.CurrentPotentialDistribution == null)
             return;
 
-        var mesh = (LBMMesh)result.Mesh;
+        var mesh = (LBMMesh)(result.Mesh ?? throw new NullReferenceException());
         float cw = e.Info.Width / mesh.Nx;
         float ch = e.Info.Height / mesh.Ny;
 
@@ -310,7 +310,8 @@ public partial class LBMReconstructionPage : ContentPage
         if (result?.CurrentPotentialDistribution == null)
             return;
 
-        var mesh = (LBMMesh)result.Mesh;
+        var mesh = (LBMMesh)(result.Mesh ?? throw new NullReferenceException());
+
         var view = (SKCanvasView)sender;
         float cw = (float)view.CanvasSize.Width / mesh.Nx;
         float ch = (float)view.CanvasSize.Height / mesh.Ny;

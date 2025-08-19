@@ -2,7 +2,7 @@
 {
     /// <summary>
     /// Represents a 2D vector field defined on a mesh, mapping an integer ID
-    /// (e.g., a VertexId or ElementId) to a 2D vector.
+    /// (e.g., a FEMVertexId or ElementId) to a 2D vector.
     /// </summary>
     public sealed class VectorField
     {

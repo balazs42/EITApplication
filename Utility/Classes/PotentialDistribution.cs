@@ -6,7 +6,7 @@ namespace Utility.Classes
     public class PotentialDistribution : ScalarField
     {
         public override Dictionary<int, double> IdValuePairs { get; set; }
-        // Maps Vertex.GlobalId to its potential value.
+        // Maps FEMVertex.GlobalId to its potential value.
         public Dictionary<int, double> Potentials { get; set; }
 
         public PotentialDistribution(Dictionary<int, double> potentials)
@@ -15,9 +15,9 @@ namespace Utility.Classes
             Potentials = potentials;
         }
 
-        public double GetPotential(int vertexId)
+        public double GetPotential(int FEMVertexId)
         {
-            return Potentials.TryGetValue(vertexId, out double potential) ? potential : 0.0;
+            return Potentials.TryGetValue(FEMVertexId, out double potential) ? potential : 0.0;
         }
 
         public void LogDistribution(int nx = 15, int ny = 15)
