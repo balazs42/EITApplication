@@ -1,4 +1,5 @@
 ﻿using Utility.Tests;
+using Utility.Tests.Validation;
 
 namespace ElectricalImpedanceTomography
 {
@@ -15,8 +16,11 @@ namespace ElectricalImpedanceTomography
             Utility.Composition.Settings.ApplyContainerRegistration();
             ServiceLayer.Settings.ApplyContainerRegistration();
 
-            // TODO: run tests
+            // Run built-in self-tests
             StartupSelfTests.RunAll();
+            // Execute analytic validation suite comparing numerical solvers to
+            // reference equations (Fourier modes, dipole, layered media, etc.)
+            ValidationSelfTests.RunAll();
         }
 
         protected override Window CreateWindow(IActivationState? activationState)
