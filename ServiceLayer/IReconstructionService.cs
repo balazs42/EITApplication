@@ -23,5 +23,26 @@ namespace ServiceLayer
         public FEMMesh SolveFemInverse(FEMMesh mesh, int maxIterCount, double stepSize, double regularization);
         public ReconstructionResult InverseSolveStepFem(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double stepSize);
         public List<double[]> SimulateFemMeasurements(FEMMesh mesh, double excitationAmplitude);
+
+        // --- Graph-based Reconstruction ---
+        /// <summary>
+        ///     Wrapper for the graph-based forward solve.  Converts the mesh to
+        ///     a resistor network and evaluates the Complete Electrode Model on
+        ///     that graph.
+        /// </summary>
+        /// <param name="mesh">Mesh to be solved.</param>
+        /// <returns>Mesh with updated potentials.</returns>
+        public FEMMesh SolveGraphForward(FEMMesh mesh);
+
+        /// <summary>
+        ///     Performs a single graph-based inverse iteration driven by the
+        ///     mismatch between simulated and measured electrode data.
+        /// </summary>
+        /// <param name="mesh">Mesh whose conductivities are updated.</param>
+        /// <param name="measurement">Measured electrode potentials.</param>
+        /// <param name="boundaryCondition">Applied current pattern.</param>
+        /// <param name="stepSize">Gradient-descent step size.</param>
+        /// <returns>Reconstruction result after updating the mesh.</returns>
+        public ReconstructionResult InverseSolveStepGraph(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double stepSize);
     }
 }

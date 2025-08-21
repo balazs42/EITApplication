@@ -1,6 +1,7 @@
 ﻿using DataAccessLayer;
 using System.Diagnostics;
 using System.Numerics;
+using System.Linq;
 using Utility.Classes;
 using Utility.Classes.Factories;
 using Utility.Classes.Measurement;
@@ -581,6 +582,53 @@ namespace BusinessLayer
         }
 
         #endregion
+
+        /// <summary>
+        ///     Performs a forward solve on a graph representation of the mesh.
+        ///     The finite element mesh is converted to a resistor network and
+        ///     the discrete Laplace equation with Complete Electrode Model
+        ///     boundary conditions is solved.
+        /// </summary>
+        /// <param name="mesh">Mesh whose potentials are computed.</param>
+        /// <returns>The same mesh populated with the solved potentials.</returns>
+        public FEMMesh SolveGraphForward(FEMMesh mesh)
+        {
+            if (_differentialEquationSolver == null)
+                throw new NullReferenceException("Cannot perform graph based forward solve, differential equation solver is not specified!");
+
+            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
+            BoundaryCondition bc = new FEMBoundaryCondition(electrodes);
+            var pd = _differentialEquationSolver.Solve(mesh, bc, null);
+            mesh.SetPotentialDistribution(pd);
+            return mesh;
+        }
+
+        /// <summary>
+        ///     Executes one gradient-descent step for the graph-based inverse
+        ///     problem.  The adjoint field <c>μ</c> is obtained from the
+        ///     residual <c>d<sub>meas</sub> − d<sub>sim</sub></c> and used to
+        ///     update edge conductances via <c>(∇φ·∇μ)</c> on the graph.
+        /// </summary>
+        /// <param name="mesh">Mesh whose conductivities are updated.</param>
+        /// <param name="measurement">Measured electrode potentials.</param>
+        /// <param name="boundaryCondition">Applied current pattern.</param>
+        /// <param name="stepSize">Currently unused step-size parameter.</param>
+        /// <returns>Reconstruction result with updated conductivity field.</returns>
+        public ReconstructionResult InverseSolveStepGraph(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double stepSize)
+        {
+            if (_differentialEquationSolver is not GraphSolver graphSolver || _numericSolver == null || _errorMetric == null)
+                throw new NullReferenceException("Graph solver path not initialized.");
+
+            var phi = _differentialEquationSolver.Solve(mesh, boundaryCondition, null);
+            var dSim = mesh.GetElectrodePotentials();
+            var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, measurement, dSim);
+            var adjComplex = adjSrc.Select(x => new Complex(x, 0.0)).ToArray();
+            var mu = graphSolver.SolveAdjoint(mesh, _numericSolver, adjComplex);
+            var original = mesh.GetConductivityDistribution();
+            var sigma = graphSolver.InverseSolve(mesh, boundaryCondition, adjComplex);
+            mesh.SetConductivityDistribution(sigma);
+            return new ReconstructionResult(mesh, phi, mu, original, original, sigma);
+        }
 
         public ReconstructionResult InverseSolveStepFem(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double stepSize)
         {

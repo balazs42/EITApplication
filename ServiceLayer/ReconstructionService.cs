@@ -154,5 +154,54 @@ namespace ServiceLayer
                 throw;
             }
         }
+
+        /// <summary>
+        ///     Delegates a graph-based forward solve to the persistence layer.
+        ///     Internally, the mesh is converted to a resistor network and the
+        ///     discrete Laplace equation with CEM boundary conditions is
+        ///     solved.
+        /// </summary>
+        /// <param name="mesh">Mesh to be solved.</param>
+        /// <returns>Mesh carrying the predicted potentials.</returns>
+        public FEMMesh SolveGraphForward(FEMMesh mesh)
+        {
+            try
+            {
+                return _reconstructionPersistence.SolveGraphForward(mesh);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                Console.WriteLine(ex.Message);
+                Debug.WriteLine(ex.Message);
+                throw;
+            }
+        }
+
+        /// <summary>
+        ///     Executes a single graph-based inverse update.  The measured and
+        ///     simulated electrode potentials define an adjoint load whose
+        ///     solution yields a conductance gradient; a step is taken along
+        ///     this gradient on the underlying network.
+        /// </summary>
+        /// <param name="mesh">Mesh whose conductivities will be updated.</param>
+        /// <param name="measurement">Measured electrode potentials.</param>
+        /// <param name="boundaryCondition">Applied current pattern.</param>
+        /// <param name="stepSize">Gradient descent step size.</param>
+        /// <returns>Reconstruction result containing updated fields.</returns>
+        public ReconstructionResult InverseSolveStepGraph(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double stepSize)
+        {
+            try
+            {
+                return _reconstructionPersistence.InverseSolveStepGraph(mesh, measurement, boundaryCondition, stepSize);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                Console.WriteLine(ex.Message);
+                Debug.WriteLine(ex.Message);
+                throw;
+            }
+        }
     }
 }
