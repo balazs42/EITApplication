@@ -21,6 +21,7 @@ namespace ElectricalImpedanceTomography
                     fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
                 });
 
+
 #if DEBUG
     		builder.Logging.AddDebug();
 #endif
