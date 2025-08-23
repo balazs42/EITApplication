@@ -12,40 +12,42 @@
         <controls:NavBarControl Grid.Row="0" Grid.ColumnSpan="1" CurrentPageName="MeshingPage"/>
 
         <!-- Parameter selection -->
-        <Grid Grid.Row="1" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
-            <Label Grid.Column="0" Text="Mesh" VerticalOptions="Center"/>
-            <Picker Grid.Column="1" ItemsSource="{Binding MeshTypes}" SelectedItem="{Binding SelectedMeshType}" WidthRequest="100"/>
+        <ScrollView Grid.Row="1" Orientation="Horizontal">
+            <HorizontalStackLayout Spacing="10" Padding="5">
+                <Label Text="Mesh" VerticalOptions="Center"/>
+                <Picker ItemsSource="{Binding MeshTypes}" SelectedItem="{Binding SelectedMeshType}" WidthRequest="100"/>
 
-            <!-- FEM parameters -->
-            <Label Grid.Row="1" Grid.Column="0" Text="Layers" IsVisible="{Binding IsFEM}"/>
-            <Entry Grid.Row="1" Grid.Column="1" Text="{Binding Layers}" WidthRequest="60" IsVisible="{Binding IsFEM}" Keyboard="Numeric"/>
-            <Label Grid.Row="1" Grid.Column="2" Text="Boundary Vertices" IsVisible="{Binding IsFEM}"/>
-            <Entry Grid.Row="1" Grid.Column="3" Text="{Binding BoundaryFEMVertexCount}" WidthRequest="60" IsVisible="{Binding IsFEM}" Keyboard="Numeric"/>
+                <!-- FEM parameters -->
+                <Label Text="Layers" IsVisible="{Binding IsFEM}" VerticalOptions="Center"/>
+                <Entry Text="{Binding Layers}" WidthRequest="60" IsVisible="{Binding IsFEM}" Keyboard="Numeric"/>
+                <Label Text="Boundary Vertices" IsVisible="{Binding IsFEM}" VerticalOptions="Center"/>
+                <Entry Text="{Binding BoundaryFEMVertexCount}" WidthRequest="60" IsVisible="{Binding IsFEM}" Keyboard="Numeric"/>
 
-            <!-- LBM parameters -->
-            <Label Grid.Row="1" Grid.Column="0" Text="Nx" IsVisible="{Binding IsLBM}"/>
-            <Entry Grid.Row="1" Grid.Column="1" Text="{Binding Nx}" WidthRequest="60" IsVisible="{Binding IsLBM}" Keyboard="Numeric"/>
-            <Label Grid.Row="1" Grid.Column="2" Text="Ny" IsVisible="{Binding IsLBM}"/>
-            <Entry Grid.Row="1" Grid.Column="3" Text="{Binding Ny}" WidthRequest="60" IsVisible="{Binding IsLBM}" Keyboard="Numeric"/>
+                <!-- LBM parameters -->
+                <Label Text="Nx" IsVisible="{Binding IsLBM}" VerticalOptions="Center"/>
+                <Entry Text="{Binding Nx}" WidthRequest="60" IsVisible="{Binding IsLBM}" Keyboard="Numeric"/>
+                <Label Text="Ny" IsVisible="{Binding IsLBM}" VerticalOptions="Center"/>
+                <Entry Text="{Binding Ny}" WidthRequest="60" IsVisible="{Binding IsLBM}" Keyboard="Numeric"/>
 
-            <!-- Common parameters -->
-            <Label Grid.Row="2" Grid.Column="0" Text="Electrodes"/>
-            <Entry Grid.Row="2" Grid.Column="1" Text="{Binding ElectrodeCount}" WidthRequest="60" Keyboard="Numeric"/>
+                <!-- Common parameters -->
+                <Label Text="Electrodes" VerticalOptions="Center"/>
+                <Entry Text="{Binding ElectrodeCount}" WidthRequest="60" Keyboard="Numeric"/>
 
-            <Label Grid.Row="2" Grid.Column="2" Text="Geometry"/>
-            <Picker Grid.Row="2" Grid.Column="3" ItemsSource="{Binding GeometryTypes}" SelectedItem="{Binding SelectedGeometry}" WidthRequest="120"/>
+                <Label Text="Geometry" VerticalOptions="Center"/>
+                <Picker ItemsSource="{Binding GeometryTypes}" SelectedItem="{Binding SelectedGeometry}" WidthRequest="120"/>
 
-            <Label Grid.Row="3" Grid.Column="0" Text="Custom" IsVisible="{Binding IsCustomGeometry}"/>
-            <Entry Grid.Row="3" Grid.Column="1" Text="{Binding CustomPerimeter}" WidthRequest="200" IsVisible="{Binding IsCustomGeometry}"/>
+                <Label Text="Custom" IsVisible="{Binding IsCustomGeometry}" VerticalOptions="Center"/>
+                <Entry Text="{Binding CustomPerimeter}" WidthRequest="200" IsVisible="{Binding IsCustomGeometry}"/>
 
-            <CheckBox Grid.Row="3" Grid.Column="2" IsChecked="{Binding InhomogenityEditing}"/>
-            <Entry Grid.Row="3" Grid.Column="3" Text="{Binding InhomogenityValue}" WidthRequest="80" IsVisible="{Binding InhomogenityEditing}" Keyboard="Numeric"/>
+                <CheckBox IsChecked="{Binding InhomogenityEditing}"/>
+                <Entry Text="{Binding InhomogenityValue}" WidthRequest="80" IsVisible="{Binding InhomogenityEditing}" Keyboard="Numeric"/>
 
-            <Label Grid.Row="4" Grid.Column="0" Text="Contact Imp."/>
-            <Entry Grid.Row="4" Grid.Column="1" Text="{Binding ElectrodeContactImpedance}" WidthRequest="60" Keyboard="Numeric"/>
-            <Label Grid.Row="4" Grid.Column="2" Text="Electrode Size" IsVisible="{Binding IsFEM}"/>
-            <Entry Grid.Row="4" Grid.Column="3" Text="{Binding ElectrodeSize}" WidthRequest="60" IsVisible="{Binding IsFEM}" Keyboard="Numeric"/>
-        </Grid>
+                <Label Text="Contact Imp." VerticalOptions="Center"/>
+                <Entry Text="{Binding ElectrodeContactImpedance}" WidthRequest="60" Keyboard="Numeric"/>
+                <Label Text="Electrode Size" IsVisible="{Binding IsFEM}" VerticalOptions="Center"/>
+                <Entry Text="{Binding ElectrodeSize}" WidthRequest="60" IsVisible="{Binding IsFEM}" Keyboard="Numeric"/>
+            </HorizontalStackLayout>
+        </ScrollView>
 
         <Border Grid.Row="2"
                 Stroke="DarkGray"
