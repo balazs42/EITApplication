@@ -1,4 +1,5 @@
-﻿using Utility.Classes.Factories;
+﻿using System.Text.Json.Serialization;
+using Utility.Classes.Factories;
 using Utility.Classes.Meshing.Graph.Graph;
 
 namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
@@ -25,6 +26,7 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
         /// </summary>
         /// <param name="nx">Number of cells in the x dimension.</param>
         /// <param name="ny">Number of cells in the y dimension.</param>
+        [JsonConstructor]
         public LBMMesh(int nx = _defaultNx, int ny = _defaultNy, int electrodeNum = 16)
         {
             Nx = nx;
