@@ -35,7 +35,8 @@ namespace DataAccessLayer
                 Graph = graph
             };
 
-            string dir = Path.Combine(AppContext.BaseDirectory, "Meshes");
+            string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                                       "EITApplication", "Meshes");
             Directory.CreateDirectory(dir);
             string safeName = string.Join("_", name.Split(Path.GetInvalidFileNameChars()));
             string file = Path.Combine(dir, $"{safeName}_{model.SavedAt:yyyyMMdd_HHmmss}.json");
@@ -43,16 +44,13 @@ namespace DataAccessLayer
             File.WriteAllText(file, JsonSerializer.Serialize(model, opts));
         }
 
-        public IMesh LoadMesh(string name, DateTime savedAt)
+        public IMesh LoadMesh(string filePath)
         {
-            string dir = Path.Combine(AppContext.BaseDirectory, "Meshes");
-            string safeName = string.Join("_", name.Split(Path.GetInvalidFileNameChars()));
-            string file = Path.Combine(dir, $"{safeName}_{savedAt:yyyyMMdd_HHmmss}.json");
-            if (!File.Exists(file))
-                throw new FileNotFoundException($"Mesh file not found: {file}");
+            if (!File.Exists(filePath))
+                throw new FileNotFoundException($"Mesh file not found: {filePath}");
 
             var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            var model = JsonSerializer.Deserialize<StoredMesh>(File.ReadAllText(file), opts)
+            var model = JsonSerializer.Deserialize<StoredMesh>(File.ReadAllText(filePath), opts)
                         ?? throw new InvalidOperationException("Failed to deserialize mesh.");
 
             return model.MeshType switch
