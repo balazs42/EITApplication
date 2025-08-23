@@ -16,7 +16,7 @@ namespace BusinessLayer
         public EITMeasurement LoadEITMeasurement(string name, DateTime savedAt);
         public void DeleteEITMeasurement(string name, DateTime savedAt);
         public void SaveMesh(IMesh mesh, string name);
-        public IMesh LoadMesh(string name, DateTime savedAt);
+        public IMesh LoadMesh(string filePath);
     }
 }
 

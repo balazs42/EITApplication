@@ -154,11 +154,11 @@ namespace ServiceLayer
             }
         }
 
-        public IMesh LoadMesh(string name, DateTime savedAt)
+        public IMesh LoadMesh(string filePath)
         {
             try
             {
-                return _daqPersistence.LoadMesh(name, savedAt);
+                return _daqPersistence.LoadMesh(filePath);
             }
             catch (Exception ex)
             {

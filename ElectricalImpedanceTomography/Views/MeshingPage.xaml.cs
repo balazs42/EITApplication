@@ -1,6 +1,7 @@
 using ElectricalImpedanceTomography.ViewModels;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
+using Microsoft.Maui.Storage;
 using Utility.Classes.Meshing;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
@@ -212,9 +213,14 @@ public partial class MeshingPage : ContentPage
         }
     }
 
-    private void OnLoadClicked(object sender, EventArgs e)
+    private async void OnLoadClicked(object sender, EventArgs e)
     {
-        _viewModel.LoadMesh(string.Empty, DateTime.Now);
+        var file = await FilePicker.Default.PickAsync();
+        if (file != null)
+        {
+            _viewModel.LoadMesh(file.FullPath);
+            MeshCanvas.InvalidateSurface();
+        }
     }
 
     private void OnGenerateClicked(object sender, EventArgs e)

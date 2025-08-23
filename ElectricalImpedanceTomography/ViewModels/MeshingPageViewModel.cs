@@ -56,6 +56,12 @@ namespace ElectricalImpedanceTomography.ViewModels
         [ObservableProperty]
         private double inhomogenityValue = 1.0;
 
+        [ObservableProperty]
+        private double electrodeContactImpedance = 0.1;
+
+        [ObservableProperty]
+        private double electrodeSize = 0.3;
+
         private IMesh? _currentMesh;
 
         public MeshingPageViewModel(IDAQService dAQService)
@@ -71,14 +77,22 @@ namespace ElectricalImpedanceTomography.ViewModels
                 _daqService.SaveMesh(_currentMesh, Name);
         }
 
-        public void LoadMesh(string name, DateTime savedAt)
+        public void LoadMesh(string filePath)
         {
-            _daqService.LoadMesh(name, savedAt);
+            _currentMesh = _daqService.LoadMesh(filePath);
         }
 
         public void GenerateMesh()
         {
             _currentMesh = selectedMeshType == MeshType.FEM ? GenerateFEMMesh() : GenerateLBMMesh();
+            if (_currentMesh != null)
+            {
+                foreach (var el in _currentMesh.GetElectrodes())
+                    el.ZContact = ElectrodeContactImpedance;
+                if (_currentMesh is FEMMesh fem)
+                    foreach (var el in fem.ElectrodesTyped)
+                        el.Length = ElectrodeSize;
+            }
         }
 
         private FEMMesh GenerateFEMMesh()
@@ -149,7 +163,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             int id = 0;
             foreach (var el in mesh.ElementsTyped)
                 if (el.IsElectrode)
-                    electrodes.Add(new LBMElectrode(id++, el.Id, 0.0, 0.0, 0.0));
+                    electrodes.Add(new LBMElectrode(id++, el.Id, 0.0, 0.0, ElectrodeContactImpedance));
             mesh.SetElectrodes(electrodes);
         }
 

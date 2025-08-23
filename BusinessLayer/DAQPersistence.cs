@@ -62,9 +62,9 @@ namespace BusinessLayer
             _meshRepository.SaveMesh(mesh, name);
         }
 
-        public IMesh LoadMesh(string name, DateTime savedAt)
+        public IMesh LoadMesh(string filePath)
         {
-            return _meshRepository.LoadMesh(name, savedAt);
+            return _meshRepository.LoadMesh(filePath);
         }
     }
 }
