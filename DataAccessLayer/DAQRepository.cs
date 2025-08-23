@@ -1,6 +1,9 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
+using System.IO;
 using System.IO.Ports;
 using System.Numerics;
+using System.Linq;
 using System.Text.Json;
 using Utility.Classes.Configurations;
 using Utility.Classes.Measurement;
@@ -338,30 +341,68 @@ namespace DataAccessLayer
 
         // TODO: do something with these like saving and loading from json files
 
-        public void SaveEITMeasurement()
+        public void SaveEITMeasurement(EITMeasurement measurement, string name)
         {
-            throw new NotImplementedException();
+            if (measurement == null) throw new ArgumentNullException(nameof(measurement));
+            if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Name required.", nameof(name));
+
+            string dir = Path.Combine(AppContext.BaseDirectory, "Measurements");
+            Directory.CreateDirectory(dir);
+
+            var model = new StoredMeasurement
+            {
+                Name = name,
+                SavedAt = DateTime.UtcNow,
+                Frames = measurement.Frames.ToArray(),
+                FrameSize = measurement.FrameSize,
+                CurrentAmplitude = measurement.CurrentAmplitude
+            };
+
+            string safeName = string.Join("_", name.Split(Path.GetInvalidFileNameChars()));
+            string file = Path.Combine(dir, $"{safeName}_{model.SavedAt:yyyyMMdd_HHmmss}.json");
+            var opts = new JsonSerializerOptions { WriteIndented = true };
+            File.WriteAllText(file, JsonSerializer.Serialize(model, opts));
         }
 
-        public void LoadEITMeasurement(DateTime dateTime)
+        public EITMeasurement LoadEITMeasurement(string name, DateTime savedAt)
         {
-            throw new NotImplementedException();
+            string dir = Path.Combine(AppContext.BaseDirectory, "Measurements");
+            string safeName = string.Join("_", name.Split(Path.GetInvalidFileNameChars()));
+            string file = Path.Combine(dir, $"{safeName}_{savedAt:yyyyMMdd_HHmmss}.json");
+            if (!File.Exists(file))
+                throw new FileNotFoundException($"Measurement file not found: {file}");
+
+            var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var model = JsonSerializer.Deserialize<StoredMeasurement>(File.ReadAllText(file), opts)
+                        ?? throw new InvalidOperationException("Failed to deserialize measurement.");
+
+            var frames = model.Frames.Select(f => f.ToArray()).ToList();
+            var measurement = new EITMeasurement(frames)
+            {
+                FrameSize = model.FrameSize,
+                CurrentAmplitude = model.CurrentAmplitude
+            };
+            return measurement;
         }
 
-        public void LoadEITMeasurement(int id)
+        public void DeleteEITMeasurement(string name, DateTime savedAt)
         {
-            throw new NotImplementedException();
+            string dir = Path.Combine(AppContext.BaseDirectory, "Measurements");
+            string safeName = string.Join("_", name.Split(Path.GetInvalidFileNameChars()));
+            string file = Path.Combine(dir, $"{safeName}_{savedAt:yyyyMMdd_HHmmss}.json");
+            if (File.Exists(file))
+                File.Delete(file);
         }
 
-        public void DeleteEITMeasurement(int id)
+        private sealed class StoredMeasurement
         {
-            throw new NotImplementedException();
+            public string Name { get; set; } = string.Empty;
+            public DateTime SavedAt { get; set; }
+            public double[][] Frames { get; set; } = Array.Empty<double[]>();
+            public int FrameSize { get; set; }
+            public double? CurrentAmplitude { get; set; }
         }
 
-        public void DeleteEITMeasurement(DateTime dateTime)
-        {
-            throw new NotImplementedException();
-        }
 
         /*───────────────────────────────────────────────────────────────────*/
         public void Dispose()

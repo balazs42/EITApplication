@@ -10,11 +10,10 @@ namespace DataAccessLayer
         public Complex[][] ComputeDFT(EITMeasurement measurement);
         public double[][] ComputeDCT(EITMeasurement measurement);
         public Complex[][] ComputeFFT(EITMeasurement measurement);
-        public void SaveEITMeasurement();
-        public void LoadEITMeasurement(DateTime dateTime);
-        public void LoadEITMeasurement(int id);
-        public void DeleteEITMeasurement(int id);
-        public void DeleteEITMeasurement(DateTime dateTime);
+
+        public void SaveEITMeasurement(EITMeasurement measurement, string name);
+        public EITMeasurement LoadEITMeasurement(string name, DateTime savedAt);
+        public void DeleteEITMeasurement(string name, DateTime savedAt);
     }
 }
 
