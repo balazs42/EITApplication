@@ -23,4 +23,9 @@
          Title="FEM Reconstruction"
          ContentTemplate="{DataTemplate views:FEMReconstructionPage}"
          Route="FEMReconstructionPage"/>
+    <ShellContent 
+        Title="Meshgin"
+        ContentTemplate="{DataTemplate views:MeshingPage}"
+        Route="MeshingPage"/>
+    
 </Shell>
