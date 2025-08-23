@@ -8,8 +8,6 @@ namespace DataAccessLayer
 {
     public class MeshRepository : IMeshRepository
     {
-        private static IMesh? _mesh = null;
-
         public void SaveMesh(IMesh mesh, string name)
         {
             if (mesh == null) throw new ArgumentNullException(nameof(mesh));
@@ -26,12 +24,9 @@ namespace DataAccessLayer
             {
                 Name = name,
                 SavedAt = DateTime.UtcNow,
-                MeshType = mesh switch
-                {
-                    FEMMesh => MeshType.FEM,
-                    LBMMesh => MeshType.LBM,
-                    _ => throw new NotSupportedException($"Mesh type {mesh.GetType().Name} not supported.")
-                },
+                MeshType = mesh.GetType().AssemblyQualifiedName
+                            ?? mesh.GetType().FullName
+                            ?? throw new InvalidOperationException("Cannot determine mesh type."),
                 Mesh = JsonSerializer.SerializeToElement(mesh, mesh.GetType(), meshOptions)
             };
 
@@ -60,16 +55,11 @@ namespace DataAccessLayer
                 MaxDepth = 1024
             };
 
-            IMesh mesh = model.MeshType switch
-            {
-                MeshType.FEM =>
-                    model.Mesh.Deserialize<FEMMesh>(meshOpts)
-                        ?? throw new InvalidOperationException("Failed to deserialize FEM mesh."),
-                MeshType.LBM =>
-                    model.Mesh.Deserialize<LBMMesh>(meshOpts)
-                        ?? throw new InvalidOperationException("Failed to deserialize LBM mesh."),
-                _ => throw new NotSupportedException($"Unsupported mesh type {model.MeshType}.")
-            };
+            var type = Type.GetType(model.MeshType)
+                       ?? throw new NotSupportedException($"Unsupported mesh type {model.MeshType}.");
+
+            IMesh mesh = (IMesh)(model.Mesh.Deserialize(type, meshOpts)
+                       ?? throw new InvalidOperationException("Failed to deserialize mesh."));
 
             switch (mesh)
             {
@@ -94,14 +84,8 @@ namespace DataAccessLayer
         {
             public string Name { get; set; } = string.Empty;
             public DateTime SavedAt { get; set; }
-            public MeshType MeshType { get; set; }
+            public string MeshType { get; set; } = string.Empty;
             public JsonElement Mesh { get; set; }
-        }
-
-        private enum MeshType
-        {
-            FEM,
-            LBM
         }
     }
 }
