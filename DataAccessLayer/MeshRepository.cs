@@ -1,6 +1,6 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Utility.Classes.Meshing.FiniteElementMesh;
-using Utility.Classes.Meshing.GraphMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes;
 
@@ -15,11 +15,10 @@ namespace DataAccessLayer
             if (mesh == null) throw new ArgumentNullException(nameof(mesh));
             if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Name required.", nameof(name));
 
-            Graph graph = mesh switch
+            var meshOptions = new JsonSerializerOptions
             {
-                FEMMesh fem => fem.ToGraph(),
-                LBMMesh lbm => lbm.ToGraph(),
-                _ => throw new NotSupportedException($"Mesh type {mesh.GetType().Name} not supported.")
+                IncludeFields = true,
+                ReferenceHandler = ReferenceHandler.Preserve
             };
 
             var model = new StoredMesh
@@ -32,7 +31,7 @@ namespace DataAccessLayer
                     LBMMesh => MeshType.LBM,
                     _ => throw new NotSupportedException($"Mesh type {mesh.GetType().Name} not supported.")
                 },
-                Graph = graph
+                Mesh = JsonSerializer.SerializeToElement(mesh, mesh.GetType(), meshOptions)
             };
 
             string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -53,12 +52,40 @@ namespace DataAccessLayer
             var model = JsonSerializer.Deserialize<StoredMesh>(File.ReadAllText(filePath), opts)
                         ?? throw new InvalidOperationException("Failed to deserialize mesh.");
 
-            return model.MeshType switch
+            var meshOpts = new JsonSerializerOptions
             {
-                MeshType.FEM => new FEMMesh().FromGraph(model.Graph),
-                MeshType.LBM => new LBMMesh().FromGraph(model.Graph),
+                IncludeFields = true,
+                ReferenceHandler = ReferenceHandler.Preserve
+            };
+
+            IMesh mesh = model.MeshType switch
+            {
+                MeshType.FEM =>
+                    model.Mesh.Deserialize<FEMMesh>(meshOpts)
+                        ?? throw new InvalidOperationException("Failed to deserialize FEM mesh."),
+                MeshType.LBM =>
+                    model.Mesh.Deserialize<LBMMesh>(meshOpts)
+                        ?? throw new InvalidOperationException("Failed to deserialize LBM mesh."),
                 _ => throw new NotSupportedException($"Unsupported mesh type {model.MeshType}.")
             };
+
+            switch (mesh)
+            {
+                case FEMMesh fem:
+                    var cd = fem.ConductivityDistribution;
+                    var pd = fem.PotentialDistribution;
+                    fem.Initialize();
+                    fem.SetConductivityDistribution(cd);
+                    fem.SetPotentialDistribution(pd);
+                    return fem;
+                case LBMMesh lbm:
+                    lbm.RebuildGrid();
+                    lbm.SetConductivityDistribution(lbm.ConductivityDistribution);
+                    lbm.SetPotentialDistribution(lbm.PotentialDistribution);
+                    return lbm;
+                default:
+                    throw new NotSupportedException($"Unsupported mesh instance {mesh.GetType().Name}.");
+            }
         }
 
         private sealed class StoredMesh
@@ -66,7 +93,7 @@ namespace DataAccessLayer
             public string Name { get; set; } = string.Empty;
             public DateTime SavedAt { get; set; }
             public MeshType MeshType { get; set; }
-            public Graph Graph { get; set; } = null!;
+            public JsonElement Mesh { get; set; }
         }
 
         private enum MeshType
