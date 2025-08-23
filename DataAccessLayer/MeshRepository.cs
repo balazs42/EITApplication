@@ -18,7 +18,8 @@ namespace DataAccessLayer
             var meshOptions = new JsonSerializerOptions
             {
                 IncludeFields = true,
-                ReferenceHandler = ReferenceHandler.Preserve
+                ReferenceHandler = ReferenceHandler.Preserve,
+                MaxDepth = 1024
             };
 
             var model = new StoredMesh
@@ -39,7 +40,7 @@ namespace DataAccessLayer
             Directory.CreateDirectory(dir);
             string safeName = string.Join("_", name.Split(Path.GetInvalidFileNameChars()));
             string file = Path.Combine(dir, $"{safeName}_{model.SavedAt:yyyyMMdd_HHmmss}.json");
-            var opts = new JsonSerializerOptions { WriteIndented = true };
+            var opts = new JsonSerializerOptions { WriteIndented = true, MaxDepth = 1024 };
             File.WriteAllText(file, JsonSerializer.Serialize(model, opts));
         }
 
@@ -48,14 +49,15 @@ namespace DataAccessLayer
             if (!File.Exists(filePath))
                 throw new FileNotFoundException($"Mesh file not found: {filePath}");
 
-            var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true, MaxDepth = 1024 };
             var model = JsonSerializer.Deserialize<StoredMesh>(File.ReadAllText(filePath), opts)
                         ?? throw new InvalidOperationException("Failed to deserialize mesh.");
 
             var meshOpts = new JsonSerializerOptions
             {
                 IncludeFields = true,
-                ReferenceHandler = ReferenceHandler.Preserve
+                ReferenceHandler = ReferenceHandler.Preserve,
+                MaxDepth = 1024
             };
 
             IMesh mesh = model.MeshType switch
