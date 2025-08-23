@@ -2,6 +2,7 @@
 using CommunityToolkit.Mvvm.Input;
 using ServiceLayer;
 using Utility.Classes;
+using Utility.Classes.Meshing;
 using Utility.Classes.Factories;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.Measurement;

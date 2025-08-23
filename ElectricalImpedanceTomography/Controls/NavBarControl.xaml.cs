@@ -42,6 +42,7 @@ public partial class NavBarControl : ContentView
         DAQPageButton.IsVisible = true;
         LBMReconstructionPageButton.IsVisible = true;
         FEMReconstructionPageButton.IsVisible = true;
+        MeshingPageButton.IsVisible = true;
 
         // Hide the button matching the current page name (case-insensitive)
         if (string.Equals(currentPageName, "MainPage"))
@@ -52,6 +53,9 @@ public partial class NavBarControl : ContentView
             LBMReconstructionPageButton.IsVisible = false;
         else if (string.Equals(currentPageName, "FEMReconstructionPage"))
             FEMReconstructionPageButton.IsVisible = false;
+        else if (string.Equals(currentPageName, "MeshingPage"))
+            MeshingPageButton.IsVisible = false;
+        
     }
 
     // Handle navigation for ALL buttons
@@ -70,6 +74,7 @@ public partial class NavBarControl : ContentView
             "DAQ" => "//DAQPage",
             "LBM Reconstruction" => "//LBMReconstructionPage",
             "FEM Reconstruction" => "//FEMReconstructionPage",
+            "Meshing" => "//MeshingPage",
             _ => string.Empty
         };
 

@@ -2,25 +2,9 @@
 using MIConvexHull;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
-using System.Linq;
 
 namespace Utility.Classes.Factories
 {
-    /// <summary>
-    /// General mesh descriptor that can be used in both cases of the meshes
-    /// </summary>
-    public struct MeshParameters
-    {
-        public MeshType MeshType { get; set; }
-        public int Layers { get; set; }
-        public int BoundaryFEMVertexCount { get; set; }
-        public int ElectrodeCount { get; set; }
-        public int Nx { get; set; }
-        public int Ny { get; set; }
-        public List<Dictionary<int, double>> Inhomogenities { get; set; }
-        public int Radius { get; set; }
-    }
-
     /// <summary>
     /// The mesh factory can be used to genreate Finite Element meshes and Lattice Boltzmann meshes
     /// TODO: add generic perimeter description based mesh generation

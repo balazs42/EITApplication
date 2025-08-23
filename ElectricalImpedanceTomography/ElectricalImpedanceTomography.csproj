@@ -104,6 +104,9 @@
           <MauiXaml Update="Controls\ReconstructionParametersControl.xaml">
             <Generator>MSBuild:Compile</Generator>
           </MauiXaml>
+          <MauiXaml Update="Views\MeshingPage.xaml">
+            <Generator>MSBuild:Compile</Generator>
+          </MauiXaml>
         </ItemGroup>
 
 </Project>
