@@ -10,13 +10,38 @@
 
     <Grid RowDefinitions="Auto, Auto, Auto, Auto">
         <controls:NavBarControl Grid.Row="0" Grid.ColumnSpan="1" CurrentPageName="MeshingPage"/>
-        
-        <!-- Mesh parameter selection TODO: add elements-->
-        <Grid Grid.Row="1" RowDefinitions="Auto, Auto" ColumnDefinitions="Auto, Auto, Auto, Auto, Auto">
-            
+
+        <!-- Parameter selection -->
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowDefinitions="Auto,Auto,Auto,Auto">
+            <Label Grid.Column="0" Text="Mesh" VerticalOptions="Center"/>
+            <Picker Grid.Column="1" ItemsSource="{Binding MeshTypes}" SelectedItem="{Binding SelectedMeshType}" WidthRequest="100"/>
+
+            <!-- FEM parameters -->
+            <Label Grid.Row="1" Grid.Column="0" Text="Layers" IsVisible="{Binding IsFEM}"/>
+            <Entry Grid.Row="1" Grid.Column="1" Text="{Binding Layers}" WidthRequest="60" IsVisible="{Binding IsFEM}" Keyboard="Numeric"/>
+            <Label Grid.Row="1" Grid.Column="2" Text="Boundary Vertices" IsVisible="{Binding IsFEM}"/>
+            <Entry Grid.Row="1" Grid.Column="3" Text="{Binding BoundaryFEMVertexCount}" WidthRequest="60" IsVisible="{Binding IsFEM}" Keyboard="Numeric"/>
+
+            <!-- LBM parameters -->
+            <Label Grid.Row="1" Grid.Column="0" Text="Nx" IsVisible="{Binding IsLBM}"/>
+            <Entry Grid.Row="1" Grid.Column="1" Text="{Binding Nx}" WidthRequest="60" IsVisible="{Binding IsLBM}" Keyboard="Numeric"/>
+            <Label Grid.Row="1" Grid.Column="2" Text="Ny" IsVisible="{Binding IsLBM}"/>
+            <Entry Grid.Row="1" Grid.Column="3" Text="{Binding Ny}" WidthRequest="60" IsVisible="{Binding IsLBM}" Keyboard="Numeric"/>
+
+            <!-- Common parameters -->
+            <Label Grid.Row="2" Grid.Column="0" Text="Electrodes"/>
+            <Entry Grid.Row="2" Grid.Column="1" Text="{Binding ElectrodeCount}" WidthRequest="60" Keyboard="Numeric"/>
+
+            <Label Grid.Row="2" Grid.Column="2" Text="Geometry"/>
+            <Picker Grid.Row="2" Grid.Column="3" ItemsSource="{Binding GeometryTypes}" SelectedItem="{Binding SelectedGeometry}" WidthRequest="120"/>
+
+            <Label Grid.Row="3" Grid.Column="0" Text="Custom" IsVisible="{Binding IsCustomGeometry}"/>
+            <Entry Grid.Row="3" Grid.Column="1" Text="{Binding CustomPerimeter}" WidthRequest="200" IsVisible="{Binding IsCustomGeometry}"/>
+
+            <CheckBox Grid.Row="3" Grid.Column="2" IsChecked="{Binding InhomogenityEditing}"/>
+            <Entry Grid.Row="3" Grid.Column="3" Text="{Binding InhomogenityValue}" WidthRequest="80" IsVisible="{Binding InhomogenityEditing}" Keyboard="Numeric"/>
         </Grid>
-        
-        
+
         <Border Grid.Row="2"
                 Stroke="DarkGray"
                 StrokeThickness="2"
@@ -32,10 +57,10 @@
                                Margin="10" />
         </Border>
 
-        <Grid Grid.Row="3" ColumnDefinitions="Auto, Auto, Auto">
+        <Grid Grid.Row="3" ColumnDefinitions="Auto,Auto,Auto" ColumnSpacing="10" HorizontalOptions="Center">
             <Button Grid.Column="0" Text="Save" Clicked="OnSaveClicked"/>
-            <Button Grid.Column="0" Text="Load" Clicked="OnLoadClicked"/>
-            <Button Grid.Column="0" Text="Empty"/>
+            <Button Grid.Column="1" Text="Load" Clicked="OnLoadClicked"/>
+            <Button Grid.Column="2" Text="Generate" Clicked="OnGenerateClicked"/>
         </Grid>
     </Grid>
 </ContentPage>
