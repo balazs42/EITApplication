@@ -189,6 +189,20 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
             }
         }
 
+        public void RebuildGrid()
+        {
+            for (int x = 0; x < Nx; x++)
+            {
+                for (int y = 0; y < Ny; y++)
+                {
+                    int id = x * Nx + y;
+                    var correspondingElement = _elements.Find(e => e.Id == id)
+                        ?? throw new InvalidOperationException("Cannot set grid, element id mismatch. The ids should be at top left, and descend to bottom right. Check stored data!");
+                    _grid[x, y] = correspondingElement;
+                }
+            }
+        }
+
         protected override IEnumerable<int> StateKeys() => _elements.Select(v => v.Id);
 
         protected override void ApplyPotentialToState(int cellId, double potential)
