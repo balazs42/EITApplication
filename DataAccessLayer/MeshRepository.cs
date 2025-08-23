@@ -1,15 +1,15 @@
-using System;
-using System.IO;
 using System.Text.Json;
-using Utility.Classes.Meshing;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.GraphMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
+using Utility.Classes;
 
 namespace DataAccessLayer
 {
     public class MeshRepository : IMeshRepository
     {
+        private static IMesh? _mesh = null;
+
         public void SaveMesh(IMesh mesh, string name)
         {
             if (mesh == null) throw new ArgumentNullException(nameof(mesh));

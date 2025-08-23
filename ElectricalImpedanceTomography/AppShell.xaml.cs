@@ -1,6 +1,4 @@
-﻿using ElectricalImpedanceTomography.Views;
-
-namespace ElectricalImpedanceTomography
+﻿namespace ElectricalImpedanceTomography
 {
     public partial class AppShell : Shell
     {
@@ -12,6 +10,7 @@ namespace ElectricalImpedanceTomography
             Routing.RegisterRoute(nameof(Views.DAQPage), typeof(Views.DAQPage));    
             Routing.RegisterRoute(nameof(Views.LBMReconstructionPage), typeof(Views.LBMReconstructionPage));
             Routing.RegisterRoute(nameof(Views.FEMReconstructionPage), typeof(Views.FEMReconstructionPage));
+            Routing.RegisterRoute(nameof(Views.MeshingPage), typeof(Views.MeshingPage));
         }
     }
 }

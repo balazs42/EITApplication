@@ -18,6 +18,7 @@ namespace ElectricalImpedanceTomography
 
             // Run built-in self-tests
             StartupSelfTests.RunAll();
+
             // Execute analytic validation suite comparing numerical solvers to
             // reference equations (Fourier modes, dipole, layered media, etc.)
             ValidationSelfTests.RunAll();

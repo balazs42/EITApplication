@@ -61,7 +61,8 @@ public static class ValidationSelfTests
         double expected = (Math.Pow(r, 1) * (alphas[0] * Math.Cos(theta) + betas[0] * Math.Sin(theta)) / 1.0
                         + Math.Pow(r, 2) * (alphas[1] * Math.Cos(2 * theta) + betas[1] * Math.Sin(2 * theta)) / 2.0) / sigma0;
         double actual = ReferenceSolutions.ReferencePotential_FourierSeries(sigma0, alphas, betas, r, theta);
-        if (Math.Abs(expected - actual) > 1e-12) throw new Exception("Fourier potential mismatch");
+        if (Math.Abs(expected - actual) > 1e-12) 
+            throw new Exception("Fourier potential mismatch");
     }
 
     /// <summary>
