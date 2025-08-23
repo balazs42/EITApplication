@@ -7,7 +7,9 @@ namespace DataAccessLayer
         public static IUnityContainer ApplyContainerRegistration()
         {
             return Utility.Composition.Settings.ApplyContainerRegistration()
-                .RegisterType<IDAQRepository, DAQRepository>();
+                .RegisterType<IDAQRepository, DAQRepository>()
+                .RegisterType<IMeshRepository, MeshRepository>();
+
         }
     }
 }

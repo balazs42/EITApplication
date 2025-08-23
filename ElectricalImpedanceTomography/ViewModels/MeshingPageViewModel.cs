@@ -136,7 +136,8 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public void RefreshConductivity()
         {
-            if (_currentMesh == null) return;
+            if (_currentMesh == null) 
+                return;
             var dict = _currentMesh.GetElements().ToDictionary(e => e.Id, e => e.Conductivity);
             _currentMesh.SetConductivityDistribution(new ConductivityDistribution(dict));
         }

@@ -14,12 +14,15 @@ namespace Utility.Classes
 
         ConductivityDistribution GetConductivityDistribution();
         PotentialDistribution GetPotentialDistribution();
+        void SetPotentialDistribution(PotentialDistribution pd);
+        void SetConductivityDistribution(ConductivityDistribution cd);
 
         Mesh GetMesh();
 
         IReadOnlyList<Electrode> GetElectrodes();
         IReadOnlyList<MeshElement> GetElements();
-        double[] GetElectrodePotentials();        
+        double[] GetElectrodePotentials();
+
 
         Mesh DeepCopy();
     }
