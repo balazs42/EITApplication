@@ -142,12 +142,12 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
                 double area = elem.Area;
                 double sT = sigma.GetConductivity(elem.Id);
                 // get shape gradients ∇φ^T (double[3,2]) from element, Eq (1.2.2)
-                var grads = elem.GradPhi; // [3,2] array of (∂φ_i/∂x, ∂φ_i/∂y)
+                var grads = elem.GradPhi; // [3][2] array of (∂φ_i/∂x, ∂φ_i/∂y)
                 for (int i = 0; i < 3; i++)
                 {
                     for (int j = 0; j < 3; j++)
                     {
-                        double gdot = grads[i, 0] * grads[j, 0] + grads[i, 1] * grads[j, 1];
+                        double gdot = grads[i][0] * grads[j][0] + grads[i][1] * grads[j][1];
                         K[elem.Vertices[i].GlobalId, elem.Vertices[j].GlobalId] += sT * area * gdot;
                     }
                 }

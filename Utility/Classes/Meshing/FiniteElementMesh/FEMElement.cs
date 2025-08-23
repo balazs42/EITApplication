@@ -4,8 +4,19 @@
     {
         public double Area { get; set; }
         public List<FEMVertex> Vertices { get; set; } = [new FEMVertex(), new FEMVertex(), new FEMVertex()];
-        public double[,] GradPhi { get; private set; } = new double[3, 2]; // Gradients of shape functions
-        public double[,] DotProducts { get; private set; } = new double[3, 3];
+        // Use jagged arrays for serialization compatibility
+        public double[][] GradPhi { get; private set; } = new double[][]
+        {
+            new double[2],
+            new double[2],
+            new double[2]
+        }; // Gradients of shape functions
+        public double[][] DotProducts { get; private set; } = new double[][]
+        {
+            new double[3],
+            new double[3],
+            new double[3]
+        };
 
         public FEMElement(int id, FEMVertex v1, FEMVertex v2, FEMVertex v3) 
         {
@@ -64,19 +75,24 @@
             double x2 = V2.X, y2 = V2.Y;
             double x3 = V3.X, y3 = V3.Y;
 
-            GradPhi = new double[3, 2];
+            GradPhi = new double[][]
+            {
+                new double[2],
+                new double[2],
+                new double[2]
+            };
 
             // ∇ϕ₁
-            GradPhi[0, 0] = (y2 - y3) / (2.0 * Area);  // d/dx
-            GradPhi[0, 1] = (x3 - x2) / (2.0 * Area);  // d/dy
+            GradPhi[0][0] = (y2 - y3) / (2.0 * Area);  // d/dx
+            GradPhi[0][1] = (x3 - x2) / (2.0 * Area);  // d/dy
 
             // ∇ϕ₂
-            GradPhi[1, 0] = (y3 - y1) / (2.0 * Area);
-            GradPhi[1, 1] = (x1 - x3) / (2.0 * Area);
+            GradPhi[1][0] = (y3 - y1) / (2.0 * Area);
+            GradPhi[1][1] = (x1 - x3) / (2.0 * Area);
 
             // ∇ϕ₃
-            GradPhi[2, 0] = (y1 - y2) / (2.0 * Area);
-            GradPhi[2, 1] = (x2 - x1) / (2.0 * Area);
+            GradPhi[2][0] = (y1 - y2) / (2.0 * Area);
+            GradPhi[2][1] = (x2 - x1) / (2.0 * Area);
         }
 
         // Calculate the dot product of gradients of shape functions
@@ -86,10 +102,10 @@
             {
                 for (int j = 0; j < 3; j++)
                 {
-                    double dotPorduct = GradPhi[i, 0] * GradPhi[j, 0] +
-                                        GradPhi[i, 1] * GradPhi[j, 1];
+                    double dotPorduct = GradPhi[i][0] * GradPhi[j][0] +
+                                        GradPhi[i][1] * GradPhi[j][1];
 
-                    DotProducts[i, j] = dotPorduct;
+                    DotProducts[i][j] = dotPorduct;
                 }
             }
         }
