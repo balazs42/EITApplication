@@ -39,6 +39,7 @@
                 <Label Text="Custom" IsVisible="{Binding IsCustomGeometry}" VerticalOptions="Center"/>
                 <Entry Text="{Binding CustomPerimeter}" WidthRequest="200" IsVisible="{Binding IsCustomGeometry}"/>
 
+                <Label Text="EditConductivities" VerticalOptions="Center"/>
                 <CheckBox IsChecked="{Binding InhomogenityEditing}"/>
                 <Entry Text="{Binding InhomogenityValue}" WidthRequest="80" IsVisible="{Binding InhomogenityEditing}" Keyboard="Numeric"/>
 
