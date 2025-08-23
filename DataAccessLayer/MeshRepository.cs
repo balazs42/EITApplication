@@ -74,11 +74,14 @@ namespace DataAccessLayer
             switch (mesh)
             {
                 case FEMMesh fem:
-                    var cd = fem.ConductivityDistribution;
-                    var pd = fem.PotentialDistribution;
+                    // After deserialization, the FEM mesh already contains
+                    // element conductivities and vertex potentials. Calling
+                    // Initialize() rebuilds internal structures (e.g. edges)
+                    // and reconstructs the distributions from those values.
+                    // Reapplying the previously deserialized distributions is
+                    // unnecessary and, when they are empty due to JSON not
+                    // containing them, leads to key‐mismatch exceptions.
                     fem.Initialize();
-                    fem.SetConductivityDistribution(cd);
-                    fem.SetPotentialDistribution(pd);
                     return fem;
                 case LBMMesh lbm:
                     lbm.RebuildGrid();
