@@ -12,7 +12,7 @@
         <controls:NavBarControl Grid.Row="0" Grid.ColumnSpan="1" CurrentPageName="MeshingPage"/>
 
         <!-- Parameter selection -->
-        <Grid Grid.Row="1" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowDefinitions="Auto,Auto,Auto,Auto">
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
             <Label Grid.Column="0" Text="Mesh" VerticalOptions="Center"/>
             <Picker Grid.Column="1" ItemsSource="{Binding MeshTypes}" SelectedItem="{Binding SelectedMeshType}" WidthRequest="100"/>
 
@@ -40,6 +40,11 @@
 
             <CheckBox Grid.Row="3" Grid.Column="2" IsChecked="{Binding InhomogenityEditing}"/>
             <Entry Grid.Row="3" Grid.Column="3" Text="{Binding InhomogenityValue}" WidthRequest="80" IsVisible="{Binding InhomogenityEditing}" Keyboard="Numeric"/>
+
+            <Label Grid.Row="4" Grid.Column="0" Text="Contact Imp."/>
+            <Entry Grid.Row="4" Grid.Column="1" Text="{Binding ElectrodeContactImpedance}" WidthRequest="60" Keyboard="Numeric"/>
+            <Label Grid.Row="4" Grid.Column="2" Text="Electrode Size" IsVisible="{Binding IsFEM}"/>
+            <Entry Grid.Row="4" Grid.Column="3" Text="{Binding ElectrodeSize}" WidthRequest="60" IsVisible="{Binding IsFEM}" Keyboard="Numeric"/>
         </Grid>
 
         <Border Grid.Row="2"
