@@ -1,5 +1,7 @@
+using System;
 using System.Numerics;
 using DataAccessLayer;
+using Utility.Classes;
 using Utility.Classes.Measurement;
 
 namespace BusinessLayer
@@ -7,10 +9,12 @@ namespace BusinessLayer
     public class DAQPersistence : IDAQPersistence
     {
         private readonly IDAQRepository _daqRepository;
+        private readonly IMeshRepository _meshRepository;
 
-        public DAQPersistence(IDAQRepository daqRepository)
+        public DAQPersistence(IDAQRepository daqRepository, IMeshRepository meshRepository)
         {
             _daqRepository = daqRepository;
+            _meshRepository = meshRepository;
         }
 
         public EITMeasurement GetEITMeasurement()
@@ -36,6 +40,31 @@ namespace BusinessLayer
         public Complex[][] ComputeFFT(EITMeasurement measurement)
         {
             return _daqRepository.ComputeFFT(measurement);
+        }
+
+        public void SaveEITMeasurement(EITMeasurement measurement, string name)
+        {
+            _daqRepository.SaveEITMeasurement(measurement, name);
+        }
+
+        public EITMeasurement LoadEITMeasurement(string name, DateTime savedAt)
+        {
+            return _daqRepository.LoadEITMeasurement(name, savedAt);
+        }
+
+        public void DeleteEITMeasurement(string name, DateTime savedAt)
+        {
+            _daqRepository.DeleteEITMeasurement(name, savedAt);
+        }
+
+        public void SaveMesh(IMesh mesh, string name)
+        {
+            _meshRepository.SaveMesh(mesh, name);
+        }
+
+        public IMesh LoadMesh(string name, DateTime savedAt)
+        {
+            return _meshRepository.LoadMesh(name, savedAt);
         }
     }
 }
