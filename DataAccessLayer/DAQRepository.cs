@@ -1,9 +1,6 @@
-﻿using System;
-using System.Diagnostics;
-using System.IO;
+﻿using System.Diagnostics;
 using System.IO.Ports;
 using System.Numerics;
-using System.Linq;
 using System.Text.Json;
 using Utility.Classes.Configurations;
 using Utility.Classes.Measurement;
@@ -31,8 +28,6 @@ namespace DataAccessLayer
      *  1. = NaN & 2. = NaN means 1 = GND & 2 = VCC -> 3. means measurement between 3.-4. electodes. 4. meash measurement between 4.-5. ... 
      *  15. means measurement between 15.-16. 16. = NaN since 16. = 16.-1. and 1. is used for excitation.
      */
-
-   
 
     public class DAQRepository : IDAQRepository
     {
@@ -394,16 +389,6 @@ namespace DataAccessLayer
                 File.Delete(file);
         }
 
-        private sealed class StoredMeasurement
-        {
-            public string Name { get; set; } = string.Empty;
-            public DateTime SavedAt { get; set; }
-            public double[][] Frames { get; set; } = Array.Empty<double[]>();
-            public int FrameSize { get; set; }
-            public double? CurrentAmplitude { get; set; }
-        }
-
-
         /*───────────────────────────────────────────────────────────────────*/
         public void Dispose()
         {
@@ -418,7 +403,7 @@ namespace DataAccessLayer
         }
 
         /// <summary>
-        /// Possible error messages from the V2 hardware. Currently HW does not support reactions to the messages, it is for debug purposes.
+        /// Possible error messages from the V2 hardware ADS127L18 ADC case. Currently HW does not support reactions to the messages, it is for debug purposes.
         /// </summary>
         private static Dictionary<Int16, string> _errorCodesV2 = new()
         {
