@@ -1,22 +1,46 @@
-﻿<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="ElectricalImpedanceTomography.Views.MainPage"
              xmlns:viewmodels="clr-namespace:ElectricalImpedanceTomography.ViewModels"
              xmlns:controls="clr-namespace:ElectricalImpedanceTomography.Controls"
              x:DataType="viewmodels:MainPageViewModel"
-             Shell.NavBarIsVisible="False" 
+             Shell.NavBarIsVisible="False"
              Title="MainPage">
-
-    <ScrollView>
-        <Grid RowDefinitions="Auto, Auto">
-            <controls:NavBarControl Grid.Row="0" CurrentPageName="MainPage"/>
-            <VerticalStackLayout Grid.Row="1"
-                                Padding="30,0"
-                                Spacing="25">
-                <Label Text="Hello world!"/>
+    <Grid RowDefinitions="Auto,*" ColumnDefinitions="200,*">
+        <controls:NavBarControl Grid.Row="0" Grid.ColumnSpan="2" CurrentPageName="MainPage"/>
+        <Border Grid.Row="1" Grid.Column="0" Stroke="Gray" StrokeThickness="1" Padding="10" Margin="10">
+            <VerticalStackLayout Spacing="8">
+                <Label Text="Navigation" FontAttributes="Bold"/>
+                <Button Text="DAQ" Command="{Binding NavigateCommand}" CommandParameter="DAQPage"/>
+                <Button Text="Meshing" Command="{Binding NavigateCommand}" CommandParameter="MeshingPage"/>
+                <Button Text="LBM Reconstruction" Command="{Binding NavigateCommand}" CommandParameter="LBMReconstructionPage"/>
+                <Button Text="FEM Reconstruction" Command="{Binding NavigateCommand}" CommandParameter="FEMReconstructionPage"/>
             </VerticalStackLayout>
-        </Grid>
-    </ScrollView>
-
+        </Border>
+        <ScrollView Grid.Row="1" Grid.Column="1">
+            <VerticalStackLayout Spacing="10" Padding="10">
+                <Border Stroke="LightGray" StrokeThickness="1" Padding="10">
+                    <VerticalStackLayout Spacing="6">
+                        <Label Text="Configuration" FontAttributes="Bold"/>
+                        <Picker Title="Solver" ItemsSource="{Binding Solvers}" SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}"/>
+                        <Picker Title="Regularization" ItemsSource="{Binding Regularizations}" SelectedItem="{Binding ReconstructionParameters.RegularizationTechnique}"/>
+                    </VerticalStackLayout>
+                </Border>
+                <Border Stroke="LightGray" StrokeThickness="1" Padding="10">
+                    <VerticalStackLayout Spacing="6">
+                        <Label Text="Toolbox" FontAttributes="Bold"/>
+                        <Button Text="Load Measurement" Command="{Binding LoadMeasurementCommand}"/>
+                        <Button Text="Load Mesh" Command="{Binding LoadMeshCommand}"/>
+                    </VerticalStackLayout>
+                </Border>
+                <Border Stroke="LightGray" StrokeThickness="1" Padding="10">
+                    <VerticalStackLayout Spacing="6">
+                        <Label Text="Debug" FontAttributes="Bold"/>
+                        <Editor Text="{Binding DebugLog}" HeightRequest="120" IsReadOnly="True"/>
+                    </VerticalStackLayout>
+                </Border>
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
 </ContentPage>

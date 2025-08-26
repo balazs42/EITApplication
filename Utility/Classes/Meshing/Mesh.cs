@@ -25,6 +25,8 @@ namespace Utility.Classes
 
 
         Mesh DeepCopy();
+
+        MeshMetadata Metadata { get; set; }
     }
 
     /// <summary>
@@ -35,6 +37,8 @@ namespace Utility.Classes
     {
         public abstract ConductivityDistribution ConductivityDistribution { get; protected set; }
         public abstract PotentialDistribution PotentialDistribution { get; protected set; }
+
+        public MeshMetadata Metadata { get; set; } = new();
 
         public ConductivityDistribution GetConductivityDistribution() => ConductivityDistribution;
         public PotentialDistribution GetPotentialDistribution() => PotentialDistribution;

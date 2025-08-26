@@ -2,7 +2,8 @@ using System;
 using System.Numerics;
 using BusinessLayer;
 using System.Diagnostics;
-using Utility.Classes;
+using Utility.Classes.Meshing.FiniteElementMesh;
+using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.Measurement;
 using Utility.Logger;
 
@@ -139,11 +140,11 @@ namespace ServiceLayer
             }
         }
 
-        public void SaveMesh(IMesh mesh, string name)
+        public void SaveFEMMesh(FEMMesh mesh, string name)
         {
             try
             {
-                _daqPersistence.SaveMesh(mesh, name);
+                _daqPersistence.SaveFEMMesh(mesh, name);
             }
             catch (Exception ex)
             {
@@ -154,11 +155,41 @@ namespace ServiceLayer
             }
         }
 
-        public IMesh LoadMesh(string filePath)
+        public void SaveLBMMesh(LBMMesh mesh, string name)
         {
             try
             {
-                return _daqPersistence.LoadMesh(filePath);
+                _daqPersistence.SaveLBMMesh(mesh, name);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                Debug.WriteLine(ex.Message);
+                Console.WriteLine(ex.Message);
+                throw;
+            }
+        }
+
+        public FEMMesh LoadFEMMesh(string filePath)
+        {
+            try
+            {
+                return _daqPersistence.LoadFEMMesh(filePath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                Debug.WriteLine(ex.Message);
+                Console.WriteLine(ex.Message);
+                throw;
+            }
+        }
+
+        public LBMMesh LoadLBMMesh(string filePath)
+        {
+            try
+            {
+                return _daqPersistence.LoadLBMMesh(filePath);
             }
             catch (Exception ex)
             {

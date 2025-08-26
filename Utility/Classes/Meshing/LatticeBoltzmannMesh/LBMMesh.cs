@@ -1,5 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 using Utility.Classes.Factories;
+using Utility.Classes.Meshing;
 using Utility.Classes.Meshing.Graph.Graph;
 
 namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
@@ -231,7 +232,15 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
 
         public override Mesh DeepCopy()
         {
-            var copy = new LBMMesh(Nx, Ny);
+            var copy = new LBMMesh(Nx, Ny)
+            {
+                Metadata = new MeshMetadata
+                {
+                    CreatedOn = this.Metadata.CreatedOn,
+                    Generator = this.Metadata.Generator,
+                    Parameters = new Dictionary<string, string>(this.Metadata.Parameters)
+                }
+            };
 
             // copy element state
             for (int i = 0; i < _elements.Count; i++)

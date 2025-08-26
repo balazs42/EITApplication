@@ -73,18 +73,38 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public void SaveMesh()
         {
-            if (_currentMesh != null)
-                _daqService.SaveMesh(_currentMesh, Name);
+            if (_currentMesh is FEMMesh fem)
+                _daqService.SaveFEMMesh(fem, Name);
+            else if (_currentMesh is LBMMesh lbm)
+                _daqService.SaveLBMMesh(lbm, Name);
         }
 
         public void LoadMesh(string filePath)
         {
-            _currentMesh = _daqService.LoadMesh(filePath);
+            _currentMesh = SelectedMeshType == MeshType.FEM
+                ? _daqService.LoadFEMMesh(filePath)
+                : _daqService.LoadLBMMesh(filePath);
         }
 
         public void GenerateMesh()
         {
             _currentMesh = selectedMeshType == MeshType.FEM ? GenerateFEMMesh() : GenerateLBMMesh();
+            if (_currentMesh != null)
+            {
+                _currentMesh.Metadata = new MeshMetadata
+                {
+                    CreatedOn = DateTime.UtcNow,
+                    Generator = $"{SelectedMeshType}-{SelectedGeometry}",
+                    Parameters = new Dictionary<string, string>
+                    {
+                        {"Layers", Layers.ToString()},
+                        {"BoundaryFEMVertexCount", BoundaryFEMVertexCount.ToString()},
+                        {"ElectrodeCount", ElectrodeCount.ToString()},
+                        {"Nx", Nx.ToString()},
+                        {"Ny", Ny.ToString()}
+                    }
+                };
+            }
             if (_currentMesh != null)
             {
                 foreach (var el in _currentMesh.GetElectrodes())
