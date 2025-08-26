@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Utility.Classes.ReconstructionParameters;
@@ -16,6 +14,9 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public IEnumerable<DifferentialEquationSolver> Solvers => Enum.GetValues<DifferentialEquationSolver>();
         public IEnumerable<RegularizationTechnique> Regularizations => Enum.GetValues<RegularizationTechnique>();
+        public IEnumerable<ErrorMetric> ErrorMetrics => Enum.GetValues<ErrorMetric>();
+        public IEnumerable<NumericOptimizer> NumericOptimizers => Enum.GetValues<NumericOptimizer>();
+        public IEnumerable<NumericSolver> NumericSolvers => Enum.GetValues<NumericSolver>();
 
         public IAsyncRelayCommand<string> NavigateCommand { get; }
         public IAsyncRelayCommand LoadMeasurementCommand { get; }
