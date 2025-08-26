@@ -13,6 +13,8 @@ namespace Utility.Tests
         private ConductivityDistribution _sigma = new(new Dictionary<int, double>());
         private PotentialDistribution _phi = new(new Dictionary<int, double>());
 
+        public MeshMetadata Metadata { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+
         public FakeMesh(int nElems = 0, int nElectrodes = 0)
         {
             // TODO: Implement correct fake maesh

@@ -25,6 +25,9 @@
                         <Label Text="Configuration" FontAttributes="Bold"/>
                         <Picker Title="Solver" ItemsSource="{Binding Solvers}" SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}"/>
                         <Picker Title="Regularization" ItemsSource="{Binding Regularizations}" SelectedItem="{Binding ReconstructionParameters.RegularizationTechnique}"/>
+                        <Picker Title="Error Metric" ItemsSource="{Binding ErrorMetrics}" SelectedItem="{Binding ReconstructionParameters.ErrorMetric}"/>
+                        <Picker Title="Numeric Optimizer" ItemsSource="{Binding NumericOptimizers}" SelectedItem="{Binding ReconstructionParameters.NumericOptimizer}"/>
+                        <Picker Title="Numeric Solver" ItemsSource="{Binding NumericSolvers}" SelectedItem="{Binding ReconstructionParameters.NumericSolver}"/>
                     </VerticalStackLayout>
                 </Border>
                 <Border Stroke="LightGray" StrokeThickness="1" Padding="10">
