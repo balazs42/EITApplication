@@ -1,4 +1,5 @@
 ﻿using Utility.Classes.Factories;
+using Utility.Classes.Meshing;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 
 namespace Utility.Classes.Meshing.FiniteElementMesh
@@ -123,7 +124,15 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
                 newElements.Add(el2);
             }
 
-            var copy = new FEMMesh(newVertices, newElements);
+            var copy = new FEMMesh(newVertices, newElements)
+            {
+                Metadata = new MeshMetadata
+                {
+                    CreatedOn = this.Metadata.CreatedOn,
+                    Generator = this.Metadata.Generator,
+                    Parameters = new Dictionary<string, string>(this.Metadata.Parameters)
+                }
+            };
 
             if (_electrodes.Count > 0)
             {

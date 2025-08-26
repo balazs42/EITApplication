@@ -3,6 +3,8 @@ using System.Numerics;
 using DataAccessLayer;
 using Utility.Classes;
 using Utility.Classes.Measurement;
+using Utility.Classes.Meshing.FiniteElementMesh;
+using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 
 namespace BusinessLayer
 {
@@ -57,14 +59,24 @@ namespace BusinessLayer
             _daqRepository.DeleteEITMeasurement(name, savedAt);
         }
 
-        public void SaveMesh(IMesh mesh, string name)
+        public void SaveFEMMesh(FEMMesh mesh, string name)
         {
-            _meshRepository.SaveMesh(mesh, name);
+            _meshRepository.SaveFEMMesh(mesh, name);
         }
 
-        public IMesh LoadMesh(string filePath)
+        public void SaveLBMMesh(LBMMesh mesh, string name)
         {
-            return _meshRepository.LoadMesh(filePath);
+            _meshRepository.SaveLBMMesh(mesh, name);
+        }
+
+        public FEMMesh LoadFEMMesh(string filePath)
+        {
+            return _meshRepository.LoadFEMMesh(filePath);
+        }
+
+        public LBMMesh LoadLBMMesh(string filePath)
+        {
+            return _meshRepository.LoadLBMMesh(filePath);
         }
     }
 }
