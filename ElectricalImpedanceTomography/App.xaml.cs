@@ -1,5 +1,7 @@
-﻿using Utility.Tests;
+﻿using Utility.Classes.Application;
+using Utility.Tests;
 using Utility.Tests.Validation;
+using Utility.Composition;
 
 namespace ElectricalImpedanceTomography
 {
@@ -10,10 +12,10 @@ namespace ElectricalImpedanceTomography
             InitializeComponent();
 
             // Initialize Unity container, which will resolve DI objects
-            Utility.Composition.Container.InitializeContainer();
+            Container.InitializeContainer();
 
             // Apply registrations will resolve the necessary objects
-            Utility.Composition.Settings.ApplyContainerRegistration();
+            Settings.ApplyContainerRegistration();
             ServiceLayer.Settings.ApplyContainerRegistration();
 
             // Run built-in self-tests
@@ -22,6 +24,9 @@ namespace ElectricalImpedanceTomography
             // Execute analytic validation suite comparing numerical solvers to
             // reference equations (Fourier modes, dipole, layered media, etc.)
             ValidationSelfTests.RunAll();
+
+            // Workspace initialization
+            Workspace.Initialize(new User() { Id = 1, Name = "Test1", Email = "Test1@factroymail.com" }, null, null);
         }
 
         protected override Window CreateWindow(IActivationState? activationState)

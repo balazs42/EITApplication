@@ -8,6 +8,8 @@ using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.Measurement;
 using Utility.Classes.ReconstructionParameters;
 
+using Workspace = Utility.Classes.Application.Workspace;
+
 namespace ElectricalImpedanceTomography.ViewModels
 {
     public partial class LBMReconstructionPageViewModel : BaseReconstructionPageViewModel
@@ -38,6 +40,8 @@ namespace ElectricalImpedanceTomography.ViewModels
             ReconstructionParameters = new EITReconstructionParameters();
             ReconstructionParameters.DifferentialEquationSolver = DifferentialEquationSolver.LatticeBoltzmannMethod;
 
+            Workspace.SetReconstructionParameters(ReconstructionParameters);
+
             GenerateLbmMesh();
         }
 
@@ -54,10 +58,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             _mesh = (LBMMesh)MeshFactory.Create(parameters);
         }
 
-        public LBMMesh GetMesh()
-        {
-            return (LBMMesh)_mesh.DeepCopy();
-        }
+        public LBMMesh GetMesh() => (LBMMesh)_mesh.DeepCopy();
 
         [RelayCommand]
         private void ToggleWallState(object cellInfo)
@@ -115,7 +116,9 @@ namespace ElectricalImpedanceTomography.ViewModels
                 _mesh.SetElectrodes(electrodes);
             }
 
-            _reconstructionService.InitializeReconstruction(_mesh, ReconstructionParameters);
+            var reconstructionParameters = Workspace.GetReconstructionParameters();
+
+            _reconstructionService.InitializeReconstruction(_mesh, reconstructionParameters);
 
             PotentialDistribution potentialDistribution = _reconstructionService.SolveLbmForward();
 
@@ -143,7 +146,9 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             const int maxIterCount = 50;
 
-            _reconstructionService.InitializeReconstruction(_mesh, ReconstructionParameters);
+            var reconstructionParameters = Workspace.GetReconstructionParameters();
+
+            _reconstructionService.InitializeReconstruction(_mesh, reconstructionParameters);
             
             _reconstructionService.SolveLbmInverse(maxIterCount);
 
@@ -176,6 +181,8 @@ namespace ElectricalImpedanceTomography.ViewModels
                                                                                errorMetric, 
                                                                                numericSolver, 
                                                                                numericOptimizer);
+
+                    Workspace.SetReconstructionParameters(ReconstructionParameters);
                 }
             }
         }
@@ -190,6 +197,8 @@ namespace ElectricalImpedanceTomography.ViewModels
                 NumericSolver = NumericSolver.GMRES,
                 NumericOptimizer = NumericOptimizer.GradientBased
             };
+
+            Workspace.SetReconstructionParameters(parameters);
 
             _reconstructionService.InitializeReconstruction(_mesh, parameters);
             var result = await _reconstructionService.GetReconstructionResult();

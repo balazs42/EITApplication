@@ -1,5 +1,4 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
-using Google.OrTools.ConstraintSolver;
 using ServiceLayer;
 using Utility.Classes;
 using Utility.Classes.Factories;
@@ -7,6 +6,8 @@ using Utility.Classes.Measurement;
 using Utility.Classes.Meshing;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.ReconstructionParameters;
+
+using Workspace = Utility.Classes.Application.Workspace;
 
 namespace ElectricalImpedanceTomography.ViewModels
 {
@@ -36,8 +37,14 @@ namespace ElectricalImpedanceTomography.ViewModels
             _mesh = GenerateMesh();
             _reconstructedMesh = GenerateMesh();
 
+            ReconstructionParameters.DifferentialEquationSolver = DifferentialEquationSolver.FiniteElementMethod;
+
+            Workspace.SetReconstructionParameters(ReconstructionParameters);
+
+            var reconstructionParameters = Workspace.GetReconstructionParameters();
+
             // Initialize solver
-            _reconstructionService.InitializeReconstruction(_mesh, ReconstructionParameters);
+            _reconstructionService.InitializeReconstruction(_mesh, reconstructionParameters);
         }
 
 
@@ -96,7 +103,9 @@ namespace ElectricalImpedanceTomography.ViewModels
                 mesh.SetElectrodes(electrodes);
             }
 
-            _reconstructionService.InitializeReconstruction(_mesh, ReconstructionParameters);
+            var reconstructionParameters = Workspace.GetReconstructionParameters();
+
+            _reconstructionService.InitializeReconstruction(_mesh, reconstructionParameters);
 
             var retMesh = _reconstructionService.SolveFemForward(mesh);
 

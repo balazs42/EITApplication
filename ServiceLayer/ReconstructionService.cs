@@ -7,6 +7,8 @@ using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.ReconstructionParameters;
 using Utility.Logger;
 
+using Workspace = Utility.Classes.Application.Workspace;
+
 namespace ServiceLayer
 {
     public class ReconstructionService : IReconstructionService
@@ -54,7 +56,11 @@ namespace ServiceLayer
         {
             try
             {
-                return _reconstructionPersistence.SolveLbmInverse(maxIterationCount);
+                ReconstructionResult reconstructionResult = _reconstructionPersistence.SolveLbmInverse(maxIterationCount);
+
+                Workspace.AddReconstructionResultToWorkspace(reconstructionResult);
+
+                return reconstructionResult;
             }
             catch (Exception ex)
             {
@@ -129,7 +135,11 @@ namespace ServiceLayer
         {
             try
             {
-                return _reconstructionPersistence.InverseSolveStepFem(mesh, measurement, boundaryCondition, stepSize);
+                ReconstructionResult reconstructionResult = _reconstructionPersistence.InverseSolveStepFem(mesh, measurement, boundaryCondition, stepSize);
+
+                Workspace.AddReconstructionResultToWorkspace(reconstructionResult);
+
+                return reconstructionResult;
             }
             catch (Exception ex)
             {
@@ -193,7 +203,11 @@ namespace ServiceLayer
         {
             try
             {
-                return _reconstructionPersistence.InverseSolveStepGraph(mesh, measurement, boundaryCondition, stepSize);
+                ReconstructionResult reconstructionResult = _reconstructionPersistence.InverseSolveStepGraph(mesh, measurement, boundaryCondition, stepSize);
+
+                Workspace.AddReconstructionResultToWorkspace(reconstructionResult);
+
+                return reconstructionResult;
             }
             catch (Exception ex)
             {

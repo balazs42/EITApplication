@@ -21,6 +21,9 @@ namespace Utility.Classes.Factories
             _ => throw new NotSupportedException()
         };
 
+        public static IMesh CreateDefault(MeshParameters parameters) => Create(parameters, 1.0);
+        
+
         #region Finite Element Mesh Generation
 
         /// <summary>
