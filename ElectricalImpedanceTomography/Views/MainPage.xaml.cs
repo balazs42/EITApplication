@@ -14,5 +14,15 @@ namespace ElectricalImpedanceTomography.Views
 
             BindingContext = _viewModel;
         }
+
+        private void OnLoadMeasurementClicked(object sender, EventArgs e)
+        {
+            _viewModel.OnLoadMeasurementsClicked(sender, e);
+        }
+
+        private void OnLoadMeshClicked(object sender, EventArgs e)
+        {
+            _viewModel.OnLoadMeshClicked(sender, e);
+        }
     }
 }

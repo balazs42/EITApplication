@@ -2,6 +2,8 @@
 using MIConvexHull;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
+using Utility.Classes.Application;
+using System.Net.WebSockets;
 
 namespace Utility.Classes.Factories
 {
@@ -32,7 +34,9 @@ namespace Utility.Classes.Factories
         /// </summary>
         public static FEMMesh CreateCircularFEMMesh(int layers, int boundaryFEMVertexCount, int electrodeCount = 16)
         {
-            return CreateCircularFEMMeshInternal(layers, boundaryFEMVertexCount, electrodeCount, inhomogeneityValue: 3.0);
+            var mesh = CreateCircularFEMMeshInternal(layers, boundaryFEMVertexCount, electrodeCount, inhomogeneityValue: 3.0);
+
+            return mesh;
         }
 
         /// <summary>
@@ -41,7 +45,11 @@ namespace Utility.Classes.Factories
         /// </summary>
         public static FEMMesh CreateCircularFEMMesh(int layers, int boundaryFEMVertexCount, int electrodeCount = 16, double inhomogeneityValue = 3.0)
         {
-            return CreateCircularFEMMeshInternal(layers, boundaryFEMVertexCount, electrodeCount, inhomogeneityValue);
+            var mesh = CreateCircularFEMMeshInternal(layers, boundaryFEMVertexCount, electrodeCount, inhomogeneityValue);
+
+            Workspace.AddLogMessage("MeshFactory", "Created Ciruclar FEMMesh object");
+
+            return mesh;
         }
 
         // common implementation with inhomogeneity scaling
@@ -209,6 +217,8 @@ namespace Utility.Classes.Factories
                     if (dict.ContainsKey(kv.Key))
                         dict[kv.Key] = kv.Value;
             mesh.SetConductivityDistribution(new ConductivityDistribution(dict));
+
+            Workspace.AddLogMessage("MeshFactory", "Added inhomogenities to FEMMesh object's ConductivityDistribution.");
         }
 
         /// <summary>
@@ -382,6 +392,8 @@ namespace Utility.Classes.Factories
             var cd = mesh.GetElements().ToDictionary(e => e.Id, e => e.Conductivity);
             mesh.SetConductivityDistribution(new ConductivityDistribution(cd));
 
+            Workspace.AddLogMessage("MeshFactory", "Created LBMMesh from Perimeter definition.");
+
             return mesh;
         }
 
@@ -487,6 +499,8 @@ namespace Utility.Classes.Factories
             // 3) refresh conductivity distribution
             var cd = mesh.GetElements().ToDictionary(e => e.Id, e => e.Conductivity);
             mesh.SetConductivityDistribution(new ConductivityDistribution(cd));
+
+            Workspace.AddLogMessage("MeshFactory", "Created ciruclar LBMMesh object.");
 
             return mesh;
         }

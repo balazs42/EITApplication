@@ -1,5 +1,7 @@
 ﻿using Utility.Classes.ReconstructionParameters;
 
+using Workspace = Utility.Classes.Application.Workspace;
+
 namespace Utility.Classes.Factories
 {
     /// <summary>
@@ -17,12 +19,20 @@ namespace Utility.Classes.Factories
 
         private static L2ErrorMetric CreateL2Metric()
         {
-            return new L2ErrorMetric();
+            var metric = new L2ErrorMetric();
+
+            Workspace.AddLogMessage("ErrorMetricFactory", "Created L2ErrorMetric object.");
+
+            return metric;
         }
 
         private static Wasserstein2ErrorMetric CreateWasserstein2Metirc()
         {
-            return new Wasserstein2ErrorMetric();
+            var metric = new Wasserstein2ErrorMetric();
+
+            Workspace.AddLogMessage("ErrorMetricFactory", "Created Wasserstein2ErrorMetric object.");
+
+            return metric;
         }
     }
 }

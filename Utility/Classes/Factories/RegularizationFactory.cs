@@ -1,6 +1,8 @@
 ﻿using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.ReconstructionParameters;
 
+using Workspace = Utility.Classes.Application.Workspace;
+
 namespace Utility.Classes.Factories
 {
     /// <summary>
@@ -18,10 +20,45 @@ namespace Utility.Classes.Factories
             _ => throw new NotSupportedException()
         };
 
-        private static NoRegularizer CreateNoRegularizer() => new NoRegularizer();
-        private static ZeroOrderTikhonov CreateZeroOrderTikhonovRegulizer(ConductivityDistribution conductivityDistribution) => new ZeroOrderTikhonov(conductivityDistribution);
-        private static FirstOrderTikhonov CreateFirstOrderTikhonovRegulizer() => new FirstOrderTikhonov();
-        private static LaplaceRegularizer CreateLaplaceRegulizer() => new LaplaceRegularizer();
-        private static TotalVariationRegularizer CreateTotalVariationRegulizer() => new TotalVariationRegularizer();
+        private static NoRegularizer CreateNoRegularizer() 
+        {
+            var regulizer = new NoRegularizer();
+
+            Workspace.AddLogMessage("RegularizationFactory","Created No Regulizer object.");
+
+            return regulizer;
+        }
+        private static ZeroOrderTikhonov CreateZeroOrderTikhonovRegulizer(ConductivityDistribution conductivityDistribution)
+        {
+            var regulizer = new ZeroOrderTikhonov(conductivityDistribution);
+
+            Workspace.AddLogMessage("RegularizationFactory","Created Zero Order Tikhonov Regulizer object.");
+
+            return regulizer;
+        }
+        private static FirstOrderTikhonov CreateFirstOrderTikhonovRegulizer() 
+        {
+            var regulizer = new FirstOrderTikhonov();
+
+            Workspace.AddLogMessage("RegularizationFactory","Created First Order Tikhonov Regulizer object.");
+
+            return regulizer;
+        }
+        private static LaplaceRegularizer CreateLaplaceRegulizer() 
+        {
+            var regulizer = new LaplaceRegularizer();
+
+            Workspace.AddLogMessage("RegularizationFactory","Created Laplace Regulizer object.");
+
+            return regulizer;
+        }
+        private static TotalVariationRegularizer CreateTotalVariationRegulizer()
+        {
+            var regulizer = new TotalVariationRegularizer();
+
+            Workspace.AddLogMessage("RegularizationFactory","Created Total Variation Regulizer object.");
+
+            return regulizer;
+        }
     }
 }

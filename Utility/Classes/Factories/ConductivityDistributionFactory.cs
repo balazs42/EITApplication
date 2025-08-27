@@ -1,4 +1,5 @@
 ﻿using Utility.Classes.Meshing.FiniteElementMesh;
+using Workspace = Utility.Classes.Application.Workspace;
 
 namespace Utility.Classes.Factories
 {
@@ -17,6 +18,8 @@ namespace Utility.Classes.Factories
             // Reassing conductivity values
             foreach (var kvp in homogeneousDistribution.Conductivities)
                 homogeneousDistribution.Conductivities[kvp.Key] = homogeneousValue;
+
+            Workspace.AddLogMessage("ConductivityDistributionFactory", "Created Homogeneous ConductivityDistribution object.");
 
             return homogeneousDistribution;
         }
@@ -37,6 +40,8 @@ namespace Utility.Classes.Factories
             foreach (var kvp in randomDistribution.Conductivities)
                 randomDistribution.Conductivities[kvp.Key] = r.NextDouble() * max;
 
+            Workspace.AddLogMessage("ConductivityDistributionFactory", "Created Random ConductivityDistribution object.");
+            
             return randomDistribution;
         }
 
@@ -57,6 +62,8 @@ namespace Utility.Classes.Factories
 
             foreach (var kvp in conductivityDistribution.Conductivities)
                     conductivityDistribution.Conductivities[kvp.Key] = conductivityDistribution.Conductivities[kvp.Key] * scaling;
+
+            Workspace.AddLogMessage("ConductivityDistributionFactory", "Created Slightly differing ConductivityDistribution object.");
 
             return conductivityDistribution;
         }
@@ -89,6 +96,8 @@ namespace Utility.Classes.Factories
                 if (r.NextDouble() > ratio)
                     conductivityDistribution.Conductivities[kvp.Key] = conductivityDistribution.Conductivities[kvp.Key] * scaling;
 
+            Workspace.AddLogMessage("ConductivityDistributionFactory", "Created Random Slighly differing ConductivityDistribution object.");
+
             return conductivityDistribution;
         }
 
@@ -105,6 +114,8 @@ namespace Utility.Classes.Factories
 
             foreach(var element in elements)
                 conductivityDistribution.Add(element.Id, element.Conductivity);
+
+            Workspace.AddLogMessage("ConductivityDistributionFactory", "Created from FEMMesh ConductivityDistribution object.");
 
             return new ConductivityDistribution(conductivityDistribution);
         }

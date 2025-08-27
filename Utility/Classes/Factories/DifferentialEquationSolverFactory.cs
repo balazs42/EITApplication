@@ -2,6 +2,8 @@
 using Utility.Classes.ReconstructionParameters;
 using Utility.Classes.Solvers.GraphBasedSolver;
 
+using Workspace = Utility.Classes.Application.Workspace;
+
 namespace Utility.Classes.Factories
 {
     /// <summary>
@@ -19,12 +21,20 @@ namespace Utility.Classes.Factories
 
         private static FiniteElementDESolver CreateFiniteElementSolver(FEMMesh mesh, INumericSolver numericSolver)
         {
-            return new FiniteElementDESolver(mesh, numericSolver);
+            var deSolver = new FiniteElementDESolver(mesh, numericSolver);
+
+            Workspace.AddLogMessage("DifferentialEquationSolverFactory", "Created Finite Element solver object.");
+
+            return deSolver;
         }
 
         private static LatticeBoltzmannDESolver CreateLatticeBoltzmannSolver()
         {
-            return new LatticeBoltzmannDESolver();
+            var deSolver = new LatticeBoltzmannDESolver();
+
+            Workspace.AddLogMessage("DifferentialEquationSolverFactory", "Created Lattice Boltzmann solver object.");
+
+            return deSolver;
         }
 
         private static GraphSolver CreateGraphBasedSolver(FEMMesh mesh, INumericSolver numericSolver)
@@ -38,6 +48,8 @@ namespace Utility.Classes.Factories
             GraphBasedSolver graphBasedSolver = new(mesh, numericSolver, lambdaW, lambdaAlpha, stepW, stepAlpha, epsilon);
 
             GraphSolver solver = new(numericSolver, graphBasedSolver);
+
+            Workspace.AddLogMessage("DifferentialEquationSolverFactory", "Created Graph Based solver object.");
 
             return solver;
         }
