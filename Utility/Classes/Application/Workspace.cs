@@ -10,6 +10,7 @@ namespace Utility.Classes.Application
 
         private static List<ReconstructionResult> _reconstructionResults = [];
         private static Dictionary<DateTime, string> _messages = [];
+        public static event Action<DateTime, string>? MessageAdded;
 
         private static bool _initialized = false; 
 
@@ -27,7 +28,7 @@ namespace Utility.Classes.Application
 
             _initialized = true;
 
-            _messages.Add(DateTime.Now, "Workspace initialized!");
+            AddMessage("Workspace initialized!");
         }
 
         public static void SetUser(User user) => _user = user;
@@ -43,7 +44,15 @@ namespace Utility.Classes.Application
         public static void AddReconstructionResultToWorkspace(ReconstructionResult reconstructionResult) => _reconstructionResults.Add(reconstructionResult);
         public static void RemoveReconstructionResultFromWorkspace(int index) => _reconstructionResults.RemoveAt(index);
 
-        public static void AddMessage(string message) => _messages.Add(DateTime.Now, message);
-        public static void AddLogMessage(string source, string message) => _messages.Add(DateTime.Now, source + ": " + message);
+        public static void AddMessage(string message)
+        {
+            DateTime time = DateTime.Now;
+            _messages.Add(time, message);
+            MessageAdded?.Invoke(time, message);
+        }
+
+        public static void AddLogMessage(string source, string message) => AddMessage(source + ": " + message);
+
+        public static IReadOnlyDictionary<DateTime, string> GetMessages() => _messages;
     }
 }
