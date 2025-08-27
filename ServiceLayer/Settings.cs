@@ -1,4 +1,5 @@
 ﻿using Unity;
+using Utility.Logger;
 
 namespace ServiceLayer
 {
@@ -8,7 +9,8 @@ namespace ServiceLayer
         {
             return BusinessLayer.Settings.ApplyContainerRegistration()
                 .RegisterType<IDAQService, DAQService>()
-                .RegisterType<IReconstructionService, ReconstructionService>();
+                .RegisterType<IReconstructionService, ReconstructionService>()
+                .RegisterType<ILogger, WorkspaceLogger>();
         }
     }
 }

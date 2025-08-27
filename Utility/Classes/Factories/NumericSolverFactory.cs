@@ -1,5 +1,7 @@
 ﻿using Utility.Classes.ReconstructionParameters;
 
+using Workspace = Utility.Classes.Application.Workspace;
+
 namespace Utility.Classes.Factories
 {
     /// <summary>
@@ -17,10 +19,37 @@ namespace Utility.Classes.Factories
             _ => throw new NotSupportedException()
         };
 
-        private static LuDecompositionSolver CreateLUDecompositionSolver() => new LuDecompositionSolver();
-        private static SVDSolver CreateSVDSolver() => new SVDSolver();
-        private static tSVDSolver CreatetSVDSolver() => new tSVDSolver();
-        private static GmresSolver CreateGMRESSolver() => new GmresSolver();
-        
+        private static LuDecompositionSolver CreateLUDecompositionSolver() 
+        {
+            var solver = new LuDecompositionSolver();
+
+            Workspace.AddLogMessage("NumericSolverFactory","Created LU Decomposition Numeric Solver object.");
+
+            return solver;
+        }
+        private static SVDSolver CreateSVDSolver() 
+        {
+            var solver = new SVDSolver();
+
+            Workspace.AddLogMessage("NumericSolverFactory","Created SVD Numeric Solver object.");
+
+            return solver;
+        }
+        private static tSVDSolver CreatetSVDSolver() 
+        {
+            var solver = new tSVDSolver();
+
+            Workspace.AddLogMessage("NumericSolverFactory","Created tSVD Numeric Solver object.");
+
+            return solver;
+        }
+        private static GmresSolver CreateGMRESSolver()
+        {
+            var solver = new GmresSolver();
+
+            Workspace.AddLogMessage("NumericSolverFactory","Created GRMES Numeric Solver object.");
+
+            return solver;
+        }        
     }
 }

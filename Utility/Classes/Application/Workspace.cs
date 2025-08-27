@@ -9,6 +9,7 @@ namespace Utility.Classes.Application
         private static IMesh? _mesh { get; set; } = null;
 
         private static List<ReconstructionResult> _reconstructionResults = [];
+        private static List<string> _messages = [];
 
         private static bool _initialized = false; 
 
@@ -25,6 +26,8 @@ namespace Utility.Classes.Application
                 _mesh = mesh;
 
             _initialized = true;
+
+            _messages.Add("Workspace initialized!");
         }
 
         public static void SetUser(User user) => _user = user;
@@ -39,5 +42,9 @@ namespace Utility.Classes.Application
 
         public static void AddReconstructionResultToWorkspace(ReconstructionResult reconstructionResult) => _reconstructionResults.Add(reconstructionResult);
         public static void RemoveReconstructionResultFromWorkspace(int index) => _reconstructionResults.RemoveAt(index);
+
+        public static void AddMessage(string message) => _messages.Add(message);
+        public static void AddLogMessage(string source, string message) => _messages.Add(source + ": " + message);
+        public static void RemoveMessageAt(int index) => _messages.RemoveAt(index);
     }
 }

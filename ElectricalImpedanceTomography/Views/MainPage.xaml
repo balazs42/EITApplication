@@ -33,8 +33,8 @@
                 <Border Stroke="LightGray" StrokeThickness="1" Padding="10">
                     <VerticalStackLayout Spacing="6">
                         <Label Text="Toolbox" FontAttributes="Bold"/>
-                        <Button Text="Load Measurement" Command="{Binding LoadMeasurementCommand}"/>
-                        <Button Text="Load Mesh" Command="{Binding LoadMeshCommand}"/>
+                        <Button Text="Load Measurement" Clicked="OnLoadMeasurementClicked"/>
+                        <Button Text="Load Mesh" Clicked="OnLoadMeshClicked"/>
                     </VerticalStackLayout>
                 </Border>
                 <Border Stroke="LightGray" StrokeThickness="1" Padding="10">

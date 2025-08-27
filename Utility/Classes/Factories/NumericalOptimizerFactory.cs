@@ -1,5 +1,7 @@
 ﻿using Utility.Classes.ReconstructionParameters;
 
+using Workspace = Utility.Classes.Application.Workspace;
+
 namespace Utility.Classes.Factories
 {
     /// <summary>
@@ -23,15 +25,69 @@ namespace Utility.Classes.Factories
         };
 
 
-        private static GradientBasedOptimizer CreateGradientBasedOptimizer() => new GradientBasedOptimizer();
-        private static PolyakHeavyBallOptimizer CreatePolyakHeavyBallOptimizer() => new PolyakHeavyBallOptimizer();
-        private static AdamGradientOptimizer CreateAdamGradientOptimizer() => new AdamGradientOptimizer();
-        private static NesterovAcceleratedGradientOptimizer CreateNesterovAcceleratedGradientOptimizer() => new NesterovAcceleratedGradientOptimizer();
-        private static GlobalTunnelingDescentOptimizer CreateGlobalTunnelingDescentOptimizer() => new GlobalTunnelingDescentOptimizer();
-        private static HomotopyContinuationOptimizer CreateHomotopyContinuationOptimizer(ConductivityDistribution sigmaPrior) => new HomotopyContinuationOptimizer(sigmaPrior);
-        private static SimulatedAnnealingOptimizer CreateSimulatedAnnealingOptimizer() => new SimulatedAnnealingOptimizer();
-        private static ParticleSwarmOptimizer CreateParticleSwarmOptimizer() => new ParticleSwarmOptimizer();
+        private static GradientBasedOptimizer CreateGradientBasedOptimizer() 
+        {
+            var optimizer = new GradientBasedOptimizer();
 
+            Workspace.AddLogMessage("NumericOptimizerFactory","Created Gradient Based Numeric Optimizer object.");
 
+            return optimizer;
+        }
+        private static PolyakHeavyBallOptimizer CreatePolyakHeavyBallOptimizer() 
+        {
+            var optimizer = new PolyakHeavyBallOptimizer();
+
+            Workspace.AddLogMessage("NumericOptimizerFactory","Created Polyak Heavy Ball Numeric Optimizer object.");
+
+            return optimizer;
+        }
+        private static AdamGradientOptimizer CreateAdamGradientOptimizer() 
+        {
+            var optimizer = new AdamGradientOptimizer();
+
+            Workspace.AddLogMessage("NumericOptimizerFactory","Created Adam Gradient Numeric Optimizer object.");
+
+            return optimizer;
+        }
+        private static NesterovAcceleratedGradientOptimizer CreateNesterovAcceleratedGradientOptimizer() 
+        {
+            var optimizer = new NesterovAcceleratedGradientOptimizer();
+
+            Workspace.AddLogMessage("NumericOptimizerFactory","Created Nesterov Accelerated Gradient Numeric Optimizer object.");
+
+            return optimizer;
+        }
+        private static GlobalTunnelingDescentOptimizer CreateGlobalTunnelingDescentOptimizer() 
+        {
+            var optimizer = new GlobalTunnelingDescentOptimizer();
+
+            Workspace.AddLogMessage("NumericOptimizerFactory","Created Global Tunneling Descent Numeric Optimizer object.");
+
+            return optimizer;
+        }
+        private static HomotopyContinuationOptimizer CreateHomotopyContinuationOptimizer(ConductivityDistribution sigmaPrior)
+        {
+            var optimizer = new HomotopyContinuationOptimizer(sigmaPrior);
+
+            Workspace.AddLogMessage("NumericOptimizerFactory", "Created Homotopy Continuation Numeric Optimizer object.");
+
+            return optimizer;
+        }
+        private static SimulatedAnnealingOptimizer CreateSimulatedAnnealingOptimizer() 
+        {
+            var optimizer = new SimulatedAnnealingOptimizer();
+
+            Workspace.AddLogMessage("NumericOptimizerFactory","Created Simulated Annealing Numeric Optimizer object.");
+
+            return optimizer;
+        }
+        private static ParticleSwarmOptimizer CreateParticleSwarmOptimizer() 
+        {
+            var optimizer = new ParticleSwarmOptimizer();
+
+            Workspace.AddLogMessage("NumericOptimizerFactory","Created Particle Swarm Numeric Optimizer object.");
+
+            return optimizer;
+        }
     }
 }
