@@ -1,4 +1,6 @@
-﻿namespace Utility.Classes.Meshing
+﻿using Utility.Classes.Meshing.FiniteElementMesh;
+
+namespace Utility.Classes.Meshing
 {
     /// <summary>
     /// Represents an edge in the FEM model.

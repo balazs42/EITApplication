@@ -170,5 +170,8 @@ namespace Utility.Classes
         /// <param name="graphToConvert">The graph to convert.</param>
         /// <returns>A mesh object that resembles the original graph.</returns>
         public abstract Mesh<TElement, TElectrode> FromGraph(Graph graphToConvert);
+
+        public abstract void SaveMesh();
+        public abstract Mesh<TElement, TElectrode> LoadMesh();
     }
 }

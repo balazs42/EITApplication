@@ -17,7 +17,7 @@ namespace ElectricalImpedanceTomography.Views
 
         private void OnLoadMeasurementClicked(object sender, EventArgs e)
         {
-            _viewModel.OnLoadMeasurementsClicked(sender, e);
+            _viewModel.OnLoadMeasurementClicked(sender, e);
         }
 
         private void OnLoadMeshClicked(object sender, EventArgs e)

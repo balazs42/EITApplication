@@ -1,5 +1,4 @@
-﻿using Utility.Classes.Meshing;
-using Utility.Classes.Meshing.FiniteElementMesh;
+﻿using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 
 namespace Utility.Classes.Solvers.FiniteElementSolver
