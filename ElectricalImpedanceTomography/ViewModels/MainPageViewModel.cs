@@ -13,11 +13,11 @@ namespace ElectricalImpedanceTomography.ViewModels
         [ObservableProperty]
         private EITReconstructionParameters reconstructionParameters = new();
 
-        public static IEnumerable<DifferentialEquationSolver> Solvers => Enum.GetValues<DifferentialEquationSolver>();
-        public static IEnumerable<RegularizationTechnique> Regularizations => Enum.GetValues<RegularizationTechnique>();
-        public static IEnumerable<ErrorMetric> ErrorMetrics => Enum.GetValues<ErrorMetric>();
-        public static IEnumerable<NumericOptimizer> NumericOptimizers => Enum.GetValues<NumericOptimizer>();
-        public static IEnumerable<NumericSolver> NumericSolvers => Enum.GetValues<NumericSolver>();
+        public IEnumerable<DifferentialEquationSolver> Solvers => Enum.GetValues<DifferentialEquationSolver>();
+        public IEnumerable<RegularizationTechnique> Regularizations => Enum.GetValues<RegularizationTechnique>();
+        public IEnumerable<ErrorMetric> ErrorMetrics => Enum.GetValues<ErrorMetric>();
+        public IEnumerable<NumericOptimizer> NumericOptimizers => Enum.GetValues<NumericOptimizer>();
+        public IEnumerable<NumericSolver> NumericSolvers => Enum.GetValues<NumericSolver>();
 
         //public IAsyncRelayCommand<string> NavigateCommand { get; }
         //public IAsyncRelayCommand LoadMeasurementCommand { get; }
@@ -40,7 +40,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             DebugLog += $"{time:HH:mm:ss} >> {message}\n";
         }
 
-        public void OnLoadMeasurementsClicked(object sender, EventArgs e)
+        public void OnLoadMeasurementClicked(object sender, EventArgs e)
         {
 
         }

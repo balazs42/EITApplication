@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace Utility.Classes.Meshing
 {
     public class MeshMetadata

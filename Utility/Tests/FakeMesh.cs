@@ -1,5 +1,6 @@
 ﻿using Utility.Classes;
 using Utility.Classes.Meshing;
+using Utility.Classes.Meshing.FiniteElementMesh;
 
 namespace Utility.Tests
 {
