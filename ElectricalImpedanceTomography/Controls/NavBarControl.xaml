@@ -57,8 +57,8 @@
             </Button>
 
             <Button x:Name="DAQPageButton"
-                    Text="DAQ"
                     Style="{StaticResource NavBarButtonStyle}"
+                    Text="DAQ"
                     Clicked="NavigateButton_Clicked" >
                 <Button.Shadow>
                     <Shadow Brush="#222222" Opacity="1.0" Radius="1.0" Offset="1.0, 1.0"/>
