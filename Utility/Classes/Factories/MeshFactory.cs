@@ -4,6 +4,7 @@ using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.Application;
 using System.Net.WebSockets;
+using System.Linq;
 
 namespace Utility.Classes.Factories
 {
@@ -36,6 +37,11 @@ namespace Utility.Classes.Factories
         {
             var mesh = CreateCircularFEMMeshInternal(layers, boundaryFEMVertexCount, electrodeCount, inhomogeneityValue: 3.0);
 
+            mesh.Metadata.Generator = nameof(CreateCircularFEMMesh);
+            mesh.Metadata.Parameters["layers"] = layers.ToString();
+            mesh.Metadata.Parameters["boundaryFEMVertexCount"] = boundaryFEMVertexCount.ToString();
+            mesh.Metadata.Parameters["electrodeCount"] = electrodeCount.ToString();
+
             return mesh;
         }
 
@@ -46,6 +52,12 @@ namespace Utility.Classes.Factories
         public static FEMMesh CreateCircularFEMMesh(int layers, int boundaryFEMVertexCount, int electrodeCount = 16, double inhomogeneityValue = 3.0)
         {
             var mesh = CreateCircularFEMMeshInternal(layers, boundaryFEMVertexCount, electrodeCount, inhomogeneityValue);
+
+            mesh.Metadata.Generator = nameof(CreateCircularFEMMesh);
+            mesh.Metadata.Parameters["layers"] = layers.ToString();
+            mesh.Metadata.Parameters["boundaryFEMVertexCount"] = boundaryFEMVertexCount.ToString();
+            mesh.Metadata.Parameters["electrodeCount"] = electrodeCount.ToString();
+            mesh.Metadata.Parameters["inhomogeneityValue"] = inhomogeneityValue.ToString();
 
             Workspace.AddLogMessage("MeshFactory", "Created Ciruclar FEMMesh object");
 
@@ -312,6 +324,11 @@ namespace Utility.Classes.Factories
             }
 
             mesh.Initialize();
+
+            mesh.Metadata.Generator = nameof(CreatePolygonFEMMesh);
+            mesh.Metadata.Parameters["electrodeCount"] = electrodeCount.ToString();
+            mesh.Metadata.Parameters["perimeter"] = string.Join(";", perimeter.Select(p => $"{p.x},{p.y}"));
+
             return mesh;
         }
 
@@ -329,14 +346,25 @@ namespace Utility.Classes.Factories
                 ( hw,  hh),
                 (-hw,  hh)
             };
-            return CreatePolygonFEMMesh(pts, electrodeCount);
+            var mesh = CreatePolygonFEMMesh(pts, electrodeCount);
+            mesh.Metadata.Generator = nameof(CreateRectangularFEMMesh);
+            mesh.Metadata.Parameters["width"] = width.ToString();
+            mesh.Metadata.Parameters["height"] = height.ToString();
+            mesh.Metadata.Parameters["electrodeCount"] = electrodeCount.ToString();
+            return mesh;
         }
 
         /// <summary>
         /// Create a FEM mesh from an arbitrary thorax-shaped perimeter.
         /// </summary>
         public static FEMMesh CreateThoraxFEMMesh(IList<(double x, double y)> perimeter, int electrodeCount = 16)
-            => CreatePolygonFEMMesh(perimeter, electrodeCount);
+        {
+            var mesh = CreatePolygonFEMMesh(perimeter, electrodeCount);
+            mesh.Metadata.Generator = nameof(CreateThoraxFEMMesh);
+            mesh.Metadata.Parameters["electrodeCount"] = electrodeCount.ToString();
+            mesh.Metadata.Parameters["perimeter"] = string.Join(";", perimeter.Select(p => $"{p.x},{p.y}"));
+            return mesh;
+        }
 
         private class TriFEMVertex : IVertex
         {
@@ -394,6 +422,12 @@ namespace Utility.Classes.Factories
 
             Workspace.AddLogMessage("MeshFactory", "Created LBMMesh from Perimeter definition.");
 
+            mesh.Metadata.Generator = nameof(CreateLBMMeshFromPerimeter);
+            mesh.Metadata.Parameters["nx"] = nx.ToString();
+            mesh.Metadata.Parameters["ny"] = ny.ToString();
+            mesh.Metadata.Parameters["electrodeCount"] = electrodeCount.ToString();
+            mesh.Metadata.Parameters["perimeter"] = string.Join(";", perimeter.Select(p => $"{p.x},{p.y}"));
+
             return mesh;
         }
 
@@ -406,15 +440,33 @@ namespace Utility.Classes.Factories
                 (nx - 2, ny - 2),
                 (1, ny - 2)
             };
-            return CreateLBMMeshFromPerimeter(nx, ny, pts, electrodeCount);
+            var mesh = CreateLBMMeshFromPerimeter(nx, ny, pts, electrodeCount);
+            mesh.Metadata.Generator = nameof(CreateRectangularLBMMesh);
+            mesh.Metadata.Parameters["nx"] = nx.ToString();
+            mesh.Metadata.Parameters["ny"] = ny.ToString();
+            mesh.Metadata.Parameters["electrodeCount"] = electrodeCount.ToString();
+            return mesh;
         }
 
         public static LBMMesh CreateThoraxLBMMesh(int nx, int ny, IList<(double x, double y)> perimeter, int electrodeCount = 16)
-            => CreateLBMMeshFromPerimeter(nx, ny, perimeter, electrodeCount);
+        {
+            var mesh = CreateLBMMeshFromPerimeter(nx, ny, perimeter, electrodeCount);
+            mesh.Metadata.Generator = nameof(CreateThoraxLBMMesh);
+            mesh.Metadata.Parameters["nx"] = nx.ToString();
+            mesh.Metadata.Parameters["ny"] = ny.ToString();
+            mesh.Metadata.Parameters["electrodeCount"] = electrodeCount.ToString();
+            mesh.Metadata.Parameters["perimeter"] = string.Join(";", perimeter.Select(p => $"{p.x},{p.y}"));
+            return mesh;
+        }
 
         private static LBMMesh LBMCreateRectangularWithBorder(int nx = 15, int ny = 15, int electrodeCount = 16)
         {
-            return new LBMMesh(nx, ny);
+            var mesh = new LBMMesh(nx, ny);
+            mesh.Metadata.Generator = nameof(LBMCreateRectangularWithBorder);
+            mesh.Metadata.Parameters["nx"] = nx.ToString();
+            mesh.Metadata.Parameters["ny"] = ny.ToString();
+            mesh.Metadata.Parameters["electrodeCount"] = electrodeCount.ToString();
+            return mesh;
         }
 
 
@@ -445,6 +497,12 @@ namespace Utility.Classes.Factories
             var cd = mesh.GetElements().ToDictionary(e => e.Id, e => e.Conductivity);
             mesh.SetConductivityDistribution(new ConductivityDistribution(cd));
 
+            mesh.Metadata.Generator = nameof(LBMCreateRectangularWithInhomogenity);
+            mesh.Metadata.Parameters["nx"] = nx.ToString();
+            mesh.Metadata.Parameters["ny"] = ny.ToString();
+            mesh.Metadata.Parameters["electrodeCount"] = electrodeCount.ToString();
+            mesh.Metadata.Parameters["inhomogenityValue"] = inhomogenityValue.ToString();
+            mesh.Metadata.Parameters["inhomogenitySize"] = inhomogenitySize.ToString();
             return mesh;
         }
 
@@ -501,6 +559,12 @@ namespace Utility.Classes.Factories
             mesh.SetConductivityDistribution(new ConductivityDistribution(cd));
 
             Workspace.AddLogMessage("MeshFactory", "Created ciruclar LBMMesh object.");
+
+            mesh.Metadata.Generator = nameof(LBMCreateCircular);
+            mesh.Metadata.Parameters["nx"] = nx.ToString();
+            mesh.Metadata.Parameters["ny"] = ny.ToString();
+            mesh.Metadata.Parameters["radius"] = radius.ToString();
+            mesh.Metadata.Parameters["electrodeCount"] = electrodeCount.ToString();
 
             return mesh;
         }
