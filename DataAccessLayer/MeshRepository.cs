@@ -20,7 +20,8 @@ namespace DataAccessLayer
         {
             if (mesh == null) throw new ArgumentNullException(nameof(mesh));
             if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Name required.", nameof(name));
-
+            // Update metadata before serialization
+            mesh.Metadata.ElementCount = mesh.GetElements().Count;
             var doc = BuildFemDocument(mesh, name);
             SaveDocument(doc, name, "fem");
         }
@@ -29,7 +30,8 @@ namespace DataAccessLayer
         {
             if (mesh == null) throw new ArgumentNullException(nameof(mesh));
             if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Name required.", nameof(name));
-
+            // Update metadata before serialization
+            mesh.Metadata.ElementCount = mesh.GetElements().Count;
             var doc = BuildLbmDocument(mesh, name);
             SaveDocument(doc, name, "lbm");
         }
@@ -45,15 +47,16 @@ namespace DataAccessLayer
             var metadata = DeserializeMetadata(root.Element("Metadata"));
             FEMMesh mesh = CreateFemFromMetadata(metadata);
 
-            // overwrite vertex data
+            // overwrite vertex data including neighbor relationships
+            var vertexMap = mesh.Vertices.ToDictionary(v => v.GlobalId);
+            var neighborMap = new Dictionary<int, List<int>>();
             var verticesEl = root.Element("Vertices");
             if (verticesEl != null)
             {
                 foreach (var vx in verticesEl.Elements("Vertex"))
                 {
                     int id = (int)vx.Attribute("id");
-                    var v = mesh.Vertices.FirstOrDefault(v => v.GlobalId == id);
-                    if (v != null)
+                    if (vertexMap.TryGetValue(id, out var v))
                     {
                         v.X = (double)vx.Attribute("x");
                         v.Y = (double)vx.Attribute("y");
@@ -62,8 +65,41 @@ namespace DataAccessLayer
                         v.IsElectrode = (bool)vx.Attribute("isElectrode");
                         v.BoundaryId = (int)vx.Attribute("boundaryId");
                         v.ElectrodeId = (int)vx.Attribute("electrodeId");
+                        var nids = vx.Element("NeighborIds")?.Elements("NeighborId").Select(n => (int)n).ToList() ?? new List<int>();
+                        neighborMap[id] = nids;
                     }
                 }
+                // apply neighbors after all vertices processed to avoid circular reference issues
+                foreach (var kv in neighborMap)
+                {
+                    if (vertexMap.TryGetValue(kv.Key, out var v))
+                    {
+                        v.Neighbors = kv.Value.Where(vertexMap.ContainsKey).Select(id => vertexMap[id]).ToList();
+                    }
+                }
+            }
+
+            // elements
+            var elementsEl = root.Element("Elements");
+            if (elementsEl != null)
+            {
+                var newElements = new List<FEMElement>();
+                foreach (var e in elementsEl.Elements("Element"))
+                {
+                    int id = (int)e.Attribute("id");
+                    var ids = e.Element("VertexIds")?.Elements("VertexId").Select(vx => (int)vx).ToList() ?? new List<int>();
+                    if (ids.Count == 3 && vertexMap.ContainsKey(ids[0]) && vertexMap.ContainsKey(ids[1]) && vertexMap.ContainsKey(ids[2]))
+                    {
+                        var el = new FEMElement(id, vertexMap[ids[0]], vertexMap[ids[1]], vertexMap[ids[2]])
+                        {
+                            Conductivity = (double)e.Attribute("conductivity"),
+                            Permittivity = (double)e.Attribute("permittivity")
+                        };
+                        newElements.Add(el);
+                    }
+                }
+                if (newElements.Count > 0)
+                    mesh.SetElements(newElements);
             }
 
             // electrodes
@@ -114,6 +150,30 @@ namespace DataAccessLayer
             var metadata = DeserializeMetadata(root.Element("Metadata"));
             LBMMesh mesh = CreateLbmFromMetadata(metadata);
 
+            // elements
+            var elementsEl = root.Element("Elements");
+            if (elementsEl != null)
+            {
+                var elementDict = mesh.GetElements().Cast<LBMElement>().ToDictionary(e => e.Id);
+                foreach (var e in elementsEl.Elements("Element"))
+                {
+                    int id = (int)e.Attribute("id");
+                    if (elementDict.TryGetValue(id, out var el))
+                    {
+                        el.Conductivity = (double)e.Attribute("conductivity");
+                        el.Permittivity = (double)e.Attribute("permittivity");
+                        el.IsWall = (bool)e.Attribute("isWall");
+                        el.IsElectrode = (bool)e.Attribute("isElectrode");
+                        var fiVals = e.Element("Fi")?.Elements("Val").Select(v => (double)v).ToArray();
+                        if (fiVals != null)
+                        {
+                            for (int i = 0; i < Math.Min(9, fiVals.Length); i++)
+                                el.Fi[i] = fiVals[i];
+                        }
+                    }
+                }
+            }
+
             // electrodes
             var electrodes = root.Element("Electrodes")?.Elements("Electrode").Select(e =>
                 new LBMElectrode(
@@ -157,17 +217,15 @@ namespace DataAccessLayer
                 new XElement("FEMMesh",
                     new XAttribute("name", name),
                     SerializeMetadata(mesh.Metadata),
-                    new XElement("Vertices",
-                        mesh.Vertices.Select(v =>
-                            new XElement("Vertex",
-                                new XAttribute("id", v.GlobalId),
-                                new XAttribute("x", v.X),
-                                new XAttribute("y", v.Y),
-                                new XAttribute("potential", v.Potential),
-                                new XAttribute("isBoundary", v.IsBoundary),
-                                new XAttribute("isElectrode", v.IsElectrode),
-                                new XAttribute("boundaryId", v.BoundaryId),
-                                new XAttribute("electrodeId", v.ElectrodeId))
+                    new XElement("Elements",
+                        mesh.ElementsTyped.Select(el =>
+                            new XElement("Element",
+                                new XAttribute("id", el.Id),
+                                new XAttribute("conductivity", el.Conductivity),
+                                new XAttribute("permittivity", el.Permittivity),
+                                new XElement("VertexIds",
+                                    el.Vertices.Select(v => new XElement("VertexId", v.GlobalId)))
+                            )
                         )
                     ),
                     new XElement("Electrodes",
@@ -184,6 +242,22 @@ namespace DataAccessLayer
                                 new XAttribute("pointElectrode", e.PointElectrode),
                                 e.FEMVertexIds.Count > 0 ?
                                     new XElement("VertexIds", e.FEMVertexIds.Select(id => new XElement("VertexId", id))) : null
+                            )
+                        )
+                    ),
+                    new XElement("Vertices",
+                        mesh.Vertices.Select(v =>
+                            new XElement("Vertex",
+                                new XAttribute("id", v.GlobalId),
+                                new XAttribute("x", v.X),
+                                new XAttribute("y", v.Y),
+                                new XAttribute("potential", v.Potential),
+                                new XAttribute("isBoundary", v.IsBoundary),
+                                new XAttribute("isElectrode", v.IsElectrode),
+                                new XAttribute("boundaryId", v.BoundaryId),
+                                new XAttribute("electrodeId", v.ElectrodeId),
+                                v.Neighbors.Count > 0 ?
+                                    new XElement("NeighborIds", v.Neighbors.Select(n => new XElement("NeighborId", n.GlobalId))) : null
                             )
                         )
                     ),
@@ -214,6 +288,19 @@ namespace DataAccessLayer
                     new XAttribute("nx", mesh.Nx),
                     new XAttribute("ny", mesh.Ny),
                     SerializeMetadata(mesh.Metadata),
+                    new XElement("Elements",
+                        mesh.ElementsTyped.Cast<LBMElement>().Select(el =>
+                            new XElement("Element",
+                                new XAttribute("id", el.Id),
+                                new XAttribute("conductivity", el.Conductivity),
+                                new XAttribute("permittivity", el.Permittivity),
+                                new XAttribute("isWall", el.IsWall),
+                                new XAttribute("isElectrode", el.IsElectrode),
+                                new XElement("Fi",
+                                    Enumerable.Range(0, 9).Select(i => new XElement("Val", el.Fi[i])))
+                            )
+                        )
+                    ),
                     new XElement("Electrodes",
                         mesh.ElectrodesTyped.Select(e =>
                             new XElement("Electrode",
@@ -252,6 +339,7 @@ namespace DataAccessLayer
             return new XElement("Metadata",
                 new XElement("CreatedOn", metadata.CreatedOn.ToString("o")),
                 new XElement("Generator", metadata.Generator),
+                new XElement("ElementCount", metadata.ElementCount),
                 new XElement("Parameters",
                     metadata.Parameters.Select(p =>
                         new XElement("Parameter",
@@ -268,6 +356,7 @@ namespace DataAccessLayer
 
             md.CreatedOn = DateTime.Parse(element.Element("CreatedOn")?.Value ?? DateTime.UtcNow.ToString("o"));
             md.Generator = element.Element("Generator")?.Value ?? string.Empty;
+            md.ElementCount = int.Parse(element.Element("ElementCount")?.Value ?? "0");
             var dict = new Dictionary<string, string>();
             var parms = element.Element("Parameters");
             if (parms != null)
