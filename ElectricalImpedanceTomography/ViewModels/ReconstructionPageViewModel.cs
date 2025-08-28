@@ -1,6 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using ServiceLayer;
 using TriangleNet.Meshing;
+using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.ReconstructionParameters;
@@ -54,5 +55,34 @@ namespace ElectricalImpedanceTomography.ViewModels
                 _reconstructionService.SolveLbmInverse(MaxIterationCount);
         }
 
+        private List<double[]> _simulatedMeasurements = [];
+        private int _simulatedMeasurementIndex = 0;
+
+        public ReconstructionResult? InverseSolveStep()
+        {
+            if (_mesh is FEMMesh femMesh)
+            {
+                if (_simulatedMeasurements.Count == 0)
+                    _simulatedMeasurements = _reconstructionService
+                        .SimulateFemMeasurements(femMesh, ExcitationCurrentAmplitude);
+
+                var measurement = _simulatedMeasurements[_simulatedMeasurementIndex % _simulatedMeasurements.Count];
+                var electrodes = femMesh.GetElectrodes().Cast<FEMElectrode>().ToList();
+                var bc = new FEMBoundaryCondition(electrodes);
+
+                var result = _reconstructionService.InverseSolveStepFem(femMesh,
+                                                                        measurement,
+                                                                        bc,
+                                                                        StepSize);
+                _simulatedMeasurementIndex++;
+                return result;
+            }
+            else if (_mesh is LBMMesh)
+            {
+                return _reconstructionService.SolveLbmInverse(1);
+            }
+
+            return null;
+        }
     }
 }
