@@ -5,15 +5,21 @@ namespace ElectricalImpedanceTomography.Views;
 public partial class ReconstructionPage : ContentPage
 {
 	private readonly ReconstructionPageViewModel _viewModel;
+    public event EventHandler<int>? PotentialModeChanged;
 
-	public ReconstructionPage()
+    public ReconstructionPage()
 	{
 		InitializeComponent();
 	
 		_viewModel = Utility.Composition.Container.ResolveObject<ReconstructionPageViewModel>();
 	
 		BindingContext = _viewModel;
-	}
+
+        PotentialModePicker.SelectedIndexChanged += (s, e) =>
+        {
+            PotentialModeChanged?.Invoke(this, PotentialModePicker.SelectedIndex);
+        };
+    }
 
     private void OnPlayButtonClicked(object sender, EventArgs e)
     {
@@ -77,10 +83,25 @@ public partial class ReconstructionPage : ContentPage
 
     private void OnSolveForwardClicked(object sender, EventArgs e)
     {
-
+        _viewModel?.OnSolveForwardClicked(this, e);
     }
 
     private void OnSolveInverseClicked(object sender, EventArgs e)
+    {
+        _viewModel?.OnSolveInverseClicked(this, e);
+    }
+
+    private void OnEditBoundaryConditionsClicked(object sender, EventArgs e)
+    {
+
+    }
+
+    private void OnAdjecentDrivePatternChecked(object sender, CheckedChangedEventArgs e)
+    {
+
+    }
+
+    private void OnOppositeDrivePatternChecked(object sender, CheckedChangedEventArgs e)
     {
 
     }

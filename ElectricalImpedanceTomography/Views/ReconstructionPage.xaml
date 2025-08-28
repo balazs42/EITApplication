@@ -22,59 +22,112 @@
         <controls:NavBarControl Grid.Row="0" Grid.ColumnSpan="1" CurrentPageName="ReconstructionPage"/>
 
         <!-- Main Grid For Page display -->
-        <Grid Grid.Row="1" ColumnDefinitions="Auto, *">
-            <Border BackgroundColor="Transparent" Stroke="Gray" Margin="5" Padding="10">
+        <Grid Grid.Row="1" ColumnDefinitions="Auto, Auto" ColumnSpacing="10">
             <!-- Left hand Side controls-->
-                <Grid Grid.Column="0" RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="5" >
-                    <Label Grid.Row="0" HorizontalOptions="Center" Text="Differential Equation Solver" FontFamily="SF Pro Text"/>
-                    <Picker Grid.Row="1" ItemsSource="{Binding DifferentialEquationSolverOptions}" SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}"/>
-                    <Label Grid.Row="2" HorizontalOptions="Center" Text="Error Metric" FontFamily="SF Pro Text"/>
-                    <Picker Grid.Row="3" ItemsSource="{Binding ErrorMetricOptions}" SelectedItem="{Binding ReconstructionParameters.ErrorMetric}"/>
-                    <Label Grid.Row="4" HorizontalOptions="Center" Text="Regulization" FontFamily="SF Pro Text"/>
-                    <Picker Grid.Row="5" ItemsSource="{Binding RegularizationTechniqueOptions}" SelectedItem="{Binding ReconstructionParameters.RegularizationTechnique}"/>
-                    <Label Grid.Row="6" HorizontalOptions="Center" Text="Numeric Solver" FontFamily="SF Pro Text"/>
-                    <Picker Grid.Row="7" ItemsSource="{Binding NumericSolverOptions}" SelectedItem="{Binding ReconstructionParameters.NumericSolver}"/>
-                    <Label Grid.Row="8" HorizontalOptions="Center" Text="Optimizer" FontFamily="SF Pro Text"/>
-                    <Picker Grid.Row="9" ItemsSource="{Binding NumericOptimizerOptions}" SelectedItem="{Binding ReconstructionParameters.NumericOptimizer}"/>
-                    <Label Grid.Row="10" HorizontalOptions="Center" Text="Regularization Weight" FontFamily="SF Pro Text"/>
-                    <Entry Grid.Row="11" Text="{Binding RegularizationWeight}"/>
-                    <Label Grid.Row="12" HorizontalOptions="Center" Text="Gradient Step Size" FontFamily="SF Pro Text"/>
-                    <Entry Grid.Row="13" Text="{Binding StepSize}"/>
+            <Border BackgroundColor="Transparent" Stroke="Gray" Margin="5" Padding="10">
+                <Grid RowDefinitions="Auto, Auto, Auto" RowSpacing="10">
+                    <Label Grid.Row="0" HorizontalOptions="Center" Text="Configuration" FontAttributes="Italic" FontSize="Large"/>
+                    <Grid Grid.Row="1" ColumnDefinitions="Auto, Auto" ColumnSpacing="5">
+                        <!-- Method Selection -->
+                        <Border Grid.Column="0" Padding="5" Background="Transparent" Stroke="Gray">
+                            <Grid  RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="5" >
+                                <Label Grid.Row="0" Text="Method Selection" FontAttributes="Bold" FontSize="Medium"/>
+                                <Label Grid.Row="1" HorizontalOptions="Center" Text="Differential Equation Solver" FontFamily="SF Pro Text"/>
+                                <Picker Grid.Row="2" ItemsSource="{Binding DifferentialEquationSolverOptions}" SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}"/>
+                                <Label Grid.Row="3" HorizontalOptions="Center" Text="Error Metric" FontFamily="SF Pro Text"/>
+                                <Picker Grid.Row="4" ItemsSource="{Binding ErrorMetricOptions}" SelectedItem="{Binding ReconstructionParameters.ErrorMetric}"/>
+                                <Label Grid.Row="5" HorizontalOptions="Center" Text="Regulization" FontFamily="SF Pro Text"/>
+                                <Picker Grid.Row="6" ItemsSource="{Binding RegularizationTechniqueOptions}" SelectedItem="{Binding ReconstructionParameters.RegularizationTechnique}"/>
+                                <Label Grid.Row="7" HorizontalOptions="Center" Text="Numeric Solver" FontFamily="SF Pro Text"/>
+                                <Picker Grid.Row="8" ItemsSource="{Binding NumericSolverOptions}" SelectedItem="{Binding ReconstructionParameters.NumericSolver}"/>
+                                <Label Grid.Row="9" HorizontalOptions="Center" Text="Optimizer" FontFamily="SF Pro Text"/>
+                                <Picker Grid.Row="10" ItemsSource="{Binding NumericOptimizerOptions}" SelectedItem="{Binding ReconstructionParameters.NumericOptimizer}"/>
+                            </Grid>
+                        </Border>
+                    
+                        <!-- Parameter Configuration -->
+                        <Border Grid.Column="1" Padding="5" Background="Transparent" Stroke="Gray">
+                            <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="5">
+                                <Label Grid.Row="0" Text="Parameter Selection" FontAttributes="Bold" FontSize="Medium"/>
+                                <Label Grid.Row="1" HorizontalOptions="Center" Text="Regularization Weight" FontFamily="SF Pro Text"/>
+                                <Entry Grid.Row="2" Text="{Binding RegularizationWeight}"/>
+                                <Label Grid.Row="3" HorizontalOptions="Center" Text="Gradient Step Size" FontFamily="SF Pro Text"/>
+                                <Entry Grid.Row="4" Text="{Binding StepSize}"/>
+                                <Label Grid.Row="5" HorizontalOptions="Center" Text="Max Iteration Count" FontFamily="SF Pro Text"/>
+                                <Entry Grid.Row="6" Text="{Binding MaxIterationCount}"/>
+
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <Border Grid.Row="2" Padding="10" Background="Transparent" Stroke="Gray">
+                        <Grid  RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="5" >
+                            <Label Grid.Row="0" Text="Boundary Conditions" FontAttributes="Bold" FontSize="Medium"/>
+                            <Label Grid.Row="1" Text="Starting Excitation Electrode" />
+                            <Entry Grid.Row="2" Text="{Binding ExcitationElectrodeId}"/>
+                            <Label Grid.Row="3" Text="Starting Ground Electrode" />
+                            <Entry Grid.Row="4" Text="{Binding GroundElectrodeId}"/>
+                            <Label Grid.Row="5" Text="Drive Pattern:" />
+                            <Grid Grid.Row="6" ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto" HorizontalOptions="Center" ColumnSpacing="20">
+                                <CheckBox Grid.Column="0" HorizontalOptions="Center" VerticalOptions="Center" IsChecked="{Binding AdjecentDrivePattern}" CheckedChanged="OnAdjecentDrivePatternChecked"/>
+                                <Label Grid.Column="1" Text="Adjecent" VerticalOptions="Center" HorizontalOptions="Start"/>
+                                <CheckBox Grid.Column="2" HorizontalOptions="Center" VerticalOptions="Center" IsChecked="{Binding OppositeDrivePattern}" CheckedChanged="OnOppositeDrivePatternChecked"/>
+                                <Label Grid.Column="3" Text="Opposite" HorizontalOptions="Start" VerticalOptions="Center"/>
+                            </Grid>
+                            <Button Grid.Row="7" Text="Edit Boundary Conditions" Background="PaleTurquoise" FontAttributes="Bold" Clicked="OnEditBoundaryConditionsClicked"/>
+                        </Grid>
+                    </Border>
                 </Grid>
             </Border>
-            <!-- Right hand Side -->
+                
+        <!-- Right hand Side -->
             <Grid Grid.Column="1" RowDefinitions="Auto, Auto" HorizontalOptions="Center">
 
                 <!-- Control Panel to control reconstruction -->
                 <Border Background="Transparent" Stroke="Gray">
-                    <Grid Grid.Row="0" ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" ColumnSpacing="15" HorizontalOptions="Center">
-                        <Border Grid.Column="0">
-                            <ImageButton Background="Transparent" HeightRequest="30" Source="icon_play_green.png" Clicked="OnPlayButtonClicked"/>
+                    <Grid Grid.Row="0" ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" ColumnSpacing="15" HorizontalOptions="Center">
+                        <Border Grid.Column="0" HeightRequest="50" WidthRequest="50" Margin="5">
+                            <ImageButton Padding="3" Background="Transparent" HeightRequest="30" WidthRequest="30" Source="icon_play_green.png" Clicked="OnPlayButtonClicked"/>
                         </Border>
-                        <Border Grid.Column="1" >
-                            <ImageButton Background="Transparent" HeightRequest="30" Source="icon_pause_blue.png" Clicked="OnPauseButtonClicked"/>    
+                        <Border Grid.Column="1" HeightRequest="50" WidthRequest="50" Margin="5">
+                            <ImageButton Padding="3" Background="Transparent" HeightRequest="30" Source="icon_pause_blue.png" Clicked="OnPauseButtonClicked"/>    
                         </Border>
-                        <Border Grid.Column="2">
-                            <ImageButton Background="Transparent" HeightRequest="30" Source="icon_next_blue.png" Clicked="OnStepButtonClicked"/>    
+                        <Border Grid.Column="2" HeightRequest="50" WidthRequest="50" Margin="5">
+                            <ImageButton Padding="3" Background="Transparent" HeightRequest="30" Source="icon_next_blue.png" Clicked="OnStepButtonClicked"/>    
                         </Border>
-                        <Border Grid.Column="3" >
-                            <ImageButton Background="Transparent" HeightRequest="30" Source="icon_stop_red.png" Clicked="OnStopButtonClicked"/>    
+                        <Border Grid.Column="3" HeightRequest="50" WidthRequest="50" Margin="5">
+                            <ImageButton Padding="3" Background="Transparent" HeightRequest="30" Source="icon_stop_red.png" Clicked="OnStopButtonClicked"/>    
                         </Border>
                     
-                        <Label Grid.Column="4" HorizontalOptions="Center" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding Residual, StringFormat='Residual: {0:F3}'}"/>
-                        <Label Grid.Column="5" HorizontalOptions="Center" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding IterationCount, StringFormat='Iteration: {0}'}"/>
+                        <Label Grid.Column="4" HorizontalOptions="Center" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding IterationCount, StringFormat='Iteration: {0}'}"/>
+                        <Label Grid.Column="5" HorizontalOptions="Center" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding Residual, StringFormat='Residual: {0:F3}'}"/>
 
-                        <Border Grid.Column="6" Margin="2">
-                            <Button Text="Solve Forward" BackgroundColor="DarkGreen" TextColor="White" FontAttributes="Bold" Clicked="OnSolveForwardClicked"/>
+                        <Border Grid.Column="6" Margin="2" Background="Transparent">
+                            <Button Text="Solve Forward" Margin="10" BackgroundColor="DarkOliveGreen" TextColor="White" FontAttributes="Bold" Clicked="OnSolveForwardClicked"/>
                         </Border>
-                        <Border Grid.Column="7" Margin="2">
-                            <Button Text="Solve Inverse" BackgroundColor="DarkRed" TextColor="White" FontAttributes="Bold" Clicked="OnSolveInverseClicked"/>
+                        <Border Grid.Column="7" Margin="2" Background="Transparent">
+                            <Button Text="Solve Inverse" Margin="10" BackgroundColor="DarkRed" TextColor="White" FontAttributes="Bold" Clicked="OnSolveInverseClicked"/>
                         </Border>
+                        <Picker x:Name="PotentialModePicker" 
+                                Margin="5"
+                                Grid.Column="8" 
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center"
+                                SelectedItem="Default"
+                                Title="Potential Display Mode">
+                            <Picker.Items>
+                                <x:String>Default</x:String>
+                                <x:String>Grayscale</x:String>
+                                <x:String>Inverted</x:String>
+                                <x:String>Heatmap</x:String>
+                                <x:String>Rainbow</x:String>
+                            </Picker.Items>
+                        </Picker>
                     </Grid>
                 </Border>
 
                 <!-- Displays for reconstruction steps -->
-                <Grid Grid.Row="1" RowDefinitions="Auto, Auto, Auto, Auto" ColumnDefinitions="Auto, Auto" HorizontalOptions="Center" VerticalOptions="Center">
+                <Grid Grid.Row="1" Margin="3" RowDefinitions="Auto, Auto, Auto, Auto" ColumnDefinitions="Auto, Auto" HorizontalOptions="Center" VerticalOptions="Center">
 
                     <!-- Original DIstribution Canvas -->
                     <Label Grid.Row="0" 
