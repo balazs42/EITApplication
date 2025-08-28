@@ -4,6 +4,9 @@ using SkiaSharp.Views.Maui;
 using Microsoft.Maui.Storage;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
+using Utility.Classes.Meshing;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ElectricalImpedanceTomography.Views;
 
@@ -19,10 +22,17 @@ public partial class MeshingPage : ContentPage
 
     // stroke for FEM
     private readonly SKPaint _femStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1 };
+    private readonly SKPaint _previewElectrode = new() { Style = SKPaintStyle.Fill, Color = SKColors.Yellow };
 
     // caching values for coordinate transforms
     private float _cellW, _cellH;
     private float _scale, _marginX, _marginY, _minX, _minY, _meshWidth, _meshHeight;
+
+    // drawing state for custom FEM meshes
+    private readonly List<SKPoint> _outlinePoints = new();
+    private readonly List<SKPoint> _electrodePoints = new();
+    private bool _isDrawing;
+    private bool _outlineClosed;
 
     public MeshingPage()
     {
@@ -55,7 +65,12 @@ public partial class MeshingPage : ContentPage
         var canvas = e.Surface.Canvas;
         canvas.Clear(SKColors.White);
         var mesh = _viewModel.GetCurrentMesh();
-        if (mesh is null) return;
+        if (mesh is null)
+        {
+            if (_viewModel.SelectedMeshType == MeshType.FEM && _outlinePoints.Count > 0)
+                DrawFEMPreview(canvas);
+            return;
+        }
 
         if (mesh is LBMMesh lbm)
             DrawLBMMesh(canvas, e.Info, lbm);
@@ -132,11 +147,32 @@ public partial class MeshingPage : ContentPage
             canvas.DrawCircle(ToCanvas(v), 4f, electrodeFill);
     }
 
+    private void DrawFEMPreview(SKCanvas canvas)
+    {
+        if (_outlinePoints.Count < 2)
+            return;
+
+        using var path = new SKPath();
+        path.MoveTo(_outlinePoints[0]);
+        for (int i = 1; i < _outlinePoints.Count; i++)
+            path.LineTo(_outlinePoints[i]);
+        if (_outlineClosed)
+            path.Close();
+        canvas.DrawPath(path, _femStroke);
+
+        foreach (var p in _electrodePoints)
+            canvas.DrawCircle(p, 4f, _previewElectrode);
+    }
+
     private void OnMeshCanvasTouch(object sender, SKTouchEventArgs e)
     {
         var mesh = _viewModel.GetCurrentMesh();
         if (mesh == null)
+        {
+            if (_viewModel.SelectedMeshType == MeshType.FEM)
+                HandleFEMDrawing(e);
             return;
+        }
 
         if (mesh is LBMMesh lbm)
         {
@@ -186,6 +222,45 @@ public partial class MeshingPage : ContentPage
         e.Handled = true;
     }
 
+    private void HandleFEMDrawing(SKTouchEventArgs e)
+    {
+        if (e.MouseButton == SKMouseButton.Left)
+        {
+            if (e.ActionType == SKTouchAction.Pressed)
+            {
+                _outlinePoints.Clear();
+                _electrodePoints.Clear();
+                _outlineClosed = false;
+                _isDrawing = true;
+                _outlinePoints.Add(e.Location);
+            }
+            else if (e.ActionType == SKTouchAction.Moved && _isDrawing)
+            {
+                _outlinePoints.Add(e.Location);
+            }
+            else if (e.ActionType == SKTouchAction.Released && _isDrawing)
+            {
+                _isDrawing = false;
+                _outlinePoints.Add(e.Location);
+                if (_outlinePoints.Count > 2)
+                {
+                    var first = _outlinePoints[0];
+                    if (Math.Abs(first.X - e.Location.X) < 5 && Math.Abs(first.Y - e.Location.Y) < 5)
+                    {
+                        _outlineClosed = true;
+                        _outlinePoints[_outlinePoints.Count - 1] = first;
+                    }
+                }
+            }
+        }
+        else if (e.MouseButton == SKMouseButton.Right && !_isDrawing && _outlinePoints.Count > 2)
+        {
+            _electrodePoints.Add(e.Location);
+        }
+        MeshCanvas.InvalidateSurface();
+        e.Handled = true;
+    }
+
     private bool PointInTriangle(SKPoint p, SKPoint a, SKPoint b, SKPoint c)
     {
         var v0 = b - a;
@@ -224,6 +299,15 @@ public partial class MeshingPage : ContentPage
 
     private void OnGenerateClicked(object sender, EventArgs e)
     {
+        if (_viewModel.SelectedMeshType == MeshType.FEM && _outlineClosed && _outlinePoints.Count > 2)
+        {
+            var perimeter = _outlinePoints.Select(p => ((double)p.X, (double)p.Y)).ToList();
+            var electrodes = _electrodePoints.Select(p => ((double)p.X, (double)p.Y)).ToList();
+            _viewModel.SetCustomPolygon(perimeter, electrodes);
+            _outlinePoints.Clear();
+            _electrodePoints.Clear();
+            _outlineClosed = false;
+        }
         _viewModel.GenerateMesh();
         MeshCanvas.InvalidateSurface();
     }
