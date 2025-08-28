@@ -13,7 +13,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 {
     public partial class MeshingPageViewModel : BaseViewModel
     {
-        private readonly IDAQService _daqService;
+    private readonly IDAQService _daqService;
 
         [ObservableProperty]
         private string name = string.Empty;
@@ -63,6 +63,8 @@ namespace ElectricalImpedanceTomography.ViewModels
         private double electrodeSize = 0.3;
 
         private IMesh? _currentMesh;
+        private IList<(double x, double y)>? _drawnPerimeter;
+        private IList<(double x, double y)>? _drawnElectrodes;
 
         public MeshingPageViewModel(IDAQService dAQService)
         {
@@ -70,6 +72,14 @@ namespace ElectricalImpedanceTomography.ViewModels
         }
 
         public IMesh? GetCurrentMesh() => _currentMesh;
+
+        public void SetCustomPolygon(IList<(double x, double y)> perimeter, IList<(double x, double y)> electrodes)
+        {
+            _drawnPerimeter = perimeter;
+            _drawnElectrodes = electrodes;
+            SelectedGeometry = GeometryType.Custom;
+            ElectrodeCount = electrodes.Count;
+        }
 
         public void SaveMesh()
         {
@@ -106,6 +116,16 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         private FEMMesh GenerateFEMMesh()
         {
+            if (_drawnPerimeter != null && _drawnPerimeter.Count > 2)
+            {
+                var mesh = MeshFactory.CreatePolygonFEMMesh(_drawnPerimeter, _drawnElectrodes?.Count ?? ElectrodeCount);
+                if (_drawnElectrodes != null && _drawnElectrodes.Count > 0)
+                    AssignElectrodes(mesh, _drawnElectrodes);
+                _drawnPerimeter = null;
+                _drawnElectrodes = null;
+                return mesh;
+            }
+
             return SelectedGeometry switch
             {
                 GeometryType.Circular => MeshFactory.CreateCircularFEMMesh(Layers, BoundaryFEMVertexCount, ElectrodeCount),
@@ -114,6 +134,37 @@ namespace ElectricalImpedanceTomography.ViewModels
                 GeometryType.Thorax => MeshFactory.CreateThoraxFEMMesh(ParseCustomPerimeter(), ElectrodeCount),
                 _ => MeshFactory.CreateCircularFEMMesh(Layers, BoundaryFEMVertexCount, ElectrodeCount)
             };
+        }
+
+        private void AssignElectrodes(FEMMesh mesh, IList<(double x, double y)> positions)
+        {
+            var boundary = mesh.Vertices.Where(v => v.IsBoundary).ToList();
+            var electrodes = new List<FEMElectrode>();
+            for (int i = 0; i < positions.Count && i < boundary.Count; i++)
+            {
+                var pos = positions[i];
+                int nearest = 0;
+                double best = double.MaxValue;
+                for (int j = 0; j < boundary.Count; j++)
+                {
+                    var v = boundary[j];
+                    double dx = v.X - pos.x;
+                    double dy = v.Y - pos.y;
+                    double d = dx * dx + dy * dy;
+                    if (d < best)
+                    {
+                        best = d;
+                        nearest = j;
+                    }
+                }
+                var vert = boundary[nearest];
+                vert.IsElectrode = true;
+                vert.ElectrodeId = i;
+                var el = new FEMElectrode(i, vert.GlobalId, 0.0, ElectrodeContactImpedance, 0.0);
+                el.FEMVertexIds.Add(vert.GlobalId);
+                electrodes.Add(el);
+            }
+            mesh.SetElectrodes(electrodes);
         }
 
         private LBMMesh GenerateLBMMesh()
