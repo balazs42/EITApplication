@@ -88,22 +88,11 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public void GenerateMesh()
         {
-            _currentMesh = selectedMeshType == MeshType.FEM ? GenerateFEMMesh() : GenerateLBMMesh();
+            _currentMesh = SelectedMeshType == MeshType.FEM ? GenerateFEMMesh() : GenerateLBMMesh();
             if (_currentMesh != null)
             {
-                _currentMesh.Metadata = new MeshMetadata
-                {
-                    CreatedOn = DateTime.UtcNow,
-                    Generator = $"{SelectedMeshType}-{SelectedGeometry}",
-                    Parameters = new Dictionary<string, string>
-                    {
-                        {"Layers", Layers.ToString()},
-                        {"BoundaryFEMVertexCount", BoundaryFEMVertexCount.ToString()},
-                        {"ElectrodeCount", ElectrodeCount.ToString()},
-                        {"Nx", Nx.ToString()},
-                        {"Ny", Ny.ToString()}
-                    }
-                };
+                _currentMesh.Metadata.CreatedOn = DateTime.UtcNow;
+                _currentMesh.Metadata.ElementCount = _currentMesh.GetElements().Count;
             }
             if (_currentMesh != null)
             {
@@ -117,7 +106,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         private FEMMesh GenerateFEMMesh()
         {
-            return selectedGeometry switch
+            return SelectedGeometry switch
             {
                 GeometryType.Circular => MeshFactory.CreateCircularFEMMesh(Layers, BoundaryFEMVertexCount, ElectrodeCount),
                 GeometryType.Rectangular => MeshFactory.CreateRectangularFEMMesh(Nx, Ny, ElectrodeCount),
@@ -129,7 +118,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         private LBMMesh GenerateLBMMesh()
         {
-            return selectedGeometry switch
+            return SelectedGeometry switch
             {
                 GeometryType.Rectangular => MeshFactory.CreateRectangularLBMMesh(Nx, Ny, ElectrodeCount),
                 GeometryType.Custom => MeshFactory.CreateLBMMeshFromPerimeter(Nx, Ny, ParseCustomPerimeter(), ElectrodeCount),
