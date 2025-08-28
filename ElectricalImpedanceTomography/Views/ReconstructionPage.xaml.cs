@@ -74,4 +74,14 @@ public partial class ReconstructionPage : ContentPage
     {
 
     }
+
+    private void OnSolveForwardClicked(object sender, EventArgs e)
+    {
+
+    }
+
+    private void OnSolveInverseClicked(object sender, EventArgs e)
+    {
+
+    }
 }
