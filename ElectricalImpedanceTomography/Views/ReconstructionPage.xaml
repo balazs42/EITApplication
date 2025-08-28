@@ -10,7 +10,7 @@
              x:DataType="viewmodels:ReconstructionPageViewModel">
     <ContentPage.Resources>
         <Style TargetType="Border">
-            <Setter Property="BackgroundColor" Value="#121212"/>
+            <Setter Property="BackgroundColor" Value="#1A1A1A"/>
             <Setter Property="StrokeShape" Value="RoundRectangle 3"/>
         </Style>
         <Style TargetType="Label">
@@ -47,7 +47,7 @@
 
                 <!-- Control Panel to control reconstruction -->
                 <Border Background="Transparent" Stroke="Gray">
-                    <Grid Grid.Row="0" ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto" ColumnSpacing="10" HorizontalOptions="Center">
+                    <Grid Grid.Row="0" ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" ColumnSpacing="15" HorizontalOptions="Center">
                         <Border Grid.Column="0">
                             <ImageButton Background="Transparent" HeightRequest="30" Source="icon_play_green.png" Clicked="OnPlayButtonClicked"/>
                         </Border>
@@ -61,8 +61,15 @@
                             <ImageButton Background="Transparent" HeightRequest="30" Source="icon_stop_red.png" Clicked="OnStopButtonClicked"/>    
                         </Border>
                     
-                        <Label Grid.Column="5" HorizontalOptions="Center" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding Residual, StringFormat='Residual: {0:F3}'}"/>
-                        <Label Grid.Column="4" HorizontalOptions="Center" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding IterationCount, StringFormat='Iteration: {0}'}"/>
+                        <Label Grid.Column="4" HorizontalOptions="Center" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding Residual, StringFormat='Residual: {0:F3}'}"/>
+                        <Label Grid.Column="5" HorizontalOptions="Center" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding IterationCount, StringFormat='Iteration: {0}'}"/>
+
+                        <Border Grid.Column="6" Margin="2">
+                            <Button Text="Solve Forward" BackgroundColor="DarkGreen" TextColor="White" FontAttributes="Bold" Clicked="OnSolveForwardClicked"/>
+                        </Border>
+                        <Border Grid.Column="7" Margin="2">
+                            <Button Text="Solve Inverse" BackgroundColor="DarkRed" TextColor="White" FontAttributes="Bold" Clicked="OnSolveInverseClicked"/>
+                        </Border>
                     </Grid>
                 </Border>
 
