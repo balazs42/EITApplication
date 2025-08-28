@@ -143,13 +143,22 @@
                             Margin="10"
                             HorizontalOptions="Center"
                             VerticalOptions="Center">
-                        <skia:SKCanvasView x:Name="OriginalDistributionCanvas"
-                                           PaintSurface="OnOriginalCanvasPaintSurface"
-                                           EnableTouchEvents="True"
-                                           Touch="OnOriginalCanvasTouch"
-                                           HeightRequest="350"
-                                           WidthRequest="350"
-                                           Margin="10" />
+                        <Grid ColumnDefinitions="Auto,40">
+                            <skia:SKCanvasView x:Name="OriginalDistributionCanvas"
+                                               PaintSurface="OnOriginalCanvasPaintSurface"
+                                               EnableTouchEvents="True"
+                                               Touch="OnOriginalCanvasTouch"
+                                               HeightRequest="350"
+                                               WidthRequest="350"
+                                               Margin="10" />
+                            <skia:SKCanvasView Grid.Column="1"
+                                               x:Name="OriginalColorbarCanvas"
+                                               PaintSurface="OnOriginalColorbarPaintSurface"
+                                               EnableTouchEvents="True"
+                                               Touch="OnOriginalCanvasTouch"
+                                               WidthRequest="40"
+                                               HeightRequest="350" />
+                        </Grid>
                     </Border>
 
                     <!-- Calculated Potential Canvas -->
@@ -166,13 +175,22 @@
                             Margin="10"
                             HorizontalOptions="Center"
                             VerticalOptions="Center">
-                        <skia:SKCanvasView x:Name="PotentialDistributionCanvas"
-                                           PaintSurface="OnPotentialCanvasPaintSurface"
-                                           EnableTouchEvents="True"
-                                           Touch="OnPotentialCanvasTouch"
-                                           HeightRequest="350"
-                                           WidthRequest="350"
-                                           Margin="10" />
+                        <Grid ColumnDefinitions="Auto,40">
+                            <skia:SKCanvasView x:Name="PotentialDistributionCanvas"
+                                               PaintSurface="OnPotentialCanvasPaintSurface"
+                                               EnableTouchEvents="True"
+                                               Touch="OnPotentialCanvasTouch"
+                                               HeightRequest="350"
+                                               WidthRequest="350"
+                                               Margin="10" />
+                            <skia:SKCanvasView Grid.Column="1"
+                                               x:Name="PotentialColorbarCanvas"
+                                               PaintSurface="OnPotentialColorbarPaintSurface"
+                                               EnableTouchEvents="True"
+                                               Touch="OnPotentialCanvasTouch"
+                                               WidthRequest="40"
+                                               HeightRequest="350" />
+                        </Grid>
                     </Border>
 
                     <!-- Reconstruced Canvas -->
@@ -189,13 +207,22 @@
                             Margin="10"
                             HorizontalOptions="Center"
                             VerticalOptions="Center">
-                        <skia:SKCanvasView x:Name="ReconstructedDistributionCanvas"
-                                            PaintSurface="OnReconstructedCanvasPaintSurface"
-                                            EnableTouchEvents="True"
-                                            Touch="OnReconstructedCanvasTouch"
-                                            HeightRequest="350"
-                                            WidthRequest="350"
-                                            Margin="10" />
+                        <Grid ColumnDefinitions="Auto,40">
+                            <skia:SKCanvasView x:Name="ReconstructedDistributionCanvas"
+                                                PaintSurface="OnReconstructedCanvasPaintSurface"
+                                                EnableTouchEvents="True"
+                                                Touch="OnReconstructedCanvasTouch"
+                                                HeightRequest="350"
+                                                WidthRequest="350"
+                                                Margin="10" />
+                            <skia:SKCanvasView Grid.Column="1"
+                                               x:Name="ReconstructedColorbarCanvas"
+                                               PaintSurface="OnReconstructedColorbarPaintSurface"
+                                               EnableTouchEvents="True"
+                                               Touch="OnReconstructedCanvasTouch"
+                                               WidthRequest="40"
+                                               HeightRequest="350" />
+                        </Grid>
                     </Border>
 
                     <!-- Reconstruced Canvas -->
@@ -212,13 +239,22 @@
                             Margin="10"
                             HorizontalOptions="Center"
                             VerticalOptions="Center">
-                        <skia:SKCanvasView x:Name="AdjointDistributionCanvas"
-                                            PaintSurface="OnAdjointCanvasPaintSurface"
-                                            EnableTouchEvents="True"
-                                            Touch="OnAdjointCanvasTouch"
-                                            HeightRequest="350"
-                                            WidthRequest="350"
-                                            Margin="10" />
+                        <Grid ColumnDefinitions="Auto,40">
+                            <skia:SKCanvasView x:Name="AdjointDistributionCanvas"
+                                                PaintSurface="OnAdjointCanvasPaintSurface"
+                                                EnableTouchEvents="True"
+                                                Touch="OnAdjointCanvasTouch"
+                                                HeightRequest="350"
+                                                WidthRequest="350"
+                                                Margin="10" />
+                            <skia:SKCanvasView Grid.Column="1"
+                                               x:Name="AdjointColorbarCanvas"
+                                               PaintSurface="OnAdjointColorbarPaintSurface"
+                                               EnableTouchEvents="True"
+                                               Touch="OnAdjointCanvasTouch"
+                                               WidthRequest="40"
+                                               HeightRequest="350" />
+                        </Grid>
                     </Border>
                 </Grid>
             </Grid>
