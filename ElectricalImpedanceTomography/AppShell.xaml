@@ -27,5 +27,9 @@
         Title="Meshgin"
         ContentTemplate="{DataTemplate views:MeshingPage}"
         Route="MeshingPage"/>
+    <ShellContent 
+        Title="Reconstruction"
+        ContentTemplate="{DataTemplate views:ReconstructionPage}"
+        Route="ReconstructionPage"/>
     
 </Shell>
