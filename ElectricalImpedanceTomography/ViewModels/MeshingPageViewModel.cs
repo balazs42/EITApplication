@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using ServiceLayer;
 using Utility.Classes;
@@ -8,6 +5,8 @@ using Utility.Classes.Factories;
 using Utility.Classes.Meshing;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
+
+using Workspace = Utility.Classes.Application.Workspace;
 
 namespace ElectricalImpedanceTomography.ViewModels
 {
@@ -94,11 +93,16 @@ namespace ElectricalImpedanceTomography.ViewModels
             _currentMesh = SelectedMeshType == MeshType.FEM
                 ? _daqService.LoadFEMMesh(filePath)
                 : _daqService.LoadLBMMesh(filePath);
+
+            Workspace.SetMesh(_currentMesh);
         }
 
         public void GenerateMesh()
         {
             _currentMesh = SelectedMeshType == MeshType.FEM ? GenerateFEMMesh() : GenerateLBMMesh();
+
+            Workspace.SetMesh(_currentMesh);
+
             if (_currentMesh != null)
             {
                 _currentMesh.Metadata.CreatedOn = DateTime.UtcNow;

@@ -653,7 +653,7 @@ public partial class ReconstructionPage : ContentPage
     private void OnAdjecentDrivePatternChecked(object sender, CheckedChangedEventArgs e)
     {
         if (e.Value)
-            _viewModel.OppsiteDrivePattern = false;
+            _viewModel.OppositeDrivePattern = false;
     }
 
     private void OnOppositeDrivePatternChecked(object sender, CheckedChangedEventArgs e)
