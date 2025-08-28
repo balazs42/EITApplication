@@ -362,7 +362,7 @@ namespace DataAccessLayer
                     int layers = int.Parse(layersStr ?? "1");
                     int boundary = int.Parse(boundaryStr ?? "8");
                     int electrodes = int.Parse(elStr ?? "16");
-                    double inh = double.Parse(inhStr ?? "3.0");
+                    double inh = double.Parse(inhStr ?? "3,0");
                     return MeshFactory.CreateCircularFEMMesh(layers, boundary, electrodes, inh);
                 }
                 string rectangular = nameof(MeshFactory.CreateRectangularFEMMesh);
