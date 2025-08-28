@@ -41,6 +41,8 @@ namespace ServiceLayer
         {
             try
             {
+                Workspace.AddLogMessage("Reconstruction Service", "Performing LBM Forward Solve.");
+
                 return _reconstructionPersistence.SolveLbmForward();
             }
             catch (Exception ex) 
@@ -90,6 +92,8 @@ namespace ServiceLayer
         {
             try
             {
+                Workspace.AddLogMessage("Reconstruction Service", "Reconstruction initialization started with the specified EITReconstructionParameters object.");
+
                 _reconstructionPersistence.InitializeReconstruction(mesh, parameters);
             }
             catch(Exception ex)
@@ -105,6 +109,8 @@ namespace ServiceLayer
         {
             try
             {
+                Workspace.AddLogMessage("Reconstruction Service", "Performing FEM forward solve.");
+
                 return _reconstructionPersistence.SolveFemForward(mesh);
             }
             catch(Exception ex)
