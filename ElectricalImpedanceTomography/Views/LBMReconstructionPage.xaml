@@ -7,6 +7,7 @@
              xmlns:controls="clr-namespace:ElectricalImpedanceTomography.Controls"
              xmlns:converters="clr-namespace:ElectricalImpedanceTomography.Converters"
              x:DataType="viewmodels:LBMReconstructionPageViewModel"          
+             Shell.NavBarIsVisible="False"
              Title="ReconstructionPage">
     <ContentPage.Resources>
         <Style TargetType="Picker">

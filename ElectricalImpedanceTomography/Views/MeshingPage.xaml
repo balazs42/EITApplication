@@ -7,7 +7,14 @@
              xmlns:controls="clr-namespace:ElectricalImpedanceTomography.Controls"
              Title="MeshingPage"
              x:DataType="viewmodels:MeshingPageViewModel">
-
+    <ContentPage.Resources>
+        <Style TargetType="Label">
+            <Setter Property="FontFamily" Value="SF Pro Text"/>
+        </Style>
+        <Style TargetType="Picker">
+            <Setter Property="FontFamily" Value="SF Pro Text"/>
+        </Style>
+    </ContentPage.Resources>
     <Grid RowDefinitions="Auto, Auto, Auto, Auto">
         <controls:NavBarControl Grid.Row="0" Grid.ColumnSpan="1" CurrentPageName="MeshingPage"/>
 

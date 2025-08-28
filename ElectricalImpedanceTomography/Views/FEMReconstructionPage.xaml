@@ -6,6 +6,7 @@
              xmlns:viewmodels="clr-namespace:ElectricalImpedanceTomography.ViewModels"
              xmlns:controls="clr-namespace:ElectricalImpedanceTomography.Controls"
              x:DataType="viewmodels:FEMReconstructionPageViewModel"
+             Shell.NavBarIsVisible="False"
              Title="FEMReconstructionPage">
     <ContentPage.Resources>
         <Style x:Key="ButtonStyle" TargetType="Button">

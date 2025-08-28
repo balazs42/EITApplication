@@ -19,6 +19,7 @@ namespace ElectricalImpedanceTomography
                 {
                     fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
                     fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
+                    fonts.AddFont("SFPRODISPLAYREGULAR.otf", "SF Pro Text");
                 });
 
 

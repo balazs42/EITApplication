@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewmodels="clr-namespace:ElectricalImpedanceTomography.ViewModels"
+             xmlns:controls="clr-namespace:ElectricalImpedanceTomography.Controls"
+             xmlns:skia="clr-namespace:SkiaSharp.Views.Maui.Controls;assembly=SkiaSharp.Views.Maui.Controls"
+             x:Class="ElectricalImpedanceTomography.Views.ReconstructionPage"
+             Title="ReconstructionPage"
+             Shell.NavBarIsVisible="False"
+             x:DataType="viewmodels:ReconstructionPageViewModel">
+    <ContentPage.Resources>
+        <Style TargetType="Border">
+            <Setter Property="BackgroundColor" Value="#121212"/>
+            <Setter Property="StrokeShape" Value="RoundRectangle 3"/>
+        </Style>
+        <Style TargetType="Label">
+            <Setter Property="FontFamily" Value="SF Pro Text"/>
+            <Setter Property="FontAttributes" Value="Bold"/>
+        </Style>
+    </ContentPage.Resources>
+    <Grid RowDefinitions="Auto, Auto">
+        <controls:NavBarControl Grid.Row="0" Grid.ColumnSpan="1" CurrentPageName="ReconstructionPage"/>
+
+        <!-- Main Grid For Page display -->
+        <Grid Grid.Row="1" ColumnDefinitions="Auto, *">
+            <Border BackgroundColor="Transparent" Stroke="Gray" Margin="5" Padding="10">
+            <!-- Left hand Side controls-->
+                <Grid Grid.Column="0" RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="5" >
+                    <Label Grid.Row="0" HorizontalOptions="Center" Text="Differential Equation Solver" FontFamily="SF Pro Text"/>
+                    <Picker Grid.Row="1" ItemsSource="{Binding DifferentialEquationSolverOptions}" SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}"/>
+                    <Label Grid.Row="2" HorizontalOptions="Center" Text="Error Metric" FontFamily="SF Pro Text"/>
+                    <Picker Grid.Row="3" ItemsSource="{Binding ErrorMetricOptions}" SelectedItem="{Binding ReconstructionParameters.ErrorMetric}"/>
+                    <Label Grid.Row="4" HorizontalOptions="Center" Text="Regulization" FontFamily="SF Pro Text"/>
+                    <Picker Grid.Row="5" ItemsSource="{Binding RegularizationTechniqueOptions}" SelectedItem="{Binding ReconstructionParameters.RegularizationTechnique}"/>
+                    <Label Grid.Row="6" HorizontalOptions="Center" Text="Numeric Solver" FontFamily="SF Pro Text"/>
+                    <Picker Grid.Row="7" ItemsSource="{Binding NumericSolverOptions}" SelectedItem="{Binding ReconstructionParameters.NumericSolver}"/>
+                    <Label Grid.Row="8" HorizontalOptions="Center" Text="Optimizer" FontFamily="SF Pro Text"/>
+                    <Picker Grid.Row="9" ItemsSource="{Binding NumericOptimizerOptions}" SelectedItem="{Binding ReconstructionParameters.NumericOptimizer}"/>
+                    <Label Grid.Row="10" HorizontalOptions="Center" Text="Regularization Weight" FontFamily="SF Pro Text"/>
+                    <Entry Grid.Row="11" Text="{Binding RegularizationWeight}"/>
+                    <Label Grid.Row="12" HorizontalOptions="Center" Text="Gradient Step Size" FontFamily="SF Pro Text"/>
+                    <Entry Grid.Row="13" Text="{Binding StepSize}"/>
+                </Grid>
+            </Border>
+            <!-- Right hand Side -->
+            <Grid Grid.Column="1" RowDefinitions="Auto, Auto" HorizontalOptions="Center">
+
+                <!-- Control Panel to control reconstruction -->
+                <Border Background="Transparent" Stroke="Gray">
+                    <Grid Grid.Row="0" ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto" ColumnSpacing="10" HorizontalOptions="Center">
+                        <Border Grid.Column="0">
+                            <ImageButton Background="Transparent" HeightRequest="30" Source="icon_play_green.png" Clicked="OnPlayButtonClicked"/>
+                        </Border>
+                        <Border Grid.Column="1" >
+                            <ImageButton Background="Transparent" HeightRequest="30" Source="icon_pause_blue.png" Clicked="OnPauseButtonClicked"/>    
+                        </Border>
+                        <Border Grid.Column="2">
+                            <ImageButton Background="Transparent" HeightRequest="30" Source="icon_next_blue.png" Clicked="OnStepButtonClicked"/>    
+                        </Border>
+                        <Border Grid.Column="3" >
+                            <ImageButton Background="Transparent" HeightRequest="30" Source="icon_stop_red.png" Clicked="OnStopButtonClicked"/>    
+                        </Border>
+                    
+                        <Label Grid.Column="5" HorizontalOptions="Center" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding Residual, StringFormat='Residual: {0:F3}'}"/>
+                        <Label Grid.Column="4" HorizontalOptions="Center" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding IterationCount, StringFormat='Iteration: {0}'}"/>
+                    </Grid>
+                </Border>
+
+                <!-- Displays for reconstruction steps -->
+                <Grid Grid.Row="1" RowDefinitions="Auto, Auto, Auto, Auto" ColumnDefinitions="Auto, Auto" HorizontalOptions="Center" VerticalOptions="Center">
+
+                    <!-- Original DIstribution Canvas -->
+                    <Label Grid.Row="0" 
+                           Grid.Column="0"
+                           Text="Original Distribution" 
+                           HorizontalOptions="Center" 
+                           VerticalOptions="Start"
+                           FontFamily="SF Pro Text"/>
+                    <Border Grid.Row="1"
+                            Grid.Column="0"
+                            Stroke="DarkGray"
+                            StrokeThickness="2"
+                            Margin="10"
+                            HorizontalOptions="Center"
+                            VerticalOptions="Center">
+                        <skia:SKCanvasView x:Name="OriginalDistributionCanvas"
+                                           PaintSurface="OnOriginalCanvasPaintSurface"
+                                           EnableTouchEvents="True"
+                                           Touch="OnOriginalCanvasTouch"
+                                           HeightRequest="350"
+                                           WidthRequest="350"
+                                           Margin="10" />
+                    </Border>
+
+                    <!-- Calculated Potential Canvas -->
+                    <Label Grid.Row="0" 
+                           Grid.Column="1"
+                           Text="Calculated Potential" 
+                           HorizontalOptions="Center" 
+                           VerticalOptions="Start"
+                           FontFamily="SF Pro Text"/>
+                    <Border Grid.Row="1"
+                            Grid.Column="1"
+                            Stroke="DarkGray"
+                            StrokeThickness="2"
+                            Margin="10"
+                            HorizontalOptions="Center"
+                            VerticalOptions="Center">
+                        <skia:SKCanvasView x:Name="PotentialDistributionCanvas"
+                                           PaintSurface="OnPotentialCanvasPaintSurface"
+                                           EnableTouchEvents="True"
+                                           Touch="OnPotentialCanvasTouch"
+                                           HeightRequest="350"
+                                           WidthRequest="350"
+                                           Margin="10" />
+                    </Border>
+
+                    <!-- Reconstruced Canvas -->
+                    <Label Grid.Row="2" 
+                           Grid.Column="0"
+                           Text="Reconstructed Distribution" 
+                           HorizontalOptions="Center" 
+                           VerticalOptions="Start"
+                           FontFamily="SF Pro Text"/>
+                    <Border Grid.Row="3"
+                            Grid.Column="0"
+                            Stroke="DarkGray"
+                            StrokeThickness="2"
+                            Margin="10"
+                            HorizontalOptions="Center"
+                            VerticalOptions="Center">
+                        <skia:SKCanvasView x:Name="ReconstructedDistributionCanvas"
+                                            PaintSurface="OnReconstructedCanvasPaintSurface"
+                                            EnableTouchEvents="True"
+                                            Touch="OnReconstructedCanvasTouch"
+                                            HeightRequest="350"
+                                            WidthRequest="350"
+                                            Margin="10" />
+                    </Border>
+
+                    <!-- Reconstruced Canvas -->
+                    <Label Grid.Row="2" 
+                           Grid.Column="1"
+                           Text="Adjoint Potential Distribution" 
+                           HorizontalOptions="Center" 
+                           VerticalOptions="Start"
+                           FontFamily="SF Pro Text"/>
+                    <Border Grid.Row="3"
+                            Grid.Column="1"
+                            Stroke="DarkGray"
+                            StrokeThickness="2"
+                            Margin="10"
+                            HorizontalOptions="Center"
+                            VerticalOptions="Center">
+                        <skia:SKCanvasView x:Name="AdjointDistributionCanvas"
+                                            PaintSurface="OnAdjointCanvasPaintSurface"
+                                            EnableTouchEvents="True"
+                                            Touch="OnAdjointCanvasTouch"
+                                            HeightRequest="350"
+                                            WidthRequest="350"
+                                            Margin="10" />
+                    </Border>
+                </Grid>
+            </Grid>
+        </Grid>
+    </Grid>
+</ContentPage>

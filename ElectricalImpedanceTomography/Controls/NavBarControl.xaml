@@ -9,7 +9,7 @@
             <Setter Property="TextColor" Value="White"/>
             <Setter Property="BackgroundColor" Value="#555555"/>
             <Setter Property="Padding" Value="12,8"/>
-            <Setter Property="FontFamily" Value="Roboto-Bold"/>
+            <Setter Property="FontFamily" Value="SF Pro Text"/>
             <Setter Property="Margin" Value="5,0"/>
             <Setter Property="CornerRadius" Value="10"/>
             <Setter Property="MinimumHeightRequest" Value="30"/>
@@ -84,6 +84,15 @@
             <Button x:Name="MeshingPageButton"
                     Text="Meshing" Style="{StaticResource NavBarButtonStyle}"
                     Clicked="NavigateButton_Clicked">
+                <Button.Shadow>
+                    <Shadow Brush="#222222" Opacity="1.0" Radius="1.0" Offset="1.0, 1.0"/>
+                </Button.Shadow>
+            </Button>
+
+            <Button x:Name="ReconstructionPageButton"
+                    Text="Reconstruction"
+                    Style="{StaticResource NavBarButtonStyle}"
+                    Clicked="NavigateButton_Clicked" >
                 <Button.Shadow>
                     <Shadow Brush="#222222" Opacity="1.0" Radius="1.0" Offset="1.0, 1.0"/>
                 </Button.Shadow>
