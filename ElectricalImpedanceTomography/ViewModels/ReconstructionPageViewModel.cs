@@ -1,10 +1,11 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using ServiceLayer;
-using TriangleNet.Meshing;
+using Utility.Classes;
 using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.ReconstructionParameters;
+
 
 using Workspace = Utility.Classes.Application.Workspace;
 
@@ -14,7 +15,7 @@ namespace ElectricalImpedanceTomography.ViewModels
     {
         private readonly IReconstructionService _reconstructionService;
 
-        private IMesh? _mesh = (IMesh?)Workspace.GetMesh();
+        private IMesh? _mesh = Workspace.GetMesh();
 
         [ObservableProperty]
         private EITReconstructionParameters reconstructionParameters = Workspace.GetReconstructionParameters();
@@ -29,7 +30,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         private bool adjecentDrivePattern = true;
             
         [ObservableProperty]
-        private bool oppsiteDrivePattern = false;
+        private bool oppositeDrivePattern = false;
 
         public ReconstructionPageViewModel(IReconstructionService reconstructionService)
         {
