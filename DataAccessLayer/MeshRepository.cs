@@ -51,17 +51,17 @@ namespace DataAccessLayer
             {
                 foreach (var vx in verticesEl.Elements("Vertex"))
                 {
-                    int id = (int)vx.Attribute("id");
+                    int id = (int)(vx.Attribute("id") ?? throw new NullReferenceException());
                     var v = mesh.Vertices.FirstOrDefault(v => v.GlobalId == id);
                     if (v != null)
                     {
-                        v.X = (double)vx.Attribute("x");
-                        v.Y = (double)vx.Attribute("y");
-                        v.Potential = (double)vx.Attribute("potential");
-                        v.IsBoundary = (bool)vx.Attribute("isBoundary");
-                        v.IsElectrode = (bool)vx.Attribute("isElectrode");
-                        v.BoundaryId = (int)vx.Attribute("boundaryId");
-                        v.ElectrodeId = (int)vx.Attribute("electrodeId");
+                        v.X = (double)(vx.Attribute("x") ?? throw new NullReferenceException());
+                        v.Y = (double)(vx.Attribute("y") ?? throw new NullReferenceException());
+                        v.Potential = (double)(vx.Attribute("potential") ?? throw new NullReferenceException());
+                        v.IsBoundary = (bool)(vx.Attribute("isBoundary") ?? throw new NullReferenceException());
+                        v.IsElectrode = (bool)(vx.Attribute("isElectrode") ?? throw new NullReferenceException());
+                        v.BoundaryId = (int)(vx.Attribute("boundaryId") ?? throw new NullReferenceException());
+                        v.ElectrodeId = (int)(vx.Attribute("electrodeId") ?? throw new NullReferenceException());
                     }
                 }
             }
@@ -74,11 +74,11 @@ namespace DataAccessLayer
                 var elems = new List<FEMElement>();
                 foreach (var el in elementsEl.Elements("Element"))
                 {
-                    int id = (int)el.Attribute("id");
-                    int v1 = (int)el.Attribute("v1");
-                    int v2 = (int)el.Attribute("v2");
-                    int v3 = (int)el.Attribute("v3");
-                    double cond = (double)el.Attribute("conductivity");
+                    int id = (int)(el.Attribute("id") ?? throw new NullReferenceException());
+                    int v1 = (int)(el.Attribute("v1") ?? throw new NullReferenceException());
+                    int v2 = (int)(el.Attribute("v2") ?? throw new NullReferenceException());
+                    int v3 = (int)(el.Attribute("v3") ?? throw new NullReferenceException());
+                    double cond = (double)(el.Attribute("conductivity") ?? throw new NullReferenceException());
                     var femEl = new FEMElement(id, vDict[v1], vDict[v2], vDict[v3])
                     {
                         Conductivity = cond
@@ -95,15 +95,15 @@ namespace DataAccessLayer
             var electrodes = root.Element("Electrodes")?.Elements("Electrode").Select(e =>
             {
                 var el = new FEMElectrode(
-                    id: (int)e.Attribute("id"),
-                    meshId: (int)e.Attribute("meshId"),
-                    current: (double)e.Attribute("current"),
-                    zContact: (double)e.Attribute("zContact"),
-                    voltage: (double)e.Attribute("voltage"),
-                    isExcitation: (bool)e.Attribute("isExcitation"),
-                    isGround: (bool)e.Attribute("isGround"),
-                    isMeasuring: (bool)e.Attribute("isMeasuring"),
-                    pointElectrode: (bool)e.Attribute("pointElectrode")
+                    id: (int)(e.Attribute("id") ?? throw new NullReferenceException()),
+                    meshId: (int)(e.Attribute("meshId") ?? throw new NullReferenceException()),
+                    current: (double)(e.Attribute("current") ?? throw new NullReferenceException()),
+                    zContact: (double)(e.Attribute("zContact") ?? throw new NullReferenceException()),
+                    voltage: (double)(e.Attribute("voltage") ?? throw new NullReferenceException()),
+                    isExcitation: (bool)(e.Attribute("isExcitation") ?? throw new NullReferenceException()),
+                    isGround: (bool)(e.Attribute("isGround") ?? throw new NullReferenceException()),
+                    isMeasuring: (bool)(e.Attribute("isMeasuring") ?? throw new NullReferenceException()),
+                    pointElectrode: (bool)(e.Attribute("pointElectrode") ?? throw new NullReferenceException())
                 );
                 var ids = e.Element("VertexIds")?.Elements("VertexId").Select(vx => (int)vx).ToList();
                 if (ids != null && ids.Count > 0)
@@ -115,12 +115,14 @@ namespace DataAccessLayer
 
             // distributions
             var cdDict = root.Element("ConductivityDistribution")?.Elements("Value")
-                              .ToDictionary(v => (int)v.Attribute("elementId"), v => (double)v.Attribute("sigma"))
+                              .ToDictionary(v => (int)(v.Attribute("elementId") ?? throw new NullReferenceException()),
+                                            v => (double)(v.Attribute("sigma") ?? throw new NullReferenceException()))
                           ?? new Dictionary<int, double>();
             mesh.SetConductivityDistribution(new ConductivityDistribution(cdDict));
 
             var pdDict = root.Element("PotentialDistribution")?.Elements("Value")
-                              .ToDictionary(v => (int)v.Attribute("id"), v => (double)v.Attribute("phi"))
+                              .ToDictionary(v => (int)(v.Attribute("id") ?? throw new NullReferenceException()), 
+                                            v => (double)(v.Attribute("phi") ?? throw new NullReferenceException()))
                           ?? new Dictionary<int, double>();
             mesh.SetPotentialDistribution(new PotentialDistribution(pdDict));
 
@@ -145,13 +147,13 @@ namespace DataAccessLayer
             {
                 foreach (var el in elementsEl.Elements("Element"))
                 {
-                    int id = (int)el.Attribute("id");
+                    int id = (int)(el.Attribute("id") ?? throw new NullReferenceException());
                     var e = mesh.ElementsTyped.FirstOrDefault(x => x.Id == id);
                     if (e != null)
                     {
-                        e.Conductivity = (double)el.Attribute("conductivity");
-                        e.IsWall = (bool)el.Attribute("isWall");
-                        e.IsElectrode = (bool)el.Attribute("isElectrode");
+                        e.Conductivity = (double)(el.Attribute("conductivity") ?? throw new NullReferenceException());
+                        e.IsWall = (bool)(el.Attribute("isWall") ?? throw new NullReferenceException());
+                        e.IsElectrode = (bool)(el.Attribute("isElectrode")  ?? throw new NullReferenceException());
                     }
                 }
             }
@@ -159,25 +161,27 @@ namespace DataAccessLayer
             // electrodes
             var electrodes = root.Element("Electrodes")?.Elements("Electrode").Select(e =>
                 new LBMElectrode(
-                    id: (int)e.Attribute("id"),
-                    gridId: (int)e.Attribute("gridId"),
-                    current: (double)e.Attribute("current"),
-                    contactImpedance: (double)e.Attribute("zContact"),
-                    potential: (double)e.Attribute("voltage"),
-                    isExcitation: (bool)e.Attribute("isExcitation"),
-                    isGround: (bool)e.Attribute("isGround"),
-                    isMeasuring: (bool)e.Attribute("isMeasuring"))
+                    id: (int)(e.Attribute("id") ?? throw new NullReferenceException()),
+                    gridId: (int)(e.Attribute("gridId") ?? throw new NullReferenceException()),
+                    current: (double)(e.Attribute("current") ?? throw new NullReferenceException()),
+                    contactImpedance: (double)(e.Attribute("zContact") ?? throw new NullReferenceException()),
+                    potential: (double)(e.Attribute("voltage") ?? throw new NullReferenceException()),
+                    isExcitation: (bool)(e.Attribute("isExcitation") ?? throw new NullReferenceException()),
+                    isGround: (bool)(e.Attribute("isGround") ?? throw new NullReferenceException()),
+                    isMeasuring: (bool)(e.Attribute("isMeasuring") ?? throw new NullReferenceException()))
             ).ToList() ?? new List<LBMElectrode>();
             if (electrodes.Count > 0)
                 mesh.SetElectrodes(electrodes);
 
             var cdDict = root.Element("ConductivityDistribution")?.Elements("Value")
-                              .ToDictionary(v => (int)v.Attribute("elementId"), v => (double)v.Attribute("sigma"))
+                              .ToDictionary(v => (int)((v.Attribute("elementId") ?? throw new NullReferenceException()) ?? throw new NullReferenceException()),
+                                            v => (double)(v.Attribute("sigma") ?? throw new NullReferenceException()))
                           ?? new Dictionary<int, double>();
             mesh.SetConductivityDistribution(new ConductivityDistribution(cdDict));
 
             var pdDict = root.Element("PotentialDistribution")?.Elements("Value")
-                              .ToDictionary(v => (int)v.Attribute("id"), v => (double)v.Attribute("phi"))
+                              .ToDictionary(v => (int)(v.Attribute("id") ?? throw new NullReferenceException()),
+                                            v => (double)(v.Attribute("phi") ?? throw new NullReferenceException()))
                           ?? new Dictionary<int, double>();
             mesh.SetPotentialDistribution(new PotentialDistribution(pdDict));
 
@@ -338,7 +342,7 @@ namespace DataAccessLayer
             if (parms != null)
             {
                 foreach (var p in parms.Elements("Parameter"))
-                    dict[(string)p.Attribute("key")] = (string)p.Attribute("value");
+                    dict[(string)(p.Attribute("key") ?? throw new NullReferenceException())] = (string)(p.Attribute("value") ?? throw new NullReferenceException());
             }
             md.Parameters = dict;
             return md;
@@ -348,7 +352,8 @@ namespace DataAccessLayer
         {
             try
             {
-                if (md.Generator == nameof(MeshFactory.CreateCircularFEMMesh))
+                string circular = nameof(MeshFactory.CreateCircularFEMMesh);
+                if (md.Generator == circular)
                 {
                     md.Parameters.TryGetValue("layers", out var layersStr);
                     md.Parameters.TryGetValue("boundaryFEMVertexCount", out var boundaryStr);
@@ -360,7 +365,8 @@ namespace DataAccessLayer
                     double inh = double.Parse(inhStr ?? "3.0");
                     return MeshFactory.CreateCircularFEMMesh(layers, boundary, electrodes, inh);
                 }
-                if (md.Generator == nameof(MeshFactory.CreateRectangularFEMMesh))
+                string rectangular = nameof(MeshFactory.CreateRectangularFEMMesh);
+                if (md.Generator == rectangular)
                 {
                     md.Parameters.TryGetValue("width", out var wStr);
                     md.Parameters.TryGetValue("height", out var hStr);
@@ -370,7 +376,8 @@ namespace DataAccessLayer
                     int electrodes = int.Parse(elStr ?? "16");
                     return MeshFactory.CreateRectangularFEMMesh(width, height, electrodes);
                 }
-                if (md.Generator == nameof(MeshFactory.CreatePolygonFEMMesh) || md.Generator == nameof(MeshFactory.CreateThoraxFEMMesh))
+                string polygon = nameof(MeshFactory.CreatePolygonFEMMesh);
+                if (md.Generator == polygon || md.Generator == nameof(MeshFactory.CreateThoraxFEMMesh))
                 {
                     md.Parameters.TryGetValue("perimeter", out var pStr);
                     md.Parameters.TryGetValue("electrodeCount", out var elStr);

@@ -3,8 +3,6 @@ using MIConvexHull;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.Application;
-using System.Net.WebSockets;
-using System.Linq;
 
 namespace Utility.Classes.Factories
 {
@@ -85,8 +83,8 @@ namespace Utility.Classes.Factories
                 {
                     double theta = 2 * Math.PI * i / boundaryFEMVertexCount;
                     vertices.Add(new FEMVertex(globalId: vid++,
-                                            x: rnorm * Math.Cos(theta),
-                                            y: rnorm * Math.Sin(theta))
+                                               x: rnorm * Math.Cos(theta),
+                                               y: rnorm * Math.Sin(theta))
                     {
                         IsBoundary = (layer == layers),
                         BoundaryId = (layer == layers ? i : -1)

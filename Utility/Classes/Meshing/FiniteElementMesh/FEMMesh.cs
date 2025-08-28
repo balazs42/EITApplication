@@ -1,5 +1,4 @@
 ﻿using Utility.Classes.Factories;
-using Utility.Classes.Meshing;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 
 namespace Utility.Classes.Meshing.FiniteElementMesh

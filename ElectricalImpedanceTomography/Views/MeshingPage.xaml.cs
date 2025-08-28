@@ -2,7 +2,6 @@ using ElectricalImpedanceTomography.ViewModels;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
 using Microsoft.Maui.Storage;
-using Utility.Classes.Meshing;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 
