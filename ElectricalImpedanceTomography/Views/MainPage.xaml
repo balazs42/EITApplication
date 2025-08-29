@@ -6,6 +6,7 @@
              xmlns:controls="clr-namespace:ElectricalImpedanceTomography.Controls"
              xmlns:converters="clr-namespace:ElectricalImpedanceTomography.Converters"
              xmlns:messages="clr-namespace:Utility.Classes.Application;assembly=Utility"
+             xmlns:skia="clr-namespace:SkiaSharp.Views.Maui.Controls;assembly=SkiaSharp.Views.Maui.Controls"
              x:DataType="viewmodels:MainPageViewModel"
              Shell.NavBarIsVisible="False"
              Title="MainPage">
@@ -21,19 +22,19 @@
         </Style>
         <converters:MessageTypeToColorConverter x:Key="MessageTypeToColorConverter"/>
     </ContentPage.Resources>
-    <Grid RowDefinitions="Auto,*" ColumnDefinitions="200,*">
+    <Grid RowDefinitions="Auto,*" ColumnDefinitions="300,*">
         <controls:NavBarControl Grid.Row="0" Grid.ColumnSpan="2" CurrentPageName="MainPage"/>
-        <Border Grid.Row="1" Grid.Column="0" Stroke="Gray" StrokeThickness="1" Padding="10" Margin="10">
-            <VerticalStackLayout Spacing="8">
-                <Label Text="Navigation" FontAttributes="Bold"/>
-                <Button Text="DAQ" Command="{Binding NavigateCommand}" CommandParameter="DAQPage"/>
-                <Button Text="Meshing" Command="{Binding NavigateCommand}" CommandParameter="MeshingPage"/>
-                <Button Text="LBM Reconstruction" Command="{Binding NavigateCommand}" CommandParameter="LBMReconstructionPage"/>
-                <Button Text="FEM Reconstruction" Command="{Binding NavigateCommand}" CommandParameter="FEMReconstructionPage"/>
-            </VerticalStackLayout>
-        </Border>
-        <ScrollView Grid.Row="1" Grid.Column="1">
+        <ScrollView Grid.Row="1" Grid.Column="0">
             <VerticalStackLayout Spacing="10" Padding="10">
+                <Border Stroke="Gray" StrokeThickness="1" Padding="10">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="Navigation" FontAttributes="Bold"/>
+                        <Button Text="DAQ" Command="{Binding NavigateCommand}" CommandParameter="DAQPage"/>
+                        <Button Text="Meshing" Command="{Binding NavigateCommand}" CommandParameter="MeshingPage"/>
+                        <Button Text="LBM Reconstruction" Command="{Binding NavigateCommand}" CommandParameter="LBMReconstructionPage"/>
+                        <Button Text="FEM Reconstruction" Command="{Binding NavigateCommand}" CommandParameter="FEMReconstructionPage"/>
+                    </VerticalStackLayout>
+                </Border>
                 <Border Stroke="LightGray" StrokeThickness="1" Padding="10">
                     <VerticalStackLayout Spacing="6">
                         <Label Text="Configuration" FontAttributes="Bold"/>
@@ -55,7 +56,7 @@
                     <VerticalStackLayout Spacing="6">
                         <Label Text="Debug" FontAttributes="Bold"/>
                         <CollectionView ItemsSource="{Binding DebugLog}" HeightRequest="120">
-                            <CollectionView.ItemTemplate >
+                            <CollectionView.ItemTemplate>
                                 <DataTemplate x:DataType="messages:WorkspaceMessage">
                                     <Label TextColor="{Binding Type, Converter={StaticResource MessageTypeToColorConverter}}" FontSize="Small">
                                         <Label.FormattedText>
@@ -72,5 +73,6 @@
                 </Border>
             </VerticalStackLayout>
         </ScrollView>
+        <skia:SKCanvasView x:Name="MeshCanvasView" Grid.Row="1" Grid.Column="1" PaintSurface="OnCanvasViewPaintSurface" />
     </Grid>
 </ContentPage>
