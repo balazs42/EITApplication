@@ -38,9 +38,24 @@ namespace ElectricalImpedanceTomography.ViewModels
             ReconstructionParameters = Workspace.GetReconstructionParameters();
         }
 
+        private void UpdateMesh() => _mesh = Workspace.GetMesh();
+        private void UpdateReconstructionParameters() => ReconstructionParameters = Workspace.GetReconstructionParameters();
+
+        private void InitializeReconstruction()
+        {
+            UpdateMesh();
+            UpdateReconstructionParameters();
+
+            var mesh = _mesh;
+            var reconstructionParameters = ReconstructionParameters;
+
+            _reconstructionService.InitializeReconstruction(mesh, reconstructionParameters);
+        }
 
         public void OnSolveForwardClicked(object sender, EventArgs e)
         {
+            InitializeReconstruction();
+
             if (_mesh is FEMMesh femMesh)
                 _reconstructionService.SolveFemForward(femMesh);
             else if (_mesh is LBMMesh lbmMesh)
@@ -49,6 +64,8 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public void OnSolveInverseClicked(object sender, EventArgs e)
         {
+            InitializeReconstruction();
+
             if (_mesh is FEMMesh femMesh)
                 _reconstructionService.SolveFemInverse(femMesh, MaxIterationCount, StepSize, RegularizationWeight);
             else if (_mesh is LBMMesh lbmMesh)
@@ -60,6 +77,8 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public ReconstructionResult? InverseSolveStep()
         {
+            InitializeReconstruction();
+
             if (_mesh is FEMMesh femMesh)
             {
                 if (_simulatedMeasurements.Count == 0)

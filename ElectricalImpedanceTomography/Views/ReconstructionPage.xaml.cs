@@ -8,9 +8,6 @@ using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Workspace = Utility.Classes.Application.Workspace;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Linq;
 
 namespace ElectricalImpedanceTomography.Views;
 

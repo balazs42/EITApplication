@@ -22,13 +22,23 @@
         </Style>
         <converters:MessageTypeToColorConverter x:Key="MessageTypeToColorConverter"/>
     </ContentPage.Resources>
-    <Grid RowDefinitions="Auto,*" ColumnDefinitions="300,*">
-        <controls:NavBarControl Grid.Row="0" Grid.ColumnSpan="2" CurrentPageName="MainPage"/>
-        <ScrollView Grid.Row="1" Grid.Column="0">
-            <VerticalStackLayout Spacing="10" Padding="10">
+    
+    <Grid RowDefinitions="Auto, Auto">
+        <controls:NavBarControl Grid.Row="0" CurrentPageName="MainPage"/>
+
+        <Grid Grid.Row="1" ColumnDefinitions="300, Auto, Auto" RowSpacing="5" ColumnSpacing="5">
+
+            <VerticalStackLayout Grid.Column="0" Spacing="10" Padding="10">
+                <Border>
+                    <VerticalStackLayout>
+                        <Label Text="Hardware Info"/>
+                    </VerticalStackLayout>
+                </Border>
+                
+                <!-- Navigation Menu-->
                 <Border Stroke="Gray" StrokeThickness="1" Padding="10">
                     <VerticalStackLayout Spacing="8">
-                        <Label Text="Navigation" FontAttributes="Bold"/>
+                        <Label Text="Navigation" FontAttributes="Italic" FontSize="Medium"/>
                         <Button Text="DAQ" Command="{Binding NavigateCommand}" CommandParameter="DAQPage"/>
                         <Button Text="Meshing" Command="{Binding NavigateCommand}" CommandParameter="MeshingPage"/>
                         <Button Text="LBM Reconstruction" Command="{Binding NavigateCommand}" CommandParameter="LBMReconstructionPage"/>
@@ -37,7 +47,7 @@
                 </Border>
                 <Border Stroke="LightGray" StrokeThickness="1" Padding="10">
                     <VerticalStackLayout Spacing="6">
-                        <Label Text="Configuration" FontAttributes="Bold"/>
+                        <Label Text="Configuration" FontAttributes="Italic" FontSize="Medium"/>
                         <Picker Title="Solver" ItemsSource="{Binding Solvers}" SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}"/>
                         <Picker Title="Regularization" ItemsSource="{Binding Regularizations}" SelectedItem="{Binding ReconstructionParameters.RegularizationTechnique}"/>
                         <Picker Title="Error Metric" ItemsSource="{Binding ErrorMetrics}" SelectedItem="{Binding ReconstructionParameters.ErrorMetric}"/>
@@ -47,18 +57,30 @@
                 </Border>
                 <Border Stroke="LightGray" StrokeThickness="1" Padding="10">
                     <VerticalStackLayout Spacing="6">
-                        <Label Text="Toolbox" FontAttributes="Bold"/>
+                        <Label Text="Toolbox" FontAttributes="Italic" FontSize="Medium"/>
                         <Button Text="Load Measurement" Clicked="OnLoadMeasurementClicked"/>
                         <Button Text="Load Mesh" Clicked="OnLoadMeshClicked"/>
                     </VerticalStackLayout>
                 </Border>
-                <Border Stroke="LightGray" StrokeThickness="1" Padding="10">
-                    <VerticalStackLayout Spacing="6">
-                        <Label Text="Debug" FontAttributes="Bold"/>
-                        <CollectionView ItemsSource="{Binding DebugLog}" HeightRequest="120">
+            </VerticalStackLayout>
+
+            <!-- Middle Panel -->
+            <Grid Grid.Column="1" RowDefinitions="Auto, Auto">
+                <Border Grid.Row="0">
+                    <VerticalStackLayout Spacing="5">
+                        <Label Text="Middle panel"/>
+                    </VerticalStackLayout>
+                </Border>
+                
+                <Border Grid.Row="1" Stroke="LightGray" StrokeThickness="1" Padding="10" StrokeShape="RoundRectangle 3" HeightRequest="300" VerticalOptions="Start">
+                    <VerticalStackLayout Spacing="2">
+                        <Label Text="Debug" FontAttributes="Italic" FontSize="Medium"/>
+                        <CollectionView ItemsSource="{Binding DebugLog}">
                             <CollectionView.ItemTemplate>
                                 <DataTemplate x:DataType="messages:WorkspaceMessage">
-                                    <Label TextColor="{Binding Type, Converter={StaticResource MessageTypeToColorConverter}}" FontSize="Small">
+                                    <Label TextColor="{Binding Type, Converter={StaticResource MessageTypeToColorConverter}}"
+                                           FontSize="Small" 
+                                           FontFamily="SF Pro Display">
                                         <Label.FormattedText>
                                             <FormattedString>
                                                 <Span Text="{Binding Time, StringFormat='{0:HH:mm:ss} >> '}" />
@@ -71,8 +93,16 @@
                         </CollectionView>
                     </VerticalStackLayout>
                 </Border>
-            </VerticalStackLayout>
-        </ScrollView>
-        <skia:SKCanvasView x:Name="MeshCanvasView" Grid.Row="1" Grid.Column="1" PaintSurface="OnCanvasViewPaintSurface" />
+            </Grid>
+
+            <!-- Mesh Visualizer -->
+            <Border Grid.Column="2">
+                
+            <skia:SKCanvasView x:Name="MeshCanvasView"  
+                               PaintSurface="OnCanvasViewPaintSurface" 
+                               HeightRequest="350"
+                               WidthRequest="350"/>
+            </Border>
+        </Grid>
     </Grid>
 </ContentPage>
