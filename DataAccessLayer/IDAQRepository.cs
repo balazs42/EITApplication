@@ -14,6 +14,9 @@ namespace DataAccessLayer
         public void SaveEITMeasurement(EITMeasurement measurement, string name);
         public EITMeasurement LoadEITMeasurement(string name, DateTime savedAt);
         public void DeleteEITMeasurement(string name, DateTime savedAt);
+
+        public bool Connect();
+        public bool Disconnect();
     }
 }
 

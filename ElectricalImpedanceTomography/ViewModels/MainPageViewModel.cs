@@ -26,6 +26,9 @@ namespace ElectricalImpedanceTomography.ViewModels
         [ObservableProperty]
         private EITReconstructionParameters reconstructionParameters = Workspace.GetReconstructionParameters();
 
+        [ObservableProperty]
+        private User user = Workspace.GetUser();
+
         partial void OnReconstructionParametersChanged(EITReconstructionParameters value)
         {
             Workspace.SetReconstructionParameters(value);
@@ -95,6 +98,20 @@ namespace ElectricalImpedanceTomography.ViewModels
         public void OnLoadMeshClicked(object sender, EventArgs e)
         {
 
+        }
+
+        public void OnConnectButtonClicked(object sender, EventArgs e)
+        {
+            if(HardwareConnected)
+            {
+                // TODO: disconnect
+                HardwareConnected = false;
+            }
+            else
+            {
+                // TODO: connect
+                HardwareConnected = true;
+            }
         }
     }
 }

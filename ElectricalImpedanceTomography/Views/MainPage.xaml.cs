@@ -166,5 +166,10 @@ namespace ElectricalImpedanceTomography.Views
             foreach (var v in mesh.Vertices.Where(v => v.IsElectrode))
                 canvas.DrawCircle(ToCanvas(v), 4f, electrodeFill);
         }
+
+        private void OnConnectButtonClicked(object sender, EventArgs e)
+        {
+            
+        }
     }
 }
