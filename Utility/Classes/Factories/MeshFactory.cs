@@ -3,6 +3,7 @@ using MIConvexHull;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.Application;
+using System.Collections.Generic;
 
 namespace Utility.Classes.Factories
 {
@@ -530,40 +531,63 @@ namespace Utility.Classes.Factories
                 throw new ArgumentOutOfRangeException(nameof(radius),
                     "Cannot create circular LBM mesh: radius too big.");
 
-            // 1) build rectangular then carve circle
-            var mesh = new LBMMesh(nx, ny, electrodeCount);
+            var mesh = new LBMMesh(nx, ny, electrodeCount: 0);
 
             double cx = (nx - 1) / 2.0;
             double cy = (ny - 1) / 2.0;
             double r2 = radius * radius;
 
+            // Generate circle perimeter using midpoint (Minecraft) algorithm
+            var circle = new HashSet<(int x, int y)>();
+            void PlotCirclePoints(int px, int py)
+            {
+                if (px >= 0 && px < nx && py >= 0 && py < ny)
+                    circle.Add((px, py));
+            }
+
+            int x = 0;
+            int y = radius;
+            int d = 3 - 2 * radius;
+            while (y >= x)
+            {
+                PlotCirclePoints((int)(cx + x), (int)(cy + y));
+                PlotCirclePoints((int)(cx - x), (int)(cy + y));
+                PlotCirclePoints((int)(cx + x), (int)(cy - y));
+                PlotCirclePoints((int)(cx - x), (int)(cy - y));
+                PlotCirclePoints((int)(cx + y), (int)(cy + x));
+                PlotCirclePoints((int)(cx - y), (int)(cy + x));
+                PlotCirclePoints((int)(cx + y), (int)(cy - x));
+                PlotCirclePoints((int)(cx - y), (int)(cy - x));
+
+                if (d < 0)
+                    d += 4 * x + 6;
+                else
+                {
+                    d += 4 * (x - y) + 10;
+                    y--;
+                }
+                x++;
+            }
+
             var elements = mesh.GetElements().Cast<LBMElement>();
 
-
-            // mark anything outside circle as wall
             foreach (var el in elements)
             {
                 el.IsElectrode = false;
-                el.IsWall = true;
+                var (ex, ey) = mesh.ToLattice(el.Id);
+                double dx = ex - cx;
+                double dy = ey - cy;
+                double distSq = dx * dx + dy * dy;
+                bool outside = distSq >= r2;
+                bool onBoundary = circle.Contains((ex, ey));
 
-                var (x, y) = mesh.ToLattice(el.Id);
-                double dx = x - cx;
-                double dy = y - cy;
-                if (dx * dx + dy * dy > r2)
-                {
-                    el.IsWall = true;
-                    el.IsElectrode = false;
-                }
-                else
-                {
-                    el.IsWall = false;
-                }
+                el.IsWall = outside || onBoundary || ex == 0 || ey == 0 || ex == nx - 1 || ey == ny - 1;
             }
 
-            // 2) rebuild electrode list along the new inner perimeter            
+            // Place electrodes on outermost non-wall layer
             mesh.PlaceEquidistantElectrodes(electrodeCount);
 
-            // 3) refresh conductivity distribution
+            // Refresh conductivity distribution
             var cd = mesh.GetElements().ToDictionary(e => e.Id, e => e.Conductivity);
             mesh.SetConductivityDistribution(new ConductivityDistribution(cd));
 

@@ -20,5 +20,7 @@ namespace BusinessLayer
         void SaveLBMMesh(LBMMesh mesh, string name);
         FEMMesh LoadFEMMesh(string filePath);
         LBMMesh LoadLBMMesh(string filePath);
+        bool ConnectHardware();
+        bool DisconnectHardware();
     }
 }

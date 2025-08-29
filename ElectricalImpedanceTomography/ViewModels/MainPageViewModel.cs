@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ServiceLayer;
 using System.Collections.ObjectModel;
+using System;
 using Utility.Classes.Application;
 using Utility.Classes.ReconstructionParameters;
 
@@ -102,15 +103,18 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public void OnConnectButtonClicked(object sender, EventArgs e)
         {
-            if(HardwareConnected)
+            if (HardwareConnected)
             {
-                // TODO: disconnect
-                HardwareConnected = false;
+                if (_daqService.DisconnectHardware())
+                    HardwareConnected = false;
             }
             else
             {
-                // TODO: connect
-                HardwareConnected = true;
+                if (_daqService.ConnectHardware())
+                {
+                    HardwareConnected = true;
+                    UpdateHardwareInfo();
+                }
             }
         }
     }

@@ -389,6 +389,16 @@ namespace DataAccessLayer
                 File.Delete(file);
         }
 
+        public bool Connect()
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Disconnect()
+        {
+            throw new NotImplementedException();
+        }
+
         /*───────────────────────────────────────────────────────────────────*/
         public void Dispose()
         {

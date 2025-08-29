@@ -142,7 +142,20 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
             // 2) Compute center and max radius in lattice coords
             double cx = (Nx - 1) / 2.0;
             double cy = (Ny - 1) / 2.0;
-            double maxR = Math.Min(cx, cy);
+
+            double maxR = 0.0;
+            for (int y = 0; y < Ny; y++)
+                for (int x = 0; x < Nx; x++)
+                    if (!_grid[x, y].IsWall)
+                    {
+                        double dx = x - cx;
+                        double dy = y - cy;
+                        double dist = Math.Sqrt(dx * dx + dy * dy);
+                        if (dist > maxR)
+                            maxR = dist;
+                    }
+
+            maxR += 1.0; // start from just outside the domain
 
             // 3) For each electrode, pick an angle and ray‐cast inward
             for (int i = 0; i < numElectrodes; i++)
