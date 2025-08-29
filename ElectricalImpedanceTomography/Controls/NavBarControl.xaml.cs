@@ -1,4 +1,5 @@
 using ElectricalImpedanceTomography.Views;
+using System.Threading.Tasks;
 
 namespace ElectricalImpedanceTomography.Controls;
 
@@ -40,8 +41,6 @@ public partial class NavBarControl : ContentView
         // Reset all buttons to visible first
         MainPageButton.IsVisible = true;
         DAQPageButton.IsVisible = true;
-        LBMReconstructionPageButton.IsVisible = true;
-        FEMReconstructionPageButton.IsVisible = true;
         MeshingPageButton.IsVisible = true;
         ReconstructionPageButton.IsVisible = true;
 
@@ -50,62 +49,58 @@ public partial class NavBarControl : ContentView
             MainPageButton.IsVisible = false;
         else if (string.Equals(currentPageName, "DAQPage"))
             DAQPageButton.IsVisible = false;
-        else if (string.Equals(currentPageName, "LBMReconstructionPage"))
-            LBMReconstructionPageButton.IsVisible = false;
-        else if (string.Equals(currentPageName, "FEMReconstructionPage"))
-            FEMReconstructionPageButton.IsVisible = false;
         else if (string.Equals(currentPageName, "MeshingPage"))
             MeshingPageButton.IsVisible = false;
         else if(string.Equals(currentPageName, "ReconstructionPage"))
             ReconstructionPageButton.IsVisible = false;
-        
+
     }
 
-    // Handle navigation for ALL buttons
     private async void NavigateButton_Clicked(object sender, EventArgs e)
+        => await HandleNavigationAsync(sender as VisualElement);
+
+    private async void NavigateButton_Tapped(object sender, TappedEventArgs e)
+        => await HandleNavigationAsync(sender as VisualElement);
+
+    private async Task HandleNavigationAsync(VisualElement? element)
     {
-        if (sender is not Button clickedButton) return;
+        if (element == null)
+            return;
 
-        string targetPageName = clickedButton.Text; // Use button text to determine target
+        await element.ScaleTo(0.95, 50);
+        await element.ScaleTo(1.0, 50);
 
-        // These routes MUST be registered in AppShell.xaml.cs
-        // Mapping button texts to navigation strings
-        // Using '///' ensures absolute routing from the Shell root
-        string route = targetPageName switch
+        string route = string.Empty;
+        if (element == MainPageButton)
+            route = "///MainPage";
+        else if (element == DAQPageButton)
+            route = "//DAQPage";
+        else if (element == MeshingPageButton)
+            route = "//MeshingPage";
+        else if (element == ReconstructionPageButton)
+            route = "//ReconstructionPage";
+
+        if (string.IsNullOrEmpty(route) || Shell.Current == null)
         {
-            "Main" => "///MainPage",
-            "DAQ" => "//DAQPage",
-            "LBM Reconstruction" => "//LBMReconstructionPage",
-            "FEM Reconstruction" => "//FEMReconstructionPage",
-            "Meshing" => "//MeshingPage",
-            "Reconstruction" => "//ReconstructionPage",
-            _ => string.Empty
-        };
-
-        if (!string.IsNullOrEmpty(route) && Shell.Current != null)
-        {
-            var currentRoute = Shell.Current.CurrentState?.Location?.OriginalString;
-
-            if (currentRoute != null && new Uri(currentRoute, UriKind.Absolute).AbsolutePath == new Uri(route.TrimStart('/'), UriKind.RelativeOrAbsolute).ToString())
-            {
-                System.Diagnostics.Debug.WriteLine($"Already on page: {route}");
-                return; // Don't navigate if already there
-            }
-
-            try
-            {
-                System.Diagnostics.Debug.WriteLine($"Navigating to Shell route: {route}");
-
-                await Shell.Current.GoToAsync(route, true);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Navigation Error: Failed to navigate to {route}. {ex.Message}");
-            }
+            System.Diagnostics.Debug.WriteLine($"Navigation Error: Route not defined or Shell not ready");
+            return;
         }
-        else
+
+        var currentRoute = Shell.Current.CurrentState?.Location?.OriginalString;
+        if (currentRoute != null && new Uri(currentRoute, UriKind.Absolute).AbsolutePath == new Uri(route.TrimStart('/'), UriKind.RelativeOrAbsolute).ToString())
         {
-            System.Diagnostics.Debug.WriteLine($"Navigation Error: Route not defined or Shell not ready for {targetPageName}");
+            System.Diagnostics.Debug.WriteLine($"Already on page: {route}");
+            return;
+        }
+
+        try
+        {
+            System.Diagnostics.Debug.WriteLine($"Navigating to Shell route: {route}");
+            await Shell.Current.GoToAsync(route, true);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Navigation Error: Failed to navigate to {route}. {ex.Message}");
         }
     }
 }

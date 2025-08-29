@@ -80,7 +80,7 @@
                     <Shadow Brush="#111111" Opacity="1.0" Radius="4.0"/>
                 </Border.Shadow>
                 <Border.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="NavigateButton_Clicked"/>
+                    <TapGestureRecognizer Tapped="NavigateButton_Tapped"/>
                 </Border.GestureRecognizers>
             </Border>
 
@@ -105,7 +105,7 @@
                     <Shadow Brush="#111111" Opacity="1.0" Radius="4.0"/>
                 </Border.Shadow>
                 <Border.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="NavigateButton_Clicked"/>
+                    <TapGestureRecognizer Tapped="NavigateButton_Tapped"/>
                 </Border.GestureRecognizers>
             </Border>
 
@@ -130,7 +130,7 @@
                     <Shadow Brush="#111111" Opacity="1.0" Radius="4.0"/>
                 </Border.Shadow>
                 <Border.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="NavigateButton_Clicked"/>
+                    <TapGestureRecognizer Tapped="NavigateButton_Tapped"/>
                 </Border.GestureRecognizers>
             </Border>
             
