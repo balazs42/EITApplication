@@ -6,17 +6,17 @@ namespace Utility.Logger
     {
         public void LogError(string error)
         {
-            Workspace.AddLogMessage("ErrorLog", error, Classes.Application.WorkspaceMessageType.Error);
+            Workspace.AddErrorMessage(error);
         }
 
         public void LogInfo(string info)
         {
-            Workspace.AddLogMessage("InfoLog", info);
+            Workspace.AddInfoMessage(info);
         }
 
         public void LogWarning(string warning)
         {
-            Workspace.AddLogMessage("WarningLog", warning, Classes.Application.WorkspaceMessageType.Warning);
+            Workspace.AddWarningMessage(warning);
         }
     }
 }

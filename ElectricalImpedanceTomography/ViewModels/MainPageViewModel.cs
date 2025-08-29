@@ -9,7 +9,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 {
     public partial class MainPageViewModel : BaseViewModel
     {
-        public ObservableCollection<WorkspaceMessage> DebugLog { get; } = new();
+        public ObservableCollection<WorkspaceMessage> DebugLog { get; } = [];
 
         [ObservableProperty]
         private EITReconstructionParameters reconstructionParameters = Workspace.GetReconstructionParameters();
@@ -25,9 +25,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         public IEnumerable<NumericOptimizer> NumericOptimizers => Enum.GetValues<NumericOptimizer>();
         public IEnumerable<NumericSolver> NumericSolvers => Enum.GetValues<NumericSolver>();
 
-        //public IAsyncRelayCommand<string> NavigateCommand { get; }
-        //public IAsyncRelayCommand LoadMeasurementCommand { get; }
-        //public IAsyncRelayCommand LoadMeshCommand { get; }
+        public IAsyncRelayCommand<string> NavigateCommand { get; }
 
         public MainPageViewModel()
         {
@@ -36,9 +34,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             Workspace.MessageAdded += OnWorkspaceMessageAdded;
 
-            //  NavigateCommand = new AsyncRelayCommand<string>(async (route) => await Shell.Current.GoToAsync(route));
-            //  LoadMeasurementCommand = new AsyncRelayCommand(async () => await Task.CompletedTask);
-            //  LoadMeshCommand = new AsyncRelayCommand(async () => await Task.CompletedTask);
+            NavigateCommand = new AsyncRelayCommand<string>(async (route) => await Shell.Current.GoToAsync(route));
         }
 
         private void OnWorkspaceMessageAdded(WorkspaceMessage message)

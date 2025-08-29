@@ -47,6 +47,7 @@ namespace ServiceLayer
             }
             catch (Exception ex) 
             {
+                Workspace.AddErrorMessage(ex.Message);
                 _logger.LogError(ex.Message);
                 Console.WriteLine(ex.Message);
                 Debug.WriteLine(ex.Message);

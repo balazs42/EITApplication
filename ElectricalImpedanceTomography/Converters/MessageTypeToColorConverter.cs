@@ -1,7 +1,4 @@
-using System;
 using System.Globalization;
-using Microsoft.Maui.Controls;
-using Microsoft.Maui.Graphics;
 using Utility.Classes.Application;
 
 namespace ElectricalImpedanceTomography.Converters
@@ -17,6 +14,7 @@ namespace ElectricalImpedanceTomography.Converters
                     WorkspaceMessageType.Error => Colors.Red,
                     WorkspaceMessageType.Warning => Color.FromArgb("#B8860B"),
                     WorkspaceMessageType.Loading => Colors.Green,
+                    WorkspaceMessageType.Info => Colors.Blue,
                     _ => Colors.White
                 };
             }

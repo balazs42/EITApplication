@@ -6,5 +6,18 @@
     /// </summary>
     public class DefaultUser : User
     {
+
+        public DefaultUser(int id, string name)
+        {
+            Id = id;
+            Name = name;
+        }
+
+        public DefaultUser(int id, string name, string email)
+        {
+            Id = id;
+            Name = name;
+            Email = email;
+        }
     }
 }
