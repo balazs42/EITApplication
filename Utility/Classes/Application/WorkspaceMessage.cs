@@ -1,3 +1,5 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+
 namespace Utility.Classes.Application
 {
     public enum WorkspaceMessageType
@@ -9,5 +11,23 @@ namespace Utility.Classes.Application
         Info
     }
 
-    public record WorkspaceMessage(DateTime Time, string Message, WorkspaceMessageType Type);
+    [ObservableObject]
+    public partial class WorkspaceMessage
+    {
+        [ObservableProperty]
+        private DateTime time;
+
+        [ObservableProperty]
+        private string message = string.Empty;
+
+        [ObservableProperty]
+        private WorkspaceMessageType type;
+
+        public WorkspaceMessage(DateTime time, string message, WorkspaceMessageType type)
+        {
+            Time = time;
+            Message = message;
+            Type = type;
+        }
+    }
 }
