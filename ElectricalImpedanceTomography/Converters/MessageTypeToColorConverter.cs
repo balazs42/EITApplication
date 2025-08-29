@@ -9,13 +9,19 @@ namespace ElectricalImpedanceTomography.Converters
         {
             if (value is WorkspaceMessageType type)
             {
+                // Use app theme to ensure log messages are visible on both
+                // light and dark backgrounds.  When no explicit colour is
+                // defined ("Log" messages), we default to black for light
+                // theme and white for dark theme.
+                var isDark = Application.Current?.RequestedTheme == AppTheme.Dark;
+
                 return type switch
                 {
                     WorkspaceMessageType.Error => Colors.Red,
                     WorkspaceMessageType.Warning => Color.FromArgb("#B8860B"),
                     WorkspaceMessageType.Loading => Colors.Green,
                     WorkspaceMessageType.Info => Colors.Blue,
-                    _ => Colors.Black
+                    _ => isDark ? Colors.White : Colors.Black
                 };
             }
             return Colors.Black;
