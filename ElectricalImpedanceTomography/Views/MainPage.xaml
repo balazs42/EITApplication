@@ -32,6 +32,9 @@
                 <Border>
                     <VerticalStackLayout>
                         <Label Text="Hardware Info"/>
+                        <Label Text="{Binding CurrentAmplitude, StringFormat='Current amplitude: {0:F2} mA'}"/>
+                        <Label Text="{Binding ExcitationFrequency, StringFormat='Excitation frequency: {0:F0} Hz'}"/>
+                        <Label Text="{Binding HardwareConnectionText}" TextColor="{Binding HardwareStatusColor}"/>
                     </VerticalStackLayout>
                 </Border>
                 
@@ -75,7 +78,10 @@
                 <Border Grid.Row="1" Stroke="LightGray" StrokeThickness="1" Padding="10" StrokeShape="RoundRectangle 3" HeightRequest="300" VerticalOptions="Start">
                     <VerticalStackLayout Spacing="2">
                         <Label Text="Debug" FontAttributes="Italic" FontSize="Medium"/>
-                        <CollectionView ItemsSource="{Binding DebugLog}">
+                        <CollectionView ItemsSource="{Binding DebugLog}" VerticalOptions="FillAndExpand">
+                            <CollectionView.ItemsLayout>
+                                <LinearItemsLayout Orientation="Vertical"/>
+                            </CollectionView.ItemsLayout>
                             <CollectionView.ItemTemplate>
                                 <DataTemplate x:DataType="messages:WorkspaceMessage">
                                     <Label TextColor="{Binding Type, Converter={StaticResource MessageTypeToColorConverter}}"
