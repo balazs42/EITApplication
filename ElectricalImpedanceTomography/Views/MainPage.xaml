@@ -26,7 +26,7 @@
     <Grid RowDefinitions="Auto, Auto">
         <controls:NavBarControl Grid.Row="0" CurrentPageName="MainPage"/>
 
-        <Grid Grid.Row="1" ColumnDefinitions="300, Auto, Auto" RowSpacing="5" ColumnSpacing="5">
+        <Grid Grid.Row="1" ColumnDefinitions="*, *, *" RowSpacing="5" ColumnSpacing="5">
 
             <VerticalStackLayout Grid.Column="0" Spacing="10" Padding="10">
                 <Border StrokeShape="RoundRectangle 3">
@@ -118,33 +118,37 @@
                         <Label Text="Middle panel"/>
                     </VerticalStackLayout>
                 </Border>
-                
-                <Border Grid.Row="1" Stroke="LightGray" StrokeThickness="1" Padding="10" StrokeShape="RoundRectangle 3" HeightRequest="300" VerticalOptions="Start">
-                    <VerticalStackLayout Spacing="2">
-                        <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5">
+
+                <Border Grid.Row="1" Stroke="LightGray" StrokeThickness="1" Padding="10" StrokeShape="RoundRectangle 3" HeightRequest="300" VerticalOptions="Start" BackgroundColor="{AppThemeBinding Light=White, Dark=#1F1F1F}">
+                    <Grid RowDefinitions="Auto, *" RowSpacing="2">
+                        <Grid Grid.Row="0" ColumnDefinitions="Auto, Auto" ColumnSpacing="5">
                             <Image Grid.Column="0" Source="icon_terminal2.png" HeightRequest="20" BackgroundColor="Transparent"/>
                             <Label Grid.Column="1" Text="Console" FontAttributes="Italic" FontSize="Medium"/>
                         </Grid>
-                        <CollectionView ItemsSource="{Binding DebugLog}"
-                                        ItemsLayout="VerticalList"
-                                        ItemSizingStrategy="MeasureAllItems"
-                                        Margin="3">
-                            <CollectionView.ItemTemplate>
-                                <DataTemplate x:DataType="messages:WorkspaceMessage">
-                                    <Border>
-                                        <Grid ColumnDefinitions="Auto, *" ColumnSpacing="3">
-                                            <Label Grid.Column="0" Text="{Binding Time, StringFormat='[{0:HH:mm:ss}] >>'}"
-                                                   FontFamily="Consolas" 
-                                                   TextColor="{Binding Type, Converter={StaticResource MessageTypeToColorConverter}}"/>
-                                            <Label Grid.Column="1" Text="{Binding Message}"
-                                                   LineBreakMode="WordWrap"
-                                                   TextColor="{Binding Type, Converter={StaticResource MessageTypeToColorConverter}}"/>
-                                        </Grid>
-                                    </Border>
-                                </DataTemplate>
-                            </CollectionView.ItemTemplate>
-                        </CollectionView>
-                    </VerticalStackLayout>
+                        <ScrollView Grid.Row="1">
+                            <VerticalStackLayout Spacing="2"
+                         BindableLayout.ItemsSource="{Binding DebugLog}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate x:DataType="messages:WorkspaceMessage">
+                                        <Border StrokeShape="RoundRectangle 5" Padding="4">
+                                            <Grid ColumnDefinitions="Auto, *" ColumnSpacing="5">
+                                                <Label Grid.Column="0" 
+                                                       Text="{Binding Time, StringFormat='[{0:HH:mm:ss}] >>'}"
+                                                       FontFamily="Consolas" 
+                                                       TextColor="{AppThemeBinding Light=Black, Dark=White}"/>
+                                                <Label Grid.Column="1" 
+                                                       Text="{Binding Message}"
+                                                       LineBreakMode="WordWrap"
+                                                       TextColor="{Binding Type,
+                                                       Converter={StaticResource MessageTypeToColorConverter},
+                                                       ConverterParameter={AppThemeBinding Light=White, Dark=#1A1A1A}}"/>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
+                        </ScrollView>
+                    </Grid>
                 </Border>
             </Grid>
 

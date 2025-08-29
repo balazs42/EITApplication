@@ -12,7 +12,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         private readonly IDAQService _daqService;
 
         [ObservableProperty]
-        private ObservableCollection<WorkspaceMessage> debugLog = [];
+        private ObservableCollection<WorkspaceMessage> debugLog = new();
 
         [ObservableProperty]
         private double currentAmplitude = 1.0;
