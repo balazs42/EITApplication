@@ -67,7 +67,7 @@
                                              Binding="{Binding HardwareConnected}"
                                              Value="False">
                                     <Setter Property="Text" Value="Connect"/>
-                                    <Setter Property="BackgroundColor" Value="Green"/>
+                                    <Setter Property="BackgroundColor" Value="#00A000"/>
                                 </DataTrigger>
                             </Button.Triggers>
                         </Button>
@@ -158,7 +158,7 @@
                                                  BindableLayout.ItemsSource="{Binding DebugLog}">
                                 <BindableLayout.ItemTemplate>
                                     <DataTemplate x:DataType="messages:WorkspaceMessage">
-                                        <Border StrokeShape="RoundRectangle 5" Padding="4">
+                                        <Border StrokeShape="RoundRectangle 5" Padding="4" Stroke="Transparent">
                                             <Grid ColumnDefinitions="Auto, *" ColumnSpacing="5">
                                                 <Label Grid.Column="0" 
                                                        Text="{Binding Time, StringFormat='[{0:HH:mm:ss}] >>'}"

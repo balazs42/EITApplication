@@ -11,8 +11,7 @@ namespace Utility.Classes.Application
         Info
     }
 
-    [ObservableObject]
-    public partial class WorkspaceMessage
+    public partial class WorkspaceMessage : ObservableObject
     {
         [ObservableProperty]
         private DateTime time;

@@ -14,68 +14,105 @@
         <Style TargetType="Picker">
             <Setter Property="FontFamily" Value="SF Pro Text"/>
         </Style>
+        <Style TargetType="Button">
+            <Setter Property="FontFamily" Value="SF Pro Display"/>
+            <Setter Property="FontSize" Value="Medium" />
+            <Setter Property="FontAttributes" Value="Bold" />
+            <Setter Property="BorderColor" Value="Transparent"/>
+        </Style>
     </ContentPage.Resources>
-    <Grid RowDefinitions="Auto, Auto, Auto, Auto">
+    <Grid RowDefinitions="Auto, *">
         <controls:NavBarControl Grid.Row="0" Grid.ColumnSpan="1" CurrentPageName="MeshingPage"/>
+        <Grid Grid.Row="1" ColumnDefinitions="Auto, *">
 
-        <!-- Parameter selection -->
-        <ScrollView Grid.Row="1" Orientation="Horizontal">
-            <HorizontalStackLayout Spacing="10" Padding="5">
-                <Label Text="Mesh" VerticalOptions="Center"/>
-                <Picker ItemsSource="{Binding MeshTypes}" SelectedItem="{Binding SelectedMeshType}" WidthRequest="100"/>
+            <!-- Left control Panel -->
+            <Border StrokeShape="RoundRectangle 5">
+                <VerticalStackLayout Grid.Column="0" Spacing="5" Margin="5">
+                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
+                        <Label Grid.Column="0" Text="Mesh Type:" VerticalOptions="Center"/>
+                        <Picker Grid.Column="1" ItemsSource="{Binding MeshTypes}" SelectedItem="{Binding SelectedMeshType}" WidthRequest="100"/>
+                    </Grid>
 
-                <!-- FEM parameters -->
-                <Label Text="Layers" IsVisible="{Binding IsFEM}" VerticalOptions="Center"/>
-                <Entry Text="{Binding Layers}" WidthRequest="60" IsVisible="{Binding IsFEM}" Keyboard="Numeric"/>
-                <Label Text="Boundary Vertices" IsVisible="{Binding IsFEM}" VerticalOptions="Center"/>
-                <Entry Text="{Binding BoundaryFEMVertexCount}" WidthRequest="60" IsVisible="{Binding IsFEM}" Keyboard="Numeric"/>
+                    <!-- FEM parameters -->
+                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
+                        <Label Grid.Column="0" Text="Layers" IsVisible="{Binding IsFEM}" VerticalOptions="Center"/>
+                        <Entry Grid.Column="1" Text="{Binding Layers}" WidthRequest="60" IsVisible="{Binding IsFEM}" Keyboard="Numeric" VerticalOptions="End" HorizontalOptions="End"/>
+                    </Grid>
 
-                <!-- LBM parameters -->
-                <Label Text="Nx" IsVisible="{Binding IsLBM}" VerticalOptions="Center"/>
-                <Entry Text="{Binding Nx}" WidthRequest="60" IsVisible="{Binding IsLBM}" Keyboard="Numeric"/>
-                <Label Text="Ny" IsVisible="{Binding IsLBM}" VerticalOptions="Center"/>
-                <Entry Text="{Binding Ny}" WidthRequest="60" IsVisible="{Binding IsLBM}" Keyboard="Numeric"/>
+                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
+                        <Label Grid.Column="0" Text="Boundary Vertices" IsVisible="{Binding IsFEM}" VerticalOptions="Center"/>
+                        <Entry Grid.Column="1" Text="{Binding BoundaryFEMVertexCount}" WidthRequest="60" HorizontalOptions="End" IsVisible="{Binding IsFEM}" Keyboard="Numeric"/>
+                    </Grid>
+                    
 
-                <!-- Common parameters -->
-                <Label Text="Electrodes" VerticalOptions="Center"/>
-                <Entry Text="{Binding ElectrodeCount}" WidthRequest="60" Keyboard="Numeric"/>
+                    <!-- LBM parameters -->
+                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
+                        <Label Grid.Column="0" Text="Nx" IsVisible="{Binding IsLBM}" VerticalOptions="Center"/>
+                        <Entry Grid.Column="1" Text="{Binding Nx}" WidthRequest="60" IsVisible="{Binding IsLBM}" Keyboard="Numeric"/>
+                    </Grid>
 
-                <Label Text="Geometry" VerticalOptions="Center"/>
-                <Picker ItemsSource="{Binding GeometryTypes}" SelectedItem="{Binding SelectedGeometry}" WidthRequest="120"/>
+                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
+                        <Label Grid.Column="0" Text="Ny" IsVisible="{Binding IsLBM}" VerticalOptions="Center"/>
+                        <Entry Grid.Column="1" Text="{Binding Ny}" WidthRequest="60" IsVisible="{Binding IsLBM}" Keyboard="Numeric"/>
+                    </Grid>
 
-                <Label Text="Custom" IsVisible="{Binding IsCustomGeometry}" VerticalOptions="Center"/>
-                <Entry Text="{Binding CustomPerimeter}" WidthRequest="200" IsVisible="{Binding IsCustomGeometry}"/>
+                    <!-- Common parameters -->
+                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
+                        <Label Grid.Column="0" Text="Electrodes" VerticalOptions="Center"/>
+                        <Entry Grid.Column="1" Text="{Binding ElectrodeCount}" WidthRequest="30" HorizontalOptions="End" Keyboard="Numeric"/>
+                    </Grid>
+                    
+                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
+                        <Label Grid.Column="0" Text="Geometry" VerticalOptions="Center"/>
+                        <Picker Grid.Column="1" ItemsSource="{Binding GeometryTypes}" SelectedItem="{Binding SelectedGeometry}" WidthRequest="120"/>
+                    </Grid>
+                    
+                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
+                        <Label Grid.Column="0" Text="Custom" IsVisible="{Binding IsCustomGeometry}" VerticalOptions="Center"/>
+                        <Entry Grid.Column="1" Text="{Binding CustomPerimeter}" WidthRequest="200" IsVisible="{Binding IsCustomGeometry}"/>
+                    </Grid>
 
-                <Label Text="EditConductivities" VerticalOptions="Center"/>
-                <CheckBox IsChecked="{Binding InhomogenityEditing}"/>
-                <Entry Text="{Binding InhomogenityValue}" WidthRequest="80" IsVisible="{Binding InhomogenityEditing}" Keyboard="Numeric"/>
+                    <Grid ColumnDefinitions="Auto, *, *" ColumnSpacing="10" Margin="10">
+                        <Label Grid.Column="0" Text="EditConductivities" VerticalOptions="Center"/>
+                        <CheckBox Grid.Column="1" IsChecked="{Binding InhomogenityEditing}"/>
+                        <Entry Grid.Column="2" Text="{Binding InhomogenityValue}" WidthRequest="80" IsVisible="{Binding InhomogenityEditing}" Keyboard="Numeric"/>
+                    </Grid>
 
-                <Label Text="Contact Imp." VerticalOptions="Center"/>
-                <Entry Text="{Binding ElectrodeContactImpedance}" WidthRequest="60" Keyboard="Numeric"/>
-                <Label Text="Electrode Size" IsVisible="{Binding IsFEM}" VerticalOptions="Center"/>
-                <Entry Text="{Binding ElectrodeSize}" WidthRequest="60" IsVisible="{Binding IsFEM}" Keyboard="Numeric"/>
-            </HorizontalStackLayout>
-        </ScrollView>
+                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
+                        <Label Grid.Column="0" Text="Contact Imp." VerticalOptions="Center"/>
+                        <Entry Grid.Column="1" Text="{Binding ElectrodeContactImpedance}" WidthRequest="60" HorizontalOptions="End" Keyboard="Numeric"/>
+                    </Grid>
 
-        <Border Grid.Row="2"
-                Stroke="DarkGray"
-                StrokeThickness="2"
-                Margin="10"
-                HorizontalOptions="Center"
-                VerticalOptions="Center">
-            <skia:SKCanvasView x:Name="MeshCanvas"
-                               PaintSurface="OnMeshCanvasPaintSurface"
-                               EnableTouchEvents="True"
-                               Touch="OnMeshCanvasTouch"
-                               HeightRequest="500"
-                               WidthRequest="500"
-                               Margin="10" />
-        </Border>
+                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
+                        <Label Grid.Column="0" Text="Electrode Size" IsVisible="{Binding IsFEM}" VerticalOptions="Center"/>
+                        <Entry Grid.Column="1" Text="{Binding ElectrodeSize}" WidthRequest="60" IsVisible="{Binding IsFEM}" HorizontalOptions="End" Keyboard="Numeric"/>
+                    </Grid>
 
-        <Grid Grid.Row="3" ColumnDefinitions="Auto,Auto,Auto" ColumnSpacing="10" HorizontalOptions="Center">
-            <Button Grid.Column="0" Text="Save" Clicked="OnSaveClicked"/>
-            <Button Grid.Column="1" Text="Load" Clicked="OnLoadClicked"/>
-            <Button Grid.Column="2" Text="Generate" Clicked="OnGenerateClicked"/>
+                    </VerticalStackLayout>
+            </Border>
+
+            <!-- Middle Canvas display -->
+            <Grid Grid.Column="1" RowDefinitions="Auto, *" >
+                <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,Auto" ColumnSpacing="10" HorizontalOptions="Center" VerticalOptions="Center">
+                    <Button Grid.Column="0" WidthRequest="150" Margin="10" BackgroundColor="Green" Text="Save" Clicked="OnSaveClicked"/>
+                    <Button Grid.Column="1" WidthRequest="150" Margin="10" BackgroundColor="Purple" Text="Load" Clicked="OnLoadClicked"/>
+                    <Button Grid.Column="2" WidthRequest="150" Margin="10" BackgroundColor="Orange" Text="Generate" Clicked="OnGenerateClicked"/>
+                </Grid>
+                <Border Grid.Row="1"
+                        Stroke="DarkGray"
+                        StrokeThickness="2"
+                        Margin="10"
+                        HorizontalOptions="Center"
+                        VerticalOptions="Center">
+                    <skia:SKCanvasView x:Name="MeshCanvas"
+                           PaintSurface="OnMeshCanvasPaintSurface"
+                           EnableTouchEvents="True"
+                           Touch="OnMeshCanvasTouch"
+                           HeightRequest="700"
+                           WidthRequest="700"
+                           Margin="10" />
+                </Border>
+            </Grid>
         </Grid>
     </Grid>
 </ContentPage>
