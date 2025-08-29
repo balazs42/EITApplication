@@ -17,8 +17,6 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         private IMesh? _mesh = Workspace.GetMesh();
 
-        [ObservableProperty]
-        private EITReconstructionParameters reconstructionParameters = Workspace.GetReconstructionParameters();
 
         [ObservableProperty]
         private int iterationCount = 0;
@@ -36,6 +34,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             _reconstructionService = reconstructionService;
 
+            // Use global reconstruction parameters stored in the workspace
             ReconstructionParameters = Workspace.GetReconstructionParameters();
         }
 

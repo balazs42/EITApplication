@@ -16,8 +16,6 @@ namespace ElectricalImpedanceTomography.ViewModels
     {     
         private readonly IReconstructionService _reconstructionService;
 
-        [ObservableProperty]
-        private EITReconstructionParameters reconstructionParameters;
 
         [ObservableProperty]
         private ReconstructionResult reconstructionResult;
@@ -37,9 +35,8 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             _reconstructionService = reconstructionService;
 
-            ReconstructionParameters = new EITReconstructionParameters();
+            // Use and configure the global reconstruction parameters
             ReconstructionParameters.DifferentialEquationSolver = DifferentialEquationSolver.LatticeBoltzmannMethod;
-
             Workspace.SetReconstructionParameters(ReconstructionParameters);
 
             GenerateLbmMesh();
@@ -162,29 +159,6 @@ namespace ElectricalImpedanceTomography.ViewModels
             ReconstructionResult = result;
             OnPropertyChanged(nameof(ReconstructionResult));
             return result;
-        }
-
-        public void OnReconstructionParametersChanged(object sender, EventArgs e)
-        {
-            if(sender is Picker picker)
-            {                
-                if(picker.BindingContext is EITReconstructionParameters reconstructionParameter)
-                {
-                    DifferentialEquationSolver differentialEquationSolver = reconstructionParameter.DifferentialEquationSolver;
-                    RegularizationTechnique regularizationTechnique = reconstructionParameter.RegularizationTechnique;
-                    ErrorMetric errorMetric = reconstructionParameter.ErrorMetric;
-                    NumericSolver numericSolver = reconstructionParameter.NumericSolver;
-                    NumericOptimizer numericOptimizer = reconstructionParameter.NumericOptimizer;
-
-                    ReconstructionParameters = new EITReconstructionParameters(differentialEquationSolver,
-                                                                               regularizationTechnique, 
-                                                                               errorMetric, 
-                                                                               numericSolver, 
-                                                                               numericOptimizer);
-
-                    Workspace.SetReconstructionParameters(ReconstructionParameters);
-                }
-            }
         }
 
         private async void SetupLBMReconstruction()
