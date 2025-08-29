@@ -33,7 +33,7 @@
                     <VerticalStackLayout Spacing="3">
                         <Label Text="Hardware Info" FontAttributes="Italic" FontSize="Medium" HorizontalOptions="Center"/>
                         <Label Margin="3" Text="{Binding CurrentAmplitude, StringFormat='Current amplitude: {0:F2} mA'}"/>
-                        <Label Margin="3" Text="{Binding ExcitationFrequency, StringFormat='Excitation frequency: {0:F0} Hz'}"/>
+                        <Label Margin="3" Text="{Binding ExcitationFrequency, StringFormat='Excitation frequency: {0:F0} kHz'}"/>
                         <Grid ColumnDefinitions="Auto, Auto, Auto" ColumnSpacing="5" Margin="3">
                             <Label Text="Connection Status: "/>
                             <Image Grid.Column="1" HeightRequest="15">
@@ -112,7 +112,7 @@
             </VerticalStackLayout>
 
             <!-- Middle Panel -->
-            <Grid Grid.Column="1" RowDefinitions="Auto, Auto">
+            <Grid Grid.Column="1" RowDefinitions="*, Auto" RowSpacing="10">
                 <Border Grid.Row="0">
                     <VerticalStackLayout Spacing="5">
                         <Label Text="Middle panel"/>
@@ -125,22 +125,22 @@
                             <Image Grid.Column="0" Source="icon_terminal2.png" HeightRequest="20" BackgroundColor="Transparent"/>
                             <Label Grid.Column="1" Text="Console" FontAttributes="Italic" FontSize="Medium"/>
                         </Grid>
-                        <CollectionView ItemsSource="{Binding DebugLog}">
-                            <CollectionView.ItemsLayout>
-                                <LinearItemsLayout Orientation="Vertical"/>
-                            </CollectionView.ItemsLayout>
+                        <CollectionView ItemsSource="{Binding DebugLog}"
+                                        ItemsLayout="VerticalList"
+                                        ItemSizingStrategy="MeasureAllItems"
+                                        Margin="3">
                             <CollectionView.ItemTemplate>
                                 <DataTemplate x:DataType="messages:WorkspaceMessage">
-                                    <Label TextColor="{Binding Type, Converter={StaticResource MessageTypeToColorConverter}}"
-                                           FontSize="Small" 
-                                           FontFamily="SF Pro Display">
-                                        <Label.FormattedText>
-                                            <FormattedString>
-                                                <Span Text="{Binding Time, StringFormat='{0:HH:mm:ss} >> '}" />
-                                                <Span Text="{Binding Message}" />
-                                            </FormattedString>
-                                        </Label.FormattedText>
-                                    </Label>
+                                    <Border>
+                                        <Grid ColumnDefinitions="Auto, *" ColumnSpacing="3">
+                                            <Label Grid.Column="0" Text="{Binding Time, StringFormat='[{0:HH:mm:ss}] >>'}"
+                                                   FontFamily="Consolas" 
+                                                   TextColor="{Binding Type, Converter={StaticResource MessageTypeToColorConverter}}"/>
+                                            <Label Grid.Column="1" Text="{Binding Message}"
+                                                   LineBreakMode="WordWrap"
+                                                   TextColor="{Binding Type, Converter={StaticResource MessageTypeToColorConverter}}"/>
+                                        </Grid>
+                                    </Border>
                                 </DataTemplate>
                             </CollectionView.ItemTemplate>
                         </CollectionView>
@@ -149,20 +149,28 @@
             </Grid>
 
             <!-- Mesh Visualizer -->
-            <Border Grid.Column="2"
-                    Margin="5"
-                    HeightRequest="400"
-                    WidthRequest="400" 
-                    StrokeShape="RoundRectangle 3"
-                    HorizontalOptions="Center" 
-                    VerticalOptions="Center">
+            <Grid Grid.Column="2" RowDefinitions="Auto, Auto" HorizontalOptions="Center" VerticalOptions="Center" RowSpacing="5">
+                <Label Grid.Row="0" 
+                       Text="Mesh Preview" 
+                       HorizontalOptions="Center" 
+                       FontAttributes="Italic" 
+                       FontSize="Medium" 
+                       VerticalOptions="End"/>
+                <Border Grid.Row="1"
+                        Margin="5"
+                        HeightRequest="400"
+                        WidthRequest="400" 
+                        StrokeShape="RoundRectangle 3"
+                        HorizontalOptions="Center" 
+                        VerticalOptions="Center">
                 
-            <skia:SKCanvasView x:Name="MeshCanvasView" 
-                               Margin="5"
-                               PaintSurface="OnCanvasViewPaintSurface" 
-                               HeightRequest="370"
-                               WidthRequest="370"/>
-            </Border>
+                <skia:SKCanvasView x:Name="MeshCanvasView" 
+                                   Margin="5"
+                                   PaintSurface="OnCanvasViewPaintSurface" 
+                                   HeightRequest="370"
+                                   WidthRequest="370"/>
+                </Border>
+            </Grid>
         </Grid>
     </Grid>
 </ContentPage>

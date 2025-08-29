@@ -1,7 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Maui.ApplicationModel;
-using Microsoft.Maui.Graphics;
 using ServiceLayer;
 using System.Collections.ObjectModel;
 using Utility.Classes.Application;
@@ -14,13 +12,13 @@ namespace ElectricalImpedanceTomography.ViewModels
         private readonly IDAQService _daqService;
 
         [ObservableProperty]
-        private ObservableCollection<WorkspaceMessage> debugLog = new();
+        private ObservableCollection<WorkspaceMessage> debugLog = [];
 
         [ObservableProperty]
-        private double currentAmplitude;
+        private double currentAmplitude = 1.0;
 
         [ObservableProperty]
-        private double excitationFrequency;
+        private double excitationFrequency = 1.0;
 
         [ObservableProperty]
         private bool hardwareConnected;
@@ -62,6 +60,9 @@ namespace ElectricalImpedanceTomography.ViewModels
             NavigateCommand = new AsyncRelayCommand<string>(async (route) => await Shell.Current.GoToAsync(route));
 
             UpdateHardwareInfo();
+
+            CurrentAmplitude = 1.0;
+            ExcitationFrequency = 1.0;
         }
 
         private void OnWorkspaceMessageAdded(WorkspaceMessage message)
