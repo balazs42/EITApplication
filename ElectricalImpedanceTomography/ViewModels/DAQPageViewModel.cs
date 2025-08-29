@@ -58,9 +58,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                     TitleFontWeight = OxyPlot.FontWeights.Bold,
                     PlotMargins = new OxyThickness(20, 20, 20, 20),
                     DefaultFont = "SF Pro Text",
-                    TitleFont = "SF Pro Text",
-                    LegendFont = "SF Pro Text"
-
+                    TitleFont = "SF Pro Text"
                 };
                 var series = new LineSeries
                 {
