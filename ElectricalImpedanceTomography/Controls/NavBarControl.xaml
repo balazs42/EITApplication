@@ -61,9 +61,11 @@
             </Grid>
 
             <Border x:Name="DAQPageButton"
-                StrokeShape="RoundRectangle 5">
-                <Grid ColumnDefinitions="Auto, Auto">
-                    <Image Grid.Column="0" Source="icon_hardware_gpt1.png" HeightRequest="30"/>
+                    StrokeShape="RoundRectangle 5"
+                    Stroke="Transparent"
+                    BackgroundColor="#555555">
+                <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5">
+                    <Image Grid.Column="0" Source="icon_hardware.png" HeightRequest="30"/>
                     <Label Grid.Column="1" 
                            Text="Hardware" 
                            VerticalOptions="Center" 
@@ -75,45 +77,63 @@
                            Margin="5"/>
                 </Grid>
                 <Border.Shadow>
-                    <Shadow Brush="#222222" Opacity="1.0" Radius="1.0" Offset="1.0, 1.0"/>
+                    <Shadow Brush="#111111" Opacity="1.0" Radius="4.0"/>
                 </Border.Shadow>
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Tapped="NavigateButton_Clicked"/>
                 </Border.GestureRecognizers>
             </Border>
 
-            <Button x:Name="LBMReconstructionPageButton"
-                    Text="LBM Reconstruction" Style="{StaticResource NavBarButtonStyle}"
-                    Clicked="NavigateButton_Clicked">
-                <Button.Shadow>
-                    <Shadow Brush="#222222" Opacity="1.0" Radius="1.0" Offset="1.0, 1.0"/>
-                </Button.Shadow>
-            </Button>
+            <Border x:Name="MeshingPageButton"
+                    StrokeShape="RoundRectangle 5"
+                    Stroke="Transparent"
+                    BackgroundColor="#555555"
+                    Padding="3">
+                <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5">
+                    <Image Grid.Column="0" Source="icon_mesh2.png" HeightRequest="30"/>
+                    <Label Grid.Column="1" 
+                           Text="Meshing" 
+                           VerticalOptions="Center" 
+                           HorizontalOptions="Center" 
+                           FontSize="Medium" 
+                           FontFamily="SF Pro Display"
+                           FontAttributes="Bold"
+                           TextColor="LightGray"
+                           Margin="5"/>
+                </Grid>
+                <Border.Shadow>
+                    <Shadow Brush="#111111" Opacity="1.0" Radius="4.0"/>
+                </Border.Shadow>
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="NavigateButton_Clicked"/>
+                </Border.GestureRecognizers>
+            </Border>
 
-            <Button x:Name="FEMReconstructionPageButton"
-                    Text="FEM Reconstruction" Style="{StaticResource NavBarButtonStyle}"
-                    Clicked="NavigateButton_Clicked">
-                <Button.Shadow>
-                    <Shadow Brush="#222222" Opacity="1.0" Radius="1.0" Offset="1.0, 1.0"/>
-                </Button.Shadow>
-            </Button>
-
-            <Button x:Name="MeshingPageButton"
-                    Text="Meshing" Style="{StaticResource NavBarButtonStyle}"
-                    Clicked="NavigateButton_Clicked">
-                <Button.Shadow>
-                    <Shadow Brush="#222222" Opacity="1.0" Radius="1.0" Offset="1.0, 1.0"/>
-                </Button.Shadow>
-            </Button>
-
-            <Button x:Name="ReconstructionPageButton"
-                    Text="Reconstruction"
-                    Style="{StaticResource NavBarButtonStyle}"
-                    Clicked="NavigateButton_Clicked" >
-                <Button.Shadow>
-                    <Shadow Brush="#222222" Opacity="1.0" Radius="1.0" Offset="1.0, 1.0"/>
-                </Button.Shadow>
-            </Button>
+            <Border x:Name="ReconstructionPageButton"
+                    StrokeShape="RoundRectangle 5"
+                    Stroke="Transparent"
+                    BackgroundColor="#555555"
+                    Padding="3">
+                <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5">
+                    <Image Grid.Column="0" Source="icon_reconstruction3.png" HeightRequest="30"/>
+                    <Label Grid.Column="1" 
+                           Text="Reconstruction" 
+                           VerticalOptions="Center" 
+                           HorizontalOptions="Center" 
+                           FontSize="Medium" 
+                           FontFamily="SF Pro Display"
+                           FontAttributes="Bold"
+                           TextColor="LightGray"
+                           Margin="5"/>
+                </Grid>
+                <Border.Shadow>
+                    <Shadow Brush="#111111" Opacity="1.0" Radius="4.0"/>
+                </Border.Shadow>
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="NavigateButton_Clicked"/>
+                </Border.GestureRecognizers>
+            </Border>
+            
         </HorizontalStackLayout>
     </Border>
 </ContentView>

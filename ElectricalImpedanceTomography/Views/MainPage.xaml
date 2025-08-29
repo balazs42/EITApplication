@@ -30,12 +30,13 @@
 
             <VerticalStackLayout Grid.Column="0" Spacing="10" Padding="10">
                 <Border StrokeShape="RoundRectangle 3">
-                    <VerticalStackLayout>
-                        <Label Text="Hardware Info" FontAttributes="Italic" FontSize="Medium"/>
-                        <Label Text="{Binding CurrentAmplitude, StringFormat='Current amplitude: {0:F2} mA'}"/>
-                        <Label Text="{Binding ExcitationFrequency, StringFormat='Excitation frequency: {0:F0} Hz'}"/>
-                        <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5" Margin="3">
-                            <Image HeightRequest="15">
+                    <VerticalStackLayout Spacing="3">
+                        <Label Text="Hardware Info" FontAttributes="Italic" FontSize="Medium" HorizontalOptions="Center"/>
+                        <Label Margin="3" Text="{Binding CurrentAmplitude, StringFormat='Current amplitude: {0:F2} mA'}"/>
+                        <Label Margin="3" Text="{Binding ExcitationFrequency, StringFormat='Excitation frequency: {0:F0} Hz'}"/>
+                        <Grid ColumnDefinitions="Auto, Auto, Auto" ColumnSpacing="5" Margin="3">
+                            <Label Text="Connection Status: "/>
+                            <Image Grid.Column="1" HeightRequest="15">
                                 <Image.Triggers>
                                     <DataTrigger TargetType="Image"
                                                  Binding="{Binding HardwareStatusColor}"
@@ -49,7 +50,7 @@
                                     </DataTrigger>
                                 </Image.Triggers>
                             </Image>
-                            <Label Grid.Column="1" Text="{Binding HardwareConnectionText}" TextColor="{Binding HardwareStatusColor}"/>
+                            <Label Grid.Column="2" Text="{Binding HardwareConnectionText}" TextColor="{Binding HardwareStatusColor}"/>
                         </Grid>
                     </VerticalStackLayout>
                 </Border>
@@ -59,9 +60,9 @@
                     <VerticalStackLayout Spacing="8">
                         <Label Text="Navigation" FontAttributes="Italic" FontSize="Medium"/>
                         
-                        <Border StrokeShape="RoundRectangle 5" Background="#1A1A1A">
+                        <Border StrokeShape="RoundRectangle 5" Background="#1A1A1A" Padding="3">
                             <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5" HorizontalOptions="Center">
-                            <Image Grid.Column="0" Source="icon_hardware_gpt1.png" BackgroundColor="Transparent" HeightRequest="30" WidthRequest="30"/>
+                            <Image Grid.Column="0" Source="icon_hardware.png" BackgroundColor="Transparent" HeightRequest="30" WidthRequest="30"/>
                                 <Label Grid.Column="1" Text="Hardware" HorizontalOptions="Center" VerticalOptions="Center"/>
                             </Grid>
                             <Border.GestureRecognizers>
@@ -69,9 +70,9 @@
                             </Border.GestureRecognizers>
                         </Border>
 
-                        <Border StrokeShape="RoundRectangle 5" Background="#1A1A1A">
+                        <Border StrokeShape="RoundRectangle 5" Background="#1A1A1A" Padding="3">
                             <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5" HorizontalOptions="Center">
-                                <Image Grid.Column="0" Source="icon_mesh_gpt1.png" BackgroundColor="Transparent" HeightRequest="30" WidthRequest="30"/>
+                                <Image Grid.Column="0" Source="icon_mesh2.png" BackgroundColor="Transparent" HeightRequest="30" WidthRequest="30"/>
                                 <Label Grid.Column="1" Text="Meshing" HorizontalOptions="Center" VerticalOptions="Center"/>
                             </Grid>
                             <Border.GestureRecognizers>
@@ -79,9 +80,9 @@
                             </Border.GestureRecognizers>
                         </Border>
 
-                        <Border StrokeShape="RoundRectangle 5" Background="#1A1A1A">
+                        <Border StrokeShape="RoundRectangle 5" Background="#1A1A1A" Padding="3">
                             <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5" HorizontalOptions="Center">
-                                <Image Grid.Column="0" Source="icon_recon_gpt1.png" BackgroundColor="Transparent" HeightRequest="30" WidthRequest="30"/>
+                                <Image Grid.Column="0" Source="icon_reconstruction3.png" BackgroundColor="Transparent" HeightRequest="28" WidthRequest="28"/>
                                 <Label Grid.Column="1" Text="Reconstruction" HorizontalOptions="Center" VerticalOptions="Center"/>
                             </Grid>
                             <Border.GestureRecognizers>
@@ -120,7 +121,10 @@
                 
                 <Border Grid.Row="1" Stroke="LightGray" StrokeThickness="1" Padding="10" StrokeShape="RoundRectangle 3" HeightRequest="300" VerticalOptions="Start">
                     <VerticalStackLayout Spacing="2">
-                        <Label Text="Debug" FontAttributes="Italic" FontSize="Medium"/>
+                        <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5">
+                            <Image Grid.Column="0" Source="icon_terminal2.png" HeightRequest="20" BackgroundColor="Transparent"/>
+                            <Label Grid.Column="1" Text="Console" FontAttributes="Italic" FontSize="Medium"/>
+                        </Grid>
                         <CollectionView ItemsSource="{Binding DebugLog}">
                             <CollectionView.ItemsLayout>
                                 <LinearItemsLayout Orientation="Vertical"/>
