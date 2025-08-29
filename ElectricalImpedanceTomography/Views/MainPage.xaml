@@ -26,15 +26,18 @@
     <Grid RowDefinitions="Auto, Auto">
         <controls:NavBarControl Grid.Row="0" CurrentPageName="MainPage"/>
 
-        <Grid Grid.Row="1" ColumnDefinitions="*, *, *" RowSpacing="5" ColumnSpacing="5">
+        <Grid Grid.Row="1" ColumnDefinitions="400, *, *" RowSpacing="5" ColumnSpacing="5">
 
             <VerticalStackLayout Grid.Column="0" Spacing="10" Padding="10">
                 <Border StrokeShape="RoundRectangle 3">
                     <VerticalStackLayout Spacing="3">
-                        <Label Text="Hardware Info" FontAttributes="Italic" FontSize="Medium" HorizontalOptions="Center"/>
-                        <Label Margin="3" Text="{Binding CurrentAmplitude, StringFormat='Current amplitude: {0:F2} mA'}"/>
-                        <Label Margin="3" Text="{Binding ExcitationFrequency, StringFormat='Excitation frequency: {0:F0} kHz'}"/>
-                        <Grid ColumnDefinitions="Auto, Auto, Auto" ColumnSpacing="5" Margin="3">
+                        <Grid ColumnDefinitions="Auto, *" ColumnSpacing="5" Margin="5">
+                            <Image Grid.Column="0" Source="icon_hardware4.png" HeightRequest="20"/>
+                            <Label Grid.Column="1" Text="Hardware Info" FontAttributes="Italic" FontSize="Medium" />
+                        </Grid>
+                        <Label Margin="5" Text="{Binding CurrentAmplitude, StringFormat='Current amplitude: {0:F2} mA'}"/>
+                        <Label Margin="5" Text="{Binding ExcitationFrequency, StringFormat='Excitation frequency: {0:F0} kHz'}"/>
+                        <Grid ColumnDefinitions="Auto, Auto, Auto" ColumnSpacing="5" Margin="5">
                             <Label Text="Connection Status: "/>
                             <Image Grid.Column="1" HeightRequest="15">
                                 <Image.Triggers>
@@ -52,13 +55,32 @@
                             </Image>
                             <Label Grid.Column="2" Text="{Binding HardwareConnectionText}" TextColor="{Binding HardwareStatusColor}"/>
                         </Grid>
+                        <Button Clicked="OnConnectButtonClicked" Margin="10" BorderColor="Transparent">
+                            <Button.Triggers>
+                                <DataTrigger TargetType="Button"
+                                             Binding="{Binding HardwareConnected}"
+                                             Value="True">
+                                    <Setter Property="Text" Value="Disconnect"/>
+                                    <Setter Property="BackgroundColor" Value="Red"/>
+                                </DataTrigger>
+                                <DataTrigger TargetType="Button"
+                                             Binding="{Binding HardwareConnected}"
+                                             Value="False">
+                                    <Setter Property="Text" Value="Connect"/>
+                                    <Setter Property="BackgroundColor" Value="Green"/>
+                                </DataTrigger>
+                            </Button.Triggers>
+                        </Button>
                     </VerticalStackLayout>
                 </Border>
                 
                 <!-- Navigation Menu-->
                 <Border Stroke="Gray" StrokeThickness="1" Padding="10" StrokeShape="RoundRectangle 3">
                     <VerticalStackLayout Spacing="8">
-                        <Label Text="Navigation" FontAttributes="Italic" FontSize="Medium"/>
+                        <Grid ColumnDefinitions="Auto, *" ColumnSpacing="5">
+                            <Image Grid.Column="0" Source="icon_navigation.png" HeightRequest="20"/>
+                            <Label Grid.Column="1" Text="Navigation" FontAttributes="Italic" FontSize="Medium"/>
+                        </Grid>
                         
                         <Border StrokeShape="RoundRectangle 5" Background="#1A1A1A" Padding="3">
                             <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5" HorizontalOptions="Center">
@@ -94,7 +116,10 @@
                 
                 <Border Stroke="LightGray" StrokeThickness="1" Padding="10" StrokeShape="RoundRectangle 3">
                     <VerticalStackLayout Spacing="6">
-                        <Label Text="Configuration" FontAttributes="Italic" FontSize="Medium"/>
+                        <Grid ColumnDefinitions="Auto, *" ColumnSpacing="5">
+                            <Image Grid.Column="0" Source="icon_configuration.png" HeightRequest="20" />
+                            <Label Grid.Column="1" Text="Configuration" FontAttributes="Italic" FontSize="Medium"/>
+                        </Grid>
                         <Picker Title="Solver" ItemsSource="{Binding Solvers}" SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}"/>
                         <Picker Title="Regularization" ItemsSource="{Binding Regularizations}" SelectedItem="{Binding ReconstructionParameters.RegularizationTechnique}"/>
                         <Picker Title="Error Metric" ItemsSource="{Binding ErrorMetrics}" SelectedItem="{Binding ReconstructionParameters.ErrorMetric}"/>
@@ -104,7 +129,10 @@
                 </Border>
                 <Border Stroke="LightGray" StrokeThickness="1" Padding="10" StrokeShape="RoundRectangle 3">
                     <VerticalStackLayout Spacing="6">
-                        <Label Text="Toolbox" FontAttributes="Italic" FontSize="Medium"/>
+                        <Grid ColumnDefinitions="Auto, *" ColumnSpacing="5">
+                            <Image Grid.Column="0" Source="icon_loading.png" HeightRequest="20"/>
+                            <Label Grid.Column="1" Text="Toolbox" FontAttributes="Italic" FontSize="Medium"/>
+                        </Grid>
                         <Button Text="Load Measurement" Clicked="OnLoadMeasurementClicked"/>
                         <Button Text="Load Mesh" Clicked="OnLoadMeshClicked"/>
                     </VerticalStackLayout>
@@ -115,7 +143,7 @@
             <Grid Grid.Column="1" RowDefinitions="*, Auto" RowSpacing="10">
                 <Border Grid.Row="0">
                     <VerticalStackLayout Spacing="5">
-                        <Label Text="Middle panel"/>
+                        <Label Text="{Binding User.Name, StringFormat='Welcome {0}!'}" FontSize="Large" FontAttributes="Italic"/>
                     </VerticalStackLayout>
                 </Border>
 
@@ -127,7 +155,7 @@
                         </Grid>
                         <ScrollView Grid.Row="1">
                             <VerticalStackLayout Spacing="2"
-                         BindableLayout.ItemsSource="{Binding DebugLog}">
+                                                 BindableLayout.ItemsSource="{Binding DebugLog}">
                                 <BindableLayout.ItemTemplate>
                                     <DataTemplate x:DataType="messages:WorkspaceMessage">
                                         <Border StrokeShape="RoundRectangle 5" Padding="4">
