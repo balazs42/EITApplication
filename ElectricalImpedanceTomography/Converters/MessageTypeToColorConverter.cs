@@ -15,10 +15,10 @@ namespace ElectricalImpedanceTomography.Converters
                     WorkspaceMessageType.Warning => Color.FromArgb("#B8860B"),
                     WorkspaceMessageType.Loading => Colors.Green,
                     WorkspaceMessageType.Info => Colors.Blue,
-                    _ => Colors.White
+                    _ => Colors.Black
                 };
             }
-            return Colors.White;
+            return Colors.Black;
         }
 
         public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
