@@ -2,6 +2,7 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="ElectricalImpedanceTomography.Views.DAQPage"
+             x:Name="Page"
              xmlns:viewmodels="clr-namespace:ElectricalImpedanceTomography.ViewModels"
              xmlns:oxy="clr-namespace:OxyPlot.Maui.Skia;assembly=OxyPlot.Maui.Skia"
              xmlns:oxyplot="clr-namespace:OxyPlot;assembly=OxyPlot"
@@ -50,8 +51,16 @@
                     <VerticalStackLayout Spacing="2" Padding="5" BackgroundColor="Transparent">
                         <Border Style="{StaticResource CardFrameStyle}">
                             <oxy:PlotView Model="{Binding .}"
-                                          HeightRequest="150"             
-                                          MinimumWidthRequest="100"/>
+                                          HeightRequest="150"
+                                          MinimumWidthRequest="100">
+                                <oxy:PlotView.GestureRecognizers>
+                                    <TapGestureRecognizer
+                                        NumberOfTapsRequired="1"
+                                        Buttons="Secondary"
+                                        Command="{Binding Source={x:Reference Page}, Path=BindingContext.ConfigureChannelCommand}"
+                                        CommandParameter="{Binding .}" />
+                                </oxy:PlotView.GestureRecognizers>
+                            </oxy:PlotView>
                             <Border.Shadow>
                                 <Shadow Brush="Gray" Opacity="1.0" Radius="1.0" Offset="1.0, 1.0"/>
                             </Border.Shadow>

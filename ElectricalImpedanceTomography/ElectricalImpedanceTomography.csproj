@@ -89,12 +89,15 @@
 	  <MauiXaml Update="Controls\NavBarControl.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
-	  <MauiXaml Update="Views\BoundaryConditionPopup.xaml">
-	    <Generator>MSBuild:Compile</Generator>
-	  </MauiXaml>
-	  <MauiXaml Update="Views\DAQPage.xaml">
-	    <Generator>MSBuild:Compile</Generator>
-	  </MauiXaml>
+          <MauiXaml Update="Views\BoundaryConditionPopup.xaml">
+            <Generator>MSBuild:Compile</Generator>
+          </MauiXaml>
+          <MauiXaml Update="Views\ChannelSettingsPopup.xaml">
+            <Generator>MSBuild:Compile</Generator>
+          </MauiXaml>
+          <MauiXaml Update="Views\DAQPage.xaml">
+            <Generator>MSBuild:Compile</Generator>
+          </MauiXaml>
           <MauiXaml Update="Views\FEMReconstructionPage.xaml">
             <Generator>MSBuild:Compile</Generator>
           </MauiXaml>

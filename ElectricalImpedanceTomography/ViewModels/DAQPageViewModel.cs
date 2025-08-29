@@ -1,4 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Maui.Views;
+using ElectricalImpedanceTomography.Views;
 using OxyPlot;
 using OxyPlot.Axes;
 using OxyPlot.Series;
@@ -20,9 +23,14 @@ namespace ElectricalImpedanceTomography.ViewModels
         private readonly double _windowDays = TimeWindowSecs / 86400.0;
         private readonly DateTime _startTime;
 
+        private readonly double[] _channelGains = new double[16];
+        private readonly double[] _channelOffsets = new double[16];
+
         public DAQPageViewModel(IDAQService daqService)
         {
             _daqService = daqService;
+
+            Array.Fill(_channelGains, 1.0);
 
             _startTime = DateTime.Now;
             InitializePlots();
@@ -48,7 +56,10 @@ namespace ElectricalImpedanceTomography.ViewModels
                     TitleColor = OxyColors.DarkSlateGray,
                     IsLegendVisible = true,
                     TitleFontWeight = OxyPlot.FontWeights.Bold,
-                    PlotMargins = new OxyThickness(20, 20, 20, 20)
+                    PlotMargins = new OxyThickness(20, 20, 20, 20),
+                    DefaultFont = "SF Pro Text",
+                    TitleFont = "SF Pro Text",
+                    LegendFont = "SF Pro Text"
 
                 };
                 var series = new LineSeries
@@ -70,15 +81,45 @@ namespace ElectricalImpedanceTomography.ViewModels
                     MajorGridlineStyle = LineStyle.Solid,
                     MinorGridlineStyle = LineStyle.Dot,
                     IsZoomEnabled = false,
-                    IsPanEnabled = false
+                    IsPanEnabled = false,
+                    Font = "SF Pro Text",
+                    TitleFont = "SF Pro Text"
+                };
+                var valueAxis = new LinearAxis
+                {
+                    Position = AxisPosition.Left,
+                    TextColor = OxyColors.DarkSlateGray,
+                    MajorGridlineStyle = LineStyle.Solid,
+                    MinorGridlineStyle = LineStyle.Dot,
+                    IsZoomEnabled = false,
+                    IsPanEnabled = false,
+                    Font = "SF Pro Text",
+                    TitleFont = "SF Pro Text"
                 };
                 plotModel.Axes.Add(dateAxis);
+                plotModel.Axes.Add(valueAxis);
                 plotModel.Series.Add(series);
 
                 dateAxis.Minimum = DateTimeAxis.ToDouble(_startTime.AddSeconds(-TimeWindowSecs));
                 dateAxis.Maximum = DateTimeAxis.ToDouble(_startTime);
 
                 PlotModels.Add(plotModel);
+            }
+        }
+
+        [RelayCommand]
+        private async Task ConfigureChannelAsync(PlotModel model)
+        {
+            int index = PlotModels.IndexOf(model);
+            if (index < 0)
+                return;
+
+            var popup = new ChannelSettingsPopup(_channelGains[index], _channelOffsets[index]);
+            var result = await Application.Current.MainPage.ShowPopupAsync(popup);
+            if (result is ValueTuple<double, double> tuple)
+            {
+                _channelGains[index] = tuple.Item1;
+                _channelOffsets[index] = tuple.Item2;
             }
         }
         // Example measurement data:
@@ -122,7 +163,10 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             // Add new
             double x = DateTimeAxis.ToDouble(timestamp);
-            series.Points.Add(new DataPoint(x, value));
+            int idx = PlotModels.IndexOf(model);
+            double gain = _channelGains[idx];
+            double offset = _channelOffsets[idx];
+            series.Points.Add(new DataPoint(x, value * gain + offset));
 
             // Trim old
             if (series.Points.Count > MaxPoints)
