@@ -3,6 +3,7 @@ using ElectricalImpedanceTomography.ViewModels;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
 using SkiaSharp.Views.Maui.Controls;
+using Microsoft.Maui.Controls;
 using Utility.Classes;
 using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.FiniteElementMesh;
@@ -53,9 +54,19 @@ public partial class ReconstructionPage : ContentPage
     private IMesh? GetMesh()
         => (_currentResult?.Mesh as IMesh) ?? (IMesh?)Workspace.GetMesh();
 
+    private static async Task AnimateButtonAsync(object sender)
+    {
+        if (sender is VisualElement ve)
+        {
+            await ve.ScaleTo(0.95, 50, Easing.CubicIn);
+            await ve.ScaleTo(1, 50, Easing.CubicOut);
+        }
+    }
+
     #region Simulation control
     private async void OnPlayButtonClicked(object sender, EventArgs e)
     {
+        await AnimateButtonAsync(sender);
         if (_simulationTask == null || _simulationTask.IsCompleted)
         {
             _simulationCts = new CancellationTokenSource();
@@ -68,14 +79,16 @@ public partial class ReconstructionPage : ContentPage
         }
     }
 
-    private void OnPauseButtonClicked(object sender, EventArgs e)
+    private async void OnPauseButtonClicked(object sender, EventArgs e)
     {
+        await AnimateButtonAsync(sender);
         if (_simulationTask != null)
             _isPaused = !_isPaused;
     }
 
     private async void OnStepButtonClicked(object sender, EventArgs e)
     {
+        await AnimateButtonAsync(sender);
         var result = await Task.Run(() => _viewModel.InverseSolveStep());
         if (result != null)
         {
@@ -84,8 +97,9 @@ public partial class ReconstructionPage : ContentPage
         }
     }
 
-    private void OnStopButtonClicked(object sender, EventArgs e)
+    private async void OnStopButtonClicked(object sender, EventArgs e)
     {
+        await AnimateButtonAsync(sender);
         _simulationCts?.Cancel();
         _simulationTask = null;
         _isPaused = false;
@@ -620,18 +634,21 @@ public partial class ReconstructionPage : ContentPage
         AdjointColorbarCanvas.InvalidateSurface();
     }
 
-    private void OnSolveForwardClicked(object sender, EventArgs e)
+    private async void OnSolveForwardClicked(object sender, EventArgs e)
     {
+        await AnimateButtonAsync(sender);
         _viewModel?.OnSolveForwardClicked(this, e);
     }
 
-    private void OnSolveInverseClicked(object sender, EventArgs e)
+    private async void OnSolveInverseClicked(object sender, EventArgs e)
     {
+        await AnimateButtonAsync(sender);
         _viewModel?.OnSolveInverseClicked(this, e);
     }
 
     private async void OnEditBoundaryConditionsClicked(object sender, EventArgs e)
     {
+        await AnimateButtonAsync(sender);
         var mesh = GetMesh();
         if (mesh is FEMMesh fem)
         {
