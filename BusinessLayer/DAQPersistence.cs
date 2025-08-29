@@ -78,6 +78,16 @@ namespace BusinessLayer
         {
             return _meshRepository.LoadLBMMesh(filePath);
         }
+
+        public bool ConnectHardware()
+        {
+            return _daqRepository.Connect();
+        }
+
+        public bool DisconnectHardware()
+        {
+            return _daqRepository.Disconnect();
+        }
     }
 }
 

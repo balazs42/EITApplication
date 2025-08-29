@@ -199,6 +199,36 @@ namespace ServiceLayer
                 throw;
             }
         }
+
+        public bool ConnectHardware()
+        {
+            try
+            {
+                return _daqPersistence.ConnectHardware();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                Debug.WriteLine(ex.Message);
+                Console.WriteLine(ex.Message);
+                return false;
+            }
+        }
+
+        public bool DisconnectHardware()
+        {
+            try
+            {
+                return _daqPersistence.DisconnectHardware();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                Debug.WriteLine(ex.Message);
+                Console.WriteLine(ex.Message);
+                return false;
+            }
+        }
     }
 }
 
