@@ -531,7 +531,7 @@ namespace Utility.Classes.Factories
                 throw new ArgumentOutOfRangeException(nameof(radius),
                     "Cannot create circular LBM mesh: radius too big.");
 
-            var mesh = new LBMMesh(nx, ny, electrodeCount: 0);
+            var mesh = new LBMMesh(nx, ny, electrodeNum: 0);
 
             double cx = (nx - 1) / 2.0;
             double cy = (ny - 1) / 2.0;

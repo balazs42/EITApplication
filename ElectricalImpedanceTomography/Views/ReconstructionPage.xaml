@@ -34,7 +34,7 @@
                         <!-- Method Selection -->
                         <Border Grid.Column="0" Padding="5" Background="Transparent" Stroke="Gray">
                             <Grid  RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="5" >
-                                <Label Grid.Row="0" Text="Method Selection" FontAttributes="Bold" FontSize="Medium"/>
+                                <Label Grid.Row="0" Text="Method Selection" FontAttributes="Bold" FontSize="Medium" Margin="0, 0, 0, 10"/>
                                 <Label Grid.Row="1" HorizontalOptions="Center" Text="Differential Equation Solver" FontFamily="SF Pro Text"/>
                                 <Picker Grid.Row="2" ItemsSource="{Binding DifferentialEquationSolverOptions}" SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}"/>
                                 <Label Grid.Row="3" HorizontalOptions="Center" Text="Error Metric" FontFamily="SF Pro Text"/>
@@ -51,7 +51,7 @@
                         <!-- Parameter Configuration -->
                         <Border Grid.Column="1" Padding="5" Background="Transparent" Stroke="Gray">
                             <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="5">
-                                <Label Grid.Row="0" Text="Parameter Selection" FontAttributes="Bold" FontSize="Medium"/>
+                                <Label Grid.Row="0" Text="Parameter Selection" FontAttributes="Bold" FontSize="Medium" Margin="0, 0, 0, 10"/>
                                 <Label Grid.Row="1" HorizontalOptions="Center" Text="Regularization Weight (θ)" FontFamily="SF Pro Text"/>
                                 <Entry Grid.Row="2" Text="{Binding RegularizationWeight}"/>
                                 <Label Grid.Row="3" HorizontalOptions="Center" Text="Gradient Step Size (β)" FontFamily="SF Pro Text"/>
@@ -67,7 +67,7 @@
                         <Grid  RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="5" >
                             <Grid Grid.Row="0" ColumnDefinitions="Auto, *" ColumnSpacing="5">
                                 <Image Grid.Column="0" Source="icon_boundary.png" HeightRequest="25"/>
-                                <Label Grid.Column="1" Text="Boundary Conditions" FontAttributes="Bold" FontSize="Medium"/>
+                                <Label Grid.Column="1" Text="Boundary Conditions" FontAttributes="Italic" FontSize="Medium"/>
                             </Grid>
                             <Label Grid.Row="1" Text="Starting Excitation Electrode" />
                             <Entry Grid.Row="2" Text="{Binding ExcitationElectrodeId}"/>
