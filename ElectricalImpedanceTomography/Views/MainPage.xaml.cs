@@ -37,7 +37,7 @@ namespace ElectricalImpedanceTomography.Views
             MeshCanvasView?.InvalidateSurface();
         }
 
-        private void OnCanvasViewPaintSurface(object? sender, SKPaintSurfaceEventArgs e)
+        private void OnCanvasViewPaintSurface(object? sender, SkiaSharp.Views.Maui.SKPaintSurfaceEventArgs e)
         {
             var canvas = e.Surface.Canvas;
             var info = e.Info;
@@ -47,7 +47,8 @@ namespace ElectricalImpedanceTomography.Views
             if (mesh is FEMMesh femMesh)
             {
                 DrawFEMMesh(canvas, info.Width, info.Height, femMesh);
-            }
+
+    }
             else
             {
                 DrawCheckerboard(canvas, info.Width, info.Height);
