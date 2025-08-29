@@ -1,10 +1,11 @@
-﻿using Utility.Classes.ReconstructionParameters;
+﻿using Google.OrTools.Sat;
+using Utility.Classes.ReconstructionParameters;
 
 namespace Utility.Classes.Application
 {
     public static class Workspace
     {
-        private static User _user { get; set; } = new();
+        private static User _user { get; set; } = new DefaultUser(0, "No User");
         private static EITReconstructionParameters _reconstructionParameters = new();
         private static IMesh? _mesh { get; set; } = null;
 
@@ -44,7 +45,7 @@ namespace Utility.Classes.Application
         public static void AddReconstructionResultToWorkspace(ReconstructionResult reconstructionResult) => _reconstructionResults.Add(reconstructionResult);
         public static void RemoveReconstructionResultFromWorkspace(int index) => _reconstructionResults.RemoveAt(index);
 
-        public static void AddMessage(string message, WorkspaceMessageType type = WorkspaceMessageType.Log)
+        private static void AddMessage(string message, WorkspaceMessageType type = WorkspaceMessageType.Log)
         {
             DateTime time = DateTime.Now;
             var msg = new WorkspaceMessage(time, message, type);
@@ -52,8 +53,11 @@ namespace Utility.Classes.Application
             MessageAdded?.Invoke(msg);
         }
 
-        public static void AddLogMessage(string source, string message, WorkspaceMessageType type = WorkspaceMessageType.Log)
-            => AddMessage(source + ": " + message, type);
+        public static void AddWarningMessage(string message, WorkspaceMessageType type = WorkspaceMessageType.Warning) => AddMessage("Warning: " + message, type);
+        public static void AddErrorMessage(string message, WorkspaceMessageType type = WorkspaceMessageType.Error) => AddMessage("Error: " + message, type);
+        public static void AddLoadingMessage(string message, WorkspaceMessageType type = WorkspaceMessageType.Loading) => AddMessage("Loading: " + message, type);
+        public static void AddInfoMessage(string message, WorkspaceMessageType type = WorkspaceMessageType.Info) => AddMessage("Info: " + message, type);
+        public static void AddLogMessage(string source, string message, WorkspaceMessageType type = WorkspaceMessageType.Log) => AddMessage(source + ": " + message, type);
 
         public static IReadOnlyList<WorkspaceMessage> GetMessages() => _messages;
     }

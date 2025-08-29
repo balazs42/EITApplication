@@ -5,7 +5,8 @@ namespace Utility.Classes.Application
         Log,
         Warning,
         Error,
-        Loading
+        Loading,
+        Info
     }
 
     public record WorkspaceMessage(DateTime Time, string Message, WorkspaceMessageType Type);

@@ -26,7 +26,7 @@ namespace ElectricalImpedanceTomography
             ValidationSelfTests.RunAll();
 
             // Workspace initialization
-            Workspace.Initialize(new User() { Id = 1, Name = "Test1", Email = "Test1@factroymail.com" }, null, null);
+            Workspace.Initialize(new DefaultUser(1, "Test1", "Test1@factroymail.com"), null, null);
         }
 
         protected override Window CreateWindow(IActivationState? activationState)

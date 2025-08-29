@@ -5,6 +5,7 @@
              xmlns:viewmodels="clr-namespace:ElectricalImpedanceTomography.ViewModels"
              xmlns:controls="clr-namespace:ElectricalImpedanceTomography.Controls"
              xmlns:converters="clr-namespace:ElectricalImpedanceTomography.Converters"
+             xmlns:messages="clr-namespace:Utility.Classes.Application;assembly=Utility"
              x:DataType="viewmodels:MainPageViewModel"
              Shell.NavBarIsVisible="False"
              Title="MainPage">
@@ -54,9 +55,9 @@
                     <VerticalStackLayout Spacing="6">
                         <Label Text="Debug" FontAttributes="Bold"/>
                         <CollectionView ItemsSource="{Binding DebugLog}" HeightRequest="120">
-                            <CollectionView.ItemTemplate>
-                                <DataTemplate>
-                                    <Label TextColor="{Binding Type, Converter={StaticResource MessageTypeToColorConverter}}">
+                            <CollectionView.ItemTemplate >
+                                <DataTemplate x:DataType="messages:WorkspaceMessage">
+                                    <Label TextColor="{Binding Type, Converter={StaticResource MessageTypeToColorConverter}}" FontSize="Small">
                                         <Label.FormattedText>
                                             <FormattedString>
                                                 <Span Text="{Binding Time, StringFormat='{0:HH:mm:ss} >> '}" />

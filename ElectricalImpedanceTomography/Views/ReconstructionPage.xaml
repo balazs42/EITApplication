@@ -49,9 +49,9 @@
                         <Border Grid.Column="1" Padding="5" Background="Transparent" Stroke="Gray">
                             <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="5">
                                 <Label Grid.Row="0" Text="Parameter Selection" FontAttributes="Bold" FontSize="Medium"/>
-                                <Label Grid.Row="1" HorizontalOptions="Center" Text="Regularization Weight" FontFamily="SF Pro Text"/>
+                                <Label Grid.Row="1" HorizontalOptions="Center" Text="Regularization Weight (θ)" FontFamily="SF Pro Text"/>
                                 <Entry Grid.Row="2" Text="{Binding RegularizationWeight}"/>
-                                <Label Grid.Row="3" HorizontalOptions="Center" Text="Gradient Step Size" FontFamily="SF Pro Text"/>
+                                <Label Grid.Row="3" HorizontalOptions="Center" Text="Gradient Step Size (β)" FontFamily="SF Pro Text"/>
                                 <Entry Grid.Row="4" Text="{Binding StepSize}"/>
                                 <Label Grid.Row="5" HorizontalOptions="Center" Text="Max Iteration Count" FontFamily="SF Pro Text"/>
                                 <Entry Grid.Row="6" Text="{Binding MaxIterationCount}"/>
