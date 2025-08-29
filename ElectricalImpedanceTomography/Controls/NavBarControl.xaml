@@ -7,7 +7,7 @@
         <Style x:Key="NavBarButtonStyle" TargetType="Button">
             <Setter Property="FontSize" Value="Medium"/>
             <Setter Property="TextColor" Value="White"/>
-            <Setter Property="BackgroundColor" Value="#555555"/>
+            <Setter Property="BackgroundColor" Value="Transparent"/>
             <Setter Property="Padding" Value="12,8"/>
             <Setter Property="FontFamily" Value="SF Pro Text"/>
             <Setter Property="Margin" Value="5,0"/>
@@ -47,23 +47,40 @@
 
         <HorizontalStackLayout Spacing="50" HorizontalOptions="Center">
 
-            <Button x:Name="MainPageButton"
-                    Text="Main"
-                    Style="{StaticResource NavBarButtonStyle}"
-                    Clicked="NavigateButton_Clicked" >
-                <Button.Shadow>
-                    <Shadow Brush="#222222" Opacity="1.0" Radius="1.0" Offset="1.0, 1.0"/>
-                </Button.Shadow>
-            </Button>
+            <Grid ColumnDefinitions="Auto, Auto">
+                <Image Grid.Column="0" Source="appicon.png"/>
+                <Button x:Name="MainPageButton"
+                        Grid.Column="1"
+                        Text="Main"
+                        Style="{StaticResource NavBarButtonStyle}"
+                        Clicked="NavigateButton_Clicked" >
+                    <Button.Shadow>
+                        <Shadow Brush="#222222" Opacity="1.0" Radius="1.0" Offset="1.0, 1.0"/>
+                    </Button.Shadow>
+                </Button>
+            </Grid>
 
-            <Button x:Name="DAQPageButton"
-                    Style="{StaticResource NavBarButtonStyle}"
-                    Text="DAQ"
-                    Clicked="NavigateButton_Clicked" >
-                <Button.Shadow>
+            <Border x:Name="DAQPageButton"
+                StrokeShape="RoundRectangle 5">
+                <Grid ColumnDefinitions="Auto, Auto">
+                    <Image Grid.Column="0" Source="icon_hardware_gpt1.png" HeightRequest="30"/>
+                    <Label Grid.Column="1" 
+                           Text="Hardware" 
+                           VerticalOptions="Center" 
+                           HorizontalOptions="Center" 
+                           FontSize="Medium" 
+                           FontFamily="SF Pro Display"
+                           FontAttributes="Bold"
+                           TextColor="LightGray"
+                           Margin="5"/>
+                </Grid>
+                <Border.Shadow>
                     <Shadow Brush="#222222" Opacity="1.0" Radius="1.0" Offset="1.0, 1.0"/>
-                </Button.Shadow>
-            </Button>
+                </Border.Shadow>
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="NavigateButton_Clicked"/>
+                </Border.GestureRecognizers>
+            </Border>
 
             <Button x:Name="LBMReconstructionPageButton"
                     Text="LBM Reconstruction" Style="{StaticResource NavBarButtonStyle}"

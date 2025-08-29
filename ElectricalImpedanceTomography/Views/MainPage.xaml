@@ -29,26 +29,69 @@
         <Grid Grid.Row="1" ColumnDefinitions="300, Auto, Auto" RowSpacing="5" ColumnSpacing="5">
 
             <VerticalStackLayout Grid.Column="0" Spacing="10" Padding="10">
-                <Border>
+                <Border StrokeShape="RoundRectangle 3">
                     <VerticalStackLayout>
-                        <Label Text="Hardware Info"/>
+                        <Label Text="Hardware Info" FontAttributes="Italic" FontSize="Medium"/>
                         <Label Text="{Binding CurrentAmplitude, StringFormat='Current amplitude: {0:F2} mA'}"/>
                         <Label Text="{Binding ExcitationFrequency, StringFormat='Excitation frequency: {0:F0} Hz'}"/>
-                        <Label Text="{Binding HardwareConnectionText}" TextColor="{Binding HardwareStatusColor}"/>
+                        <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5" Margin="3">
+                            <Image HeightRequest="15">
+                                <Image.Triggers>
+                                    <DataTrigger TargetType="Image"
+                                                 Binding="{Binding HardwareStatusColor}"
+                                                 Value="Green">
+                                        <Setter Property="Source" Value="icon_connected.png"/>
+                                    </DataTrigger>
+                                    <DataTrigger TargetType="Image"
+                                                 Binding="{Binding HardwareStatusColor}"
+                                                 Value="Red">
+                                        <Setter Property="Source" Value="icon_disconnected.png"/>
+                                    </DataTrigger>
+                                </Image.Triggers>
+                            </Image>
+                            <Label Grid.Column="1" Text="{Binding HardwareConnectionText}" TextColor="{Binding HardwareStatusColor}"/>
+                        </Grid>
                     </VerticalStackLayout>
                 </Border>
                 
                 <!-- Navigation Menu-->
-                <Border Stroke="Gray" StrokeThickness="1" Padding="10">
+                <Border Stroke="Gray" StrokeThickness="1" Padding="10" StrokeShape="RoundRectangle 3">
                     <VerticalStackLayout Spacing="8">
                         <Label Text="Navigation" FontAttributes="Italic" FontSize="Medium"/>
-                        <Button Text="DAQ" Command="{Binding NavigateCommand}" CommandParameter="DAQPage"/>
-                        <Button Text="Meshing" Command="{Binding NavigateCommand}" CommandParameter="MeshingPage"/>
-                        <Button Text="LBM Reconstruction" Command="{Binding NavigateCommand}" CommandParameter="LBMReconstructionPage"/>
-                        <Button Text="FEM Reconstruction" Command="{Binding NavigateCommand}" CommandParameter="FEMReconstructionPage"/>
+                        
+                        <Border StrokeShape="RoundRectangle 5" Background="#1A1A1A">
+                            <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5" HorizontalOptions="Center">
+                            <Image Grid.Column="0" Source="icon_hardware_gpt1.png" BackgroundColor="Transparent" HeightRequest="30" WidthRequest="30"/>
+                                <Label Grid.Column="1" Text="Hardware" HorizontalOptions="Center" VerticalOptions="Center"/>
+                            </Grid>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding NavigateCommand}" CommandParameter="DAQPage"/>
+                            </Border.GestureRecognizers>
+                        </Border>
+
+                        <Border StrokeShape="RoundRectangle 5" Background="#1A1A1A">
+                            <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5" HorizontalOptions="Center">
+                                <Image Grid.Column="0" Source="icon_mesh_gpt1.png" BackgroundColor="Transparent" HeightRequest="30" WidthRequest="30"/>
+                                <Label Grid.Column="1" Text="Meshing" HorizontalOptions="Center" VerticalOptions="Center"/>
+                            </Grid>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding NavigateCommand}" CommandParameter="MeshingPage"/>
+                            </Border.GestureRecognizers>
+                        </Border>
+
+                        <Border StrokeShape="RoundRectangle 5" Background="#1A1A1A">
+                            <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5" HorizontalOptions="Center">
+                                <Image Grid.Column="0" Source="icon_recon_gpt1.png" BackgroundColor="Transparent" HeightRequest="30" WidthRequest="30"/>
+                                <Label Grid.Column="1" Text="Reconstruction" HorizontalOptions="Center" VerticalOptions="Center"/>
+                            </Grid>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding NavigateCommand}" CommandParameter="ReconstructionPage"/>
+                            </Border.GestureRecognizers>
+                        </Border>
                     </VerticalStackLayout>
                 </Border>
-                <Border Stroke="LightGray" StrokeThickness="1" Padding="10">
+                
+                <Border Stroke="LightGray" StrokeThickness="1" Padding="10" StrokeShape="RoundRectangle 3">
                     <VerticalStackLayout Spacing="6">
                         <Label Text="Configuration" FontAttributes="Italic" FontSize="Medium"/>
                         <Picker Title="Solver" ItemsSource="{Binding Solvers}" SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}"/>
@@ -58,7 +101,7 @@
                         <Picker Title="Numeric Solver" ItemsSource="{Binding NumericSolvers}" SelectedItem="{Binding ReconstructionParameters.NumericSolver}"/>
                     </VerticalStackLayout>
                 </Border>
-                <Border Stroke="LightGray" StrokeThickness="1" Padding="10">
+                <Border Stroke="LightGray" StrokeThickness="1" Padding="10" StrokeShape="RoundRectangle 3">
                     <VerticalStackLayout Spacing="6">
                         <Label Text="Toolbox" FontAttributes="Italic" FontSize="Medium"/>
                         <Button Text="Load Measurement" Clicked="OnLoadMeasurementClicked"/>
@@ -78,7 +121,7 @@
                 <Border Grid.Row="1" Stroke="LightGray" StrokeThickness="1" Padding="10" StrokeShape="RoundRectangle 3" HeightRequest="300" VerticalOptions="Start">
                     <VerticalStackLayout Spacing="2">
                         <Label Text="Debug" FontAttributes="Italic" FontSize="Medium"/>
-                        <CollectionView ItemsSource="{Binding DebugLog}" VerticalOptions="FillAndExpand">
+                        <CollectionView ItemsSource="{Binding DebugLog}">
                             <CollectionView.ItemsLayout>
                                 <LinearItemsLayout Orientation="Vertical"/>
                             </CollectionView.ItemsLayout>
@@ -102,12 +145,19 @@
             </Grid>
 
             <!-- Mesh Visualizer -->
-            <Border Grid.Column="2">
+            <Border Grid.Column="2"
+                    Margin="5"
+                    HeightRequest="400"
+                    WidthRequest="400" 
+                    StrokeShape="RoundRectangle 3"
+                    HorizontalOptions="Center" 
+                    VerticalOptions="Center">
                 
-            <skia:SKCanvasView x:Name="MeshCanvasView"  
+            <skia:SKCanvasView x:Name="MeshCanvasView" 
+                               Margin="5"
                                PaintSurface="OnCanvasViewPaintSurface" 
-                               HeightRequest="350"
-                               WidthRequest="350"/>
+                               HeightRequest="370"
+                               WidthRequest="370"/>
             </Border>
         </Grid>
     </Grid>
