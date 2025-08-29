@@ -4,6 +4,7 @@
              x:Class="ElectricalImpedanceTomography.Views.MainPage"
              xmlns:viewmodels="clr-namespace:ElectricalImpedanceTomography.ViewModels"
              xmlns:controls="clr-namespace:ElectricalImpedanceTomography.Controls"
+             xmlns:converters="clr-namespace:ElectricalImpedanceTomography.Converters"
              x:DataType="viewmodels:MainPageViewModel"
              Shell.NavBarIsVisible="False"
              Title="MainPage">
@@ -17,6 +18,7 @@
         <Style TargetType="Button">
             <Setter Property="FontFamily" Value="SF Pro Text"/>
         </Style>
+        <converters:MessageTypeToColorConverter x:Key="MessageTypeToColorConverter"/>
     </ContentPage.Resources>
     <Grid RowDefinitions="Auto,*" ColumnDefinitions="200,*">
         <controls:NavBarControl Grid.Row="0" Grid.ColumnSpan="2" CurrentPageName="MainPage"/>
@@ -51,7 +53,20 @@
                 <Border Stroke="LightGray" StrokeThickness="1" Padding="10">
                     <VerticalStackLayout Spacing="6">
                         <Label Text="Debug" FontAttributes="Bold"/>
-                        <Editor Text="{Binding DebugLog}" HeightRequest="120" IsReadOnly="True"/>
+                        <CollectionView ItemsSource="{Binding DebugLog}" HeightRequest="120">
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate>
+                                    <Label TextColor="{Binding Type, Converter={StaticResource MessageTypeToColorConverter}}">
+                                        <Label.FormattedText>
+                                            <FormattedString>
+                                                <Span Text="{Binding Time, StringFormat='{0:HH:mm:ss} >> '}" />
+                                                <Span Text="{Binding Message}" />
+                                            </FormattedString>
+                                        </Label.FormattedText>
+                                    </Label>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
                     </VerticalStackLayout>
                 </Border>
             </VerticalStackLayout>
