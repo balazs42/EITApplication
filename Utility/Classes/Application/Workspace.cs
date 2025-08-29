@@ -9,8 +9,8 @@ namespace Utility.Classes.Application
         private static IMesh? _mesh { get; set; } = null;
 
         private static List<ReconstructionResult> _reconstructionResults = [];
-        private static Dictionary<DateTime, string> _messages = [];
-        public static event Action<DateTime, string>? MessageAdded;
+        private static List<WorkspaceMessage> _messages = [];
+        public static event Action<WorkspaceMessage>? MessageAdded;
 
         private static bool _initialized = false; 
 
@@ -44,15 +44,17 @@ namespace Utility.Classes.Application
         public static void AddReconstructionResultToWorkspace(ReconstructionResult reconstructionResult) => _reconstructionResults.Add(reconstructionResult);
         public static void RemoveReconstructionResultFromWorkspace(int index) => _reconstructionResults.RemoveAt(index);
 
-        public static void AddMessage(string message)
+        public static void AddMessage(string message, WorkspaceMessageType type = WorkspaceMessageType.Log)
         {
             DateTime time = DateTime.Now;
-            _messages.Add(time, message);
-            MessageAdded?.Invoke(time, message);
+            var msg = new WorkspaceMessage(time, message, type);
+            _messages.Add(msg);
+            MessageAdded?.Invoke(msg);
         }
 
-        public static void AddLogMessage(string source, string message) => AddMessage(source + ": " + message);
+        public static void AddLogMessage(string source, string message, WorkspaceMessageType type = WorkspaceMessageType.Log)
+            => AddMessage(source + ": " + message, type);
 
-        public static IReadOnlyDictionary<DateTime, string> GetMessages() => _messages;
+        public static IReadOnlyList<WorkspaceMessage> GetMessages() => _messages;
     }
 }

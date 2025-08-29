@@ -1,5 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Maui.ApplicationModel;
+using System.Collections.ObjectModel;
 using Utility.Classes.Application;
 using Utility.Classes.ReconstructionParameters;
 
@@ -7,8 +9,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 {
     public partial class MainPageViewModel : BaseViewModel
     {
-        [ObservableProperty]
-        private string debugLog = string.Empty;
+        public ObservableCollection<WorkspaceMessage> DebugLog { get; } = new();
 
         [ObservableProperty]
         private EITReconstructionParameters reconstructionParameters = Workspace.GetReconstructionParameters();
@@ -31,7 +32,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         public MainPageViewModel()
         {
             foreach (var entry in Workspace.GetMessages())
-                DebugLog += $"{entry.Key:HH:mm:ss} >> {entry.Value}\n";
+                DebugLog.Add(entry);
 
             Workspace.MessageAdded += OnWorkspaceMessageAdded;
 
@@ -40,9 +41,9 @@ namespace ElectricalImpedanceTomography.ViewModels
             //  LoadMeshCommand = new AsyncRelayCommand(async () => await Task.CompletedTask);
         }
 
-        private void OnWorkspaceMessageAdded(DateTime time, string message)
+        private void OnWorkspaceMessageAdded(WorkspaceMessage message)
         {
-            DebugLog += $"{time:HH:mm:ss} >> {message}\n";
+            MainThread.BeginInvokeOnMainThread(() => DebugLog.Add(message));
         }
 
         public void OnLoadMeasurementClicked(object sender, EventArgs e)

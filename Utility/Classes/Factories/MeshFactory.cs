@@ -384,32 +384,43 @@ namespace Utility.Classes.Factories
             ValidatePerimeter(perimeter);
             var mesh = new LBMMesh(nx, ny, electrodeNum: 0);
 
+            var inside = new bool[nx, ny];
+            for (int y = 0; y < ny; y++)
+                for (int x = 0; x < nx; x++)
+                    inside[x, y] = IsPointInPolygon(x + 0.5, y + 0.5, perimeter);
+
             for (int y = 0; y < ny; y++)
             {
                 for (int x = 0; x < nx; x++)
                 {
                     var el = mesh.GetElementAt(x, y);
-                    bool inside = IsPointInPolygon(x + 0.5, y + 0.5, perimeter);
-                    el.IsWall = !inside;
+                    bool cellInside = inside[x, y];
+                    bool boundary = false;
+                    if (cellInside)
+                    {
+                        boundary = x == 0 || x == nx - 1 || y == 0 || y == ny - 1 ||
+                                   !inside[Math.Max(x - 1, 0), y] ||
+                                   !inside[Math.Min(x + 1, nx - 1), y] ||
+                                   !inside[x, Math.Max(y - 1, 0)] ||
+                                   !inside[x, Math.Min(y + 1, ny - 1)];
+                    }
+                    el.IsWall = !cellInside || boundary;
                     el.IsElectrode = false;
                 }
             }
 
+            var boundaryCells = mesh.ElementsTyped.Where(e => e.IsWall).ToList();
             var electrodes = new List<LBMElectrode>();
-            int count = Math.Min(electrodeCount, perimeter.Count);
+            int count = Math.Min(electrodeCount, boundaryCells.Count);
             if (count > 0)
             {
-                int step = Math.Max(perimeter.Count / count, 1);
+                int step = Math.Max(boundaryCells.Count / count, 1);
                 for (int e = 0; e < count; e++)
                 {
-                    var p = perimeter[e * step];
-                    int ix = (int)Math.Round(p.x);
-                    int iy = (int)Math.Round(p.y);
-                    if (ix < 0 || ix >= nx || iy < 0 || iy >= ny) continue;
-                    var cell = mesh.GetElementAt(ix, iy);
+                    var cell = boundaryCells[e * step];
                     cell.IsWall = false;
                     cell.IsElectrode = true;
-                    electrodes.Add(new LBMElectrode(id: e, gridId: cell.Id, current: 0.0, potential: 0.0, contactImpedance: 0.0));
+                    electrodes.Add(new LBMElectrode(e, cell.Id, 0.0, 0.0, 0.0));
                 }
             }
 
