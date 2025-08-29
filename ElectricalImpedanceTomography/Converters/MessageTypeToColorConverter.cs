@@ -18,6 +18,7 @@ namespace ElectricalImpedanceTomography.Converters
                 return type switch
                 {
                     WorkspaceMessageType.Error => Colors.Red,
+                    WorkspaceMessageType.Log => Colors.White,
                     WorkspaceMessageType.Warning => Color.FromArgb("#B8860B"),
                     WorkspaceMessageType.Loading => Colors.Green,
                     WorkspaceMessageType.Info => Colors.Blue,
