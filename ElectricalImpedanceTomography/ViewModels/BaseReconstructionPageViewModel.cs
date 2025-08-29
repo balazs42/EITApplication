@@ -1,5 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using Utility.Classes.ReconstructionParameters;
+using Workspace = Utility.Classes.Application.Workspace;
 
 namespace ElectricalImpedanceTomography.ViewModels
 {
@@ -26,12 +27,12 @@ namespace ElectricalImpedanceTomography.ViewModels
                    .Cast<NumericOptimizer>();
 
         [ObservableProperty]
-        private EITReconstructionParameters reconstructionParameters = new(
-            DifferentialEquationSolver.FiniteElementMethod,
-            RegularizationTechnique.ZeroOrderTikhonov,
-            ErrorMetric.L2,
-            NumericSolver.SVD,
-            NumericOptimizer.GradientBased);
+        private EITReconstructionParameters reconstructionParameters = Workspace.GetReconstructionParameters();
+
+        partial void OnReconstructionParametersChanged(EITReconstructionParameters value)
+        {
+            Workspace.SetReconstructionParameters(value);
+        }
 
         [ObservableProperty]
         private int layers = 2;

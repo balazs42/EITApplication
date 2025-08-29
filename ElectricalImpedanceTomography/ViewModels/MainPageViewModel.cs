@@ -11,7 +11,12 @@ namespace ElectricalImpedanceTomography.ViewModels
         private string debugLog = string.Empty;
 
         [ObservableProperty]
-        private EITReconstructionParameters reconstructionParameters = new();
+        private EITReconstructionParameters reconstructionParameters = Workspace.GetReconstructionParameters();
+
+        partial void OnReconstructionParametersChanged(EITReconstructionParameters value)
+        {
+            Workspace.SetReconstructionParameters(value);
+        }
 
         public IEnumerable<DifferentialEquationSolver> Solvers => Enum.GetValues<DifferentialEquationSolver>();
         public IEnumerable<RegularizationTechnique> Regularizations => Enum.GetValues<RegularizationTechnique>();
