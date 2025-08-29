@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<toolkit:Popup xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+               xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+               xmlns:toolkit="clr-namespace:CommunityToolkit.Maui.Views;assembly=CommunityToolkit.Maui"
+               x:Class="ElectricalImpedanceTomography.Views.ChannelSettingsPopup">
+    <Border Padding="16" BackgroundColor="White">
+        <VerticalStackLayout Spacing="8">
+            <Label Text="Channel Settings" FontAttributes="Bold" FontFamily="SF Pro Text" />
+            <Entry x:Name="GainEntry" Placeholder="Gain" Keyboard="Numeric" FontFamily="SF Pro Text" />
+            <Entry x:Name="OffsetEntry" Placeholder="Offset" Keyboard="Numeric" FontFamily="SF Pro Text" />
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                <Button Text="Cancel" Clicked="OnCancelClicked" />
+                <Button Grid.Column="1" Text="Save" Clicked="OnSaveClicked" />
+            </Grid>
+        </VerticalStackLayout>
+    </Border>
+</toolkit:Popup>
