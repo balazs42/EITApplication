@@ -176,7 +176,7 @@
                         <Label Grid.Column="0" Grid.Row="0" Text="Controls" HorizontalOptions="Center" HeightRequest="20"/>
                         <Border Grid.Column="0" Grid.Row="1" Stroke="Transparent">
                             <HorizontalStackLayout Grid.Row="0" VerticalOptions="Center" HorizontalOptions="Center" Spacing="10">
-                                <Border Padding="5" StrokeShape="RoundRectangle 5">
+                                <Border Padding="5" StrokeShape="RoundRectangle 5" Stroke="Transparent">
                                     <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10">
                                         <Image Grid.Column="0" Source="icon_save.png" HeightRequest="30"/>
                                         <Label Grid.Column="1" Text="Save" HorizontalOptions="Center" VerticalOptions="Center" FontSize="Medium" FontAttributes="Bold"/>
@@ -184,9 +184,12 @@
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Tapped="OnSaveClicked" />
                                     </Border.GestureRecognizers>
+                                    <Border.Shadow>
+                                        <Shadow Brush="Black" Opacity="5.0" Radius="4.0"/>
+                                    </Border.Shadow>
                                 </Border>
 
-                                <Border Padding="5" StrokeShape="RoundRectangle 5">
+                                <Border Padding="5" StrokeShape="RoundRectangle 5" Stroke="Transparent">
                                     <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10">
                                         <Image Grid.Column="0" Source="icon_load2.png" HeightRequest="30"/>
                                         <Label Grid.Column="1" Text="Load" HorizontalOptions="Center" VerticalOptions="Center" FontSize="Medium" FontAttributes="Bold"/>
@@ -194,9 +197,12 @@
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Tapped="OnLoadClicked" />
                                     </Border.GestureRecognizers>
+                                    <Border.Shadow>
+                                        <Shadow Brush="Black" Opacity="5.0" Radius="4.0"/>
+                                    </Border.Shadow>
                                 </Border>
 
-                                <Border Padding="5" StrokeShape="RoundRectangle 5">
+                                <Border Padding="5" StrokeShape="RoundRectangle 5"  Stroke="Transparent">
                                     <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10">
                                         <Image Grid.Column="0" Source="icon_generate.png" HeightRequest="30"/>
                                         <Label Grid.Column="1" Text="Generate" HorizontalOptions="Center" VerticalOptions="Center" FontSize="Medium" FontAttributes="Bold"/>
@@ -204,9 +210,12 @@
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Tapped="OnGenerateClicked" />
                                     </Border.GestureRecognizers>
+                                    <Border.Shadow>
+                                        <Shadow Brush="Black" Opacity="5.0" Radius="4.0"/>
+                                    </Border.Shadow>
                                 </Border>
 
-                                <Border Padding="5" StrokeShape="RoundRectangle 5">
+                                <Border Padding="5" StrokeShape="RoundRectangle 5"  Stroke="Transparent">
                                     <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10">
                                         <Image Grid.Column="0" Source="icon_delete.png" HeightRequest="30"/>
                                         <Label Grid.Column="1" Text="Clear" HorizontalOptions="Center" VerticalOptions="Center" FontSize="Medium" FontAttributes="Bold"/>
@@ -214,6 +223,9 @@
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Tapped="OnClearClicked" />
                                     </Border.GestureRecognizers>
+                                    <Border.Shadow>
+                                        <Shadow Brush="Black" Opacity="5.0" Radius="4.0"/>
+                                    </Border.Shadow>
                                 </Border>
 
 
@@ -235,6 +247,9 @@
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Tapped="OnEditClicked" />
                                     </Border.GestureRecognizers>
+                                    <Border.Shadow>
+                                        <Shadow Brush="Black" Opacity="5.0" Radius="4.0"/>
+                                    </Border.Shadow>
                                 </Border>
 
                                 <Border Stroke="Transparent">
@@ -245,7 +260,10 @@
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Tapped="OnAddNoiseTapped"/>
                                     </Border.GestureRecognizers>
-                                    
+                                    <Border.Shadow>
+                                        <Shadow Brush="Black" Opacity="5.0" Radius="4.0"/>
+                                    </Border.Shadow>
+
                                 </Border>
 
                             </HorizontalStackLayout>
