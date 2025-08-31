@@ -5,6 +5,8 @@ using Utility.Classes.Factories;
 using Utility.Classes.Meshing;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
+using System.Linq;
+using System.Collections.Generic;
 
 using Workspace = Utility.Classes.Application.Workspace;
 
@@ -243,6 +245,22 @@ namespace ElectricalImpedanceTomography.ViewModels
             foreach (var el in mesh.ElementsTyped)
                 if (el.IsElectrode)
                     electrodes.Add(new LBMElectrode(id++, el.Id, 0.0, 0.0, ElectrodeContactImpedance));
+            mesh.SetElectrodes(electrodes);
+        }
+
+        public void RefreshFemElectrodes()
+        {
+            if (_currentMesh is not FEMMesh mesh) return;
+            var verts = mesh.Vertices.Where(v => v.IsElectrode).ToList();
+            var electrodes = new List<FEMElectrode>();
+            for (int i = 0; i < verts.Count; i++)
+            {
+                var v = verts[i];
+                v.ElectrodeId = i;
+                var el = new FEMElectrode(i, v.GlobalId, 0.0, ElectrodeContactImpedance, 0.0);
+                el.FEMVertexIds.Add(v.GlobalId);
+                electrodes.Add(el);
+            }
             mesh.SetElectrodes(electrodes);
         }
 
