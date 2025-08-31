@@ -239,6 +239,11 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             OnPropertyChanged(nameof(IsFEM));
             OnPropertyChanged(nameof(IsLBM));
+
+            var reconstructionParameters = Workspace.GetReconstructionParameters();
+
+            if (IsFEM) reconstructionParameters.DifferentialEquationSolver = Utility.Classes.ReconstructionParameters.DifferentialEquationSolver.FiniteElementMethod;
+            else if (IsLBM) reconstructionParameters.DifferentialEquationSolver = Utility.Classes.ReconstructionParameters.DifferentialEquationSolver.LatticeBoltzmannMethod;
         }
 
         partial void OnSelectedGeometryChanged(GeometryType value)
