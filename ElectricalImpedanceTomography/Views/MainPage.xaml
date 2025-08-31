@@ -189,16 +189,18 @@
                        FontSize="Medium" 
                        VerticalOptions="End"/>
                 <Border Grid.Row="1"
-                        Margin="5"
+                        Margin="10"
                         HeightRequest="400"
-                        WidthRequest="400" 
-                        StrokeShape="RoundRectangle 3"
-                        HorizontalOptions="Center" 
+                        WidthRequest="400"
+                        Stroke="DarkGray"
+                        StrokeThickness="2"
+                        StrokeShape="RoundRectangle 10"
+                        HorizontalOptions="Center"
                         VerticalOptions="Center">
-                
-                <skia:SKCanvasView x:Name="MeshCanvasView" 
-                                   Margin="5"
-                                   PaintSurface="OnCanvasViewPaintSurface" 
+
+                <skia:SKCanvasView x:Name="MeshCanvasView"
+                                   Margin="10"
+                                   PaintSurface="OnCanvasViewPaintSurface"
                                    HeightRequest="370"
                                    WidthRequest="370"/>
                 </Border>
