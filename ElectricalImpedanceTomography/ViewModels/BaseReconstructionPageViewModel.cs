@@ -6,25 +6,20 @@ namespace ElectricalImpedanceTomography.ViewModels
 {
     public partial class BaseReconstructionPageViewModel : BaseViewModel
     {
-        public IEnumerable<DifferentialEquationSolver> DifferentialEquationSolverOptions
-            => Enum.GetValues(typeof(DifferentialEquationSolver))
-                   .Cast<DifferentialEquationSolver>();
+        private static readonly DifferentialEquationSolver[] DifferentialEquationSolverValues = Enum.GetValues<DifferentialEquationSolver>();
+        public IEnumerable<DifferentialEquationSolver> DifferentialEquationSolverOptions => DifferentialEquationSolverValues;
 
-        public IEnumerable<RegularizationTechnique> RegularizationTechniqueOptions
-            => Enum.GetValues(typeof(RegularizationTechnique))
-                   .Cast<RegularizationTechnique>();
+        private static readonly RegularizationTechnique[] RegularizationTechniqueValues = Enum.GetValues<RegularizationTechnique>();
+        public IEnumerable<RegularizationTechnique> RegularizationTechniqueOptions => RegularizationTechniqueValues;
 
-        public IEnumerable<ErrorMetric> ErrorMetricOptions
-            => Enum.GetValues(typeof(ErrorMetric))
-                   .Cast<ErrorMetric>();
+        private static readonly ErrorMetric[] ErrorMetricValues = Enum.GetValues<ErrorMetric>();
+        public IEnumerable<ErrorMetric> ErrorMetricOptions => ErrorMetricValues;
 
-        public IEnumerable<NumericSolver> NumericSolverOptions
-            => Enum.GetValues(typeof(NumericSolver))
-                   .Cast<NumericSolver>();
+        private static readonly NumericSolver[] NumericSolverValues = Enum.GetValues<NumericSolver>();
+        public IEnumerable<NumericSolver> NumericSolverOptions => NumericSolverValues;
 
-        public IEnumerable<NumericOptimizer> NumericOptimizerOptions
-            => Enum.GetValues(typeof(NumericOptimizer))
-                   .Cast<NumericOptimizer>();
+        private static readonly NumericOptimizer[] NumericOptimizerValues = Enum.GetValues<NumericOptimizer>();
+        public IEnumerable<NumericOptimizer> NumericOptimizerOptions => NumericOptimizerValues;
 
         [ObservableProperty]
         private EITReconstructionParameters reconstructionParameters = Workspace.GetReconstructionParameters();
