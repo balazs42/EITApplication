@@ -37,6 +37,8 @@ public partial class FEMReconstructionPage : ContentPage
     readonly SKColor ElectrodeFill = SKColors.Yellow;
     readonly SKColor ElectrodeStroke = SKColors.Black;
     const float ElectrodeRadius = 6f;
+    private readonly SKPaint _electrodeFillPaint = new() { Style = SKPaintStyle.Fill, Color = SKColors.Yellow, IsAntialias = true };
+    private readonly SKPaint _electrodeStrokePaint = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1, IsAntialias = true };
 
     private bool _isSimulationRunning = false;
     private bool _isPaused = false;
@@ -68,6 +70,11 @@ public partial class FEMReconstructionPage : ContentPage
 
         InitializeComponent();
     }
+
+    // Reusable drawing resources to avoid per-frame allocations
+    private readonly SKPaint _meshFillPaint = new() { Style = SKPaintStyle.Fill, IsAntialias = true };
+    private readonly SKPaint _meshStrokePaint = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1, IsAntialias = true };
+    private readonly SKPath _meshPath = new();
 
     #region CANVAS RELATED 
 
@@ -179,25 +186,11 @@ public partial class FEMReconstructionPage : ContentPage
 
     private void DrawElectrodes(SKCanvas canvas)
     {
-        using var fillPaint = new SKPaint
-        {
-            Style = SKPaintStyle.Fill,
-            Color = ElectrodeFill,
-            IsAntialias = true
-        };
-        using var strokePaint = new SKPaint
-        {
-            Style = SKPaintStyle.Stroke,
-            Color = ElectrodeStroke,
-            StrokeWidth = 1,
-            IsAntialias = true
-        };
-
         foreach (var v in _mesh.Vertices.Where(v => v.IsElectrode))
         {
             var p = ToCanvas(v);
-            canvas.DrawCircle(p, ElectrodeRadius, fillPaint);
-            canvas.DrawCircle(p, ElectrodeRadius, strokePaint);
+            canvas.DrawCircle(p, ElectrodeRadius, _electrodeFillPaint);
+            canvas.DrawCircle(p, ElectrodeRadius, _electrodeStrokePaint);
         }
     }
 
@@ -207,9 +200,7 @@ public partial class FEMReconstructionPage : ContentPage
         canvas.Clear(SKColor.Parse("#1E1E1E"));
         ComputeBoundsAndRanges(e.Info);
 
-        using var fill = new SKPaint { Style = SKPaintStyle.Fill, IsAntialias = true };
-        using var stroke = new SKPaint { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1, IsAntialias = true };
-        var elements = _mesh.GetElements().Cast<FEMElement>().ToList();
+        var elements = _mesh.ElementsTyped;
 
         // draw mesh elements
         foreach (var elem in elements)
@@ -218,16 +209,16 @@ public partial class FEMReconstructionPage : ContentPage
             var avg = elem.Vertices.Average(v => v.Potential);
 
             // paint with the selected mode
-            fill.Color = GetPotentialColor(avg);
+            _meshFillPaint.Color = GetPotentialColor(avg);
 
-            using var path = new SKPath();
-            path.MoveTo(ToCanvas(elem.Vertices[0]));
-            path.LineTo(ToCanvas(elem.Vertices[1]));
-            path.LineTo(ToCanvas(elem.Vertices[2]));
-            path.Close();
+            _meshPath.Reset();
+            _meshPath.MoveTo(ToCanvas(elem.Vertices[0]));
+            _meshPath.LineTo(ToCanvas(elem.Vertices[1]));
+            _meshPath.LineTo(ToCanvas(elem.Vertices[2]));
+            _meshPath.Close();
 
-            canvas.DrawPath(path, fill);
-            canvas.DrawPath(path, stroke);
+            canvas.DrawPath(_meshPath, _meshFillPaint);
+            canvas.DrawPath(_meshPath, _meshStrokePaint);
         }
 
         DrawElectrodes(canvas);
@@ -313,9 +304,6 @@ public partial class FEMReconstructionPage : ContentPage
         canvas.Clear(SKColor.Parse("#1E1E1E"));
         ComputeBoundsAndRanges(e.Info);
 
-        using var fill = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Fill };
-        using var stroke = new SKPaint { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1, IsAntialias = true };
-
         double minVal = ReferenceEquals(mesh, _mesh)
             ? _minCond
             : _minRecon;
@@ -323,28 +311,28 @@ public partial class FEMReconstructionPage : ContentPage
             ? _maxCond
             : _maxRecon;
 
-        var elements = mesh.GetElements().Cast<FEMElement>();
+        var elements = mesh.ElementsTyped;
 
         // fill
         foreach (var elem in elements)
         {
-            fill.Color = ColorForValue(elem.Conductivity, minVal, maxVal);
-            using var path = new SKPath();
-            path.MoveTo(ToCanvas(elem.Vertices[0]));
-            path.LineTo(ToCanvas(elem.Vertices[1]));
-            path.LineTo(ToCanvas(elem.Vertices[2]));
-            path.Close();
-            canvas.DrawPath(path, fill);
+            _meshFillPaint.Color = ColorForValue(elem.Conductivity, minVal, maxVal);
+            _meshPath.Reset();
+            _meshPath.MoveTo(ToCanvas(elem.Vertices[0]));
+            _meshPath.LineTo(ToCanvas(elem.Vertices[1]));
+            _meshPath.LineTo(ToCanvas(elem.Vertices[2]));
+            _meshPath.Close();
+            canvas.DrawPath(_meshPath, _meshFillPaint);
         }
         // outline
         foreach (var elem in elements)
         {
-            using var path = new SKPath();
-            path.MoveTo(ToCanvas(elem.Vertices[0]));
-            path.LineTo(ToCanvas(elem.Vertices[1]));
-            path.LineTo(ToCanvas(elem.Vertices[2]));
-            path.Close();
-            canvas.DrawPath(path, stroke);
+            _meshPath.Reset();
+            _meshPath.MoveTo(ToCanvas(elem.Vertices[0]));
+            _meshPath.LineTo(ToCanvas(elem.Vertices[1]));
+            _meshPath.LineTo(ToCanvas(elem.Vertices[2]));
+            _meshPath.Close();
+            canvas.DrawPath(_meshPath, _meshStrokePaint);
         }
 
         // hover‐info box for conductivity element
