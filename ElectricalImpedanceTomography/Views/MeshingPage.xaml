@@ -237,7 +237,7 @@
                         <Label Grid.Column="2" Grid.Row="0" Text="Editing" HorizontalOptions="Center" VerticalOptions="Center"/>
                         <Border Grid.Column="2" Grid.Row="1" Stroke="Transparent">
 
-                            <HorizontalStackLayout Spacing="10">
+                            <HorizontalStackLayout Spacing="10" HorizontalOptions="Center">
                                 <Border Grid.Column="1" Padding="5" StrokeShape="RoundRectangle 5" Stroke="Transparent">
                                     <Grid ColumnDefinitions="Auto, *, Auto" ColumnSpacing="10">
                                         <Image Grid.Column="0" Source="icon_edit2.png" HeightRequest="25"/>
@@ -264,6 +264,32 @@
                                         <Shadow Brush="Black" Opacity="5.0" Radius="4.0"/>
                                     </Border.Shadow>
 
+                                </Border>
+
+                                <Border Stroke="Transparent">
+                                    <Grid ColumnDefinitions="Auto, *" Margin="5">
+                                        <Image Grid.Column="0" Source="icon_next_black.png" HeightRequest="30" Rotation="180"/>
+                                        <Label Grid.Column="1" Text="Undo" FontSize="Medium" HorizontalOptions="Center" VerticalOptions="Center" FontAttributes="Bold"/>
+                                    </Grid>
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnUndoClicked"/>
+                                    </Border.GestureRecognizers>
+                                    <Border.Shadow>
+                                        <Shadow Brush="Black" Opacity="5.0" Radius="4.0"/>
+                                    </Border.Shadow>
+                                </Border>
+
+                                <Border Stroke="Transparent">
+                                    <Grid ColumnDefinitions="Auto, *" Margin="5">
+                                        <Image Grid.Column="0" Source="icon_next_black.png" HeightRequest="30"/>
+                                        <Label Grid.Column="1" Text="Redo" FontSize="Medium" HorizontalOptions="Center" VerticalOptions="Center" FontAttributes="Bold"/>
+                                    </Grid>
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnRedoClicked"/>
+                                    </Border.GestureRecognizers>
+                                    <Border.Shadow>
+                                        <Shadow Brush="Black" Opacity="5.0" Radius="4.0"/>
+                                    </Border.Shadow>
                                 </Border>
 
                             </HorizontalStackLayout>
