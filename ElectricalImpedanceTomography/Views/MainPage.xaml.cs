@@ -12,6 +12,18 @@ namespace ElectricalImpedanceTomography.Views
     {
         private readonly MainPageViewModel _viewModel;
 
+        // Reusable paints to avoid repeated allocations during drawing
+        private readonly SKPaint _lbmFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.Black };
+        private readonly SKPaint _lbmWall = new() { Style = SKPaintStyle.Fill, Color = SKColors.White };
+        private readonly SKPaint _lbmElectrode = new() { Style = SKPaintStyle.Fill, Color = SKColors.Orange };
+        private readonly SKPaint _lbmStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.LightGray, StrokeWidth = 1 };
+
+        private readonly SKPaint _femStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1 };
+        private readonly SKPaint _femFill = new() { Style = SKPaintStyle.Fill };
+        private readonly SKPaint _electrodeFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.Yellow };
+
+        private float _scale, _marginX, _marginY, _minX, _minY, _meshWidth, _meshHeight;
+
         public MainPage()
         {
             InitializeComponent();
@@ -42,7 +54,7 @@ namespace ElectricalImpedanceTomography.Views
         {
             var canvas = e.Surface.Canvas;
             var info = e.Info;
-            canvas.Clear(SKColors.White);
+            canvas.Clear(SKColor.Parse("#1E1E1E"));
 
             var mesh = Workspace.GetMesh();
             if (mesh is LBMMesh lbm)
@@ -52,25 +64,6 @@ namespace ElectricalImpedanceTomography.Views
             else if (mesh is FEMMesh fem)
             {
                 DrawFEMMesh(canvas, info, fem);
-            }
-            else
-            {
-                DrawCheckerboard(canvas, info.Width, info.Height);
-            }
-        }
-
-        private static void DrawCheckerboard(SKCanvas canvas, int width, int height)
-        {
-            const int size = 20;
-            using var darkPaint = new SKPaint { Color = SKColors.Gray };
-            using var lightPaint = new SKPaint { Color = SKColors.Black };
-            for (int y = 0; y < height; y += size)
-            {
-                for (int x = 0; x < width; x += size)
-                {
-                    var paint = ((x / size + y / size) % 2 == 0) ? darkPaint : lightPaint;
-                    canvas.DrawRect(x, y, size, size, paint);
-                }
             }
         }
 
@@ -93,83 +86,74 @@ namespace ElectricalImpedanceTomography.Views
             }
         }
 
-        private static void DrawLBMMesh(SKCanvas canvas, SKImageInfo info, LBMMesh mesh)
+        private void DrawLBMMesh(SKCanvas canvas, SKImageInfo info, LBMMesh mesh)
         {
             float cellW = (float)info.Width / mesh.Nx;
             float cellH = (float)info.Height / mesh.Ny;
-            var elems = mesh.ElementsTyped;
-            double min = elems.Min(el => el.Conductivity);
-            double max = elems.Max(el => el.Conductivity);
-            var stroke = new SKPaint { Style = SKPaintStyle.Stroke, Color = SKColors.LightGray, StrokeWidth = 1 };
-            var wall = new SKPaint { Style = SKPaintStyle.Fill, Color = SKColors.Black };
-            var electrode = new SKPaint { Style = SKPaintStyle.Fill, Color = SKColors.Orange };
 
             for (int y = 0; y < mesh.Ny; y++)
             {
                 for (int x = 0; x < mesh.Nx; x++)
                 {
                     var el = mesh.GetElementAt(x, y);
-                    SKPaint fill;
-                    if (el.IsElectrode)
-                        fill = electrode;
-                    else if (el.IsWall)
-                        fill = wall;
-                    else
-                        fill = new SKPaint { Style = SKPaintStyle.Fill, Color = ColorForValue(el.Conductivity, min, max) };
+                    SKPaint fill = el.IsElectrode
+                        ? _lbmElectrode
+                        : el.IsWall
+                            ? _lbmWall
+                            : _lbmFill;
                     var r = SKRect.Create(x * cellW, y * cellH, cellW, cellH);
                     canvas.DrawRect(r, fill);
-                    canvas.DrawRect(r, stroke);
+                    canvas.DrawRect(r, _lbmStroke);
                 }
             }
         }
 
-        private static void DrawFEMMesh(SKCanvas canvas, SKImageInfo info, FEMMesh mesh)
+        private SKPoint ToCanvas(FEMVertex v)
+            => new((float)(v.X - _minX) * _scale + _marginX,
+                    MeshCanvasView.CanvasSize.Height - ((float)(v.Y - _minY) * _scale + _marginY));
+
+        private void DrawFEMMesh(SKCanvas canvas, SKImageInfo info, FEMMesh mesh)
         {
             const float pad = 10f;
             float availW = info.Width - 2 * pad;
             float availH = info.Height - 2 * pad;
             var verts = mesh.Vertices;
-            float minX = (float)verts.Min(v => v.X);
-            float minY = (float)verts.Min(v => v.Y);
-            float maxX = (float)verts.Max(v => v.X);
-            float maxY = (float)verts.Max(v => v.Y);
-            float meshW = maxX - minX;
-            float meshH = maxY - minY;
-            float scale = Math.Min(availW / meshW, availH / meshH);
-            float usedW = meshW * scale;
-            float usedH = meshH * scale;
-            float marginX = pad + (availW - usedW) / 2f;
-            float marginY = pad + (availH - usedH) / 2f;
+            _minX = (float)verts.Min(v => v.X);
+            _minY = (float)verts.Min(v => v.Y);
+            var maxX = (float)verts.Max(v => v.X);
+            var maxY = (float)verts.Max(v => v.Y);
+            _meshWidth = maxX - _minX;
+            _meshHeight = maxY - _minY;
+            _scale = Math.Min(availW / _meshWidth, availH / _meshHeight);
+            float usedW = _meshWidth * _scale;
+            float usedH = _meshHeight * _scale;
+            _marginX = pad + (availW - usedW) / 2f;
+            _marginY = pad + (availH - usedH) / 2f;
 
-            SKPoint ToCanvas(FEMVertex v)
-                => new SKPoint((float)(v.X - minX) * scale + marginX,
-                               info.Height - ((float)(v.Y - minY) * scale + marginY));
-
-            var stroke = new SKPaint { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1 };
             var elements = mesh.ElementsTyped;
             double min = elements.Min(el => el.Conductivity);
             double max = elements.Max(el => el.Conductivity);
 
+            using var path = new SKPath();
             foreach (var el in elements)
             {
                 var p1 = ToCanvas(el.Vertices[0]);
                 var p2 = ToCanvas(el.Vertices[1]);
                 var p3 = ToCanvas(el.Vertices[2]);
-                using var path = new SKPath();
+                path.Reset();
                 path.MoveTo(p1); path.LineTo(p2); path.LineTo(p3); path.Close();
-                using var fill = new SKPaint { Style = SKPaintStyle.Fill, Color = ColorForValue(el.Conductivity, min, max) };
-                canvas.DrawPath(path, fill);
-                canvas.DrawPath(path, stroke);
+                _femFill.Color = ColorForValue(el.Conductivity, min, max);
+                canvas.DrawPath(path, _femFill);
+                canvas.DrawPath(path, _femStroke);
             }
 
-            using var electrodeFill = new SKPaint { Style = SKPaintStyle.Fill, Color = SKColors.Yellow };
             foreach (var v in mesh.Vertices.Where(v => v.IsElectrode))
-                canvas.DrawCircle(ToCanvas(v), 4f, electrodeFill);
+                canvas.DrawCircle(ToCanvas(v), 4f, _electrodeFill);
         }
 
         private void OnConnectButtonClicked(object sender, EventArgs e)
         {
-            
+
         }
     }
 }
