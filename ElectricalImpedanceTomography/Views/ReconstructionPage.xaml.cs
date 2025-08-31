@@ -71,6 +71,12 @@ public partial class ReconstructionPage : ContentPage
     #region Simulation control
     private async void OnPlayButtonClicked(object sender, EventArgs e)
     {
+        if(!_viewModel.CheckReconstructionMethodAgainstMesh())
+        {
+            DisplayAlert("Bad Differential Equation Solver", "You should select the same type of DE solver what your mesh is made for.", "Ok");
+            return;
+        }
+
         await AnimateButtonAsync(sender);
         if (!_hasStarted)
         {
@@ -675,12 +681,24 @@ public partial class ReconstructionPage : ContentPage
 
     private async void OnSolveForwardClicked(object sender, EventArgs e)
     {
+        if (!_viewModel.CheckReconstructionMethodAgainstMesh())
+        {
+            DisplayAlert("Bad Differential Equation Solver", "You should select the same type of DE solver what your mesh is made for.", "Ok");
+            return;
+        }
+
         await AnimateButtonAsync(sender);
         _viewModel?.OnSolveForwardClicked(this, e);
     }
 
     private async void OnSolveInverseClicked(object sender, EventArgs e)
     {
+        if (!_viewModel.CheckReconstructionMethodAgainstMesh())
+        {
+            DisplayAlert("Bad Differential Equation Solver", "You should select the same type of DE solver what your mesh is made for.", "Ok");
+            return;
+        }
+
         await AnimateButtonAsync(sender);
         _viewModel?.OnSolveInverseClicked(this, e);
     }

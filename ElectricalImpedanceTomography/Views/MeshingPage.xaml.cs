@@ -1,15 +1,9 @@
 using ElectricalImpedanceTomography.ViewModels;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
-using Microsoft.Maui;
-using Microsoft.Maui.Controls;
-using Microsoft.Maui.Storage;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.Meshing;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace ElectricalImpedanceTomography.Views;
 
@@ -69,8 +63,8 @@ public partial class MeshingPage : ContentPage
 
     private static async Task ShrinkViewAsync(VisualElement element)
     {
-        await element.ScaleTo(0.8, 80);
-        await element.ScaleTo(1, 80);
+        await element.ScaleTo(0.8, 40);
+        await element.ScaleTo(1, 40);
     }
 
     private void OnMeshCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
