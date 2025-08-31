@@ -19,6 +19,7 @@ public partial class MeshingPage : ContentPage
     private readonly SKPaint _lbmWall = new() { Style = SKPaintStyle.Fill, Color = SKColors.Black };
     private readonly SKPaint _lbmElectrode = new() { Style = SKPaintStyle.Fill, Color = SKColors.Orange };
     private readonly SKPaint _lbmStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.LightGray, StrokeWidth = 1 };
+    private readonly SKPaint _lbmSelected = new() { Style = SKPaintStyle.Fill, Color = SKColors.LimeGreen };
 
     // stroke for FEM
     private readonly SKPaint _femStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1 };
@@ -31,6 +32,7 @@ public partial class MeshingPage : ContentPage
     // drawing state for custom FEM meshes
     private readonly List<SKPoint> _outlinePoints = new();
     private readonly List<SKPoint> _electrodePoints = new();
+    private readonly HashSet<int> _selectedCells = new();
     private bool _isDrawing;
     private bool _outlineClosed;
 
@@ -39,6 +41,7 @@ public partial class MeshingPage : ContentPage
         InitializeComponent();
         _viewModel = Utility.Composition.Container.ResolveObject<MeshingPageViewModel>();
         BindingContext = _viewModel;
+        _viewModel.MeshChanged += () => { _selectedCells.Clear(); MeshCanvas.InvalidateSurface(); };
     }
 
     private SKColor ColorForValue(double val, double min, double max)
@@ -91,7 +94,9 @@ public partial class MeshingPage : ContentPage
             {
                 var el = mesh.GetElementAt(x, y);
                 SKPaint fill;
-                if (el.IsElectrode)
+                if (_selectedCells.Contains(el.Id))
+                    fill = _lbmSelected;
+                else if (el.IsElectrode)
                     fill = _lbmElectrode;
                 else if (el.IsWall)
                     fill = _lbmWall;
@@ -203,21 +208,49 @@ public partial class MeshingPage : ContentPage
             if (x < 0 || x >= lbm.Nx || y < 0 || y >= lbm.Ny)
                 return;
             var el = lbm.GetElementAt(x, y);
+            bool shift = e.Modifiers.HasFlag(SKModifierKeys.Shift);
+
             if (_viewModel.InhomogenityEditing)
             {
-                el.Conductivity = _viewModel.InhomogenityValue;
-                _viewModel.RefreshConductivity();
+                if (e.MouseButton == SKMouseButton.Right && e.ActionType == SKTouchAction.Pressed)
+                {
+                    el.Conductivity = _viewModel.InhomogenityValue;
+                    _viewModel.RefreshConductivity();
+                }
+                else if (e.MouseButton == SKMouseButton.Left && shift)
+                {
+                    _selectedCells.Add(el.Id);
+                }
+                else if (e.MouseButton == SKMouseButton.Left && !shift && e.ActionType == SKTouchAction.Pressed)
+                {
+                    el.IsWall = !el.IsWall;
+                    if (el.IsWall) el.IsElectrode = false;
+                }
+
+                if (e.ActionType == SKTouchAction.Released && _selectedCells.Count > 0 && !shift)
+                {
+                    foreach (var id in _selectedCells)
+                    {
+                        var (sx, sy) = lbm.ToLattice(id);
+                        lbm.GetElementAt(sx, sy).Conductivity = _viewModel.InhomogenityValue;
+                    }
+                    _selectedCells.Clear();
+                    _viewModel.RefreshConductivity();
+                }
             }
-            else if (e.MouseButton == SKMouseButton.Left)
+            else
             {
-                el.IsWall = !el.IsWall;
-                if (el.IsWall) el.IsElectrode = false;
-            }
-            else if (e.MouseButton == SKMouseButton.Right)
-            {
-                el.IsElectrode = !el.IsElectrode;
-                if (el.IsElectrode) el.IsWall = false;
-                _viewModel.RefreshLbmElectrodes();
+                if (e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed)
+                {
+                    el.IsWall = !el.IsWall;
+                    if (el.IsWall) el.IsElectrode = false;
+                }
+                else if (e.MouseButton == SKMouseButton.Right && e.ActionType == SKTouchAction.Pressed)
+                {
+                    el.IsElectrode = !el.IsElectrode;
+                    if (el.IsElectrode) el.IsWall = false;
+                    _viewModel.RefreshLbmElectrodes();
+                }
             }
             MeshCanvas.InvalidateSurface();
         }
