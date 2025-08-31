@@ -445,10 +445,10 @@ namespace Utility.Classes.Factories
         {
             var pts = new List<(double x, double y)>
             {
-                (1,1),
-                (nx - 2, 1),
-                (nx - 2, ny - 2),
-                (1, ny - 2)
+                (0, 0),
+                (nx - 1, 0),
+                (nx - 1, ny - 1),
+                (0, ny - 1)
             };
             var mesh = CreateLBMMeshFromPerimeter(nx, ny, pts, electrodeCount);
             mesh.Metadata.Generator = nameof(CreateRectangularLBMMesh);
