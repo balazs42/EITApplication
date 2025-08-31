@@ -1,5 +1,6 @@
 using Microsoft.Maui.Controls;
 using System;
+using System.Threading.Tasks;
 
 namespace ElectricalImpedanceTomography.Controls;
 
@@ -55,19 +56,32 @@ public partial class PlusMinusEntryControl : ContentView
         InitializeComponent();
     }
 
-    public void OnPlusTapped(object sender, EventArgs e)
+    public async void OnPlusTapped(object sender, EventArgs e)
     {
+        if (sender is Image image)
+            await AnimateTap(image);
+
         if (Value + 1 <= Max)
         {
             Value = Value + 1;
         }
     }
 
-    public void OnMinusTapped(object sender, EventArgs e)
+    public async void OnMinusTapped(object sender, EventArgs e)
     {
+        if (sender is Image image)
+            await AnimateTap(image);
+
         if (Value - 1 > 0)
         {
             Value = Value - 1;
         }
+    }
+
+    private static async Task AnimateTap(Image image)
+    {
+        const uint duration = 50;
+        await image.ScaleTo(0.8, duration);
+        await image.ScaleTo(1, duration);
     }
 }

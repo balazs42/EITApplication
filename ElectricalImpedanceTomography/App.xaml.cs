@@ -18,12 +18,14 @@ namespace ElectricalImpedanceTomography
             Settings.ApplyContainerRegistration();
             ServiceLayer.Settings.ApplyContainerRegistration();
 
+            #if DEBUG
             // Run built-in self-tests
             StartupSelfTests.RunAll();
 
             // Execute analytic validation suite comparing numerical solvers to
             // reference equations (Fourier modes, dipole, layered media, etc.)
             ValidationSelfTests.RunAll();
+            #endif
 
             // Workspace initialization
             Workspace.Initialize(new DefaultUser(1, "Test1", "Test1@factroymail.com"), null, null);
