@@ -7,6 +7,9 @@ namespace Utility.Tests
     /// <summary>Minimal mesh double. Enough for units that don’t actually need FEM/LBM.</summary>
     internal sealed class FakeMesh : IMesh
     {
+        private sealed class FakeElement : MeshElement { }
+        private sealed class FakeElectrode : Electrode { }
+
         private readonly List<Electrode> _electrodes = new();
         private readonly List<FEMVertex> _vertices = new();
         private readonly List<MeshElement> _elements = new();
@@ -14,13 +17,24 @@ namespace Utility.Tests
         private ConductivityDistribution _sigma = new(new Dictionary<int, double>());
         private PotentialDistribution _phi = new(new Dictionary<int, double>());
 
-        public MeshMetadata Metadata { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+        public MeshMetadata Metadata { get; set; } = new();
 
         public FakeMesh(int nElems = 0, int nElectrodes = 0)
         {
-            // TODO: Implement correct fake maesh
-            //for (int i = 0; i < nElems; i++) _elements.Add(new MeshElement { Id = i, Conductivity = 0.0 });
-            //for (int i = 0; i < nElectrodes; i++) _electrodes.Add(new Electrode { Id = i, Potential = 0.0 });
+            for (int i = 0; i < nElems; i++)
+            {
+                var el = new FakeElement { Id = i, Conductivity = 1.0 };
+                _elements.Add(el);
+                _sigma.Conductivities[i] = el.Conductivity;
+            }
+
+            for (int i = 0; i < nElectrodes; i++)
+            {
+                var v = new FEMVertex(i, 0.0, 0.0) { IsElectrode = true, ElectrodeId = i };
+                _vertices.Add(v);
+                var el = new FakeElectrode { Id = i, Potential = 0.0 };
+                _electrodes.Add(el);
+            }
         }
 
         public void LogMesh() { }

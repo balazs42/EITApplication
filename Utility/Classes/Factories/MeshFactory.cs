@@ -630,7 +630,30 @@ namespace Utility.Classes.Factories
 
         public static void AddGaussianNoise(IMesh mesh)
         {
-            // TODO: add gaussian noise to element conductivites and update conductivity distribution
+            if (mesh == null) throw new ArgumentNullException(nameof(mesh));
+
+            var rng = new Random();
+            const double sigma = 0.05; // 5% relative noise
+
+            var elems = mesh.GetElements();
+            var noisy = new Dictionary<int, double>(elems.Count);
+
+            foreach (var el in elems)
+            {
+                // Box-Muller transform for normal distribution
+                double u1 = 1.0 - rng.NextDouble();
+                double u2 = 1.0 - rng.NextDouble();
+                double z = Math.Sqrt(-2.0 * Math.Log(u1)) * Math.Cos(2.0 * Math.PI * u2);
+
+                double value = el.Conductivity * (1.0 + sigma * z);
+                if (value < 0) value = 0.0;
+                el.Conductivity = value;
+                noisy[el.Id] = value;
+            }
+
+            mesh.SetConductivityDistribution(new ConductivityDistribution(noisy));
+
+            Workspace.AddLogMessage("MeshFactory", "Added gaussian noise to mesh conductivities.");
         }
 
         private static void ValidatePerimeter(IList<(double x, double y)> perimeter)
