@@ -61,6 +61,9 @@ namespace ElectricalImpedanceTomography.ViewModels
         [ObservableProperty]
         private double electrodeSize = 0.3;
 
+        [ObservableProperty]
+        private string hoveredElementInfo = string.Empty;
+
         private IMesh? _currentMesh;
         private IList<(double x, double y)>? _drawnPerimeter;
         private IList<(double x, double y)>? _drawnElectrodes;
@@ -231,6 +234,13 @@ namespace ElectricalImpedanceTomography.ViewModels
                 if (el.IsElectrode)
                     electrodes.Add(new LBMElectrode(id++, el.Id, 0.0, 0.0, ElectrodeContactImpedance));
             mesh.SetElectrodes(electrodes);
+        }
+
+        public void Clear()
+        {
+            _currentMesh = null;
+            Workspace.SetMesh(null);
+            MeshChanged?.Invoke();
         }
 
         public bool IsFEM => SelectedMeshType == MeshType.FEM;

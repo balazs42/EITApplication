@@ -68,7 +68,7 @@ public partial class MeshingPage : ContentPage
     private void OnMeshCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
         var canvas = e.Surface.Canvas;
-        canvas.Clear(SKColors.LightGray);
+        canvas.Clear(SKColor.Parse("#1E1E1E"));
         var mesh = _viewModel.GetCurrentMesh();
         if (mesh is null)
         {
@@ -156,7 +156,14 @@ public partial class MeshingPage : ContentPage
 
     private void OnClearClicked(object sender, EventArgs e)
     {
-        // TODO: Clear canvas
+        _outlinePoints.Clear();
+        _electrodePoints.Clear();
+        _selectedCells.Clear();
+        _outlineClosed = false;
+        _isDrawing = false;
+        _viewModel.HoveredElementInfo = string.Empty;
+        _viewModel.Clear();
+        MeshCanvas.InvalidateSurface();
     }
 
     private void OnEditClicked(object sender, TappedEventArgs e)
@@ -208,7 +215,10 @@ public partial class MeshingPage : ContentPage
             int x = (int)(e.Location.X / _cellW);
             int y = (int)(e.Location.Y / _cellH);
             if (x < 0 || x >= lbm.Nx || y < 0 || y >= lbm.Ny)
+            {
+                _viewModel.HoveredElementInfo = string.Empty;
                 return;
+            }
             var el = lbm.GetElementAt(x, y);
 
             if (_viewModel.InhomogenityEditing)
@@ -240,11 +250,14 @@ public partial class MeshingPage : ContentPage
                     _viewModel.RefreshLbmElectrodes();
                 }
             }
+            if (e.ActionType == SKTouchAction.Moved || e.ActionType == SKTouchAction.Entered)
+                _viewModel.HoveredElementInfo = $"ID: {el.Id} \u03C3: {el.Conductivity:F2}";
             MeshCanvas.InvalidateSurface();
         }
         else if (mesh is FEMMesh fem)
         {
             var pt = e.Location;
+            bool found = false;
             foreach (var el in fem.ElementsTyped)
             {
                 var a = ToCanvas(el.Vertices[0]);
@@ -252,15 +265,26 @@ public partial class MeshingPage : ContentPage
                 var c = ToCanvas(el.Vertices[2]);
                 if (PointInTriangle(pt, a, b, c))
                 {
-                    if (_viewModel.InhomogenityEditing)
+                    found = true;
+                    if (_viewModel.InhomogenityEditing && e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed)
                     {
                         el.Conductivity = _viewModel.InhomogenityValue;
                         _viewModel.RefreshConductivity();
                         MeshCanvas.InvalidateSurface();
                     }
+                    else if (e.ActionType == SKTouchAction.Moved || e.ActionType == SKTouchAction.Entered)
+                    {
+                        _viewModel.HoveredElementInfo = $"ID: {el.Id} \u03C3: {el.Conductivity:F2}";
+                    }
                     break;
                 }
             }
+            if (!found)
+                _viewModel.HoveredElementInfo = string.Empty;
+        }
+        else
+        {
+            _viewModel.HoveredElementInfo = string.Empty;
         }
         e.Handled = true;
     }
