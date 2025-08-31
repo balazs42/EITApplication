@@ -1,5 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using ServiceLayer;
+using System.Collections.Generic;
 using Utility.Classes;
 using Utility.Classes.Factories;
 using Utility.Classes.Meshing;
@@ -67,6 +69,8 @@ namespace ElectricalImpedanceTomography.ViewModels
         private string hoveredElementInfo = string.Empty;
 
         private IMesh? _currentMesh;
+        private readonly Stack<IMesh> _undoStack = new();
+        private readonly Stack<IMesh> _redoStack = new();
         private IList<(double x, double y)>? _drawnPerimeter;
         private IList<(double x, double y)>? _drawnElectrodes;
 
@@ -104,8 +108,43 @@ namespace ElectricalImpedanceTomography.ViewModels
             Workspace.SetMesh(_currentMesh);
         }
 
+        public void PushState()
+        {
+            if (_currentMesh != null)
+            {
+                _undoStack.Push(_currentMesh.DeepCopy());
+                _redoStack.Clear();
+            }
+        }
+
+        [RelayCommand]
+        public void Undo()
+        {
+            if (_undoStack.Count == 0)
+                return;
+            if (_currentMesh != null)
+                _redoStack.Push(_currentMesh.DeepCopy());
+            _currentMesh = _undoStack.Pop();
+            Workspace.SetMesh(_currentMesh);
+            MeshChanged?.Invoke();
+        }
+
+        [RelayCommand]
+        public void Redo()
+        {
+            if (_redoStack.Count == 0)
+                return;
+            if (_currentMesh != null)
+                _undoStack.Push(_currentMesh.DeepCopy());
+            _currentMesh = _redoStack.Pop();
+            Workspace.SetMesh(_currentMesh);
+            MeshChanged?.Invoke();
+        }
+
         public void GenerateMesh()
         {
+            if (_currentMesh != null)
+                PushState();
             _currentMesh = SelectedMeshType == MeshType.FEM ? GenerateFEMMesh() : GenerateLBMMesh();
 
             Workspace.SetMesh(_currentMesh);
@@ -130,6 +169,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             if (_currentMesh == null)
                 return;
 
+            PushState();
             MeshFactory.AddGaussianNoise(_currentMesh);
         }
 
