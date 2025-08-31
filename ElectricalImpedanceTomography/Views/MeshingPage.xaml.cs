@@ -17,8 +17,8 @@ public partial class MeshingPage : ContentPage
     private readonly MeshingPageViewModel _viewModel;
 
     // paints for LBM drawing
-    private readonly SKPaint _lbmFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.WhiteSmoke };
-    private readonly SKPaint _lbmWall = new() { Style = SKPaintStyle.Fill, Color = SKColors.Black };
+    private readonly SKPaint _lbmFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.Black };
+    private readonly SKPaint _lbmWall = new() { Style = SKPaintStyle.Fill, Color = SKColors.White };
     private readonly SKPaint _lbmElectrode = new() { Style = SKPaintStyle.Fill, Color = SKColors.Orange };
     private readonly SKPaint _lbmStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.LightGray, StrokeWidth = 1 };
     private readonly SKPaint _lbmSelected = new() { Style = SKPaintStyle.Fill, Color = SKColors.LimeGreen };
@@ -87,9 +87,6 @@ public partial class MeshingPage : ContentPage
     {
         _cellW = (float)info.Width / mesh.Nx;
         _cellH = (float)info.Height / mesh.Ny;
-        var elems = mesh.ElementsTyped;
-        double min = elems.Min(el => el.Conductivity);
-        double max = elems.Max(el => el.Conductivity);
         for (int y = 0; y < mesh.Ny; y++)
         {
             for (int x = 0; x < mesh.Nx; x++)
@@ -103,7 +100,7 @@ public partial class MeshingPage : ContentPage
                 else if (el.IsWall)
                     fill = _lbmWall;
                 else
-                    fill = new SKPaint { Style = SKPaintStyle.Fill, Color = ColorForValue(el.Conductivity, min, max) };
+                    fill = _lbmFill;
                 var r = SKRect.Create(x * _cellW, y * _cellH, _cellW, _cellH);
                 canvas.DrawRect(r, fill);
                 canvas.DrawRect(r, _lbmStroke);

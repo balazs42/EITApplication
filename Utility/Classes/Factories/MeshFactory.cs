@@ -410,22 +410,8 @@ namespace Utility.Classes.Factories
                 }
             }
 
-            var boundaryCells = mesh.ElementsTyped.Where(e => e.IsWall).ToList();
-            var electrodes = new List<LBMElectrode>();
-            int count = Math.Min(electrodeCount, boundaryCells.Count);
-            if (count > 0)
-            {
-                int step = Math.Max(boundaryCells.Count / count, 1);
-                for (int e = 0; e < count; e++)
-                {
-                    var cell = boundaryCells[e * step];
-                    cell.IsWall = false;
-                    cell.IsElectrode = true;
-                    electrodes.Add(new LBMElectrode(e, cell.Id, 0.0, 0.0, 0.0));
-                }
-            }
-
-            mesh.SetElectrodes(electrodes);
+            // place electrodes evenly around the domain boundary
+            mesh.PlaceEquidistantElectrodes(electrodeCount);
 
             var cd = mesh.GetElements().ToDictionary(e => e.Id, e => e.Conductivity);
             mesh.SetConductivityDistribution(new ConductivityDistribution(cd));
