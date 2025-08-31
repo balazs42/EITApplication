@@ -231,6 +231,17 @@ public partial class MeshingPage : ContentPage
                     el.IsWall = !el.IsWall;
                     if (el.IsWall) el.IsElectrode = false;
                 }
+
+                if (e.ActionType == SKTouchAction.Released && _selectedCells.Count > 0 && !shift)
+                {
+                    foreach (var id in _selectedCells)
+                    {
+                        var (sx, sy) = lbm.ToLattice(id);
+                        lbm.GetElementAt(sx, sy).Conductivity = _viewModel.InhomogenityValue;
+                    }
+                    _selectedCells.Clear();
+                    _viewModel.RefreshConductivity();
+                }
             }
             else
             {
