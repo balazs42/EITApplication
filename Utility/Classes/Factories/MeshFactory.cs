@@ -383,7 +383,7 @@ namespace Utility.Classes.Factories
         public static LBMMesh CreateLBMMeshFromPerimeter(int nx, int ny, IList<(double x, double y)> perimeter, int electrodeCount = 16)
         {
             ValidatePerimeter(perimeter);
-            var mesh = new LBMMesh(nx, ny, electrodeNum: 0);
+            var mesh = new LBMMesh(nx, ny);
 
             var inside = new bool[nx, ny];
             for (int y = 0; y < ny; y++)
@@ -508,7 +508,7 @@ namespace Utility.Classes.Factories
             if (inhomogenitySize > nx || inhomogenitySize > ny)
                 throw new ArgumentOutOfRangeException("Cannot create LBM mesh with inhomogenity, size too big!");
 
-            LBMMesh mesh = new LBMMesh(nx, ny, electrodeCount);
+            LBMMesh mesh = new LBMMesh(nx, ny);
 
             // 2) overlay a centered square of altered conductivity
             int cx = nx / 2, cy = ny / 2;
@@ -554,7 +554,7 @@ namespace Utility.Classes.Factories
                 throw new ArgumentOutOfRangeException(nameof(radius),
                     "Cannot create circular LBM mesh: radius too big.");
 
-            var mesh = new LBMMesh(nx, ny, electrodeNum: 0);
+            var mesh = new LBMMesh(nx, ny);
 
             double cx = (nx - 1) / 2.0;
             double cy = (ny - 1) / 2.0;
@@ -627,6 +627,11 @@ namespace Utility.Classes.Factories
 
 
         #endregion
+
+        public static void AddGaussianNoise(IMesh mesh)
+        {
+            // TODO: add gaussian noise to element conductivites and update conductivity distribution
+        }
 
         private static void ValidatePerimeter(IList<(double x, double y)> perimeter)
         {

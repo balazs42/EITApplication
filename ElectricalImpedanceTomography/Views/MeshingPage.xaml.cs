@@ -200,6 +200,16 @@ public partial class MeshingPage : ContentPage
             canvas.DrawCircle(p, 4f, _previewElectrode);
     }
 
+    private void OnAddNoiseTapped(object sender, TappedEventArgs e)
+    {
+        var mesh = _viewModel.GetCurrentMesh();
+
+        // TODO: Show popup: To Add noise you must first generate a mesh
+        if (mesh == null) return;
+
+        _viewModel.AddNoiseToMesh();
+    }
+
     private void OnMeshCanvasTouch(object sender, SKTouchEventArgs e)
     {
         var mesh = _viewModel.GetCurrentMesh();
