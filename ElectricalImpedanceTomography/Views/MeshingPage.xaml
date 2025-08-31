@@ -139,8 +139,8 @@
             </Border>
 
             <!-- Middle Canvas display -->
-            <Grid Grid.Column="1" RowDefinitions="Auto, *" >
-                <HorizontalStackLayout VerticalOptions="Center" HorizontalOptions="Center" Spacing="10" Padding="10">
+            <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*" >
+                <HorizontalStackLayout Grid.Row="0" VerticalOptions="Center" HorizontalOptions="Center" Spacing="10" Padding="10">
                     <Border Padding="5" StrokeShape="RoundRectangle 5">
                         <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10">
                             <Image Grid.Column="0" Source="icon_save.png" HeightRequest="30"/>
@@ -193,8 +193,10 @@
                     </Border>
 
                 </HorizontalStackLayout>
-                
-                <Border Grid.Row="1"
+
+                <Label Grid.Row="1" Text="{Binding HoveredElementInfo}" HorizontalOptions="Center"/>
+
+                <Border Grid.Row="2"
                         Stroke="DarkGray"
                         StrokeThickness="2"
                         Margin="10"
