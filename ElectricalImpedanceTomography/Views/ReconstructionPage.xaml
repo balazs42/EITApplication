@@ -10,6 +10,7 @@
              x:DataType="viewmodels:ReconstructionPageViewModel">
     <ContentPage.Resources>
         <Style TargetType="Border">
+            <Setter Property="BackgroundColor" Value="#1A1A1A"/>
             <Setter Property="StrokeShape" Value="RoundRectangle 3"/>
         </Style>
         <Style TargetType="Label">
@@ -149,7 +150,7 @@
                            FontFamily="SF Pro Text"/>
                     <Border Grid.Row="1"
                             Grid.Column="0"
-                            Stroke="Transparent"
+                            Stroke="DarkGray"
                             StrokeThickness="2"
                             Margin="10"
                             HorizontalOptions="Center"
@@ -181,7 +182,7 @@
                            FontFamily="SF Pro Text"/>
                     <Border Grid.Row="1"
                             Grid.Column="1"
-                            Stroke="Transparent"
+                            Stroke="DarkGray"
                             StrokeThickness="2"
                             Margin="10"
                             HorizontalOptions="Center"
@@ -213,8 +214,7 @@
                            FontFamily="SF Pro Text"/>
                     <Border Grid.Row="3"
                             Grid.Column="0"
-                            BackgroundColor="Transparent"
-                            Stroke="Transparent"
+                            Stroke="DarkGray"
                             StrokeThickness="2"
                             Margin="10"
                             HorizontalOptions="Center"
@@ -237,7 +237,7 @@
                         </Grid>
                     </Border>
 
-                    <!-- Adjoint Potential Canvas -->
+                    <!-- Reconstruced Canvas -->
                     <Label Grid.Row="2" 
                            Grid.Column="1"
                            Text="Adjoint Potential Distribution" 
@@ -245,9 +245,8 @@
                            VerticalOptions="Start"
                            FontFamily="SF Pro Text"/>
                     <Border Grid.Row="3"
-                            BackgroundColor="Transparent"
                             Grid.Column="1"
-                            Stroke="Transparent"
+                            Stroke="DarkGray"
                             StrokeThickness="2"
                             Margin="10"
                             HorizontalOptions="Center"
