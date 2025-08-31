@@ -76,13 +76,21 @@ public partial class ReconstructionPage : ContentPage
         {
             _viewModel.StartBackgroundReconstruction();
             _hasStarted = true;
+            _isPaused = false;
+            StepButton.IsEnabled = false;
+            return;
+        }
+
+        if (_isPaused)
+        {
+            _viewModel.ResumeReconstruction();
+            _isPaused = false;
+            StepButton.IsEnabled = false;
         }
         else
         {
-            _viewModel.ResumeReconstruction();
+            await DisplayAlert("Reconstruction Running", "You should either pause or stop reconstruction to start a new one.", "OK");
         }
-        _isPaused = false;
-        StepButton.IsEnabled = false;
     }
 
     private async void OnPauseButtonClicked(object sender, EventArgs e)

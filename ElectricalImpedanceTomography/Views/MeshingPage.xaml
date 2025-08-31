@@ -56,10 +56,17 @@
                     <BoxView WidthRequest="200" HeightRequest="2" BackgroundColor="Gray"/>
 
                     <!-- Common parameters -->
-                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
-                        <Label Grid.Column="0" Text="Electrodes" VerticalOptions="Center"/>
-                        <Entry Grid.Column="1" Text="{Binding ElectrodeCount}" WidthRequest="30" HorizontalOptions="End" Keyboard="Numeric"/>
-                    </Grid>
+                    <controls:PlusMinusEntryControl Margin="10"
+                                                   LabelText="Electrodes"
+                                                   Value="{Binding ElectrodeCount}"
+                                                   Max="200">
+                        <controls:PlusMinusEntryControl.PlusImageSource>
+                            <FontImageSource Glyph="+" Size="20" />
+                        </controls:PlusMinusEntryControl.PlusImageSource>
+                        <controls:PlusMinusEntryControl.MinusImageSource>
+                            <FontImageSource Glyph="-" Size="20" />
+                        </controls:PlusMinusEntryControl.MinusImageSource>
+                    </controls:PlusMinusEntryControl>
 
                     <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10" IsVisible="{Binding IsCustomGeometry}">
                         <Label Grid.Column="0" Text="Custom" VerticalOptions="Center"/>
@@ -116,10 +123,17 @@
                     <BoxView WidthRequest="200" HeightRequest="2" BackgroundColor="Gray"/>
                                        
                     <!-- Common parameters -->
-                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
-                        <Label Grid.Column="0" Text="Electrodes" VerticalOptions="Center"/>
-                        <Entry Grid.Column="1" Text="{Binding ElectrodeCount}" WidthRequest="30" HorizontalOptions="End" Keyboard="Numeric"/>
-                    </Grid>
+                    <controls:PlusMinusEntryControl Margin="10"
+                                                   LabelText="Electrodes"
+                                                   Value="{Binding ElectrodeCount}"
+                                                   Max="200">
+                        <controls:PlusMinusEntryControl.PlusImageSource>
+                            <FontImageSource Glyph="+" Size="20" />
+                        </controls:PlusMinusEntryControl.PlusImageSource>
+                        <controls:PlusMinusEntryControl.MinusImageSource>
+                            <FontImageSource Glyph="-" Size="20" />
+                        </controls:PlusMinusEntryControl.MinusImageSource>
+                    </controls:PlusMinusEntryControl>
 
                     <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10" IsVisible="{Binding IsCustomGeometry}">
                         <Label Grid.Column="0" Text="Custom" VerticalOptions="Center"/>
