@@ -1,4 +1,6 @@
-﻿using Utility.Classes;
+﻿using System;
+using System.Threading.Tasks;
+using Utility.Classes;
 using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
@@ -10,6 +12,14 @@ namespace ServiceLayer
     {
         public Task<ReconstructionResult> GetReconstructionResult();
         public void InitializeReconstruction(IMesh mesh, EITReconstructionParameters parameters);
+
+        // --- Background reconstruction control ---
+        public event EventHandler<ReconstructionResult> ReconstructionUpdated;
+        public void StartBackgroundReconstruction(int maxIterationCount, double stepSize, double regularizationWeight, double excitationAmplitude);
+        public void PauseBackgroundReconstruction();
+        public void ResumeBackgroundReconstruction();
+        public void StopBackgroundReconstruction();
+        public Task<ReconstructionResult?> StepReconstructionAsync();
 
         // --- LBM Reconstruction ---
 
