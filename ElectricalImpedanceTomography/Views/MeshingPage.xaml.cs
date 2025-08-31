@@ -1,6 +1,8 @@
 using ElectricalImpedanceTomography.ViewModels;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
+using Microsoft.Maui;
+using Microsoft.Maui.Controls;
 using Microsoft.Maui.Storage;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
@@ -35,6 +37,7 @@ public partial class MeshingPage : ContentPage
     private readonly HashSet<int> _selectedCells = new();
     private bool _isDrawing;
     private bool _outlineClosed;
+    private bool _shiftPressed;
 
     public MeshingPage()
     {
@@ -42,6 +45,8 @@ public partial class MeshingPage : ContentPage
         _viewModel = Utility.Composition.Container.ResolveObject<MeshingPageViewModel>();
         BindingContext = _viewModel;
         _viewModel.MeshChanged += () => { _selectedCells.Clear(); MeshCanvas.InvalidateSurface(); };
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
     }
 
     private SKColor ColorForValue(double val, double min, double max)
@@ -208,7 +213,7 @@ public partial class MeshingPage : ContentPage
             if (x < 0 || x >= lbm.Nx || y < 0 || y >= lbm.Ny)
                 return;
             var el = lbm.GetElementAt(x, y);
-            bool shift = e.Modifiers.HasFlag(SKModifierKeys.Shift);
+            bool shift = _shiftPressed;
 
             if (_viewModel.InhomogenityEditing)
             {
@@ -275,6 +280,61 @@ public partial class MeshingPage : ContentPage
             }
         }
         e.Handled = true;
+    }
+
+    private void OnLoaded(object sender, EventArgs e)
+    {
+        var window = this.GetParentWindow();
+        if (window is not null)
+        {
+            window.KeyDown += OnWindowKeyDown;
+            window.KeyUp += OnWindowKeyUp;
+        }
+    }
+
+    private void OnUnloaded(object sender, EventArgs e)
+    {
+        var window = this.GetParentWindow();
+        if (window is not null)
+        {
+            window.KeyDown -= OnWindowKeyDown;
+            window.KeyUp -= OnWindowKeyUp;
+        }
+    }
+
+    private void OnWindowKeyDown(object sender, KeyboardEventArgs e)
+    {
+        if (e.Key == KeyboardKey.ShiftLeft || e.Key == KeyboardKey.ShiftRight)
+        {
+            _shiftPressed = true;
+            e.Handled = true;
+        }
+    }
+
+    private void OnWindowKeyUp(object sender, KeyboardEventArgs e)
+    {
+        if (e.Key == KeyboardKey.ShiftLeft || e.Key == KeyboardKey.ShiftRight)
+        {
+            _shiftPressed = false;
+            if (_viewModel.InhomogenityEditing && _selectedCells.Count > 0)
+                ApplySelectionConductivity();
+            e.Handled = true;
+        }
+    }
+
+    private void ApplySelectionConductivity()
+    {
+        if (_viewModel.GetCurrentMesh() is not LBMMesh lbm)
+            return;
+
+        foreach (var id in _selectedCells)
+        {
+            var (sx, sy) = lbm.ToLattice(id);
+            lbm.GetElementAt(sx, sy).Conductivity = _viewModel.InhomogenityValue;
+        }
+        _selectedCells.Clear();
+        _viewModel.RefreshConductivity();
+        MeshCanvas.InvalidateSurface();
     }
 
     private void HandleFEMDrawing(SKTouchEventArgs e)
