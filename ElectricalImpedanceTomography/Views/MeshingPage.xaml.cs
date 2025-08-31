@@ -34,6 +34,10 @@ public partial class MeshingPage : ContentPage
     private bool _isDrawing;
     private bool _outlineClosed;
 
+    // dragging state
+    private LBMElement? _draggedLbmElectrode;
+    private FEMVertex? _draggedFemVertex;
+
     public MeshingPage()
     {
         InitializeComponent();
@@ -249,22 +253,53 @@ public partial class MeshingPage : ContentPage
                 return;
             }
             var el = lbm.GetElementAt(x, y);
-
-                if (_viewModel.InhomogenityEditing)
+            if (_draggedLbmElectrode != null)
+            {
+                if (e.ActionType == SKTouchAction.Moved)
                 {
+                    if (el != _draggedLbmElectrode && !el.IsWall)
+                    {
+                        _draggedLbmElectrode.IsElectrode = false;
+                        el.IsElectrode = true;
+                        _draggedLbmElectrode = el;
+                        _viewModel.RefreshLbmElectrodes();
+                        MeshCanvas.InvalidateSurface();
+                    }
+                }
+                else if (e.ActionType == SKTouchAction.Released)
+                {
+                    _draggedLbmElectrode = null;
+                }
+                e.Handled = true;
+                return;
+            }
 
-                    if (e.MouseButton == SKMouseButton.Right && e.ActionType == SKTouchAction.Pressed)
-                    {
-                        _viewModel.PushState();
-                        el.Conductivity = _viewModel.InhomogenityValue;
-                        _viewModel.RefreshConductivity();
-                    }
-                    else if (e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed)
-                    {
-                        _viewModel.PushState();
-                        el.IsWall = !el.IsWall;
-                        if (el.IsWall) el.IsElectrode = false;
-                    }
+            if (!_viewModel.InhomogenityEditing && e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed && el.IsElectrode)
+            {
+                _draggedLbmElectrode = el;
+                e.Handled = true;
+                return;
+            }
+
+            if (_viewModel.InhomogenityEditing)
+            {
+                if (e.MouseButton == SKMouseButton.Right && e.ActionType == SKTouchAction.Pressed)
+                {
+                    el.Conductivity = _viewModel.InhomogenityValue;
+                    _viewModel.RefreshConductivity();
+                }
+                else if (e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed)
+                {
+                    el.IsWall = !el.IsWall;
+                    if (el.IsWall) el.IsElectrode = false;
+                }
+            }
+            else
+            {
+                if (e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed)
+                {
+                    el.IsWall = !el.IsWall;
+                    if (el.IsWall) el.IsElectrode = false;
                 }
                 else
                 {
@@ -289,6 +324,39 @@ public partial class MeshingPage : ContentPage
         }
         else if (mesh is FEMMesh fem)
         {
+            if (_draggedFemVertex != null)
+            {
+                if (e.ActionType == SKTouchAction.Moved)
+                {
+                    var target = FindNearestBoundaryVertex(e.Location, fem);
+                    if (target != null && target != _draggedFemVertex)
+                    {
+                        _draggedFemVertex.IsElectrode = false;
+                        target.IsElectrode = true;
+                        _draggedFemVertex = target;
+                        _viewModel.RefreshFemElectrodes();
+                        MeshCanvas.InvalidateSurface();
+                    }
+                }
+                else if (e.ActionType == SKTouchAction.Released)
+                {
+                    _draggedFemVertex = null;
+                }
+                e.Handled = true;
+                return;
+            }
+
+            if (e.ActionType == SKTouchAction.Pressed && e.MouseButton == SKMouseButton.Left)
+            {
+                var hit = FindElectrodeAt(e.Location, fem);
+                if (hit != null)
+                {
+                    _draggedFemVertex = hit;
+                    e.Handled = true;
+                    return;
+                }
+            }
+
             var pt = e.Location;
             bool found = false;
             foreach (var el in fem.ElementsTyped)
@@ -392,6 +460,38 @@ public partial class MeshingPage : ContentPage
         float u = (dot11 * dot02 - dot01 * dot12) * invDen;
         float v = (dot00 * dot12 - dot01 * dot02) * invDen;
         return (u >= 0) && (v >= 0) && (u + v <= 1);
+    }
+
+    private FEMVertex? FindElectrodeAt(SKPoint canvasPoint, FEMMesh mesh)
+    {
+        foreach (var v in mesh.Vertices.Where(v => v.IsElectrode))
+        {
+            var cp = ToCanvas(v);
+            float dx = cp.X - canvasPoint.X;
+            float dy = cp.Y - canvasPoint.Y;
+            if (Math.Sqrt(dx * dx + dy * dy) <= 8f)
+                return v;
+        }
+        return null;
+    }
+
+    private FEMVertex? FindNearestBoundaryVertex(SKPoint canvasPoint, FEMMesh mesh)
+    {
+        FEMVertex? nearest = null;
+        float best = float.MaxValue;
+        foreach (var v in mesh.Vertices.Where(v => v.IsBoundary))
+        {
+            var cp = ToCanvas(v);
+            float dx = cp.X - canvasPoint.X;
+            float dy = cp.Y - canvasPoint.Y;
+            float dist = (float)Math.Sqrt(dx * dx + dy * dy);
+            if (dist < best)
+            {
+                best = dist;
+                nearest = v;
+            }
+        }
+        return nearest;
     }
 
     private async void OnSaveClicked(object sender, EventArgs e)
