@@ -8,6 +8,7 @@ using Utility.Classes;
 using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
+using System.Threading.Tasks;
 using Workspace = Utility.Classes.Application.Workspace;
 
 namespace ElectricalImpedanceTomography.Views;
@@ -31,9 +32,8 @@ public partial class ReconstructionPage : ContentPage
     private enum PotentialDisplayMode { Default, Grayscale, Inverted, Heatmap, Rainbow }
     private PotentialDisplayMode _potMode = PotentialDisplayMode.Default;
 
-    private Task? _simulationTask;
-    private CancellationTokenSource? _simulationCts;
     private bool _isPaused = false;
+    private bool _hasStarted = false;
 
     public ReconstructionPage()
     {
@@ -49,6 +49,10 @@ public partial class ReconstructionPage : ContentPage
         };
 
         PotentialModeChanged += OnPotentialModeChanged;
+
+        _viewModel.ReconstructionUpdated += OnReconstructionUpdated;
+
+        StepButton.IsEnabled = false;
     }
 
     private IMesh? GetMesh()
@@ -67,63 +71,51 @@ public partial class ReconstructionPage : ContentPage
     private async void OnPlayButtonClicked(object sender, EventArgs e)
     {
         await AnimateButtonAsync(sender);
-        if (_simulationTask == null || _simulationTask.IsCompleted)
+        if (!_hasStarted)
         {
-            _simulationCts = new CancellationTokenSource();
-            _isPaused = false;
-            _simulationTask = RunSimulationLoop(_simulationCts.Token);
+            _viewModel.StartBackgroundReconstruction();
+            _hasStarted = true;
         }
         else
         {
-            _isPaused = false;
+            _viewModel.ResumeReconstruction();
         }
+        _isPaused = false;
+        StepButton.IsEnabled = false;
     }
 
     private async void OnPauseButtonClicked(object sender, EventArgs e)
     {
         await AnimateButtonAsync(sender);
-        if (_simulationTask != null)
-            _isPaused = !_isPaused;
+        _viewModel.PauseReconstruction();
+        _isPaused = true;
+        StepButton.IsEnabled = true;
     }
 
     private async void OnStepButtonClicked(object sender, EventArgs e)
     {
         await AnimateButtonAsync(sender);
-        var result = await Task.Run(() => _viewModel.InverseSolveStep());
-        if (result != null)
-        {
-            _currentResult = result;
-            Dispatcher.Dispatch(InvalidateAll);
-        }
+        if (!_isPaused)
+            return;
+
+        await _viewModel.StepReconstructionAsync();
     }
 
     private async void OnStopButtonClicked(object sender, EventArgs e)
     {
         await AnimateButtonAsync(sender);
-        _simulationCts?.Cancel();
-        _simulationTask = null;
+        _viewModel.StopReconstruction();
         _isPaused = false;
-    }
-
-    private async Task RunSimulationLoop(CancellationToken token)
-    {
-        while (!token.IsCancellationRequested)
-        {
-            if (_isPaused)
-            {
-                await Task.Delay(100, token);
-                continue;
-            }
-
-            var result = await Task.Run(() => _viewModel.InverseSolveStep());
-            if (result != null)
-            {
-                _currentResult = result;
-                Dispatcher.Dispatch(InvalidateAll);
-            }
-        }
+        _hasStarted = false;
+        StepButton.IsEnabled = false;
     }
     #endregion
+
+    private void OnReconstructionUpdated(object? sender, ReconstructionResult result)
+    {
+        _currentResult = result;
+        Dispatcher.Dispatch(InvalidateAll);
+    }
 
     #region Drawing helpers
     private void ComputeFemTransform(FEMMesh mesh, SKImageInfo info)

@@ -4,6 +4,8 @@ using Utility.Classes;
 using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
+using System;
+using System.Threading.Tasks;
 using Workspace = Utility.Classes.Application.Workspace;
 
 namespace ElectricalImpedanceTomography.ViewModels
@@ -22,9 +24,11 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         [ObservableProperty]
         private bool adjecentDrivePattern = true;
-            
+
         [ObservableProperty]
         private bool oppositeDrivePattern = false;
+
+        public event EventHandler<ReconstructionResult>? ReconstructionUpdated;
 
         public ReconstructionPageViewModel(IReconstructionService reconstructionService)
         {
@@ -32,6 +36,8 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             // Use global reconstruction parameters stored in the workspace
             ReconstructionParameters = Workspace.GetReconstructionParameters();
+
+            _reconstructionService.ReconstructionUpdated += OnServiceReconstructionUpdated;
         }
 
         private void UpdateMesh() => _mesh = Workspace.GetMesh();
@@ -68,34 +74,43 @@ namespace ElectricalImpedanceTomography.ViewModels
                 _reconstructionService.SolveLbmInverse(MaxIterationCount);
         }
 
-        private List<double[]> _simulatedMeasurements = [];
-        private int _simulatedMeasurementIndex = 0;
+        private double CalculateResidual(ConductivityDistribution reconstructed, ConductivityDistribution original)
+        {
+            double sum = 0.0;
+            foreach (var kv in reconstructed.Conductivities)
+            {
+                original.Conductivities.TryGetValue(kv.Key, out double origVal);
+                double diff = kv.Value - origVal;
+                sum += diff * diff;
+            }
+            return Math.Sqrt(sum);
+        }
 
-        public ReconstructionResult? InverseSolveStep()
+        public void StartBackgroundReconstruction()
         {
             InitializeReconstruction();
+            IterationCount = 0;
+            _reconstructionService.StartBackgroundReconstruction(MaxIterationCount, StepSize, RegularizationWeight, ExcitationCurrentAmplitude);
+        }
 
-            if (_mesh is FEMMesh femMesh)
-            {
-                if (_simulatedMeasurements.Count == 0)
-                    _simulatedMeasurements = _reconstructionService
-                        .SimulateFemMeasurements(femMesh, ExcitationCurrentAmplitude);
+        public void PauseReconstruction() => _reconstructionService.PauseBackgroundReconstruction();
 
-                var measurement = _simulatedMeasurements[_simulatedMeasurementIndex % _simulatedMeasurements.Count];
-                var electrodes = femMesh.GetElectrodes().Cast<FEMElectrode>().ToList();
-                var bc = new FEMBoundaryCondition(electrodes);
+        public void ResumeReconstruction() => _reconstructionService.ResumeBackgroundReconstruction();
 
-                var result = _reconstructionService.InverseSolveStepFem(femMesh,
-                                                                        measurement,
-                                                                        bc,
-                                                                        StepSize);
-                _simulatedMeasurementIndex++;
-                return result;
-            }
-            else if (_mesh is LBMMesh)
-                return _reconstructionService.SolveLbmInverse(1);
+        public void StopReconstruction() => _reconstructionService.StopBackgroundReconstruction();
 
-            return null;
+        public Task<ReconstructionResult?> StepReconstructionAsync()
+        {
+            InitializeReconstruction();
+            return _reconstructionService.StepReconstructionAsync();
+        }
+
+        private void OnServiceReconstructionUpdated(object? sender, ReconstructionResult result)
+        {
+            IterationCount++;
+            Residual = CalculateResidual(result.ReconstructedConductivityDistribution,
+                                         result.OriginalConductivityDistribution);
+            ReconstructionUpdated?.Invoke(this, result);
         }
     }
 }
