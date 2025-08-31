@@ -9,6 +9,7 @@ using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.Meshing;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace ElectricalImpedanceTomography.Views;
 
@@ -25,6 +26,7 @@ public partial class MeshingPage : ContentPage
 
     // stroke for FEM
     private readonly SKPaint _femStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1 };
+    private readonly SKPaint _femFill = new() { Style = SKPaintStyle.Fill };
     private readonly SKPaint _previewElectrode = new() { Style = SKPaintStyle.Fill, Color = SKColors.Yellow };
 
     // caching values for coordinate transforms
@@ -63,6 +65,12 @@ public partial class MeshingPage : ContentPage
             byte b = (byte)(255 * t);
             return new SKColor(0, 0, b);
         }
+    }
+
+    private static async Task ShrinkViewAsync(VisualElement element)
+    {
+        await element.ScaleTo(0.8, 80);
+        await element.ScaleTo(1, 80);
     }
 
     private void OnMeshCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
@@ -134,15 +142,16 @@ public partial class MeshingPage : ContentPage
         double min = elements.Min(el => el.Conductivity);
         double max = elements.Max(el => el.Conductivity);
 
+        using var path = new SKPath();
         foreach (var el in elements)
         {
             var p1 = ToCanvas(el.Vertices[0]);
             var p2 = ToCanvas(el.Vertices[1]);
             var p3 = ToCanvas(el.Vertices[2]);
-            using var path = new SKPath();
+            path.Reset();
             path.MoveTo(p1); path.LineTo(p2); path.LineTo(p3); path.Close();
-            using var fill = new SKPaint { Style = SKPaintStyle.Fill, Color = ColorForValue(el.Conductivity, min, max) };
-            canvas.DrawPath(path, fill);
+            _femFill.Color = ColorForValue(el.Conductivity, min, max);
+            canvas.DrawPath(path, _femFill);
             canvas.DrawPath(path, _femStroke);
         }
 
@@ -151,8 +160,9 @@ public partial class MeshingPage : ContentPage
             canvas.DrawCircle(ToCanvas(v), 4f, electrodeFill);
     }
 
-    private void OnClearClicked(object sender, EventArgs e)
+    private async void OnClearClicked(object sender, EventArgs e)
     {
+        if (sender is VisualElement v) await ShrinkViewAsync(v);
         _outlinePoints.Clear();
         _electrodePoints.Clear();
         _selectedCells.Clear();
@@ -163,8 +173,9 @@ public partial class MeshingPage : ContentPage
         MeshCanvas.InvalidateSurface();
     }
 
-    private void OnEditClicked(object sender, TappedEventArgs e)
+    private async void OnEditClicked(object sender, TappedEventArgs e)
     {
+        if (sender is VisualElement v) await ShrinkViewAsync(v);
         bool isChecked = EditingCheckbox.IsChecked;
 
         if (isChecked)
@@ -199,6 +210,7 @@ public partial class MeshingPage : ContentPage
 
     private async void OnAddNoiseTapped(object sender, TappedEventArgs e)
     {
+        if (sender is VisualElement v) await ShrinkViewAsync(v);
         var mesh = _viewModel.GetCurrentMesh();
         if (mesh == null)
         {
@@ -370,6 +382,7 @@ public partial class MeshingPage : ContentPage
 
     private async void OnSaveClicked(object sender, EventArgs e)
     {
+        if (sender is VisualElement v) await ShrinkViewAsync(v);
         var name = await DisplayPromptAsync("Save Mesh", "Name", initialValue: _viewModel.Name);
         if (!string.IsNullOrWhiteSpace(name))
         {
@@ -380,6 +393,7 @@ public partial class MeshingPage : ContentPage
 
     private async void OnLoadClicked(object sender, EventArgs e)
     {
+        if (sender is VisualElement v) await ShrinkViewAsync(v);
         var file = await FilePicker.Default.PickAsync();
         if (file != null)
         {
@@ -388,8 +402,9 @@ public partial class MeshingPage : ContentPage
         }
     }
 
-    private void OnGenerateClicked(object sender, EventArgs e)
+    private async void OnGenerateClicked(object sender, EventArgs e)
     {
+        if (sender is VisualElement v) await ShrinkViewAsync(v);
         if (_viewModel.SelectedMeshType == MeshType.FEM && _outlineClosed && _outlinePoints.Count > 2)
         {
             var perimeter = _outlinePoints.Select(p => ((double)p.X, (double)p.Y)).ToList();
