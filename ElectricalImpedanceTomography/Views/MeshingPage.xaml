@@ -237,7 +237,7 @@
                         <Label Grid.Column="2" Grid.Row="0" Text="Editing" HorizontalOptions="Center" VerticalOptions="Center"/>
                         <Border Grid.Column="2" Grid.Row="1" Stroke="Transparent">
 
-                            <HorizontalStackLayout Spacing="10">
+                            <HorizontalStackLayout Spacing="10" HorizontalOptions="Center">
                                 <Border Grid.Column="1" Padding="5" StrokeShape="RoundRectangle 5" Stroke="Transparent">
                                     <Grid ColumnDefinitions="Auto, *, Auto" ColumnSpacing="10">
                                         <Image Grid.Column="0" Source="icon_edit2.png" HeightRequest="25"/>

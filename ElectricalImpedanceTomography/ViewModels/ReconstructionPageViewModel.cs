@@ -54,6 +54,18 @@ namespace ElectricalImpedanceTomography.ViewModels
             _reconstructionService.InitializeReconstruction(mesh, reconstructionParameters);
         }
 
+        public bool CheckReconstructionMethodAgainstMesh()
+        {
+            if(_mesh is FEMMesh)
+                if (ReconstructionParameters.DifferentialEquationSolver != Utility.Classes.ReconstructionParameters.DifferentialEquationSolver.FiniteElementMethod)
+                    return false;
+            else if(_mesh is LBMMesh)
+                if (ReconstructionParameters.DifferentialEquationSolver != Utility.Classes.ReconstructionParameters.DifferentialEquationSolver.LatticeBoltzmannMethod)
+                    return false;
+
+            return true;
+        }
+
         public void OnSolveForwardClicked(object sender, EventArgs e)
         {
             InitializeReconstruction();

@@ -60,8 +60,8 @@ public partial class PlusMinusEntryControl : ContentView
     {
         if (sender is Image img)
         {
-            await img.ScaleTo(0.8, 80);
-            await img.ScaleTo(1, 80);
+            await img.ScaleTo(0.8, 40);
+            await img.ScaleTo(1, 40);
         }
 
         if (Value + 1 <= Max)
@@ -74,8 +74,8 @@ public partial class PlusMinusEntryControl : ContentView
     {
         if (sender is Image img)
         {
-            await img.ScaleTo(0.8, 80);
-            await img.ScaleTo(1, 80);
+            await img.ScaleTo(0.8, 40);
+            await img.ScaleTo(1, 40);
         }
 
         if (Value - 1 > 0)
