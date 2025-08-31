@@ -1,10 +1,12 @@
+using BH.Engine.Diffing;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ServiceLayer;
 using System.Collections.ObjectModel;
-using System;
 using Utility.Classes.Application;
 using Utility.Classes.ReconstructionParameters;
+
+using Workspace = Utility.Classes.Application.Workspace;
 
 namespace ElectricalImpedanceTomography.ViewModels
 {
@@ -93,12 +95,13 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public void OnLoadMeasurementClicked(object sender, EventArgs e)
         {
-
+            // TODO: appropriately load measurement
+            _daqService.LoadEITMeasurement("todo", DateTime.Now);
         }
 
         public void OnLoadMeshClicked(object sender, EventArgs e)
         {
-
+            // TODO: Load mesh
         }
 
         public void OnConnectButtonClicked(object sender, EventArgs e)

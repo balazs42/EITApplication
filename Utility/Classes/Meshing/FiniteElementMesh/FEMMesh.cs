@@ -27,7 +27,7 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
             Initialize();
         }
 
-        public List<FEMVertex> GetVertice() => Vertices;
+        public List<FEMVertex> GetVertices() => Vertices;
 
         public void Initialize()
         {
