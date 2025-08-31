@@ -25,57 +25,50 @@
         <controls:NavBarControl Grid.Row="0" Grid.ColumnSpan="1" CurrentPageName="MeshingPage"/>
         <Grid Grid.Row="1" ColumnDefinitions="Auto, *">
 
-            <!-- Left control Panel -->
-            <Border StrokeShape="RoundRectangle 5">
+            <!-- Left control Panel FEM -->
+            <Border StrokeShape="RoundRectangle 5" IsVisible="{Binding IsFEM}">
                 <VerticalStackLayout Grid.Column="0" Spacing="5" Margin="5">
                     <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
                         <Label Grid.Column="0" Text="Mesh Type:" VerticalOptions="Center"/>
                         <Picker Grid.Column="1" ItemsSource="{Binding MeshTypes}" SelectedItem="{Binding SelectedMeshType}" WidthRequest="100"/>
                     </Grid>
 
+                    <BoxView WidthRequest="200" HeightRequest="2" BackgroundColor="Gray"/>
+
                     <!-- FEM parameters -->
                     <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
-                        <Label Grid.Column="0" Text="Layers" IsVisible="{Binding IsFEM}" VerticalOptions="Center"/>
-                        <Entry Grid.Column="1" Text="{Binding Layers}" WidthRequest="60" IsVisible="{Binding IsFEM}" Keyboard="Numeric" VerticalOptions="End" HorizontalOptions="End"/>
+                        <Label Grid.Column="0" Text="Layers" VerticalOptions="Center"/>
+                        <Entry Grid.Column="1" Text="{Binding Layers}" WidthRequest="60" Keyboard="Numeric" VerticalOptions="End" HorizontalOptions="End"/>
                     </Grid>
 
                     <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
-                        <Label Grid.Column="0" Text="Boundary Vertices" IsVisible="{Binding IsFEM}" VerticalOptions="Center"/>
-                        <Entry Grid.Column="1" Text="{Binding BoundaryFEMVertexCount}" WidthRequest="60" HorizontalOptions="End" IsVisible="{Binding IsFEM}" Keyboard="Numeric"/>
-                    </Grid>
-                    
-
-                    <!-- LBM parameters -->
-                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
-                        <Label Grid.Column="0" Text="Nx" IsVisible="{Binding IsLBM}" VerticalOptions="Center"/>
-                        <Entry Grid.Column="1" Text="{Binding Nx}" WidthRequest="60" IsVisible="{Binding IsLBM}" Keyboard="Numeric"/>
+                        <Label Grid.Column="0" Text="Boundary Vertices" VerticalOptions="Center"/>
+                        <Entry Grid.Column="1" Text="{Binding BoundaryFEMVertexCount}" WidthRequest="60" HorizontalOptions="End" Keyboard="Numeric"/>
                     </Grid>
 
+                    <BoxView WidthRequest="200" HeightRequest="2" BackgroundColor="Gray"/>
+
                     <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
-                        <Label Grid.Column="0" Text="Ny" IsVisible="{Binding IsLBM}" VerticalOptions="Center"/>
-                        <Entry Grid.Column="1" Text="{Binding Ny}" WidthRequest="60" IsVisible="{Binding IsLBM}" Keyboard="Numeric"/>
+                        <Label Grid.Column="0" Text="Geometry" VerticalOptions="Center"/>
+                        <Picker Grid.Column="1" ItemsSource="{Binding GeometryTypes}" SelectedItem="{Binding SelectedGeometry}" WidthRequest="120"/>
                     </Grid>
+
+                    <BoxView WidthRequest="200" HeightRequest="2" BackgroundColor="Gray"/>
 
                     <!-- Common parameters -->
                     <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
                         <Label Grid.Column="0" Text="Electrodes" VerticalOptions="Center"/>
                         <Entry Grid.Column="1" Text="{Binding ElectrodeCount}" WidthRequest="30" HorizontalOptions="End" Keyboard="Numeric"/>
                     </Grid>
-                    
-                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
-                        <Label Grid.Column="0" Text="Geometry" VerticalOptions="Center"/>
-                        <Picker Grid.Column="1" ItemsSource="{Binding GeometryTypes}" SelectedItem="{Binding SelectedGeometry}" WidthRequest="120"/>
-                    </Grid>
-                    
-                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
-                        <Label Grid.Column="0" Text="Custom" IsVisible="{Binding IsCustomGeometry}" VerticalOptions="Center"/>
-                        <Entry Grid.Column="1" Text="{Binding CustomPerimeter}" WidthRequest="200" IsVisible="{Binding IsCustomGeometry}"/>
+
+                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10" IsVisible="{Binding IsCustomGeometry}">
+                        <Label Grid.Column="0" Text="Custom" VerticalOptions="Center"/>
+                        <Entry Grid.Column="1" Text="{Binding CustomPerimeter}" WidthRequest="150"/>
                     </Grid>
 
-                    <Grid ColumnDefinitions="Auto, *, *" ColumnSpacing="10" Margin="10">
-                        <Label Grid.Column="0" Text="EditConductivities" VerticalOptions="Center"/>
-                        <CheckBox Grid.Column="1" IsChecked="{Binding InhomogenityEditing}"/>
-                        <Entry Grid.Column="2" Text="{Binding InhomogenityValue}" WidthRequest="80" IsVisible="{Binding InhomogenityEditing}" Keyboard="Numeric"/>
+                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10" IsVisible="{Binding InhomogenityEditing}">
+                        <Label Grid.Column="0" Text="Inhomogenity Value" VerticalOptions="Center"/>
+                        <Entry Grid.Column="1" Text="{Binding InhomogenityValue}" WidthRequest="80" Keyboard="Numeric"/>
                     </Grid>
 
                     <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
@@ -84,20 +77,121 @@
                     </Grid>
 
                     <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
-                        <Label Grid.Column="0" Text="Electrode Size" IsVisible="{Binding IsFEM}" VerticalOptions="Center"/>
-                        <Entry Grid.Column="1" Text="{Binding ElectrodeSize}" WidthRequest="60" IsVisible="{Binding IsFEM}" HorizontalOptions="End" Keyboard="Numeric"/>
+                        <Label Grid.Column="0" Text="Electrode Size" VerticalOptions="Center"/>
+                        <Entry Grid.Column="1" Text="{Binding ElectrodeSize}" WidthRequest="60" HorizontalOptions="End" Keyboard="Numeric"/>
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Left Control Panel LBM-->
+            <Border StrokeShape="RoundRectangle 5" IsVisible="{Binding IsLBM}">
+                <VerticalStackLayout Grid.Column="0" Spacing="5" Margin="5">
+                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
+                        <Label Grid.Column="0" Text="Mesh Type:" VerticalOptions="Center"/>
+                        <Picker Grid.Column="1" ItemsSource="{Binding MeshTypes}" SelectedItem="{Binding SelectedMeshType}" WidthRequest="100"/>
+                    </Grid>
+                    
+                    <BoxView WidthRequest="200" HeightRequest="2" BackgroundColor="Gray"/>
+                    
+                    <!-- LBM parameters -->
+                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
+                        <Label Grid.Column="0" Text="Nx" IsVisible="{Binding IsLBM}" VerticalOptions="Center"/>
+                        <Entry Grid.Column="1" Text="{Binding Nx}" WidthRequest="60" IsVisible="{Binding IsLBM}" Keyboard="Numeric" HorizontalOptions="End"/>
                     </Grid>
 
-                    </VerticalStackLayout>
+                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
+                        <Label Grid.Column="0" Text="Ny" IsVisible="{Binding IsLBM}" VerticalOptions="Center"/>
+                        <Entry Grid.Column="1" Text="{Binding Ny}" WidthRequest="60" IsVisible="{Binding IsLBM}" Keyboard="Numeric" HorizontalOptions="End"/>
+                    </Grid>
+
+                    <BoxView WidthRequest="200" HeightRequest="2" BackgroundColor="Gray"/>
+
+                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10" >
+                        <Label Grid.Column="0" Text="Geometry" VerticalOptions="Center"/>
+                        <Picker Grid.Column="1" ItemsSource="{Binding GeometryTypes}" SelectedItem="{Binding SelectedGeometry}" WidthRequest="120"/>
+                    </Grid>
+
+                    <BoxView WidthRequest="200" HeightRequest="2" BackgroundColor="Gray"/>
+                                       
+                    <!-- Common parameters -->
+                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
+                        <Label Grid.Column="0" Text="Electrodes" VerticalOptions="Center"/>
+                        <Entry Grid.Column="1" Text="{Binding ElectrodeCount}" WidthRequest="30" HorizontalOptions="End" Keyboard="Numeric"/>
+                    </Grid>
+
+                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10" IsVisible="{Binding IsCustomGeometry}">
+                        <Label Grid.Column="0" Text="Custom" VerticalOptions="Center"/>
+                        <Entry Grid.Column="1" Text="{Binding CustomPerimeter}" WidthRequest="150"/>
+                    </Grid>
+                    
+                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10" IsVisible="{Binding InhomogenityEditing}">
+                        <Label Grid.Column="0" Text="Inhomogenity Value" VerticalOptions="Center"/>
+                        <Entry Grid.Column="1" Text="{Binding InhomogenityValue}" WidthRequest="80" Keyboard="Numeric" HorizontalOptions="End"/>
+                    </Grid>
+
+                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
+                        <Label Grid.Column="0" Text="Contact Imp." VerticalOptions="Center"/>
+                        <Entry Grid.Column="1" Text="{Binding ElectrodeContactImpedance}" WidthRequest="60" HorizontalOptions="End" Keyboard="Numeric"/>
+                    </Grid>
+                </VerticalStackLayout>
             </Border>
 
             <!-- Middle Canvas display -->
             <Grid Grid.Column="1" RowDefinitions="Auto, *" >
-                <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,Auto" ColumnSpacing="10" HorizontalOptions="Center" VerticalOptions="Center">
-                    <Button Grid.Column="0" WidthRequest="150" Margin="10" BackgroundColor="Green" Text="Save" Clicked="OnSaveClicked"/>
-                    <Button Grid.Column="1" WidthRequest="150" Margin="10" BackgroundColor="Purple" Text="Load" Clicked="OnLoadClicked"/>
-                    <Button Grid.Column="2" WidthRequest="150" Margin="10" BackgroundColor="Orange" Text="Generate" Clicked="OnGenerateClicked"/>
-                </Grid>
+                <HorizontalStackLayout VerticalOptions="Center" HorizontalOptions="Center" Spacing="10" Padding="10">
+                    <Border Padding="5" StrokeShape="RoundRectangle 5">
+                        <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10">
+                            <Image Grid.Column="0" Source="icon_save.png" HeightRequest="30"/>
+                            <Label Grid.Column="1" Text="Save" HorizontalOptions="Center" VerticalOptions="Center" FontSize="Medium" FontAttributes="Bold"/>
+                        </Grid>
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnSaveClicked" />
+                        </Border.GestureRecognizers>
+                    </Border>
+
+                    <Border Padding="5" StrokeShape="RoundRectangle 5">
+                        <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10">
+                            <Image Grid.Column="0" Source="icon_load2.png" HeightRequest="30"/>
+                            <Label Grid.Column="1" Text="Load" HorizontalOptions="Center" VerticalOptions="Center" FontSize="Medium" FontAttributes="Bold"/>
+                        </Grid>
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnLoadClicked" />
+                        </Border.GestureRecognizers>
+                    </Border>
+
+                    <Border Padding="5" StrokeShape="RoundRectangle 5">
+                        <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10">
+                            <Image Grid.Column="0" Source="icon_generate.png" HeightRequest="30"/>
+                            <Label Grid.Column="1" Text="Generate" HorizontalOptions="Center" VerticalOptions="Center" FontSize="Medium" FontAttributes="Bold"/>
+                        </Grid>
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnGenerateClicked" />
+                        </Border.GestureRecognizers>
+                    </Border>
+
+                    <Border Padding="5" StrokeShape="RoundRectangle 5">
+                        <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10">
+                            <Image Grid.Column="0" Source="icon_delete.png" HeightRequest="30"/>
+                            <Label Grid.Column="1" Text="Clear" HorizontalOptions="Center" VerticalOptions="Center" FontSize="Medium" FontAttributes="Bold"/>
+                        </Grid>
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnClearClicked" />
+                        </Border.GestureRecognizers>
+                    </Border>
+
+                    <Border Padding="5" StrokeShape="RoundRectangle 5">
+                        <Grid ColumnDefinitions="Auto, *, Auto" ColumnSpacing="10">
+                            <Image Grid.Column="0" Source="icon_edit2.png" HeightRequest="30"/>
+                            <Label Grid.Column="1" Text="Edit" HorizontalOptions="Center" VerticalOptions="Center" FontSize="Medium" FontAttributes="Bold"/>
+                            <CheckBox x:Name="EditingCheckbox" Grid.Column="2" IsChecked="{Binding InhomogenityEditing}"/>
+                        </Grid>
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnEditClicked" />
+                        </Border.GestureRecognizers>
+                    </Border>
+
+                </HorizontalStackLayout>
+                
                 <Border Grid.Row="1"
                         Stroke="DarkGray"
                         StrokeThickness="2"

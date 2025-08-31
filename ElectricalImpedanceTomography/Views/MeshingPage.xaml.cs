@@ -147,6 +147,28 @@ public partial class MeshingPage : ContentPage
             canvas.DrawCircle(ToCanvas(v), 4f, electrodeFill);
     }
 
+    private void OnClearClicked(object sender, EventArgs e)
+    {
+        // TODO: Clear canvas
+    }
+
+    private void OnEditClicked(object sender, TappedEventArgs e)
+    {
+        bool isChecked = EditingCheckbox.IsChecked;
+
+        if (isChecked)
+        {
+            EditingCheckbox.IsChecked = false;
+            _viewModel.InhomogenityEditing = false;
+        }
+        else
+        {
+            EditingCheckbox.IsChecked = true;
+            _viewModel.InhomogenityEditing = true;
+        }
+
+    }
+
     private void DrawFEMPreview(SKCanvas canvas)
     {
         if (_outlinePoints.Count < 2)
