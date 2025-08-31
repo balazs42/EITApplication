@@ -37,7 +37,6 @@ public partial class MeshingPage : ContentPage
     private readonly HashSet<int> _selectedCells = new();
     private bool _isDrawing;
     private bool _outlineClosed;
-    private bool _shiftPressed;
 
     public MeshingPage()
     {
@@ -45,8 +44,6 @@ public partial class MeshingPage : ContentPage
         _viewModel = Utility.Composition.Container.ResolveObject<MeshingPageViewModel>();
         BindingContext = _viewModel;
         _viewModel.MeshChanged += () => { _selectedCells.Clear(); MeshCanvas.InvalidateSurface(); };
-        Loaded += OnLoaded;
-        Unloaded += OnUnloaded;
     }
 
     private SKColor ColorForValue(double val, double min, double max)
@@ -213,20 +210,16 @@ public partial class MeshingPage : ContentPage
             if (x < 0 || x >= lbm.Nx || y < 0 || y >= lbm.Ny)
                 return;
             var el = lbm.GetElementAt(x, y);
-            bool shift = _shiftPressed;
 
             if (_viewModel.InhomogenityEditing)
             {
+
                 if (e.MouseButton == SKMouseButton.Right && e.ActionType == SKTouchAction.Pressed)
                 {
                     el.Conductivity = _viewModel.InhomogenityValue;
                     _viewModel.RefreshConductivity();
                 }
-                else if (e.MouseButton == SKMouseButton.Left && shift)
-                {
-                    _selectedCells.Add(el.Id);
-                }
-                else if (e.MouseButton == SKMouseButton.Left && !shift && e.ActionType == SKTouchAction.Pressed)
+                else if (e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed)
                 {
                     el.IsWall = !el.IsWall;
                     if (el.IsWall) el.IsElectrode = false;
@@ -234,6 +227,7 @@ public partial class MeshingPage : ContentPage
             }
             else
             {
+
                 if (e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed)
                 {
                     el.IsWall = !el.IsWall;
@@ -269,46 +263,6 @@ public partial class MeshingPage : ContentPage
             }
         }
         e.Handled = true;
-    }
-
-    private void OnLoaded(object sender, EventArgs e)
-    {
-        var window = this.GetParentWindow();
-        if (window is not null)
-        {
-            window.KeyDown += OnWindowKeyDown;
-            window.KeyUp += OnWindowKeyUp;
-        }
-    }
-
-    private void OnUnloaded(object sender, EventArgs e)
-    {
-        var window = this.GetParentWindow();
-        if (window is not null)
-        {
-            window.KeyDown -= OnWindowKeyDown;
-            window.KeyUp -= OnWindowKeyUp;
-        }
-    }
-
-    private void OnWindowKeyDown(object sender, KeyboardEventArgs e)
-    {
-        if (e.Key == KeyboardKey.ShiftLeft || e.Key == KeyboardKey.ShiftRight)
-        {
-            _shiftPressed = true;
-            e.Handled = true;
-        }
-    }
-
-    private void OnWindowKeyUp(object sender, KeyboardEventArgs e)
-    {
-        if (e.Key == KeyboardKey.ShiftLeft || e.Key == KeyboardKey.ShiftRight)
-        {
-            _shiftPressed = false;
-            if (_viewModel.InhomogenityEditing && _selectedCells.Count > 0)
-                ApplySelectionConductivity();
-            e.Handled = true;
-        }
     }
 
     private void ApplySelectionConductivity()

@@ -4,9 +4,6 @@ using Utility.Classes;
 using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
-using Utility.Classes.ReconstructionParameters;
-
-
 using Workspace = Utility.Classes.Application.Workspace;
 
 namespace ElectricalImpedanceTomography.ViewModels
@@ -16,7 +13,6 @@ namespace ElectricalImpedanceTomography.ViewModels
         private readonly IReconstructionService _reconstructionService;
 
         private IMesh? _mesh = Workspace.GetMesh();
-
 
         [ObservableProperty]
         private int iterationCount = 0;
@@ -97,9 +93,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 return result;
             }
             else if (_mesh is LBMMesh)
-            {
                 return _reconstructionService.SolveLbmInverse(1);
-            }
 
             return null;
         }
