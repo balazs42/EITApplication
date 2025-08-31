@@ -99,7 +99,13 @@
                             <ImageButton Padding="3" Background="Transparent" HeightRequest="30" Source="icon_pause_blue.png" Clicked="OnPauseButtonClicked"/>    
                         </Border>
                         <Border Grid.Column="2" HeightRequest="50" WidthRequest="50" Margin="5">
-                            <ImageButton Padding="3" Background="Transparent" HeightRequest="30" Source="icon_next_blue.png" Clicked="OnStepButtonClicked"/>    
+                            <ImageButton x:Name="StepButton"
+                                         Padding="3"
+                                         Background="Transparent"
+                                         HeightRequest="30"
+                                         Source="icon_next_blue.png"
+                                         Clicked="OnStepButtonClicked"
+                                         IsEnabled="False"/>
                         </Border>
                         <Border Grid.Column="3" HeightRequest="50" WidthRequest="50" Margin="5">
                             <ImageButton Padding="3" Background="Transparent" HeightRequest="30" Source="icon_stop_red.png" Clicked="OnStopButtonClicked"/>    
