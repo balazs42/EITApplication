@@ -159,18 +159,19 @@ public partial class MeshingPage : ContentPage
             canvas.DrawCircle(ToCanvas(v), 4f, _electrodeFill);
     }
 
-    private async void OnClearClicked(object sender, EventArgs e)
-    {
-        if (sender is VisualElement v) await ShrinkViewAsync(v);
-        _outlinePoints.Clear();
-        _electrodePoints.Clear();
-        _selectedCells.Clear();
-        _outlineClosed = false;
-        _isDrawing = false;
-        _viewModel.HoveredElementInfo = string.Empty;
-        _viewModel.Clear();
-        MeshCanvas.InvalidateSurface();
-    }
+        private async void OnClearClicked(object sender, EventArgs e)
+        {
+            if (sender is VisualElement v) await ShrinkViewAsync(v);
+            _outlinePoints.Clear();
+            _electrodePoints.Clear();
+            _selectedCells.Clear();
+            _outlineClosed = false;
+            _isDrawing = false;
+            _viewModel.HoveredElementInfo = string.Empty;
+            _viewModel.PushState();
+            _viewModel.Clear();
+            MeshCanvas.InvalidateSurface();
+        }
 
     private async void OnEditClicked(object sender, TappedEventArgs e)
     {
@@ -188,6 +189,20 @@ public partial class MeshingPage : ContentPage
             _viewModel.InhomogenityEditing = true;
         }
 
+    }
+
+    private async void OnUndoClicked(object sender, TappedEventArgs e)
+    {
+        if (sender is VisualElement v) await ShrinkViewAsync(v);
+        _viewModel.Undo();
+        MeshCanvas.InvalidateSurface();
+    }
+
+    private async void OnRedoClicked(object sender, TappedEventArgs e)
+    {
+        if (sender is VisualElement v) await ShrinkViewAsync(v);
+        _viewModel.Redo();
+        MeshCanvas.InvalidateSurface();
     }
 
     private void DrawFEMPreview(SKCanvas canvas)
@@ -241,35 +256,39 @@ public partial class MeshingPage : ContentPage
             }
             var el = lbm.GetElementAt(x, y);
 
-            if (_viewModel.InhomogenityEditing)
-            {
+                if (_viewModel.InhomogenityEditing)
+                {
 
-                if (e.MouseButton == SKMouseButton.Right && e.ActionType == SKTouchAction.Pressed)
-                {
-                    el.Conductivity = _viewModel.InhomogenityValue;
-                    _viewModel.RefreshConductivity();
+                    if (e.MouseButton == SKMouseButton.Right && e.ActionType == SKTouchAction.Pressed)
+                    {
+                        _viewModel.PushState();
+                        el.Conductivity = _viewModel.InhomogenityValue;
+                        _viewModel.RefreshConductivity();
+                    }
+                    else if (e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed)
+                    {
+                        _viewModel.PushState();
+                        el.IsWall = !el.IsWall;
+                        if (el.IsWall) el.IsElectrode = false;
+                    }
                 }
-                else if (e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed)
+                else
                 {
-                    el.IsWall = !el.IsWall;
-                    if (el.IsWall) el.IsElectrode = false;
-                }
-            }
-            else
-            {
 
-                if (e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed)
-                {
-                    el.IsWall = !el.IsWall;
-                    if (el.IsWall) el.IsElectrode = false;
+                    if (e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed)
+                    {
+                        _viewModel.PushState();
+                        el.IsWall = !el.IsWall;
+                        if (el.IsWall) el.IsElectrode = false;
+                    }
+                    else if (e.MouseButton == SKMouseButton.Right && e.ActionType == SKTouchAction.Pressed)
+                    {
+                        _viewModel.PushState();
+                        el.IsElectrode = !el.IsElectrode;
+                        if (el.IsElectrode) el.IsWall = false;
+                        _viewModel.RefreshLbmElectrodes();
+                    }
                 }
-                else if (e.MouseButton == SKMouseButton.Right && e.ActionType == SKTouchAction.Pressed)
-                {
-                    el.IsElectrode = !el.IsElectrode;
-                    if (el.IsElectrode) el.IsWall = false;
-                    _viewModel.RefreshLbmElectrodes();
-                }
-            }
             if (e.ActionType == SKTouchAction.Moved || e.ActionType == SKTouchAction.Entered)
                 _viewModel.HoveredElementInfo = $"ID: {el.Id} \u03C3: {el.Conductivity:F2}, Wall: {el.IsWall}, Electrode: {el.IsElectrode}";
             MeshCanvas.InvalidateSurface();
@@ -288,6 +307,7 @@ public partial class MeshingPage : ContentPage
                     found = true;
                     if (_viewModel.InhomogenityEditing && e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed)
                     {
+                        _viewModel.PushState();
                         el.Conductivity = _viewModel.InhomogenityValue;
                         _viewModel.RefreshConductivity();
                         MeshCanvas.InvalidateSurface();
@@ -309,16 +329,17 @@ public partial class MeshingPage : ContentPage
         e.Handled = true;
     }
 
-    private void ApplySelectionConductivity()
-    {
-        if (_viewModel.GetCurrentMesh() is not LBMMesh lbm)
-            return;
-
-        foreach (var id in _selectedCells)
+        private void ApplySelectionConductivity()
         {
-            var (sx, sy) = lbm.ToLattice(id);
-            lbm.GetElementAt(sx, sy).Conductivity = _viewModel.InhomogenityValue;
-        }
+            if (_viewModel.GetCurrentMesh() is not LBMMesh lbm)
+                return;
+
+            _viewModel.PushState();
+            foreach (var id in _selectedCells)
+            {
+                var (sx, sy) = lbm.ToLattice(id);
+                lbm.GetElementAt(sx, sy).Conductivity = _viewModel.InhomogenityValue;
+            }
         _selectedCells.Clear();
         _viewModel.RefreshConductivity();
         MeshCanvas.InvalidateSurface();
