@@ -91,7 +91,10 @@
 
                 <!-- Control Panel to control reconstruction -->
                 <Border Background="Transparent" Stroke="Gray">
-                    <Grid Grid.Row="0" ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" ColumnSpacing="15" HorizontalOptions="Center">
+                    <Grid ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto"
+                          RowDefinitions="Auto, Auto"
+                          ColumnSpacing="15"
+                          HorizontalOptions="Center">
                         <Border Grid.Column="0" HeightRequest="50" WidthRequest="50" Margin="5">
                             <ImageButton Padding="3" Background="Transparent" HeightRequest="30" WidthRequest="30" Source="icon_play_green.png" Clicked="OnPlayButtonClicked"/>
                         </Border>
@@ -120,9 +123,9 @@
                         <Border Grid.Column="7" Margin="2" Background="Transparent">
                             <Button Text="Solve Inverse" Margin="10" BackgroundColor="DarkRed" TextColor="White" FontAttributes="Bold" Clicked="OnSolveInverseClicked"/>
                         </Border>
-                        <Picker x:Name="PotentialModePicker" 
+                        <Picker x:Name="PotentialModePicker"
                                 Margin="5"
-                                Grid.Column="8" 
+                                Grid.Column="8"
                                 HorizontalOptions="Center"
                                 VerticalOptions="Center"
                                 SelectedItem="Default"
@@ -135,6 +138,12 @@
                                 <x:String>Rainbow</x:String>
                             </Picker.Items>
                         </Picker>
+                        <Slider x:Name="PlaybackSlider"
+                                Grid.Row="1"
+                                Grid.ColumnSpan="10"
+                                Minimum="0"
+                                Maximum="0"
+                                ValueChanged="OnPlaybackSliderValueChanged" />
                     </Grid>
                 </Border>
 
