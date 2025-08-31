@@ -17,8 +17,8 @@ public partial class MeshingPage : ContentPage
     private readonly MeshingPageViewModel _viewModel;
 
     // paints for LBM drawing
-    private readonly SKPaint _lbmFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.White };
-    private readonly SKPaint _lbmWall = new() { Style = SKPaintStyle.Fill, Color = SKColors.Black };
+    private readonly SKPaint _lbmFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.Black };
+    private readonly SKPaint _lbmWall = new() { Style = SKPaintStyle.Fill, Color = SKColors.White };
     private readonly SKPaint _lbmElectrode = new() { Style = SKPaintStyle.Fill, Color = SKColors.Orange };
     private readonly SKPaint _lbmStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.LightGray, StrokeWidth = 1 };
     private readonly SKPaint _lbmSelected = new() { Style = SKPaintStyle.Fill, Color = SKColors.LimeGreen };
@@ -260,7 +260,7 @@ public partial class MeshingPage : ContentPage
                 }
             }
             if (e.ActionType == SKTouchAction.Moved || e.ActionType == SKTouchAction.Entered)
-                _viewModel.HoveredElementInfo = $"ID: {el.Id} \u03C3: {el.Conductivity:F2}, Wall: {el.IsWall}, Electrode: {el.IsElectrode}";
+                _viewModel.HoveredElementInfo = $"ID: {el.Id} \u03C3: {el.Conductivity:F2}";
             MeshCanvas.InvalidateSurface();
         }
         else if (mesh is FEMMesh fem)
