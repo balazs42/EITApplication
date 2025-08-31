@@ -144,14 +144,18 @@ namespace Utility.Classes.Factories
                 .OrderBy(v => v.BoundaryId)
                 .ToList();
             int boundaryCount = boundaryVerts.Count;
-            int increment = Math.Max(boundaryCount / electrodeCount, 1);
+
+            // use fractional steps so electrodes remain evenly spaced even
+            // when boundaryCount isn't divisible by electrodeCount
+            double step = boundaryCount / (double)electrodeCount;
+            double pos = 0.0;
 
             var electrodes = new List<FEMElectrode>(electrodeCount);
             for (int elId = 0; elId < electrodeCount; elId++)
             {
-                // pick every 'increment' boundary FEMVertex
-                int idx = elId * increment;
-                if (idx >= boundaryCount) idx = boundaryCount - 1;
+                int idx = (int)Math.Round(pos, MidpointRounding.AwayFromZero);
+                if (idx >= boundaryCount)
+                    idx = boundaryCount - 1;
 
                 FEMVertex v = boundaryVerts[idx];
                 v.IsElectrode = true;
@@ -166,6 +170,8 @@ namespace Utility.Classes.Factories
 
                 el.FEMVertexIds.Add(v.GlobalId);
                 electrodes.Add(el);
+
+                pos += step;
             }
 
             mesh.SetElectrodes(electrodes);

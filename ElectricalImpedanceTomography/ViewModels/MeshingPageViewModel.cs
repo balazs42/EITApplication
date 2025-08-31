@@ -12,7 +12,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 {
     public partial class MeshingPageViewModel : BaseViewModel
     {
-    private readonly IDAQService _daqService;
+        private readonly IDAQService _daqService;
 
         [ObservableProperty]
         private string name = string.Empty;
@@ -21,12 +21,14 @@ namespace ElectricalImpedanceTomography.ViewModels
         private DateTime saveTime;
 
         // mesh parameter bindings
-        public IEnumerable<MeshType> MeshTypes => Enum.GetValues<MeshType>();
+        private static readonly MeshType[] MeshTypeValues = Enum.GetValues<MeshType>();
+        public IEnumerable<MeshType> MeshTypes => MeshTypeValues;
 
         [ObservableProperty]
         private MeshType selectedMeshType = MeshType.FEM;
 
-        public IEnumerable<GeometryType> GeometryTypes => Enum.GetValues<GeometryType>();
+        private static readonly GeometryType[] GeometryTypeValues = Enum.GetValues<GeometryType>();
+        public IEnumerable<GeometryType> GeometryTypes => GeometryTypeValues;
 
         [ObservableProperty]
         private GeometryType selectedGeometry = GeometryType.Circular;

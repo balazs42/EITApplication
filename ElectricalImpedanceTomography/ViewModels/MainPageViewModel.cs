@@ -37,11 +37,16 @@ namespace ElectricalImpedanceTomography.ViewModels
             Workspace.SetReconstructionParameters(value);
         }
 
-        public IEnumerable<DifferentialEquationSolver> Solvers => Enum.GetValues<DifferentialEquationSolver>();
-        public IEnumerable<RegularizationTechnique> Regularizations => Enum.GetValues<RegularizationTechnique>();
-        public IEnumerable<ErrorMetric> ErrorMetrics => Enum.GetValues<ErrorMetric>();
-        public IEnumerable<NumericOptimizer> NumericOptimizers => Enum.GetValues<NumericOptimizer>();
-        public IEnumerable<NumericSolver> NumericSolvers => Enum.GetValues<NumericSolver>();
+        private static readonly DifferentialEquationSolver[] SolverValues = Enum.GetValues<DifferentialEquationSolver>();
+        public IEnumerable<DifferentialEquationSolver> Solvers => SolverValues;
+        private static readonly RegularizationTechnique[] RegularizationValues = Enum.GetValues<RegularizationTechnique>();
+        public IEnumerable<RegularizationTechnique> Regularizations => RegularizationValues;
+        private static readonly ErrorMetric[] ErrorMetricValues = Enum.GetValues<ErrorMetric>();
+        public IEnumerable<ErrorMetric> ErrorMetrics => ErrorMetricValues;
+        private static readonly NumericOptimizer[] NumericOptimizerValues = Enum.GetValues<NumericOptimizer>();
+        public IEnumerable<NumericOptimizer> NumericOptimizers => NumericOptimizerValues;
+        private static readonly NumericSolver[] NumericSolverValues = Enum.GetValues<NumericSolver>();
+        public IEnumerable<NumericSolver> NumericSolvers => NumericSolverValues;
 
         public IAsyncRelayCommand<string> NavigateCommand { get; }
 

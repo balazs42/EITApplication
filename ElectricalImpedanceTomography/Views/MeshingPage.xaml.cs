@@ -27,7 +27,7 @@ public partial class MeshingPage : ContentPage
     // stroke for FEM
     private readonly SKPaint _femStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1 };
     private readonly SKPaint _femFill = new() { Style = SKPaintStyle.Fill };
-    private readonly SKPaint _previewElectrode = new() { Style = SKPaintStyle.Fill, Color = SKColors.Yellow };
+    private readonly SKPaint _electrodeFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.Yellow };
 
     // caching values for coordinate transforms
     private float _cellW, _cellH;
@@ -155,9 +155,8 @@ public partial class MeshingPage : ContentPage
             canvas.DrawPath(path, _femStroke);
         }
 
-        using var electrodeFill = new SKPaint { Style = SKPaintStyle.Fill, Color = SKColors.Yellow };
         foreach (var v in mesh.Vertices.Where(v => v.IsElectrode))
-            canvas.DrawCircle(ToCanvas(v), 4f, electrodeFill);
+            canvas.DrawCircle(ToCanvas(v), 4f, _electrodeFill);
     }
 
     private async void OnClearClicked(object sender, EventArgs e)
@@ -205,7 +204,7 @@ public partial class MeshingPage : ContentPage
         canvas.DrawPath(path, _femStroke);
 
         foreach (var p in _electrodePoints)
-            canvas.DrawCircle(p, 4f, _previewElectrode);
+            canvas.DrawCircle(p, 4f, _electrodeFill);
     }
 
     private async void OnAddNoiseTapped(object sender, TappedEventArgs e)
