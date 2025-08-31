@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="ElectricalImpedanceTomography.Controls.PlusMinusEntryControl"
+             x:Name="Root">
+    <Grid ColumnDefinitions="Auto,Auto,Auto" RowDefinitions="Auto,Auto">
+        <Label Grid.Column="0"
+               Grid.RowSpan="2"
+               Text="{Binding Source={x:Reference Root}, Path=LabelText}"/>
+        <Entry x:Name="BindableEntry"
+               Grid.Column="1"
+               Grid.RowSpan="2"
+               HorizontalTextAlignment="End"
+               Keyboard="Numeric"
+               Text="{Binding Source={x:Reference Root}, Path=Value, Mode=TwoWay}"/>
+        <Image Grid.Column="2"
+               Grid.Row="0"
+               Source="{Binding Source={x:Reference Root}, Path=PlusImageSource}">
+            <Image.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnPlusTapped"/>
+            </Image.GestureRecognizers>
+        </Image>
+        <Image Grid.Column="2"
+               Grid.Row="1"
+               Source="{Binding Source={x:Reference Root}, Path=MinusImageSource}">
+            <Image.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnMinusTapped"/>
+            </Image.GestureRecognizers>
+        </Image>
+    </Grid>
+</ContentView>
