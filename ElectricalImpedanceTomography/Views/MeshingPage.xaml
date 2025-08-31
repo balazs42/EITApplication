@@ -140,61 +140,104 @@
 
             <!-- Middle Canvas display -->
             <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*" >
-                <HorizontalStackLayout Grid.Row="0" VerticalOptions="Center" HorizontalOptions="Center" Spacing="10" Padding="10">
-                    <Border Padding="5" StrokeShape="RoundRectangle 5">
-                        <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10">
-                            <Image Grid.Column="0" Source="icon_save.png" HeightRequest="30"/>
-                            <Label Grid.Column="1" Text="Save" HorizontalOptions="Center" VerticalOptions="Center" FontSize="Medium" FontAttributes="Bold"/>
-                        </Grid>
-                        <Border.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnSaveClicked" />
-                        </Border.GestureRecognizers>
-                    </Border>
+                <Border Grid.Row="0" StrokeShape="RoundRectangle 10">
+                    <Grid ColumnDefinitions="*, Auto, *" 
+                          RowDefinitions="Auto, Auto"
+                          ColumnSpacing="10"
+                          RowSpacing="0"
+                          Margin="0"
+                          Padding="0">
+                        
+                        <!-- Control buttons -->
+                        <Label Grid.Column="0" Grid.Row="0" Text="Controls" HorizontalOptions="Center" HeightRequest="20"/>
+                        <Border Grid.Column="0" Grid.Row="1" Stroke="Transparent">
+                            <HorizontalStackLayout Grid.Row="0" VerticalOptions="Center" HorizontalOptions="Center" Spacing="10">
+                                <Border Padding="5" StrokeShape="RoundRectangle 5">
+                                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10">
+                                        <Image Grid.Column="0" Source="icon_save.png" HeightRequest="30"/>
+                                        <Label Grid.Column="1" Text="Save" HorizontalOptions="Center" VerticalOptions="Center" FontSize="Medium" FontAttributes="Bold"/>
+                                    </Grid>
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnSaveClicked" />
+                                    </Border.GestureRecognizers>
+                                </Border>
 
-                    <Border Padding="5" StrokeShape="RoundRectangle 5">
-                        <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10">
-                            <Image Grid.Column="0" Source="icon_load2.png" HeightRequest="30"/>
-                            <Label Grid.Column="1" Text="Load" HorizontalOptions="Center" VerticalOptions="Center" FontSize="Medium" FontAttributes="Bold"/>
-                        </Grid>
-                        <Border.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnLoadClicked" />
-                        </Border.GestureRecognizers>
-                    </Border>
+                                <Border Padding="5" StrokeShape="RoundRectangle 5">
+                                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10">
+                                        <Image Grid.Column="0" Source="icon_load2.png" HeightRequest="30"/>
+                                        <Label Grid.Column="1" Text="Load" HorizontalOptions="Center" VerticalOptions="Center" FontSize="Medium" FontAttributes="Bold"/>
+                                    </Grid>
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnLoadClicked" />
+                                    </Border.GestureRecognizers>
+                                </Border>
 
-                    <Border Padding="5" StrokeShape="RoundRectangle 5">
-                        <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10">
-                            <Image Grid.Column="0" Source="icon_generate.png" HeightRequest="30"/>
-                            <Label Grid.Column="1" Text="Generate" HorizontalOptions="Center" VerticalOptions="Center" FontSize="Medium" FontAttributes="Bold"/>
-                        </Grid>
-                        <Border.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnGenerateClicked" />
-                        </Border.GestureRecognizers>
-                    </Border>
+                                <Border Padding="5" StrokeShape="RoundRectangle 5">
+                                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10">
+                                        <Image Grid.Column="0" Source="icon_generate.png" HeightRequest="30"/>
+                                        <Label Grid.Column="1" Text="Generate" HorizontalOptions="Center" VerticalOptions="Center" FontSize="Medium" FontAttributes="Bold"/>
+                                    </Grid>
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnGenerateClicked" />
+                                    </Border.GestureRecognizers>
+                                </Border>
 
-                    <Border Padding="5" StrokeShape="RoundRectangle 5">
-                        <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10">
-                            <Image Grid.Column="0" Source="icon_delete.png" HeightRequest="30"/>
-                            <Label Grid.Column="1" Text="Clear" HorizontalOptions="Center" VerticalOptions="Center" FontSize="Medium" FontAttributes="Bold"/>
-                        </Grid>
-                        <Border.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnClearClicked" />
-                        </Border.GestureRecognizers>
-                    </Border>
+                                <Border Padding="5" StrokeShape="RoundRectangle 5">
+                                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10">
+                                        <Image Grid.Column="0" Source="icon_delete.png" HeightRequest="30"/>
+                                        <Label Grid.Column="1" Text="Clear" HorizontalOptions="Center" VerticalOptions="Center" FontSize="Medium" FontAttributes="Bold"/>
+                                    </Grid>
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnClearClicked" />
+                                    </Border.GestureRecognizers>
+                                </Border>
 
-                    <Border Padding="5" StrokeShape="RoundRectangle 5">
-                        <Grid ColumnDefinitions="Auto, *, Auto" ColumnSpacing="10">
-                            <Image Grid.Column="0" Source="icon_edit2.png" HeightRequest="30"/>
-                            <Label Grid.Column="1" Text="Edit" HorizontalOptions="Center" VerticalOptions="Center" FontSize="Medium" FontAttributes="Bold"/>
-                            <CheckBox x:Name="EditingCheckbox" Grid.Column="2" IsChecked="{Binding InhomogenityEditing}"/>
-                        </Grid>
-                        <Border.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnEditClicked" />
-                        </Border.GestureRecognizers>
-                    </Border>
 
-                </HorizontalStackLayout>
+                            </HorizontalStackLayout>
+                        </Border>
 
-                <Label Grid.Row="1" Text="{Binding HoveredElementInfo}" HorizontalOptions="Center"/>
+                        <BoxView Grid.Column="1" Grid.RowSpan="2" WidthRequest="2" HeightRequest="50" BackgroundColor="Gray" />
+
+                        <Label Grid.Column="2" Grid.Row="0" Text="Editing" HorizontalOptions="Center" VerticalOptions="Center"/>
+                        <Border Grid.Column="2" Grid.Row="1" Stroke="Transparent">
+
+                            <HorizontalStackLayout Spacing="10">
+                                <Border Grid.Column="1" Padding="5" StrokeShape="RoundRectangle 5" Stroke="Transparent">
+                                    <Grid ColumnDefinitions="Auto, *, Auto" ColumnSpacing="10">
+                                        <Image Grid.Column="0" Source="icon_edit2.png" HeightRequest="25"/>
+                                        <Label Grid.Column="1" Text="Edit" HorizontalOptions="Center" VerticalOptions="Center" FontSize="Medium" FontAttributes="Bold"/>
+                                        <CheckBox x:Name="EditingCheckbox" Grid.Column="2" IsChecked="{Binding InhomogenityEditing}" HeightRequest="25" WidthRequest="25"/>
+                                    </Grid>
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnEditClicked" />
+                                    </Border.GestureRecognizers>
+                                </Border>
+
+                                <Border Stroke="Transparent">
+                                    <Grid ColumnDefinitions="Auto, *" Margin="5">
+                                        <Image Grid.Column="0" Source="icon_noise.png" HeightRequest="45"/>
+                                        <Label Grid.Column="1" Text="Add Noise" FontSize="Medium" HorizontalOptions="Center" VerticalOptions="Center" FontAttributes="Bold"/>
+                                    </Grid>
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnAddNoiseTapped"/>
+                                    </Border.GestureRecognizers>
+                                    
+                                </Border>
+
+                            </HorizontalStackLayout>
+                        </Border>
+                        
+                    </Grid>
+                </Border>
+                
+               
+
+                <Label Grid.Row="1" 
+                       Text="{Binding HoveredElementInfo, StringFormat='Element Info: {0}'}"
+                       HorizontalOptions="Center"
+                       FontSize="Small"
+                       FontAttributes="Bold"
+                       Margin="10"/>
 
                 <Border Grid.Row="2"
                         Stroke="DarkGray"

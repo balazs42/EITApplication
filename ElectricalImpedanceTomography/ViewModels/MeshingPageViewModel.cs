@@ -123,6 +123,14 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
         }
 
+        public void AddNoiseToMesh()
+        {
+            if (_currentMesh == null)
+                return;
+
+            MeshFactory.AddGaussianNoise(_currentMesh);
+        }
+
         private FEMMesh GenerateFEMMesh()
         {
             if (_drawnPerimeter != null && _drawnPerimeter.Count > 2)

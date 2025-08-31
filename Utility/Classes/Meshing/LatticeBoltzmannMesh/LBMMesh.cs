@@ -28,7 +28,7 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
         /// <param name="nx">Number of cells in the x dimension.</param>
         /// <param name="ny">Number of cells in the y dimension.</param>
         [JsonConstructor]
-        public LBMMesh(int nx = _defaultNx, int ny = _defaultNy, int electrodeNum = 16)
+        public LBMMesh(int nx = _defaultNx, int ny = _defaultNy)
         {
             Nx = nx;
             Ny = ny;
@@ -48,6 +48,7 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
                     _grid[x, y] = element;
                 }
             }
+
             // Link neighbors for every element
             var directions = new (int cx, int cy)[] { (0, 0), (1, 0), (0, 1), (-1, 0), (0, -1), (1, 1), (-1, 1), (-1, -1), (1, -1) };
             for (int y = 0; y < Ny; y++)
@@ -81,11 +82,6 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
                 pd.Add(el.Id, el.Fi.Sum());
 
             PotentialDistribution = new PotentialDistribution(pd);
-
-            // Place 16 equidistant electrodes inside the walls
-            //PlaceEquidistantElectrodes(electrodeNum);
-
-            //this.ConductivityDistribution = PriorConductivityDistributionGenerator.GenerateHomogeneousDistribution(this, 1.0);
         }
 
         public LBMMesh(List<LBMElement> elements, int nx = _defaultNy, int ny = _defaultNy)
