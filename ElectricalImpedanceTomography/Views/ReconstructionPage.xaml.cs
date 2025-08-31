@@ -34,6 +34,7 @@ public partial class ReconstructionPage : ContentPage
 
     private bool _isPaused = false;
     private bool _hasStarted = false;
+    private bool _sliderChanging = false;
 
     public ReconstructionPage()
     {
@@ -114,6 +115,14 @@ public partial class ReconstructionPage : ContentPage
     private void OnReconstructionUpdated(object? sender, ReconstructionResult result)
     {
         _currentResult = result;
+        _sliderChanging = true;
+        var results = Workspace.GetReconstructionResults();
+        if (results.Count > 0)
+        {
+            PlaybackSlider.Maximum = results.Count - 1;
+            PlaybackSlider.Value = PlaybackSlider.Maximum;
+        }
+        _sliderChanging = false;
         Dispatcher.Dispatch(InvalidateAll);
     }
 
@@ -624,6 +633,36 @@ public partial class ReconstructionPage : ContentPage
         PotentialColorbarCanvas.InvalidateSurface();
         ReconstructedColorbarCanvas.InvalidateSurface();
         AdjointColorbarCanvas.InvalidateSurface();
+    }
+
+    private static double CalculateResidual(ConductivityDistribution reconstructed, ConductivityDistribution original)
+    {
+        double sum = 0.0;
+        foreach (var kv in reconstructed.Conductivities)
+        {
+            original.Conductivities.TryGetValue(kv.Key, out double origVal);
+            double diff = kv.Value - origVal;
+            sum += diff * diff;
+        }
+        return Math.Sqrt(sum);
+    }
+
+    private void OnPlaybackSliderValueChanged(object sender, ValueChangedEventArgs e)
+    {
+        if (_sliderChanging)
+            return;
+
+        var results = Workspace.GetReconstructionResults();
+        int index = (int)Math.Round(e.NewValue);
+        if (index >= 0 && index < results.Count)
+        {
+            var result = results[index];
+            _currentResult = result;
+            _viewModel.IterationCount = index + 1;
+            _viewModel.Residual = CalculateResidual(result.ReconstructedConductivityDistribution,
+                                                   result.OriginalConductivityDistribution);
+            Dispatcher.Dispatch(InvalidateAll);
+        }
     }
 
     private async void OnSolveForwardClicked(object sender, EventArgs e)
