@@ -65,6 +65,8 @@ namespace ElectricalImpedanceTomography.ViewModels
         private IList<(double x, double y)>? _drawnPerimeter;
         private IList<(double x, double y)>? _drawnElectrodes;
 
+        public event Action? MeshChanged;
+
         public MeshingPageViewModel(IDAQService dAQService)
         {
             _daqService = dAQService;
@@ -244,11 +246,25 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             if (IsFEM) reconstructionParameters.DifferentialEquationSolver = Utility.Classes.ReconstructionParameters.DifferentialEquationSolver.FiniteElementMethod;
             else if (IsLBM) reconstructionParameters.DifferentialEquationSolver = Utility.Classes.ReconstructionParameters.DifferentialEquationSolver.LatticeBoltzmannMethod;
+
+            AutoGenerateMesh();
         }
 
         partial void OnSelectedGeometryChanged(GeometryType value)
         {
             OnPropertyChanged(nameof(IsCustomGeometry));
+            AutoGenerateMesh();
+        }
+
+        partial void OnNxChanged(int value) => AutoGenerateMesh();
+
+        partial void OnNyChanged(int value) => AutoGenerateMesh();
+
+        private void AutoGenerateMesh()
+        {
+            if (SelectedMeshType != MeshType.LBM) return;
+            GenerateMesh();
+            MeshChanged?.Invoke();
         }
     }
 }
