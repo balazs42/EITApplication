@@ -260,7 +260,7 @@ public partial class MeshingPage : ContentPage
                 }
             }
             if (e.ActionType == SKTouchAction.Moved || e.ActionType == SKTouchAction.Entered)
-                _viewModel.HoveredElementInfo = $"ID: {el.Id} \u03C3: {el.Conductivity:F2}";
+                _viewModel.HoveredElementInfo = $"ID: {el.Id} \u03C3: {el.Conductivity:F2}, Wall: {el.IsWall}, Electrode: {el.IsElectrode}";
             MeshCanvas.InvalidateSurface();
         }
         else if (mesh is FEMMesh fem)

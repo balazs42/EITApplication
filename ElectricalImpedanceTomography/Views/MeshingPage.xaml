@@ -36,16 +36,20 @@
                     <BoxView WidthRequest="200" HeightRequest="2" BackgroundColor="Gray"/>
 
                     <!-- FEM parameters -->
-                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
-                        <Label Grid.Column="0" Text="Layers" VerticalOptions="Center"/>
-                        <Entry Grid.Column="1" Text="{Binding Layers}" WidthRequest="60" Keyboard="Numeric" VerticalOptions="End" HorizontalOptions="End"/>
-                    </Grid>
+                    <controls:PlusMinusEntryControl Margin="10"
+                               LabelText="Layers"
+                               PlusImageSource="icon_plus2.png"
+                               MinusImageSource="icon_minus2.png"
+                               Value="{Binding Layers}"
+                               Max="200"/>
 
-                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
-                        <Label Grid.Column="0" Text="Boundary Vertices" VerticalOptions="Center"/>
-                        <Entry Grid.Column="1" Text="{Binding BoundaryFEMVertexCount}" WidthRequest="60" HorizontalOptions="End" Keyboard="Numeric"/>
-                    </Grid>
-
+                    <controls:PlusMinusEntryControl Margin="10"
+                               LabelText="Boundary Vertices"
+                               PlusImageSource="icon_plus2.png"
+                               MinusImageSource="icon_minus2.png"
+                               Value="{Binding BoundaryFEMVertexCount}"
+                               Max="200"/>
+                    
                     <BoxView WidthRequest="200" HeightRequest="2" BackgroundColor="Gray"/>
 
                     <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
@@ -58,15 +62,10 @@
                     <!-- Common parameters -->
                     <controls:PlusMinusEntryControl Margin="10"
                                                    LabelText="Electrodes"
+                                                   PlusImageSource="icon_plus2.png"
+                                                   MinusImageSource="icon_minus2.png"
                                                    Value="{Binding ElectrodeCount}"
-                                                   Max="200">
-                        <controls:PlusMinusEntryControl.PlusImageSource>
-                            <FontImageSource Glyph="+" Size="20" />
-                        </controls:PlusMinusEntryControl.PlusImageSource>
-                        <controls:PlusMinusEntryControl.MinusImageSource>
-                            <FontImageSource Glyph="-" Size="20" />
-                        </controls:PlusMinusEntryControl.MinusImageSource>
-                    </controls:PlusMinusEntryControl>
+                                                   Max="200"/>
 
                     <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10" IsVisible="{Binding IsCustomGeometry}">
                         <Label Grid.Column="0" Text="Custom" VerticalOptions="Center"/>
@@ -78,15 +77,19 @@
                         <Entry Grid.Column="1" Text="{Binding InhomogenityValue}" WidthRequest="80" Keyboard="Numeric"/>
                     </Grid>
 
-                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
-                        <Label Grid.Column="0" Text="Contact Imp." VerticalOptions="Center"/>
-                        <Entry Grid.Column="1" Text="{Binding ElectrodeContactImpedance}" WidthRequest="60" HorizontalOptions="End" Keyboard="Numeric"/>
-                    </Grid>
+                    <controls:PlusMinusEntryControl Margin="10"
+                               LabelText="Contact Impedance"
+                               PlusImageSource="icon_plus2.png"
+                               MinusImageSource="icon_minus2.png"
+                               Value="{Binding ElectrodeContactImpedance}"
+                               Max="200"/>
 
-                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
-                        <Label Grid.Column="0" Text="Electrode Size" VerticalOptions="Center"/>
-                        <Entry Grid.Column="1" Text="{Binding ElectrodeSize}" WidthRequest="60" HorizontalOptions="End" Keyboard="Numeric"/>
-                    </Grid>
+                    <controls:PlusMinusEntryControl Margin="10"
+                               LabelText="Electrode Size [%]"
+                               PlusImageSource="icon_plus2.png"
+                               MinusImageSource="icon_minus2.png"
+                               Value="{Binding ElectrodeSize}"
+                               Max="200"/>
                 </VerticalStackLayout>
             </Border>
 
@@ -101,16 +104,24 @@
                     <BoxView WidthRequest="200" HeightRequest="2" BackgroundColor="Gray"/>
                     
                     <!-- LBM parameters -->
-                    <Grid ColumnDefinitions="Auto, *" RowDefinitions="Auto,Auto" ColumnSpacing="10" Margin="10">
-                        <Label Grid.Column="0" Grid.Row="0" Text="Nx" IsVisible="{Binding IsLBM}" VerticalOptions="Center"/>
-                        <Entry Grid.Column="1" Grid.Row="0" Text="{Binding Nx}" WidthRequest="60" IsVisible="{Binding IsLBM}" Keyboard="Numeric" HorizontalOptions="End"/>
-                        <Slider Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="2" Minimum="3" Maximum="200" Value="{Binding Nx}" IsVisible="{Binding IsLBM}"/>
+                    <Grid RowDefinitions="Auto,Auto" ColumnSpacing="10" Margin="10">
+                        <controls:PlusMinusEntryControl Grid.Row="0"
+                                                        LabelText="X"
+                                                        PlusImageSource="icon_plus2.png"
+                                                        MinusImageSource="icon_minus2.png"
+                                                        Value="{Binding Nx}"
+                                                        Max="200"/>          
+                        <Slider  Grid.Row="1" Grid.ColumnSpan="2" Minimum="3" Maximum="200" Value="{Binding Nx}" IsVisible="{Binding IsLBM}"/>
                     </Grid>
 
-                    <Grid ColumnDefinitions="Auto, *" RowDefinitions="Auto,Auto" ColumnSpacing="10" Margin="10">
-                        <Label Grid.Column="0" Grid.Row="0" Text="Ny" IsVisible="{Binding IsLBM}" VerticalOptions="Center"/>
-                        <Entry Grid.Column="1" Grid.Row="0" Text="{Binding Ny}" WidthRequest="60" IsVisible="{Binding IsLBM}" Keyboard="Numeric" HorizontalOptions="End"/>
-                        <Slider Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="2" Minimum="3" Maximum="200" Value="{Binding Ny}" IsVisible="{Binding IsLBM}"/>
+                    <Grid RowDefinitions="Auto,Auto" ColumnSpacing="10" Margin="10">
+                        <controls:PlusMinusEntryControl Grid.Row="0"
+                                                        LabelText="Y"
+                                                        PlusImageSource="icon_plus2.png"
+                                                        MinusImageSource="icon_minus2.png"
+                                                        Value="{Binding Ny}"
+                                                        Max="200"/>
+                        <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="3" Maximum="200" Value="{Binding Ny}" IsVisible="{Binding IsLBM}"/>
                     </Grid>
 
                     <BoxView WidthRequest="200" HeightRequest="2" BackgroundColor="Gray"/>
@@ -123,32 +134,31 @@
                     <BoxView WidthRequest="200" HeightRequest="2" BackgroundColor="Gray"/>
                                        
                     <!-- Common parameters -->
-                    <controls:PlusMinusEntryControl Margin="10"
-                                                   LabelText="Electrodes"
-                                                   Value="{Binding ElectrodeCount}"
-                                                   Max="200">
-                        <controls:PlusMinusEntryControl.PlusImageSource>
-                            <FontImageSource Glyph="+" Size="20" />
-                        </controls:PlusMinusEntryControl.PlusImageSource>
-                        <controls:PlusMinusEntryControl.MinusImageSource>
-                            <FontImageSource Glyph="-" Size="20" />
-                        </controls:PlusMinusEntryControl.MinusImageSource>
-                    </controls:PlusMinusEntryControl>
+                    <controls:PlusMinusEntryControl Grid.Row="0"
+                                LabelText="Electrode Num"
+                                PlusImageSource="icon_plus2.png"
+                                MinusImageSource="icon_minus2.png"
+                                Value="{Binding ElectrodeCount}"
+                                Max="64"/>
 
                     <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10" IsVisible="{Binding IsCustomGeometry}">
                         <Label Grid.Column="0" Text="Custom" VerticalOptions="Center"/>
                         <Entry Grid.Column="1" Text="{Binding CustomPerimeter}" WidthRequest="150"/>
                     </Grid>
-                    
-                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10" IsVisible="{Binding InhomogenityEditing}">
-                        <Label Grid.Column="0" Text="Inhomogenity Value" VerticalOptions="Center"/>
-                        <Entry Grid.Column="1" Text="{Binding InhomogenityValue}" WidthRequest="80" Keyboard="Numeric" HorizontalOptions="End"/>
-                    </Grid>
 
-                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
-                        <Label Grid.Column="0" Text="Contact Imp." VerticalOptions="Center"/>
-                        <Entry Grid.Column="1" Text="{Binding ElectrodeContactImpedance}" WidthRequest="60" HorizontalOptions="End" Keyboard="Numeric"/>
-                    </Grid>
+                    <controls:PlusMinusEntryControl Grid.Row="0"
+                                LabelText="Inhomogenity Value"
+                                PlusImageSource="icon_plus2.png"
+                                MinusImageSource="icon_minus2.png"
+                                Value="{Binding InhomogenityValue}"
+                                Max="200"/>
+
+                    <controls:PlusMinusEntryControl Grid.Row="0"
+                                                    LabelText="Contact Impedance"
+                                                    PlusImageSource="icon_plus2.png"
+                                                    MinusImageSource="icon_minus2.png"
+                                                    Value="{Binding ElectrodeContactImpedance}"
+                                                    Max="200"/>     
                 </VerticalStackLayout>
             </Border>
 

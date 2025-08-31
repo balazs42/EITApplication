@@ -3,29 +3,45 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="ElectricalImpedanceTomography.Controls.PlusMinusEntryControl"
              x:Name="Root">
-    <Grid ColumnDefinitions="Auto,Auto,Auto" RowDefinitions="Auto,Auto">
+    <Grid ColumnDefinitions="*, Auto,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="5">
         <Label Grid.Column="0"
                Grid.RowSpan="2"
+               HorizontalTextAlignment="Start"
+               VerticalTextAlignment="Center"
                Text="{Binding Source={x:Reference Root}, Path=LabelText}"/>
-        <Entry x:Name="BindableEntry"
-               Grid.Column="1"
-               Grid.RowSpan="2"
-               HorizontalTextAlignment="End"
-               Keyboard="Numeric"
-               Text="{Binding Source={x:Reference Root}, Path=Value, Mode=TwoWay}"/>
-        <Image Grid.Column="2"
+        <Image Grid.Column="1"
                Grid.Row="0"
+               Margin="1"
+               HorizontalOptions="End"
+               HeightRequest="18"
                Source="{Binding Source={x:Reference Root}, Path=PlusImageSource}">
             <Image.GestureRecognizers>
                 <TapGestureRecognizer Tapped="OnPlusTapped"/>
             </Image.GestureRecognizers>
+            <Image.Shadow>
+                <Shadow Brush="#AAAAAA" Opacity="0.4" Radius="1.0"/>
+            </Image.Shadow>
         </Image>
-        <Image Grid.Column="2"
+        <Image Grid.Column="1"
                Grid.Row="1"
+               Margin="1"      
+               HorizontalOptions="End"
+               HeightRequest="18"
                Source="{Binding Source={x:Reference Root}, Path=MinusImageSource}">
             <Image.GestureRecognizers>
                 <TapGestureRecognizer Tapped="OnMinusTapped"/>
             </Image.GestureRecognizers>
+            <Image.Shadow>
+                <Shadow Brush="#AAAAAA" Opacity="0.4" Radius="1.0"/>
+            </Image.Shadow>
         </Image>
+        <Entry x:Name="BindableEntry"
+               Grid.Column="2"
+               Grid.RowSpan="2"
+               HorizontalTextAlignment="End"
+               HorizontalOptions="End"
+               Keyboard="Numeric"
+               MaximumWidthRequest="70"
+               Text="{Binding Source={x:Reference Root}, Path=Value, Mode=TwoWay}"/>
     </Grid>
 </ContentView>
