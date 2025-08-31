@@ -94,14 +94,16 @@
                     <BoxView WidthRequest="200" HeightRequest="2" BackgroundColor="Gray"/>
                     
                     <!-- LBM parameters -->
-                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
-                        <Label Grid.Column="0" Text="Nx" IsVisible="{Binding IsLBM}" VerticalOptions="Center"/>
-                        <Entry Grid.Column="1" Text="{Binding Nx}" WidthRequest="60" IsVisible="{Binding IsLBM}" Keyboard="Numeric" HorizontalOptions="End"/>
+                    <Grid ColumnDefinitions="Auto, *" RowDefinitions="Auto,Auto" ColumnSpacing="10" Margin="10">
+                        <Label Grid.Column="0" Grid.Row="0" Text="Nx" IsVisible="{Binding IsLBM}" VerticalOptions="Center"/>
+                        <Entry Grid.Column="1" Grid.Row="0" Text="{Binding Nx}" WidthRequest="60" IsVisible="{Binding IsLBM}" Keyboard="Numeric" HorizontalOptions="End"/>
+                        <Slider Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="2" Minimum="3" Maximum="200" Value="{Binding Nx}" IsVisible="{Binding IsLBM}"/>
                     </Grid>
 
-                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
-                        <Label Grid.Column="0" Text="Ny" IsVisible="{Binding IsLBM}" VerticalOptions="Center"/>
-                        <Entry Grid.Column="1" Text="{Binding Ny}" WidthRequest="60" IsVisible="{Binding IsLBM}" Keyboard="Numeric" HorizontalOptions="End"/>
+                    <Grid ColumnDefinitions="Auto, *" RowDefinitions="Auto,Auto" ColumnSpacing="10" Margin="10">
+                        <Label Grid.Column="0" Grid.Row="0" Text="Ny" IsVisible="{Binding IsLBM}" VerticalOptions="Center"/>
+                        <Entry Grid.Column="1" Grid.Row="0" Text="{Binding Ny}" WidthRequest="60" IsVisible="{Binding IsLBM}" Keyboard="Numeric" HorizontalOptions="End"/>
+                        <Slider Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="2" Minimum="3" Maximum="200" Value="{Binding Ny}" IsVisible="{Binding IsLBM}"/>
                     </Grid>
 
                     <BoxView WidthRequest="200" HeightRequest="2" BackgroundColor="Gray"/>
