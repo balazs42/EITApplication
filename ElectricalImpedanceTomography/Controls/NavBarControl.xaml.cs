@@ -1,7 +1,6 @@
-using ElectricalImpedanceTomography.Views;
-using System.Threading.Tasks;
-
 namespace ElectricalImpedanceTomography.Controls;
+
+using Workspace = Utility.Classes.Application.Workspace;
 
 public partial class NavBarControl : ContentView
 {
@@ -82,25 +81,37 @@ public partial class NavBarControl : ContentView
 
         if (string.IsNullOrEmpty(route) || Shell.Current == null)
         {
-            System.Diagnostics.Debug.WriteLine($"Navigation Error: Route not defined or Shell not ready");
+            string errorMessage = $"Navigation Error: Route not defined or Shell not ready";
+
+            System.Diagnostics.Debug.WriteLine(errorMessage);
+            Workspace.AddErrorMessage(errorMessage);
             return;
         }
 
         var currentRoute = Shell.Current.CurrentState?.Location?.OriginalString;
         if (currentRoute != null && new Uri(currentRoute, UriKind.Absolute).AbsolutePath == new Uri(route.TrimStart('/'), UriKind.RelativeOrAbsolute).ToString())
         {
-            System.Diagnostics.Debug.WriteLine($"Already on page: {route}");
+            string warningMessage = $"Already on page: {route}";
+
+            System.Diagnostics.Debug.WriteLine(warningMessage);
+            Workspace.AddWarningMessage(warningMessage);
             return;
         }
 
         try
         {
-            System.Diagnostics.Debug.WriteLine($"Navigating to Shell route: {route}");
+            string logMessage = $"Navigating to Shell route: {route}";
+
+            System.Diagnostics.Debug.WriteLine(logMessage);
+            Workspace.AddLoadingMessage(logMessage);
+
             await Shell.Current.GoToAsync(route, true);
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Navigation Error: Failed to navigate to {route}. {ex.Message}");
+            string errorMessage = $"Navigation Error: Failed to navigate to {route}. {ex.Message}";
+            System.Diagnostics.Debug.WriteLine(errorMessage);
+            Workspace.AddErrorMessage(errorMessage);
         }
     }
 }

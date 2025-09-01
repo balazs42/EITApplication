@@ -49,41 +49,6 @@ namespace BusinessLayer
             _inverseModel = InverseModelFactory.Create(_mesh, _numericOptimizer, _regularizer, _errorMetric, _differentialEquationSolver);
         }
 
-        public async Task<ReconstructionResult> GetReconstructionResult()
-        {
-            LBMMesh? mesh = _mesh as LBMMesh;
-            
-            if (_inverseModel == null || _mesh == null || mesh == null || _differentialEquationSolver == null)
-                throw new NullReferenceException();
-
-            // Generate initial distribution for the reconstruction process
-            //ConductivityDistribution initialDistribution = PriorConductivityDistributionGenerator.GenerateHomogeneousDistribution(_mesh);
-
-            // TODO: Get the current measurement
-            // EITMeasurement measurement = _daqRepository.GetEITMeasurement();
-
-            //_inverseModel.Solve(initialDistribution, measurement, 100);
-
-            /* supply real data, mesh, and initial σ */
-            //var result = await Task.Run(() => 
-            //    _inverseModel.Solve(initialDistribution, measurement, 50)            
-            //);
-            var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
-
-            LBMBoundaryCondition bc = new(electrodes);
-
-            return new ReconstructionResult((LBMMesh)_mesh,
-                                            _differentialEquationSolver.Solve(_mesh, bc, null),
-                                            new PotentialDistribution(new()), 
-                                            ConductivityDistributionFactory.CreateRandom(_mesh), 
-                                            ConductivityDistributionFactory.CreateRandom(_mesh), 
-                                            ConductivityDistributionFactory.CreateRandom(_mesh));
-
-            //ConductivityDistribution result = new ConductivityDistribution(new());
-            //ReconstructionResult reconstructionResult = new ReconstructionResult((_mesh is FEMMesh) ? (FEMMesh)_mesh : (LBMMesh)_mesh, result);
-            //return reconstructionResult;
-        }
-
         #region Lattice Boltzmann Reconstruction
 
         public PotentialDistribution SolveLbmForward()

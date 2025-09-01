@@ -15,14 +15,6 @@
         Title="DAQ"
         ContentTemplate="{DataTemplate views:DAQPage}"
         Route="DAQPage"/>
-    <ShellContent
-        Title="LBM Reconstruction"
-        ContentTemplate="{DataTemplate views:LBMReconstructionPage}"
-        Route="LBMReconstructionPage"/>
-    <ShellContent
-         Title="FEM Reconstruction"
-         ContentTemplate="{DataTemplate views:FEMReconstructionPage}"
-         Route="FEMReconstructionPage"/>
     <ShellContent 
         Title="Meshgin"
         ContentTemplate="{DataTemplate views:MeshingPage}"

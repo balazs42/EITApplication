@@ -83,9 +83,6 @@
           <Compile Update="Controls\PlusMinusEntryControl.xaml.cs">
             <DependentUpon>PlusMinusEntryControl.xaml</DependentUpon>
           </Compile>
-          <Compile Update="Views\LBMReconstructionPage.xaml.cs">
-            <DependentUpon>LBMReconstructionPage.xaml</DependentUpon>
-          </Compile>
         </ItemGroup>
 
         <ItemGroup>
@@ -99,12 +96,6 @@
             <Generator>MSBuild:Compile</Generator>
           </MauiXaml>
           <MauiXaml Update="Views\DAQPage.xaml">
-            <Generator>MSBuild:Compile</Generator>
-          </MauiXaml>
-          <MauiXaml Update="Views\FEMReconstructionPage.xaml">
-            <Generator>MSBuild:Compile</Generator>
-          </MauiXaml>
-          <MauiXaml Update="Views\LBMReconstructionPage.xaml">
             <Generator>MSBuild:Compile</Generator>
           </MauiXaml>
           <MauiXaml Update="Controls\ReconstructionParametersControl.xaml">

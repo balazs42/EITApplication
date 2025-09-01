@@ -10,7 +10,6 @@ namespace ServiceLayer
 {
     public interface IReconstructionService
     {
-        public Task<ReconstructionResult> GetReconstructionResult();
         public void InitializeReconstruction(IMesh mesh, EITReconstructionParameters parameters);
 
         // --- Background reconstruction control ---
