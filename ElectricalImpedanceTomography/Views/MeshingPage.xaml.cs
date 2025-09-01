@@ -261,7 +261,17 @@ public partial class MeshingPage : ContentPage
                 _viewModel.HoveredElementInfo = string.Empty;
                 return;
             }
+
             var el = lbm.GetElementAt(x, y);
+
+            if (!_viewModel.InhomogenityEditing)
+            {
+                if (e.ActionType == SKTouchAction.Moved || e.ActionType == SKTouchAction.Entered)
+                    _viewModel.HoveredElementInfo = $"ID: {el.Id} \u03C3: {el.Conductivity:F2}, Wall: {el.IsWall}, Electrode: {el.IsElectrode}";
+                e.Handled = true;
+                return;
+            }
+
             if (_draggedLbmElectrode != null)
             {
                 if (e.ActionType == SKTouchAction.Moved)
@@ -283,54 +293,30 @@ public partial class MeshingPage : ContentPage
                 return;
             }
 
-            if (!_viewModel.InhomogenityEditing && e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed && el.IsElectrode)
+            if (e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed && el.IsElectrode)
             {
                 _draggedLbmElectrode = el;
                 e.Handled = true;
                 return;
             }
 
-            if (_viewModel.InhomogenityEditing)
+            if (e.MouseButton == SKMouseButton.Right && e.ActionType == SKTouchAction.Pressed)
             {
-                if (e.MouseButton == SKMouseButton.Right && e.ActionType == SKTouchAction.Pressed)
-                {
-                    el.Conductivity = _viewModel.InhomogenityValue;
-                    _viewModel.RefreshConductivity();
-                }
-                else if (e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed)
-                {
-                    el.IsWall = !el.IsWall;
-                    if (el.IsWall) el.IsElectrode = false;
-                }
+                _viewModel.PushState();
+                el.Conductivity = _viewModel.InhomogenityValue;
+                _viewModel.RefreshConductivity();
             }
-            else
+            else if (e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed)
             {
-                if (e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed)
-                {
-                    el.IsWall = !el.IsWall;
-                    if (el.IsWall) el.IsElectrode = false;
-                }
-                else
-                {
+                _viewModel.PushState();
+                el.IsWall = !el.IsWall;
+                if (el.IsWall) el.IsElectrode = false;
+            }
 
-                    if (e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed)
-                    {
-                        _viewModel.PushState();
-                        el.IsWall = !el.IsWall;
-                        if (el.IsWall) el.IsElectrode = false;
-                    }
-                    else if (e.MouseButton == SKMouseButton.Right && e.ActionType == SKTouchAction.Pressed)
-                    {
-                        _viewModel.PushState();
-                        el.IsElectrode = !el.IsElectrode;
-                        if (el.IsElectrode) el.IsWall = false;
-                        _viewModel.RefreshLbmElectrodes();
-                    }
-                }
-                if (e.ActionType == SKTouchAction.Moved || e.ActionType == SKTouchAction.Entered)
-                    _viewModel.HoveredElementInfo = $"ID: {el.Id} \u03C3: {el.Conductivity:F2}, Wall: {el.IsWall}, Electrode: {el.IsElectrode}";
-                MeshCanvas.InvalidateSurface();
-            }
+            if (e.ActionType == SKTouchAction.Moved || e.ActionType == SKTouchAction.Entered)
+                _viewModel.HoveredElementInfo = $"ID: {el.Id} \u03C3: {el.Conductivity:F2}, Wall: {el.IsWall}, Electrode: {el.IsElectrode}";
+
+            MeshCanvas.InvalidateSurface();
         }
 
         else if (mesh is FEMMesh fem)

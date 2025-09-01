@@ -32,6 +32,9 @@ namespace ElectricalImpedanceTomography.ViewModels
         [ObservableProperty]
         private User user = Workspace.GetUser();
 
+        [ObservableProperty]
+        private string consoleInput = string.Empty;
+
         partial void OnReconstructionParametersChanged(EITReconstructionParameters value)
         {
             Workspace.SetReconstructionParameters(value);
@@ -124,6 +127,16 @@ namespace ElectricalImpedanceTomography.ViewModels
                     UpdateHardwareInfo();
                 }
             }
+        }
+
+        [RelayCommand]
+        private void SendConsoleMessage()
+        {
+            if (string.IsNullOrWhiteSpace(ConsoleInput))
+                return;
+
+            Workspace.AddLogMessage("Console", ConsoleInput);
+            ConsoleInput = string.Empty;
         }
     }
 }

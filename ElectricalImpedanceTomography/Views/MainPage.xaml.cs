@@ -5,6 +5,8 @@ using Utility.Classes.Application;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using System.Linq;
+using System.Collections.Specialized;
+using Microsoft.Maui.ApplicationModel;
 
 namespace ElectricalImpedanceTomography.Views
 {
@@ -31,6 +33,8 @@ namespace ElectricalImpedanceTomography.Views
             _viewModel = Utility.Composition.Container.ResolveObject<MainPageViewModel>();
 
             BindingContext = _viewModel;
+
+            _viewModel.DebugLog.CollectionChanged += OnDebugLogChanged;
         }
 
         protected override void OnAppearing()
@@ -154,6 +158,17 @@ namespace ElectricalImpedanceTomography.Views
         private void OnConnectButtonClicked(object sender, EventArgs e)
         {
 
+        }
+
+        private void OnDebugLogChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            if (ConsoleScroll == null || ConsoleStack == null)
+                return;
+
+            MainThread.BeginInvokeOnMainThread(async () =>
+            {
+                await ConsoleScroll.ScrollToAsync(0, ConsoleStack.Height, false);
+            });
         }
     }
 }
