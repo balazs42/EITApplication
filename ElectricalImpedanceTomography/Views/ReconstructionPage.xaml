@@ -9,11 +9,32 @@
              Title="ReconstructionPage"
              Shell.NavBarIsVisible="False"
              x:DataType="viewmodels:ReconstructionPageViewModel">
-    <ContentPage.KeyboardAccelerators>
-        <KeyboardAccelerator Key="Space" Invoked="OnPlayPauseAcceleratorInvoked" />
-        <KeyboardAccelerator Key="Right" Invoked="OnStepAcceleratorInvoked" />
-        <KeyboardAccelerator Key="Escape" Invoked="OnStopAcceleratorInvoked" />
-    </ContentPage.KeyboardAccelerators>
+    <ContentPage.MenuBarItems>
+        <MenuBarItem Text="Reconstruction">
+            <MenuFlyoutItem Text="Start"
+                         Clicked="OnPlayPauseAcceleratorInvoked">
+                <MenuFlyoutItem.KeyboardAccelerators>
+                    <KeyboardAccelerator Modifiers="None"
+                                         Key="{OnPlatform WinUI=Spacebar, MacCatalyst=Spacebar}" />
+                </MenuFlyoutItem.KeyboardAccelerators>
+            </MenuFlyoutItem>
+            <MenuFlyoutItem Text="Step"
+                         Clicked="OnStepAcceleratorInvoked">
+                <MenuFlyoutItem.KeyboardAccelerators>
+                    <KeyboardAccelerator Modifiers="None"
+                                         Key="{OnPlatform WinUI=Spacebar, MacCatalyst=Spacebar}" />
+                </MenuFlyoutItem.KeyboardAccelerators>
+            </MenuFlyoutItem>
+            <MenuFlyoutItem Text="Stop"
+                            Clicked="OnStopAcceleratorInvoked">
+                <MenuFlyoutItem.KeyboardAccelerators>
+                    <KeyboardAccelerator Modifiers="None"
+                                         Key="{OnPlatform WinUI=Esc, MacCatalyst=Esc}" />
+                </MenuFlyoutItem.KeyboardAccelerators>
+            </MenuFlyoutItem>
+        </MenuBarItem>
+    </ContentPage.MenuBarItems>
+
     <ContentPage.Resources>
         <Style TargetType="Border">
             <Setter Property="BackgroundColor" Value="#1A1A1A"/>
