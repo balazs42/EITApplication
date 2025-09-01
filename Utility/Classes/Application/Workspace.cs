@@ -8,6 +8,10 @@ namespace Utility.Classes.Application
         private static EITReconstructionParameters _reconstructionParameters = new();
         private static IMesh? _mesh { get; set; } = null;
 
+        private static int _maxIterationCount = 50;
+        private static double _stepSize = 0.001;
+        private static double _regularizationWeight = 1e-3;
+
         private static List<ReconstructionResult> _reconstructionResults = [];
         private static List<WorkspaceMessage> _messages = [];
         public static event Action<WorkspaceMessage>? MessageAdded;
@@ -40,6 +44,24 @@ namespace Utility.Classes.Application
         public static EITReconstructionParameters GetReconstructionParameters() => _reconstructionParameters;
         public static IMesh? GetMesh() => _mesh;
         public static List<ReconstructionResult> GetReconstructionResults() => _reconstructionResults;
+
+        public static int MaxIterationCount
+        {
+            get => _maxIterationCount;
+            set => _maxIterationCount = value;
+        }
+
+        public static double StepSize
+        {
+            get => _stepSize;
+            set => _stepSize = value;
+        }
+
+        public static double RegularizationWeight
+        {
+            get => _regularizationWeight;
+            set => _regularizationWeight = value;
+        }
 
         public static void AddReconstructionResultToWorkspace(ReconstructionResult reconstructionResult) => _reconstructionResults.Add(reconstructionResult);
         public static void RemoveReconstructionResultFromWorkspace(int index) => _reconstructionResults.RemoveAt(index);

@@ -399,6 +399,17 @@ namespace DataAccessLayer
             throw new NotImplementedException();
         }
 
+        public bool ChangePort(string portName)
+        {
+            _portName = portName;
+            return true;
+        }
+
+        public void SetExcitationFrequency(double frequency)
+        {
+            // TODO: implement hardware frequency setting
+        }
+
         /*───────────────────────────────────────────────────────────────────*/
         public void Dispose()
         {
