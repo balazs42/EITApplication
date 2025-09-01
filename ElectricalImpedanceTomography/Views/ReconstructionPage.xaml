@@ -9,6 +9,11 @@
              Title="ReconstructionPage"
              Shell.NavBarIsVisible="False"
              x:DataType="viewmodels:ReconstructionPageViewModel">
+    <ContentPage.KeyboardAccelerators>
+        <KeyboardAccelerator Key="Space" Invoked="OnPlayPauseAcceleratorInvoked" />
+        <KeyboardAccelerator Key="Right" Invoked="OnStepAcceleratorInvoked" />
+        <KeyboardAccelerator Key="Escape" Invoked="OnStopAcceleratorInvoked" />
+    </ContentPage.KeyboardAccelerators>
     <ContentPage.Resources>
         <Style TargetType="Border">
             <Setter Property="BackgroundColor" Value="#1A1A1A"/>
@@ -132,7 +137,12 @@
                                          IsEnabled="False"/>
                         </Border>
                         <Border Grid.Column="2" HeightRequest="50" WidthRequest="50" Margin="5">
-                            <ImageButton Padding="3" Background="Transparent" HeightRequest="30" Source="icon_stop_red.png" Clicked="OnStopButtonClicked"/>    
+                            <ImageButton x:Name="StopButton"
+                                         Padding="3"
+                                         Background="Transparent"
+                                         HeightRequest="30"
+                                         Source="icon_stop_red.png"
+                                         Clicked="OnStopButtonClicked"/>
                         </Border>
                     
                         <Label Grid.Column="3" HorizontalOptions="Center" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding IterationCount, StringFormat='Iteration: {0}'}"/>
