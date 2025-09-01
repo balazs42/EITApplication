@@ -34,6 +34,27 @@ namespace DataAccessLayer
             SaveDocument(doc, name, "lbm");
         }
 
+        public IEnumerable<MeshInfo> GetMeshes()
+        {
+            Directory.CreateDirectory(MeshDir);
+            foreach (var file in Directory.GetFiles(MeshDir, "*.eitmesh"))
+            {
+                try
+                {
+                    var doc = XDocument.Load(file);
+                    var root = doc.Root;
+                    if (root == null) continue;
+                    var name = root.Attribute("name")?.Value ?? Path.GetFileNameWithoutExtension(file);
+                    var md = DeserializeMetadata(root.Element("Metadata"));
+                    yield return new MeshInfo(name, file, md);
+                }
+                catch
+                {
+                    // ignore invalid files
+                }
+            }
+        }
+
         public FEMMesh LoadFEMMesh(string filePath)
         {
             if (!File.Exists(filePath))

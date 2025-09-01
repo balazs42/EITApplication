@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using BusinessLayer;
 using System.Diagnostics;
+using Utility.Classes.Meshing;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.Measurement;
@@ -190,6 +192,21 @@ namespace ServiceLayer
             try
             {
                 return _daqPersistence.LoadLBMMesh(filePath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                Debug.WriteLine(ex.Message);
+                Console.WriteLine(ex.Message);
+                throw;
+            }
+        }
+
+        public IEnumerable<MeshInfo> GetMeshes()
+        {
+            try
+            {
+                return _daqPersistence.GetMeshes();
             }
             catch (Exception ex)
             {

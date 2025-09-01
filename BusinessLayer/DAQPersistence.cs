@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using DataAccessLayer;
 using Utility.Classes;
 using Utility.Classes.Measurement;
+using Utility.Classes.Meshing;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 
@@ -77,6 +79,11 @@ namespace BusinessLayer
         public LBMMesh LoadLBMMesh(string filePath)
         {
             return _meshRepository.LoadLBMMesh(filePath);
+        }
+
+        public IEnumerable<MeshInfo> GetMeshes()
+        {
+            return _meshRepository.GetMeshes();
         }
 
         public bool ConnectHardware()

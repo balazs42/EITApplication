@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using Utility.Classes.Measurement;
+using Utility.Classes.Meshing;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 
@@ -20,6 +22,7 @@ namespace BusinessLayer
         void SaveLBMMesh(LBMMesh mesh, string name);
         FEMMesh LoadFEMMesh(string filePath);
         LBMMesh LoadLBMMesh(string filePath);
+        IEnumerable<MeshInfo> GetMeshes();
         bool ConnectHardware();
         bool DisconnectHardware();
     }

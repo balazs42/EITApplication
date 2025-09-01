@@ -1,14 +1,15 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ServiceLayer;
+using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
 using Utility.Classes;
 using Utility.Classes.Factories;
 using Utility.Classes.Meshing;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
-using System.Linq;
-using System.Collections.Generic;
 
 using Workspace = Utility.Classes.Application.Workspace;
 
@@ -69,6 +70,12 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         [ObservableProperty]
         private string hoveredElementInfo = string.Empty;
+
+        [ObservableProperty]
+        private string meshSearchText = string.Empty;
+
+        public ObservableCollection<MeshInfo> AvailableMeshes { get; } = new();
+        public ObservableCollection<MeshInfo> FilteredMeshes { get; } = new();
 
         private IMesh? _currentMesh;
         private readonly Stack<IMesh> _undoStack = new();
@@ -338,11 +345,33 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         partial void OnNyChanged(int value) => AutoGenerateMesh();
 
+        partial void OnLayersChanged(int value) => AutoGenerateMesh();
+
+        partial void OnBoundaryFEMVertexCountChanged(int value) => AutoGenerateMesh();
+
+        partial void OnMeshSearchTextChanged(string value) => ApplyMeshFilter();
+
         private void AutoGenerateMesh()
         {
-            if (SelectedMeshType != MeshType.LBM) return;
             GenerateMesh();
             MeshChanged?.Invoke();
+        }
+
+        public void LoadAvailableMeshes()
+        {
+            AvailableMeshes.Clear();
+            foreach (var m in _daqService.GetMeshes())
+                AvailableMeshes.Add(m);
+            ApplyMeshFilter();
+        }
+
+        private void ApplyMeshFilter()
+        {
+            FilteredMeshes.Clear();
+            foreach (var m in AvailableMeshes.Where(m =>
+                         string.IsNullOrWhiteSpace(MeshSearchText) ||
+                         m.Name.Contains(MeshSearchText, StringComparison.OrdinalIgnoreCase)))
+                FilteredMeshes.Add(m);
         }
     }
 }
