@@ -164,6 +164,12 @@ namespace ElectricalImpedanceTomography.Views
 
         }
 
+        private void OnConsoleEntryCompleted(object sender, EventArgs e)
+        {
+            if (!string.IsNullOrWhiteSpace(_viewModel.ConsoleInput))
+                _viewModel.SendConsoleMessageCommand.Execute(null);
+        }
+
         private void OnDebugLogChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
             if (ConsoleScroll == null || ConsoleStack == null)

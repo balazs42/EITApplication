@@ -8,6 +8,11 @@
              xmlns:models="clr-namespace:Utility.Classes.Meshing;assembly=Utility"
              Title="MeshingPage"
              x:DataType="viewmodels:MeshingPageViewModel">
+    <ContentPage.KeyboardAccelerators>
+        <KeyboardAccelerator Key="Z" Modifiers="Ctrl" Invoked="OnUndoAcceleratorInvoked" />
+        <KeyboardAccelerator Key="Y" Modifiers="Ctrl" Invoked="OnRedoAcceleratorInvoked" />
+        <KeyboardAccelerator Key="S" Modifiers="Ctrl" Invoked="OnSaveAcceleratorInvoked" />
+    </ContentPage.KeyboardAccelerators>
     <ContentPage.Resources>
         <Style TargetType="Label">
             <Setter Property="FontFamily" Value="SF Pro Text"/>

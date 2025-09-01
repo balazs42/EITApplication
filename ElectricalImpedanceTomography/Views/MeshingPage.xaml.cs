@@ -212,6 +212,28 @@ public partial class MeshingPage : ContentPage
         MeshCanvas.InvalidateSurface();
     }
 
+    private void OnUndoAcceleratorInvoked(object sender, KeyboardAcceleratorInvokedEventArgs e)
+    {
+        _viewModel.Undo();
+        MeshCanvas.InvalidateSurface();
+    }
+
+    private void OnRedoAcceleratorInvoked(object sender, KeyboardAcceleratorInvokedEventArgs e)
+    {
+        _viewModel.Redo();
+        MeshCanvas.InvalidateSurface();
+    }
+
+    private async void OnSaveAcceleratorInvoked(object sender, KeyboardAcceleratorInvokedEventArgs e)
+    {
+        var name = await DisplayPromptAsync("Save Mesh", "Name", initialValue: _viewModel.Name);
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            _viewModel.Name = name;
+            _viewModel.SaveMesh();
+        }
+    }
+
     private void DrawFEMPreview(SKCanvas canvas)
     {
         if (_outlinePoints.Count < 2)
