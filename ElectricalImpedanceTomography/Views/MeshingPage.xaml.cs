@@ -67,7 +67,7 @@ public partial class MeshingPage : ContentPage
 
     private static async Task ShrinkViewAsync(VisualElement element)
     {
-        await element.ScaleTo(0.8, 40);
+        await element.ScaleTo(0.9, 40);
         await element.ScaleTo(1, 40);
     }
 
@@ -318,10 +318,12 @@ public partial class MeshingPage : ContentPage
                         _viewModel.RefreshLbmElectrodes();
                     }
                 }
-            if (e.ActionType == SKTouchAction.Moved || e.ActionType == SKTouchAction.Entered)
-                _viewModel.HoveredElementInfo = $"ID: {el.Id} \u03C3: {el.Conductivity:F2}, Wall: {el.IsWall}, Electrode: {el.IsElectrode}";
-            MeshCanvas.InvalidateSurface();
+                if (e.ActionType == SKTouchAction.Moved || e.ActionType == SKTouchAction.Entered)
+                    _viewModel.HoveredElementInfo = $"ID: {el.Id} \u03C3: {el.Conductivity:F2}, Wall: {el.IsWall}, Electrode: {el.IsElectrode}";
+                MeshCanvas.InvalidateSurface();
+            }
         }
+
         else if (mesh is FEMMesh fem)
         {
             if (_draggedFemVertex != null)
@@ -391,20 +393,20 @@ public partial class MeshingPage : ContentPage
         e.Handled = true;
     }
 
-        private void ApplySelectionConductivity()
-        {
-            if (_viewModel.GetCurrentMesh() is not LBMMesh lbm)
-                return;
+    private void ApplySelectionConductivity()
+    {
+        if (_viewModel.GetCurrentMesh() is not LBMMesh lbm)
+            return;
 
-            _viewModel.PushState();
-            foreach (var id in _selectedCells)
-            {
-                var (sx, sy) = lbm.ToLattice(id);
-                lbm.GetElementAt(sx, sy).Conductivity = _viewModel.InhomogenityValue;
-            }
-        _selectedCells.Clear();
-        _viewModel.RefreshConductivity();
-        MeshCanvas.InvalidateSurface();
+        _viewModel.PushState();
+        foreach (var id in _selectedCells)
+        {
+            var (sx, sy) = lbm.ToLattice(id);
+            lbm.GetElementAt(sx, sy).Conductivity = _viewModel.InhomogenityValue;
+        }
+    _selectedCells.Clear();
+    _viewModel.RefreshConductivity();
+    MeshCanvas.InvalidateSurface();
     }
 
     private void HandleFEMDrawing(SKTouchEventArgs e)

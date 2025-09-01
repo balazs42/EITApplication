@@ -130,7 +130,6 @@ public partial class ReconstructionPage : ContentPage
         _viewModel.StopReconstruction();
         _isPaused = false;
         _hasStarted = false;
-        StepButton.IsEnabled = false;
         PlayButton.IsVisible = true;
         PauseButton.IsVisible = false;
     }

@@ -95,26 +95,24 @@
                           RowDefinitions="Auto, Auto"
                           ColumnSpacing="15"
                           HorizontalOptions="Center">
-                        <Border Grid.Column="0" HeightRequest="50" WidthRequest="50" Margin="5">
-                            <ImageButton x:Name="PlayButton"
+                        <Border x:Name="PlayButton" Grid.Column="0" HeightRequest="50" WidthRequest="50" Margin="5" HorizontalOptions="Center" VerticalOptions="Center">
+                            <ImageButton 
                                          Padding="3"
                                          Background="Transparent"
                                          HeightRequest="30"
                                          WidthRequest="30"
                                          Source="icon_play_green.png"
-                                         IsVisible="True"
                                          Clicked="OnPlayButtonClicked"/>
                         </Border>
-                        <Border Grid.Column="1" HeightRequest="50" WidthRequest="50" Margin="5">
-                            <ImageButton x:Name="PauseButton"
+                        <Border x:Name="PauseButton" Grid.Column="0" HeightRequest="50" WidthRequest="50" Margin="5" HorizontalOptions="Center" VerticalOptions="Center">
+                            <ImageButton 
                                          Padding="3"
                                          Background="Transparent"
                                          HeightRequest="30"
                                          Source="icon_pause_blue.png"
-                                         IsVisible="False"
                                          Clicked="OnPauseButtonClicked"/>
                         </Border>
-                        <Border Grid.Column="2" HeightRequest="50" WidthRequest="50" Margin="5">
+                        <Border Grid.Column="1" HeightRequest="50" WidthRequest="50" Margin="5">
                             <ImageButton x:Name="StepButton"
                                          Padding="3"
                                          Background="Transparent"
@@ -123,22 +121,22 @@
                                          Clicked="OnStepButtonClicked"
                                          IsEnabled="False"/>
                         </Border>
-                        <Border Grid.Column="3" HeightRequest="50" WidthRequest="50" Margin="5">
+                        <Border Grid.Column="2" HeightRequest="50" WidthRequest="50" Margin="5">
                             <ImageButton Padding="3" Background="Transparent" HeightRequest="30" Source="icon_stop_red.png" Clicked="OnStopButtonClicked"/>    
                         </Border>
                     
-                        <Label Grid.Column="4" HorizontalOptions="Center" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding IterationCount, StringFormat='Iteration: {0}'}"/>
-                        <Label Grid.Column="5" HorizontalOptions="Center" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding Residual, StringFormat='Residual: {0:F3}'}"/>
+                        <Label Grid.Column="3" HorizontalOptions="Center" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding IterationCount, StringFormat='Iteration: {0}'}"/>
+                        <Label Grid.Column="4" HorizontalOptions="Center" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding Residual, StringFormat='Residual: {0:F3}'}"/>
 
-                        <Border Grid.Column="6" Margin="2" Background="Transparent">
+                        <Border Grid.Column="5" Margin="2" Background="Transparent">
                             <Button Text="Solve Forward" Margin="10" BackgroundColor="DarkOliveGreen" TextColor="White" FontAttributes="Bold" Clicked="OnSolveForwardClicked"/>
                         </Border>
-                        <Border Grid.Column="7" Margin="2" Background="Transparent">
+                        <Border Grid.Column="6" Margin="2" Background="Transparent">
                             <Button Text="Solve Inverse" Margin="10" BackgroundColor="DarkRed" TextColor="White" FontAttributes="Bold" Clicked="OnSolveInverseClicked"/>
                         </Border>
                         <Picker x:Name="PotentialModePicker"
                                 Margin="5"
-                                Grid.Column="8"
+                                Grid.Column="7"
                                 HorizontalOptions="Center"
                                 VerticalOptions="Center"
                                 SelectedItem="Default"
