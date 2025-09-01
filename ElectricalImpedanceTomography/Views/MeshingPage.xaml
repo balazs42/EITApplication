@@ -327,7 +327,7 @@
             <Border Grid.Column="2" StrokeShape="RoundRectangle 5" Margin="5" WidthRequest="250">
                 <VerticalStackLayout Margin="2" Spacing="10">
                     <SearchBar Placeholder="Search" Text="{Binding MeshSearchText}" Margin="5"/>
-                    <Border StrokeShape="RoundRectangle 10">
+                    <Border StrokeShape="RoundRectangle 10" Stroke="Transparent">
                         <ScrollView Grid.Row="1">
                             <VerticalStackLayout Spacing="2"                                                  
                                                  BindableLayout.ItemsSource="{Binding FilteredMeshes}">
