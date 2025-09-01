@@ -8,6 +8,7 @@ using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Workspace = Utility.Classes.Application.Workspace;
+using System.Linq;
 
 namespace ElectricalImpedanceTomography.Views;
 
@@ -54,6 +55,12 @@ public partial class ReconstructionPage : ContentPage
         StepButton.IsEnabled = false;
         PlayButton.IsVisible = true;
         PauseButton.IsVisible = false;
+    }
+
+    protected override void OnAppearing()
+    {
+        base.OnAppearing();
+        _viewModel.LoadAvailableReconstructions();
     }
 
     private IMesh? GetMesh()
@@ -676,12 +683,31 @@ public partial class ReconstructionPage : ContentPage
 
     private void OnSaveClicked(object sender, EventArgs e)
     {
-
+        _viewModel.SaveReconstruction();
     }
 
     private void OnLoadClicked(object sender, EventArgs e)
     {
+        _viewModel.LoadAvailableReconstructions();
+    }
 
+    private void OnReconstructionSelected(object sender, TappedEventArgs e)
+    {
+        if (sender is Border border && border.BindingContext is ReconstructionInfo info)
+        {
+            _viewModel.LoadReconstruction(info.FilePath);
+            var results = Workspace.GetReconstructionResults();
+            _currentResult = results.LastOrDefault();
+            PlaybackSlider.Maximum = results.Count > 0 ? results.Count - 1 : 0;
+            PlaybackSlider.Value = PlaybackSlider.Maximum;
+            if (_currentResult != null)
+            {
+                _viewModel.IterationCount = results.Count;
+                _viewModel.Residual = CalculateResidual(_currentResult.ReconstructedConductivityDistribution,
+                                                       _currentResult.OriginalConductivityDistribution);
+            }
+            Dispatcher.Dispatch(InvalidateAll);
+        }
     }
 
     private void OnPlaybackSliderValueChanged(object sender, ValueChangedEventArgs e)

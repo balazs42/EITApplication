@@ -4,6 +4,7 @@
              xmlns:viewmodels="clr-namespace:ElectricalImpedanceTomography.ViewModels"
              xmlns:controls="clr-namespace:ElectricalImpedanceTomography.Controls"
              xmlns:skia="clr-namespace:SkiaSharp.Views.Maui.Controls;assembly=SkiaSharp.Views.Maui.Controls"
+             xmlns:models="clr-namespace:Utility.Classes;assembly=Utility"
              x:Class="ElectricalImpedanceTomography.Views.ReconstructionPage"
              Title="ReconstructionPage"
              Shell.NavBarIsVisible="False"
@@ -22,7 +23,7 @@
         <controls:NavBarControl Grid.Row="0" Grid.ColumnSpan="1" CurrentPageName="ReconstructionPage"/>
 
         <!-- Main Grid For Page display -->
-        <Grid Grid.Row="1" ColumnDefinitions="Auto, Auto" ColumnSpacing="10">
+        <Grid Grid.Row="1" ColumnDefinitions="Auto, Auto, Auto" ColumnSpacing="10">
             <!-- Left hand Side controls-->
             <Border BackgroundColor="Transparent" Stroke="Gray" Margin="5" Padding="10">
                 <Grid RowDefinitions="Auto, Auto, Auto, Auto" RowSpacing="10">
@@ -84,15 +85,18 @@
                         </Grid>
                     </Border>
 
-                    <Grid Grid.Row="3" ColumnDefinitions="*, *">
-                        <Button Grid.Column="0" Text="Save" Margin="5" BackgroundColor="LightGreen" FontFamily="SF Pro Text" FontAttributes="Bold" Clicked="OnSaveClicked"/>
-                        <Button Grid.Column="1" Text="Load" Margin="5" BackgroundColor="LightBlue" FontFamily="SF Pro Text" FontAttributes="Bold" Clicked="OnLoadClicked"/>
-                    </Grid>
+                    <VerticalStackLayout Grid.Row="3" Spacing="5">
+                        <Entry Text="{Binding Name}" Placeholder="Name"/>
+                        <Grid ColumnDefinitions="*, *">
+                            <Button Grid.Column="0" Text="Save" Margin="5" BackgroundColor="LightGreen" FontFamily="SF Pro Text" FontAttributes="Bold" Clicked="OnSaveClicked"/>
+                            <Button Grid.Column="1" Text="Load" Margin="5" BackgroundColor="LightBlue" FontFamily="SF Pro Text" FontAttributes="Bold" Clicked="OnLoadClicked"/>
+                        </Grid>
+                    </VerticalStackLayout>
                     
                 </Grid>
             </Border>
                 
-        <!-- Right hand Side -->
+        <!-- Center Content -->
             <Grid Grid.Column="1" RowDefinitions="Auto, Auto" HorizontalOptions="Center">
 
                 <!-- Control Panel to control reconstruction -->
@@ -296,6 +300,32 @@
                     </Border>
                 </Grid>
             </Grid>
+            <Border Grid.Column="2" StrokeShape="RoundRectangle 5" Margin="5" WidthRequest="250">
+                <VerticalStackLayout Margin="2" Spacing="10">
+                    <Label Text="Past Reconstructions" HorizontalOptions="Center"/>
+                    <SearchBar Placeholder="Search" Text="{Binding ReconstructionSearchText}" Margin="5"/>
+                    <Border StrokeShape="RoundRectangle 10">
+                        <ScrollView>
+                            <VerticalStackLayout Spacing="2" BindableLayout.ItemsSource="{Binding FilteredReconstructions}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate x:DataType="models:ReconstructionInfo">
+                                        <Border StrokeShape="RoundRectangle 5" Padding="4" Stroke="Transparent">
+                                            <Grid ColumnDefinitions="Auto, *" RowDefinitions="Auto, Auto, Auto" ColumnSpacing="5">
+                                                <Label Grid.Column="0" Grid.Row="0" Text="{Binding Name}" FontAttributes="Bold" FontSize="Small"/>
+                                                <Label Grid.Column="0" Grid.Row="1" Text="{Binding Metadata.CreatedOn, StringFormat='Saved: {0:G}'}" FontSize="10"/>
+                                                <Label Grid.Column="0" Grid.Row="2" Text="{Binding ParameterSummary}" FontSize="10"/>
+                                            </Grid>
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnReconstructionSelected"/>
+                                            </Border.GestureRecognizers>
+                                        </Border>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
+                        </ScrollView>
+                    </Border>
+                </VerticalStackLayout>
+            </Border>
         </Grid>
     </Grid>
 </ContentPage>
