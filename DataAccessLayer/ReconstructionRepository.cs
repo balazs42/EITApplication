@@ -89,7 +89,7 @@ namespace DataAccessLayer
             var framesEl = root.Element("Frames");
             if (framesEl != null)
             {
-                foreach (var frameEl in framesEl.Elements("Frame").OrderBy(f => (int)(f.Attribute("index") ?? 0)))
+                foreach (var frameEl in framesEl.Elements("Frame").OrderBy(f => (int)f.Attribute("index")))
                 {
                     var orig = DeserializeConductivity(frameEl.Element("Original"));
                     var init = DeserializeConductivity(frameEl.Element("Initial"));
