@@ -3,12 +3,10 @@ using ElectricalImpedanceTomography.ViewModels;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
 using SkiaSharp.Views.Maui.Controls;
-using Microsoft.Maui.Controls;
 using Utility.Classes;
 using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
-using System.Threading.Tasks;
 using Workspace = Utility.Classes.Application.Workspace;
 
 namespace ElectricalImpedanceTomography.Views;
@@ -73,9 +71,15 @@ public partial class ReconstructionPage : ContentPage
     #region Simulation control
     private async void OnPlayButtonClicked(object sender, EventArgs e)
     {
+        if(GetMesh() == null)
+        {
+            await DisplayAlert("No Mesh", "You should create or load a mesh to start reconstrucion!", "Ok");
+            return;
+        }
+
         if(!_viewModel.CheckReconstructionMethodAgainstMesh())
         {
-            DisplayAlert("Bad Differential Equation Solver", "You should select the same type of DE solver what your mesh is made for.", "Ok");
+            await DisplayAlert("Bad Differential Equation Solver", "You should select the same type of DE solver what your mesh is made for!", "Ok");
             return;
         }
 
@@ -670,6 +674,16 @@ public partial class ReconstructionPage : ContentPage
         return Math.Sqrt(sum);
     }
 
+    private void OnSaveClicked(object sender, EventArgs e)
+    {
+
+    }
+
+    private void OnLoadClicked(object sender, EventArgs e)
+    {
+
+    }
+
     private void OnPlaybackSliderValueChanged(object sender, ValueChangedEventArgs e)
     {
         if (_sliderChanging)
@@ -690,9 +704,15 @@ public partial class ReconstructionPage : ContentPage
 
     private async void OnSolveForwardClicked(object sender, EventArgs e)
     {
+        if (GetMesh() == null)
+        {
+            await DisplayAlert("No Mesh", "You should create or load a mesh to start reconstrucion!", "Ok");
+            return;
+        }
+
         if (!_viewModel.CheckReconstructionMethodAgainstMesh())
         {
-            DisplayAlert("Bad Differential Equation Solver", "You should select the same type of DE solver what your mesh is made for.", "Ok");
+            await DisplayAlert("Bad Differential Equation Solver", "You should select the same type of DE solver what your mesh is made for.", "Ok");
             return;
         }
 
@@ -702,6 +722,12 @@ public partial class ReconstructionPage : ContentPage
 
     private async void OnSolveInverseClicked(object sender, EventArgs e)
     {
+        if (GetMesh() == null)
+        {
+            await DisplayAlert("No Mesh", "You should create or load a mesh to start reconstrucion!", "Ok");
+            return;
+        }
+
         if (!_viewModel.CheckReconstructionMethodAgainstMesh())
         {
             DisplayAlert("Bad Differential Equation Solver", "You should select the same type of DE solver what your mesh is made for.", "Ok");

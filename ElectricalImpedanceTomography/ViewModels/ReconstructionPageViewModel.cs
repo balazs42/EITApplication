@@ -1,11 +1,8 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using ServiceLayer;
 using Utility.Classes;
-using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
-using System;
-using System.Threading.Tasks;
 using Workspace = Utility.Classes.Application.Workspace;
 
 namespace ElectricalImpedanceTomography.ViewModels
@@ -50,6 +47,9 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             var mesh = _mesh;
             var reconstructionParameters = ReconstructionParameters;
+
+            if (mesh == null)
+                throw new NullReferenceException("Mesh was null during reconstruction initialization, check calling code!");
 
             _reconstructionService.InitializeReconstruction(mesh, reconstructionParameters);
         }

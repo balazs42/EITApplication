@@ -25,7 +25,7 @@
         <Grid Grid.Row="1" ColumnDefinitions="Auto, Auto" ColumnSpacing="10">
             <!-- Left hand Side controls-->
             <Border BackgroundColor="Transparent" Stroke="Gray" Margin="5" Padding="10">
-                <Grid RowDefinitions="Auto, Auto, Auto" RowSpacing="10">
+                <Grid RowDefinitions="Auto, Auto, Auto, Auto" RowSpacing="10">
                     <Grid Grid.Row="0" ColumnDefinitions="Auto, *" ColumnSpacing="5">
                         <Image Grid.Column="0" Source="icon_configuration.png" HeightRequest="35"/>
                         <Label Grid.Column="1" Text="Configuration" FontAttributes="Italic" FontSize="Large"/>
@@ -83,6 +83,12 @@
                             <Button Grid.Row="7" Text="Edit Boundary Conditions" Background="PaleTurquoise" FontAttributes="Bold" Clicked="OnEditBoundaryConditionsClicked"/>
                         </Grid>
                     </Border>
+
+                    <Grid Grid.Row="3" ColumnDefinitions="*, *">
+                        <Button Grid.Column="0" Text="Save" Margin="5" BackgroundColor="LightGreen" FontFamily="SF Pro Text" FontAttributes="Bold" Clicked="OnSaveClicked"/>
+                        <Button Grid.Column="1" Text="Load" Margin="5" BackgroundColor="LightBlue" FontFamily="SF Pro Text" FontAttributes="Bold" Clicked="OnLoadClicked"/>
+                    </Grid>
+                    
                 </Grid>
             </Border>
                 
@@ -151,7 +157,7 @@
                         </Picker>
                         <Slider x:Name="PlaybackSlider"
                                 Grid.Row="1"
-                                Grid.ColumnSpan="10"
+                                Grid.ColumnSpan="3"
                                 Minimum="0"
                                 Maximum="0"
                                 ValueChanged="OnPlaybackSliderValueChanged" />
