@@ -7,11 +7,6 @@ using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using System.Linq;
 using System.Collections.Specialized;
 using Microsoft.Maui.ApplicationModel;
-using SharpHook;
-using SharpHook.Native;
-using SharpHook.Reactive;
-using System.Reactive.Linq;
-using System.Reactive.Disposables;
 
 namespace ElectricalImpedanceTomography.Views
 {
@@ -30,9 +25,6 @@ namespace ElectricalImpedanceTomography.Views
         private readonly SKPaint _electrodeFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.Yellow };
 
         private float _scale, _marginX, _marginY, _minX, _minY, _meshWidth, _meshHeight;
-
-        private SimpleReactiveGlobalHook? _hook;
-        private CompositeDisposable? _hookSubscriptions;
 
         public MainPage()
         {
@@ -53,27 +45,6 @@ namespace ElectricalImpedanceTomography.Views
             if (ConsoleScroll != null && ConsoleStack != null)
                 MainThread.BeginInvokeOnMainThread(async () =>
                     await ConsoleScroll.ScrollToAsync(0, ConsoleStack.Height, false));
-
-            _hook = new SimpleReactiveGlobalHook();
-            _hookSubscriptions = new CompositeDisposable
-            {
-                _hook.KeyPressed
-                    .Where(e => e.Data.KeyCode == KeyCode.VcEnter)
-                    .Subscribe(_ =>
-                    {
-                        if (!string.IsNullOrWhiteSpace(_viewModel.ConsoleInput))
-                            MainThread.BeginInvokeOnMainThread(() =>
-                                _viewModel.SendConsoleMessageCommand.Execute(null));
-                    })
-            };
-            _ = _hook.RunAsync();
-        }
-
-        protected override void OnDisappearing()
-        {
-            base.OnDisappearing();
-            _hookSubscriptions?.Dispose();
-            _hook?.Dispose();
         }
 
         private void OnLoadMeasurementClicked(object sender, EventArgs e)
