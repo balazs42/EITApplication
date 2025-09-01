@@ -25,5 +25,7 @@ namespace ServiceLayer
         IEnumerable<MeshInfo> GetMeshes();
         bool ConnectHardware();
         bool DisconnectHardware();
+        bool ChangeHardwarePort(string portName);
+        void SetFrequency(double frequency);
     }
 }

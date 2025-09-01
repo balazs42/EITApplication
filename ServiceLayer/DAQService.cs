@@ -246,6 +246,35 @@ namespace ServiceLayer
                 return false;
             }
         }
+
+        public bool ChangeHardwarePort(string portName)
+        {
+            try
+            {
+                return _daqPersistence.ChangeHardwarePort(portName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                Debug.WriteLine(ex.Message);
+                Console.WriteLine(ex.Message);
+                return false;
+            }
+        }
+
+        public void SetFrequency(double frequency)
+        {
+            try
+            {
+                _daqPersistence.SetFrequency(frequency);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                Debug.WriteLine(ex.Message);
+                Console.WriteLine(ex.Message);
+            }
+        }
     }
 }
 
