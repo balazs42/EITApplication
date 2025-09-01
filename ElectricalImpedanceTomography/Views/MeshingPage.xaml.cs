@@ -52,7 +52,7 @@ public partial class MeshingPage : ContentPage
         base.OnAppearing();
         _viewModel.LoadAvailableMeshes();
         _viewModel.GenerateMesh();
-        _viewModel.MeshChanged?.Invoke();
+        _viewModel.InvokeMeshChanged();
     }
 
     private SKColor ColorForValue(double val, double min, double max)
@@ -428,6 +428,18 @@ public partial class MeshingPage : ContentPage
         e.Handled = true;
     }
 
+    private void OnMeshSelected(object sender, TappedEventArgs e)
+    {
+        if (sender is Border border)
+        {
+            if(border.BindingContext is MeshInfo info)
+            {
+                _viewModel.LoadMesh(info.FilePath);
+                MeshCanvas.InvalidateSurface();
+            }
+        }
+    }
+
     private bool PointInTriangle(SKPoint p, SKPoint a, SKPoint b, SKPoint c)
     {
         var v0 = b - a;
@@ -494,15 +506,6 @@ public partial class MeshingPage : ContentPage
         if (file != null)
         {
             _viewModel.LoadMesh(file.FullPath);
-            MeshCanvas.InvalidateSurface();
-        }
-    }
-
-    private void OnMeshSelected(object sender, SelectionChangedEventArgs e)
-    {
-        if (e.CurrentSelection.FirstOrDefault() is MeshInfo info)
-        {
-            _viewModel.LoadMesh(info.FilePath);
             MeshCanvas.InvalidateSurface();
         }
     }

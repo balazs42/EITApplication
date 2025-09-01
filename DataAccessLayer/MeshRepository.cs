@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Xml.Linq;
 using Utility.Classes;
 using Utility.Classes.Meshing;
@@ -39,6 +35,7 @@ namespace DataAccessLayer
             Directory.CreateDirectory(MeshDir);
             foreach (var file in Directory.GetFiles(MeshDir, "*.eitmesh"))
             {
+                MeshInfo? info = null;
                 try
                 {
                     var doc = XDocument.Load(file);
@@ -46,11 +43,16 @@ namespace DataAccessLayer
                     if (root == null) continue;
                     var name = root.Attribute("name")?.Value ?? Path.GetFileNameWithoutExtension(file);
                     var md = DeserializeMetadata(root.Element("Metadata"));
-                    yield return new MeshInfo(name, file, md);
+                    info = new MeshInfo(name, file, md);
                 }
                 catch
                 {
                     // ignore invalid files
+                }
+
+                if (info != null)
+                {
+                    yield return info;
                 }
             }
         }
