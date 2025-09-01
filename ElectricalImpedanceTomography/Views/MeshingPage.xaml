@@ -253,7 +253,7 @@
                                 </Border>
 
                                 <Border Stroke="Transparent">
-                                    <Grid ColumnDefinitions="Auto, *" Margin="5">
+                                    <Grid ColumnDefinitions="Auto, *" Margin="5" ColumnSpacing="5">
                                         <Image Grid.Column="0" Source="icon_noise.png" HeightRequest="45"/>
                                         <Label Grid.Column="1" Text="Add Noise" FontSize="Medium" HorizontalOptions="Center" VerticalOptions="Center" FontAttributes="Bold"/>
                                     </Grid>
@@ -267,8 +267,8 @@
                                 </Border>
 
                                 <Border Stroke="Transparent">
-                                    <Grid ColumnDefinitions="Auto, *" Margin="5">
-                                        <Image Grid.Column="0" Source="icon_next_black.png" HeightRequest="30" Rotation="180"/>
+                                    <Grid ColumnDefinitions="Auto, *" Margin="5" ColumnSpacing="10">
+                                        <Image Grid.Column="0" Source="icon_back2.png" HeightRequest="30"/>
                                         <Label Grid.Column="1" Text="Undo" FontSize="Medium" HorizontalOptions="Center" VerticalOptions="Center" FontAttributes="Bold"/>
                                     </Grid>
                                     <Border.GestureRecognizers>
@@ -280,8 +280,8 @@
                                 </Border>
 
                                 <Border Stroke="Transparent">
-                                    <Grid ColumnDefinitions="Auto, *" Margin="5">
-                                        <Image Grid.Column="0" Source="icon_next_black.png" HeightRequest="30"/>
+                                    <Grid ColumnDefinitions="Auto, *" Margin="5" ColumnSpacing="10">
+                                        <Image Grid.Column="0" Source="icon_redo2.png" HeightRequest="30"/>
                                         <Label Grid.Column="1" Text="Redo" FontSize="Medium" HorizontalOptions="Center" VerticalOptions="Center" FontAttributes="Bold"/>
                                     </Grid>
                                     <Border.GestureRecognizers>
