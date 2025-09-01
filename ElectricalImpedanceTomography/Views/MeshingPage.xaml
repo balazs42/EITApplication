@@ -5,6 +5,7 @@
              xmlns:skia="clr-namespace:SkiaSharp.Views.Maui.Controls;assembly=SkiaSharp.Views.Maui.Controls"
              xmlns:viewmodels="clr-namespace:ElectricalImpedanceTomography.ViewModels"
              xmlns:controls="clr-namespace:ElectricalImpedanceTomography.Controls"
+             xmlns:models="clr-namespace:Utility.Classes.Meshing;assembly=Utility"
              Title="MeshingPage"
              x:DataType="viewmodels:MeshingPageViewModel">
     <ContentPage.Resources>
@@ -23,7 +24,7 @@
     </ContentPage.Resources>
     <Grid RowDefinitions="Auto, *">
         <controls:NavBarControl Grid.Row="0" Grid.ColumnSpan="1" CurrentPageName="MeshingPage"/>
-        <Grid Grid.Row="1" ColumnDefinitions="Auto, *">
+        <Grid Grid.Row="1" ColumnDefinitions="Auto, *, Auto">
 
             <!-- Left control Panel FEM -->
             <Border StrokeShape="RoundRectangle 5" IsVisible="{Binding IsFEM}">
@@ -322,6 +323,26 @@
                            Margin="10" />
                 </Border>
             </Grid>
+
+            <Border Grid.Column="2" StrokeShape="RoundRectangle 5" Margin="5">
+                <VerticalStackLayout Spacing="5" Margin="5">
+                    <Label Text="Available Meshes" HorizontalOptions="Center" FontAttributes="Bold"/>
+                    <SearchBar Placeholder="Search" Text="{Binding MeshSearchText}"/>
+                    <CollectionView ItemsSource="{Binding FilteredMeshes}" SelectionMode="Single" SelectionChanged="OnMeshSelected">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="models:MeshInfo">
+                                <Border Stroke="Gray" Margin="2" Padding="4">
+                                    <VerticalStackLayout Spacing="2">
+                                        <Label Text="{Binding Name}" FontAttributes="Bold" FontSize="Small"/>
+                                        <Label Text="{Binding Metadata.CreatedOn, StringFormat='Created: {0:G}'}" FontSize="10"/>
+                                        <Label Text="{Binding ParameterSummary}" FontSize="10"/>
+                                    </VerticalStackLayout>
+                                </Border>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+                </VerticalStackLayout>
+            </Border>
         </Grid>
     </Grid>
 </ContentPage>
