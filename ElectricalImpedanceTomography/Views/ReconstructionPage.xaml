@@ -96,10 +96,23 @@
                           ColumnSpacing="15"
                           HorizontalOptions="Center">
                         <Border Grid.Column="0" HeightRequest="50" WidthRequest="50" Margin="5">
-                            <ImageButton Padding="3" Background="Transparent" HeightRequest="30" WidthRequest="30" Source="icon_play_green.png" Clicked="OnPlayButtonClicked"/>
+                            <ImageButton x:Name="PlayButton"
+                                         Padding="3"
+                                         Background="Transparent"
+                                         HeightRequest="30"
+                                         WidthRequest="30"
+                                         Source="icon_play_green.png"
+                                         IsVisible="True"
+                                         Clicked="OnPlayButtonClicked"/>
                         </Border>
                         <Border Grid.Column="1" HeightRequest="50" WidthRequest="50" Margin="5">
-                            <ImageButton Padding="3" Background="Transparent" HeightRequest="30" Source="icon_pause_blue.png" Clicked="OnPauseButtonClicked"/>    
+                            <ImageButton x:Name="PauseButton"
+                                         Padding="3"
+                                         Background="Transparent"
+                                         HeightRequest="30"
+                                         Source="icon_pause_blue.png"
+                                         IsVisible="False"
+                                         Clicked="OnPauseButtonClicked"/>
                         </Border>
                         <Border Grid.Column="2" HeightRequest="50" WidthRequest="50" Margin="5">
                             <ImageButton x:Name="StepButton"
