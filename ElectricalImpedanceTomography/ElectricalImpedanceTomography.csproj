@@ -59,15 +59,14 @@
 	</ItemGroup>
 
 	<ItemGroup>
-                <PackageReference Include="CommunityToolkit.Maui" Version="9.0.0" />
-                <PackageReference Include="CommunityToolkit.Maui.Core" Version="9.0.0" />
-                <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-                <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
-                <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.0" />
-                <PackageReference Include="OxyPlot.Maui.Skia" Version="1.1.0" />
-                <PackageReference Include="SkiaSharp" Version="3.119.0" />
-                <PackageReference Include="SharpHook.Reactive" Version="5.0.0" />
-        </ItemGroup>
+		<PackageReference Include="CommunityToolkit.Maui" Version="9.0.0" />
+		<PackageReference Include="CommunityToolkit.Maui.Core" Version="9.0.0" />
+		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.0" />
+		<PackageReference Include="OxyPlot.Maui.Skia" Version="1.1.0" />
+		<PackageReference Include="SkiaSharp" Version="3.119.0" />
+	</ItemGroup>
 
         <ItemGroup>
           <ProjectReference Include="..\ServiceLayer\ServiceLayer.csproj" />
