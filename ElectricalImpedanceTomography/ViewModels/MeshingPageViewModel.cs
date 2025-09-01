@@ -350,6 +350,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         partial void OnLayersChanged(int value) => AutoGenerateMesh();
 
         partial void OnBoundaryFEMVertexCountChanged(int value) => AutoGenerateMesh();
+        partial void OnElectrodeCountChanged(int value) => AutoGenerateMesh();
 
         partial void OnMeshSearchTextChanged(string value) => ApplyMeshFilter();
 
