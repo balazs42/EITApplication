@@ -4,6 +4,8 @@ using Utility.Classes;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Workspace = Utility.Classes.Application.Workspace;
+using System.Collections.ObjectModel;
+using System.Linq;
 
 namespace ElectricalImpedanceTomography.ViewModels
 {
@@ -25,6 +27,15 @@ namespace ElectricalImpedanceTomography.ViewModels
         [ObservableProperty]
         private bool oppositeDrivePattern = false;
 
+        [ObservableProperty]
+        private string name = string.Empty;
+
+        [ObservableProperty]
+        private string reconstructionSearchText = string.Empty;
+
+        public ObservableCollection<ReconstructionInfo> AvailableReconstructions { get; } = [];
+        public ObservableCollection<ReconstructionInfo> FilteredReconstructions { get; } = [];
+
         public event EventHandler<ReconstructionResult>? ReconstructionUpdated;
 
         public ReconstructionPageViewModel(IReconstructionService reconstructionService)
@@ -36,6 +47,8 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             _reconstructionService.ReconstructionUpdated += OnServiceReconstructionUpdated;
         }
+
+        partial void OnReconstructionSearchTextChanged(string value) => ApplyReconstructionFilter();
 
         private void UpdateMesh() => _mesh = Workspace.GetMesh();
         private void UpdateReconstructionParameters() => ReconstructionParameters = Workspace.GetReconstructionParameters();
@@ -123,6 +136,38 @@ namespace ElectricalImpedanceTomography.ViewModels
             Residual = CalculateResidual(result.ReconstructedConductivityDistribution,
                                          result.OriginalConductivityDistribution);
             ReconstructionUpdated?.Invoke(this, result);
+        }
+
+        public void SaveReconstruction()
+        {
+            var results = Workspace.GetReconstructionResults();
+            if (results.Count == 0 || string.IsNullOrWhiteSpace(Name))
+                return;
+            _reconstructionService.SaveReconstruction(results, Name, ReconstructionParameters);
+            LoadAvailableReconstructions();
+        }
+
+        public void LoadReconstruction(string filePath)
+        {
+            var frames = _reconstructionService.LoadReconstruction(filePath);
+            Workspace.SetReconstructionResults(frames);
+        }
+
+        public void LoadAvailableReconstructions()
+        {
+            AvailableReconstructions.Clear();
+            foreach (var r in _reconstructionService.GetReconstructions())
+                AvailableReconstructions.Add(r);
+            ApplyReconstructionFilter();
+        }
+
+        private void ApplyReconstructionFilter()
+        {
+            FilteredReconstructions.Clear();
+            foreach (var r in AvailableReconstructions.Where(r =>
+                         string.IsNullOrWhiteSpace(ReconstructionSearchText) ||
+                         r.Name.Contains(ReconstructionSearchText, StringComparison.OrdinalIgnoreCase)))
+                FilteredReconstructions.Add(r);
         }
     }
 }

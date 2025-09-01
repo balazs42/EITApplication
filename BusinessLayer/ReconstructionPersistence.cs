@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Numerics;
 using System.Linq;
+using System.Collections.Generic;
 using Utility.Classes;
 using Utility.Classes.Factories;
 using Utility.Classes.Measurement;
@@ -17,6 +18,7 @@ namespace BusinessLayer
     public class ReconstructionPersistence : IReconstructionPersistence
     {
         private readonly IDAQRepository _daqRepository;
+        private readonly IReconstructionRepository _reconstructionRepository;
 
         private InverseModel? _inverseModel = null;
         
@@ -30,9 +32,10 @@ namespace BusinessLayer
         private double _gradientStepSize = 0.001;
         private double _regularizationWeight = 0.001;
 
-        public ReconstructionPersistence(IDAQRepository daqRepository)
+        public ReconstructionPersistence(IDAQRepository daqRepository, IReconstructionRepository reconstructionRepository)
         {
             _daqRepository = daqRepository;
+            _reconstructionRepository = reconstructionRepository;
         }
 
 
@@ -675,6 +678,16 @@ namespace BusinessLayer
 
             return new ReconstructionResult(mesh, mesh.PotentialDistribution, mu, originalConductivityDistribution, sigma0, mesh.ConductivityDistribution);
         }
+
+        // --- Persistence ---
+        public void SaveReconstruction(List<ReconstructionResult> frames, string name, EITReconstructionParameters parameters)
+            => _reconstructionRepository.SaveReconstruction(frames, name, parameters);
+
+        public IEnumerable<ReconstructionInfo> GetReconstructions()
+            => _reconstructionRepository.GetReconstructions();
+
+        public List<ReconstructionResult> LoadReconstruction(string filePath)
+            => _reconstructionRepository.LoadReconstruction(filePath);
     }
 }
 

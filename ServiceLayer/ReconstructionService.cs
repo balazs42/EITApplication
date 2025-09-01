@@ -315,5 +315,53 @@ namespace ServiceLayer
                 throw;
             }
         }
+
+        // --- Persistence ---
+        public void SaveReconstruction(List<ReconstructionResult> frames, string name, EITReconstructionParameters parameters)
+        {
+            try
+            {
+                _reconstructionPersistence.SaveReconstruction(frames, name, parameters);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                Console.WriteLine(ex.Message);
+                Debug.WriteLine(ex.Message);
+                throw;
+            }
+        }
+
+        public IEnumerable<ReconstructionInfo> GetReconstructions()
+        {
+            try
+            {
+                return _reconstructionPersistence.GetReconstructions();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                Console.WriteLine(ex.Message);
+                Debug.WriteLine(ex.Message);
+                throw;
+            }
+        }
+
+        public List<ReconstructionResult> LoadReconstruction(string filePath)
+        {
+            try
+            {
+                var frames = _reconstructionPersistence.LoadReconstruction(filePath);
+                Workspace.SetReconstructionResults(frames);
+                return frames;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                Console.WriteLine(ex.Message);
+                Debug.WriteLine(ex.Message);
+                throw;
+            }
+        }
     }
 }

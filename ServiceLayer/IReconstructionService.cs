@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 using Utility.Classes;
 using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.FiniteElementMesh;
@@ -10,28 +11,26 @@ namespace ServiceLayer
 {
     public interface IReconstructionService
     {
-        public void InitializeReconstruction(IMesh mesh, EITReconstructionParameters parameters);
+        void InitializeReconstruction(IMesh mesh, EITReconstructionParameters parameters);
 
         // --- Background reconstruction control ---
-        public event EventHandler<ReconstructionResult> ReconstructionUpdated;
-        public void StartBackgroundReconstruction(int maxIterationCount, double stepSize, double regularizationWeight, double excitationAmplitude);
-        public void PauseBackgroundReconstruction();
-        public void ResumeBackgroundReconstruction();
-        public void StopBackgroundReconstruction();
-        public Task<ReconstructionResult?> StepReconstructionAsync();
+        event EventHandler<ReconstructionResult> ReconstructionUpdated;
+        void StartBackgroundReconstruction(int maxIterationCount, double stepSize, double regularizationWeight, double excitationAmplitude);
+        void PauseBackgroundReconstruction();
+        void ResumeBackgroundReconstruction();
+        void StopBackgroundReconstruction();
+        Task<ReconstructionResult?> StepReconstructionAsync();
 
         // --- LBM Reconstruction ---
-
-        public PotentialDistribution SolveLbmForward();
-        public ReconstructionResult SolveLbmInverse(int maxIterationCount);
-        public EITMeasurement SimulateLbmMeasurements(LBMMesh mesh, double excitaionAmplitude);
+        PotentialDistribution SolveLbmForward();
+        ReconstructionResult SolveLbmInverse(int maxIterationCount);
+        EITMeasurement SimulateLbmMeasurements(LBMMesh mesh, double excitaionAmplitude);
 
         // --- FEM Reconstruction
-
-        public FEMMesh SolveFemForward(FEMMesh mesh);
-        public FEMMesh SolveFemInverse(FEMMesh mesh, int maxIterCount, double stepSize, double regularization);
-        public ReconstructionResult InverseSolveStepFem(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double stepSize);
-        public List<double[]> SimulateFemMeasurements(FEMMesh mesh, double excitationAmplitude);
+        FEMMesh SolveFemForward(FEMMesh mesh);
+        FEMMesh SolveFemInverse(FEMMesh mesh, int maxIterCount, double stepSize, double regularization);
+        ReconstructionResult InverseSolveStepFem(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double stepSize);
+        List<double[]> SimulateFemMeasurements(FEMMesh mesh, double excitationAmplitude);
 
         // --- Graph-based Reconstruction ---
         /// <summary>
@@ -41,7 +40,7 @@ namespace ServiceLayer
         /// </summary>
         /// <param name="mesh">Mesh to be solved.</param>
         /// <returns>Mesh with updated potentials.</returns>
-        public FEMMesh SolveGraphForward(FEMMesh mesh);
+        FEMMesh SolveGraphForward(FEMMesh mesh);
 
         /// <summary>
         ///     Performs a single graph-based inverse iteration driven by the
@@ -52,6 +51,11 @@ namespace ServiceLayer
         /// <param name="boundaryCondition">Applied current pattern.</param>
         /// <param name="stepSize">Gradient-descent step size.</param>
         /// <returns>Reconstruction result after updating the mesh.</returns>
-        public ReconstructionResult InverseSolveStepGraph(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double stepSize);
+        ReconstructionResult InverseSolveStepGraph(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double stepSize);
+
+        // --- Persistence ---
+        void SaveReconstruction(List<ReconstructionResult> frames, string name, EITReconstructionParameters parameters);
+        IEnumerable<ReconstructionInfo> GetReconstructions();
+        List<ReconstructionResult> LoadReconstruction(string filePath);
     }
 }
