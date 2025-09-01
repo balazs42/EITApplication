@@ -166,6 +166,7 @@
                                                        TextColor="{AppThemeBinding Light=Black, Dark=White}"/>
                                                 <Label Grid.Column="1" 
                                                        Text="{Binding Message}"
+                                                       FontFamily="Consolas"
                                                        LineBreakMode="WordWrap"
                                                        TextColor="{Binding Type,
                                                        Converter={StaticResource MessageTypeToColorConverter},
@@ -176,9 +177,12 @@
                                 </BindableLayout.ItemTemplate>
                             </VerticalStackLayout>
                         </ScrollView>
-                        <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="5">
-                            <Entry Grid.Column="0" Text="{Binding ConsoleInput}" FontFamily="Consolas"/>
-                            <ImageButton Grid.Column="1"
+                        <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="5" Margin="5">
+                            <Entry Grid.Column="0" 
+                                   Text="{Binding ConsoleInput}"                                    
+                                   FontFamily="Consolas"/>
+                            <ImageButton Grid.Column="1"                                         
+                                         HeightRequest="20"
                                          Source="icon_next_blue.png"
                                          BackgroundColor="Transparent"
                                          Command="{Binding SendConsoleMessageCommand}"/>

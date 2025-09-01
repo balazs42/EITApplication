@@ -2,15 +2,24 @@
 <toolkit:Popup xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
                xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
                xmlns:toolkit="clr-namespace:CommunityToolkit.Maui.Views;assembly=CommunityToolkit.Maui"
-               x:Class="ElectricalImpedanceTomography.Views.ChannelSettingsPopup">
-    <Border Padding="16" BackgroundColor="Transparent">
+               x:Class="ElectricalImpedanceTomography.Views.ChannelSettingsPopup"
+               Color="Transparent">
+    <Border Padding="16" BackgroundColor="Gray" StrokeShape="RoundRectangle 10">
         <VerticalStackLayout Spacing="8" HeightRequest="200" WidthRequest="400">
-            <Label Text="Channel Settings" FontAttributes="Bold" FontFamily="SF Pro Text" />
-            <Entry x:Name="GainEntry" Placeholder="Gain" Keyboard="Numeric" FontFamily="SF Pro Text" />
-            <Entry x:Name="OffsetEntry" Placeholder="Offset" Keyboard="Numeric" FontFamily="SF Pro Text" />
+            <Label Text="Channel Settings" FontSize="Medium" HorizontalOptions="Center" FontAttributes="Bold" FontFamily="SF Pro Text" />
+            <BoxView HeightRequest="2" BackgroundColor="White"/>
+            <HorizontalStackLayout Spacing="10">
+                <Label Text="Channel Gain Value: " VerticalOptions="Center" HorizontalOptions="Center"/>
+                <Entry x:Name="GainEntry" Placeholder="Gain" Keyboard="Numeric" FontFamily="SF Pro Text" />
+            </HorizontalStackLayout>
+
+            <HorizontalStackLayout Spacing="10">
+                <Label Text="Channel Offset Value: " VerticalOptions="Center" HorizontalOptions="Center"/>
+                <Entry x:Name="OffsetEntry" Placeholder="Offset" Keyboard="Numeric" FontFamily="SF Pro Text" />
+            </HorizontalStackLayout>
             <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
-                <Button Text="Cancel" Clicked="OnCancelClicked" />
-                <Button Grid.Column="1" Text="Save" Clicked="OnSaveClicked" />
+                <Button Text="Cancel" TextColor="White" FontFamily="SF Pro Text" Clicked="OnCancelClicked" BackgroundColor="PaleVioletRed"/>
+                <Button Grid.Column="1" TextColor="Black" FontFamily="SF Pro Text" Text="Save" Clicked="OnSaveClicked" BackgroundColor="LightGreen"/>
             </Grid>
         </VerticalStackLayout>
     </Border>
