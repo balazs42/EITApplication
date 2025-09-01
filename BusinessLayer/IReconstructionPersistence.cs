@@ -3,6 +3,7 @@ using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.ReconstructionParameters;
+using System.Collections.Generic;
 
 namespace BusinessLayer
 {
@@ -44,5 +45,10 @@ namespace BusinessLayer
         /// <param name="stepSize">Descent step size for updating conductances.</param>
         /// <returns>Reconstruction result after the update step.</returns>
         public ReconstructionResult InverseSolveStepGraph(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double stepSize);
+
+        // --- Persistence ---
+        void SaveReconstruction(List<ReconstructionResult> frames, string name, EITReconstructionParameters parameters);
+        IEnumerable<ReconstructionInfo> GetReconstructions();
+        List<ReconstructionResult> LoadReconstruction(string filePath);
     }
 }
