@@ -42,21 +42,6 @@ namespace ServiceLayer
             _logger = logger;
         }
 
-        public async Task<ReconstructionResult> GetReconstructionResult()
-        {
-            try
-            {
-                return await _reconstructionPersistence.GetReconstructionResult();
-            }
-            catch(Exception ex)
-            {
-                _logger.LogError(ex.Message);
-                Console.WriteLine(ex.Message);
-                Debug.WriteLine(ex.Message);
-                throw;
-            }
-        }
-
         public PotentialDistribution SolveLbmForward()
         {
             try
