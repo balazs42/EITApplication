@@ -24,11 +24,11 @@
     </ContentPage.Resources>
     <Grid RowDefinitions="Auto, *">
         <controls:NavBarControl Grid.Row="0" Grid.ColumnSpan="1" CurrentPageName="MeshingPage"/>
-        <Grid Grid.Row="1" ColumnDefinitions="Auto, *, Auto">
+        <Grid Grid.Row="1" ColumnDefinitions="Auto, *, Auto" Margin="5">
 
             <!-- Left control Panel FEM -->
-            <Border StrokeShape="RoundRectangle 5" IsVisible="{Binding IsFEM}">
-                <VerticalStackLayout Grid.Column="0" Spacing="5" Margin="5">
+            <Border Grid.Column="0" StrokeShape="RoundRectangle 5" IsVisible="{Binding IsFEM}">
+                <VerticalStackLayout Spacing="5" Margin="5">
                     <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
                         <Label Grid.Column="0" Text="Mesh Type:" VerticalOptions="Center"/>
                         <Picker Grid.Column="1" ItemsSource="{Binding MeshTypes}" SelectedItem="{Binding SelectedMeshType}" WidthRequest="100"/>
@@ -42,14 +42,14 @@
                                PlusImageSource="icon_plus2.png"
                                MinusImageSource="icon_minus2.png"
                                Value="{Binding Layers}"
-                               Max="200"/>
+                               Max="20"/>
 
                     <controls:PlusMinusEntryControl Margin="10"
                                LabelText="Boundary Vertices"
                                PlusImageSource="icon_plus2.png"
                                MinusImageSource="icon_minus2.png"
                                Value="{Binding BoundaryFEMVertexCount}"
-                               Max="200"/>
+                               Max="100"/>
                     
                     <BoxView WidthRequest="200" HeightRequest="2" BackgroundColor="Gray"/>
 
@@ -66,7 +66,7 @@
                                                    PlusImageSource="icon_plus2.png"
                                                    MinusImageSource="icon_minus2.png"
                                                    Value="{Binding ElectrodeCount}"
-                                                   Max="200"/>
+                                                   Max="32"/>
 
                     <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10" IsVisible="{Binding IsCustomGeometry}">
                         <Label Grid.Column="0" Text="Custom" VerticalOptions="Center"/>
@@ -83,20 +83,20 @@
                                PlusImageSource="icon_plus2.png"
                                MinusImageSource="icon_minus2.png"
                                Value="{Binding ElectrodeContactImpedance}"
-                               Max="200"/>
+                               Max="10"/>
 
                     <controls:PlusMinusEntryControl Margin="10"
                                LabelText="Electrode Size [%]"
                                PlusImageSource="icon_plus2.png"
                                MinusImageSource="icon_minus2.png"
                                Value="{Binding ElectrodeSize}"
-                               Max="200"/>
+                               Max="100"/>
                 </VerticalStackLayout>
             </Border>
 
             <!-- Left Control Panel LBM-->
-            <Border StrokeShape="RoundRectangle 5" IsVisible="{Binding IsLBM}">
-                <VerticalStackLayout Grid.Column="0" Spacing="5" Margin="5">
+            <Border Grid.Column="0" StrokeShape="RoundRectangle 5" IsVisible="{Binding IsLBM}">
+                <VerticalStackLayout Spacing="5" Margin="5">
                     <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
                         <Label Grid.Column="0" Text="Mesh Type:" VerticalOptions="Center"/>
                         <Picker Grid.Column="1" ItemsSource="{Binding MeshTypes}" SelectedItem="{Binding SelectedMeshType}" WidthRequest="100"/>
@@ -152,19 +152,19 @@
                                 PlusImageSource="icon_plus2.png"
                                 MinusImageSource="icon_minus2.png"
                                 Value="{Binding InhomogenityValue}"
-                                Max="200"/>
+                                Max="10"/>
 
                     <controls:PlusMinusEntryControl Grid.Row="0"
                                                     LabelText="Contact Impedance"
                                                     PlusImageSource="icon_plus2.png"
                                                     MinusImageSource="icon_minus2.png"
                                                     Value="{Binding ElectrodeContactImpedance}"
-                                                    Max="200"/>     
+                                                    Max="10"/>     
                 </VerticalStackLayout>
             </Border>
 
             <!-- Middle Canvas display -->
-            <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*" >
+            <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*" Margin="5">
                 <Border Grid.Row="0" StrokeShape="RoundRectangle 10">
                     <Grid ColumnDefinitions="*, Auto, *" 
                           RowDefinitions="Auto, Auto"
@@ -309,7 +309,7 @@
                        Margin="10"/>
 
                 <Border Grid.Row="2"
-                        Stroke="DarkGray"
+                        Stroke="Transparent"
                         StrokeThickness="2"
                         Margin="10"
                         HorizontalOptions="Center"
@@ -324,25 +324,34 @@
                 </Border>
             </Grid>
 
-            <Border Grid.Column="2" StrokeShape="RoundRectangle 5" Margin="5">
-                <VerticalStackLayout Spacing="5" Margin="5">
-                    <Label Text="Available Meshes" HorizontalOptions="Center" FontAttributes="Bold"/>
-                    <SearchBar Placeholder="Search" Text="{Binding MeshSearchText}"/>
-                    <CollectionView ItemsSource="{Binding FilteredMeshes}" SelectionMode="Single" SelectionChanged="OnMeshSelected">
-                        <CollectionView.ItemTemplate>
-                            <DataTemplate x:DataType="models:MeshInfo">
-                                <Border Stroke="Gray" Margin="2" Padding="4">
-                                    <VerticalStackLayout Spacing="2">
-                                        <Label Text="{Binding Name}" FontAttributes="Bold" FontSize="Small"/>
-                                        <Label Text="{Binding Metadata.CreatedOn, StringFormat='Created: {0:G}'}" FontSize="10"/>
-                                        <Label Text="{Binding ParameterSummary}" FontSize="10"/>
-                                    </VerticalStackLayout>
-                                </Border>
-                            </DataTemplate>
-                        </CollectionView.ItemTemplate>
-                    </CollectionView>
+            <Border Grid.Column="2" StrokeShape="RoundRectangle 5" Margin="5" WidthRequest="250">
+                <VerticalStackLayout Margin="2" Spacing="10">
+                    <SearchBar Placeholder="Search" Text="{Binding MeshSearchText}" Margin="5"/>
+                    <Border StrokeShape="RoundRectangle 10">
+                        <ScrollView Grid.Row="1">
+                            <VerticalStackLayout Spacing="2"                                                  
+                                                 BindableLayout.ItemsSource="{Binding FilteredMeshes}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate x:DataType="models:MeshInfo">
+                                        <Border StrokeShape="RoundRectangle 5" Padding="4" Stroke="Transparent">
+                                            <Grid ColumnDefinitions="Auto, *" RowDefinitions="Auto, Auto, Auto" ColumnSpacing="5">
+                                                <Label Grid.Column="0" Grid.Row="0" Text="{Binding Name}" FontAttributes="Bold" FontSize="Small"/>
+                                                <Label Grid.Column="0" Grid.Row="1" Text="{Binding Metadata.CreatedOn, StringFormat='Created: {0:G}'}" FontSize="10"/>
+                                                <Label Grid.Column="0" Grid.Row="2" Text="{Binding Generator}" FontSize="10"/>
+                                            </Grid>
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnMeshSelected"/>
+                                            </Border.GestureRecognizers>
+                                        </Border>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
+                        </ScrollView>
+                    </Border>
                 </VerticalStackLayout>
             </Border>
+
+
         </Grid>
     </Grid>
 </ContentPage>

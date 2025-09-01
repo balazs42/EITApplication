@@ -74,8 +74,8 @@ namespace ElectricalImpedanceTomography.ViewModels
         [ObservableProperty]
         private string meshSearchText = string.Empty;
 
-        public ObservableCollection<MeshInfo> AvailableMeshes { get; } = new();
-        public ObservableCollection<MeshInfo> FilteredMeshes { get; } = new();
+        public ObservableCollection<MeshInfo> AvailableMeshes { get; } = [];
+        public ObservableCollection<MeshInfo> FilteredMeshes { get; } = [];
 
         private IMesh? _currentMesh;
         private readonly Stack<IMesh> _undoStack = new();
@@ -106,6 +106,8 @@ namespace ElectricalImpedanceTomography.ViewModels
                 _daqService.SaveFEMMesh(fem, Name);
             else if (_currentMesh is LBMMesh lbm)
                 _daqService.SaveLBMMesh(lbm, Name);
+
+            LoadAvailableMeshes();
         }
 
         public void LoadMesh(string filePath)
@@ -363,6 +365,11 @@ namespace ElectricalImpedanceTomography.ViewModels
             foreach (var m in _daqService.GetMeshes())
                 AvailableMeshes.Add(m);
             ApplyMeshFilter();
+        }
+
+        public void InvokeMeshChanged()
+        {
+            MeshChanged?.Invoke();
         }
 
         private void ApplyMeshFilter()
