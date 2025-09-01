@@ -1,6 +1,7 @@
 using ElectricalImpedanceTomography.ViewModels;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
+using System.Linq;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.Meshing;
@@ -44,6 +45,14 @@ public partial class MeshingPage : ContentPage
         _viewModel = Utility.Composition.Container.ResolveObject<MeshingPageViewModel>();
         BindingContext = _viewModel;
         _viewModel.MeshChanged += () => { _selectedCells.Clear(); MeshCanvas.InvalidateSurface(); };
+    }
+
+    protected override void OnAppearing()
+    {
+        base.OnAppearing();
+        _viewModel.LoadAvailableMeshes();
+        _viewModel.GenerateMesh();
+        _viewModel.MeshChanged?.Invoke();
     }
 
     private SKColor ColorForValue(double val, double min, double max)
@@ -485,6 +494,15 @@ public partial class MeshingPage : ContentPage
         if (file != null)
         {
             _viewModel.LoadMesh(file.FullPath);
+            MeshCanvas.InvalidateSurface();
+        }
+    }
+
+    private void OnMeshSelected(object sender, SelectionChangedEventArgs e)
+    {
+        if (e.CurrentSelection.FirstOrDefault() is MeshInfo info)
+        {
+            _viewModel.LoadMesh(info.FilePath);
             MeshCanvas.InvalidateSurface();
         }
     }
