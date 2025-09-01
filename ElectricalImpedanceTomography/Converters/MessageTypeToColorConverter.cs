@@ -21,7 +21,7 @@ namespace ElectricalImpedanceTomography.Converters
                     WorkspaceMessageType.Log => Colors.White,
                     WorkspaceMessageType.Warning => Color.FromArgb("#B8860B"),
                     WorkspaceMessageType.Loading => Colors.Green,
-                    WorkspaceMessageType.Info => Colors.Blue,
+                    WorkspaceMessageType.Info => Colors.LightBlue,
                     _ => isDark ? Colors.White : Colors.Black
                 };
             }

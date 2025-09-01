@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using Utility.Classes;
 using Utility.Classes.Application;
 using Utility.Classes.Factories;
 using Utility.Classes.Meshing;
@@ -180,7 +181,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         private readonly Dictionary<string, string> _commandDescriptions;
 
-        private static string FormatEnumOptions<T>() where T : Enum =>
+        private static string FormatEnumOptions<T>() where T : struct, Enum =>
             string.Join(", ", Enum.GetValues<T>().Select(v => $"{Convert.ToInt32(v)}={v}"));
 
         private static bool TryParseEnum<T>(string input, out T value) where T : struct, Enum
