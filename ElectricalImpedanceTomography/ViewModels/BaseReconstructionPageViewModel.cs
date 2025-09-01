@@ -57,12 +57,18 @@ namespace ElectricalImpedanceTomography.ViewModels
         private double inhomogenityValue = 2.0;
 
         [ObservableProperty]
-        private int maxIterationCount = 50;
+        private int maxIterationCount = Workspace.MaxIterationCount;
+
+        partial void OnMaxIterationCountChanged(int value) => Workspace.MaxIterationCount = value;
 
         [ObservableProperty]
-        private double stepSize = 0.001;
+        private double stepSize = Workspace.StepSize;
+
+        partial void OnStepSizeChanged(double value) => Workspace.StepSize = value;
 
         [ObservableProperty]
-        private double regularizationWeight = 1e-3;
+        private double regularizationWeight = Workspace.RegularizationWeight;
+
+        partial void OnRegularizationWeightChanged(double value) => Workspace.RegularizationWeight = value;
     }
 }

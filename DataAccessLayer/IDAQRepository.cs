@@ -17,6 +17,10 @@ namespace DataAccessLayer
 
         public bool Connect();
         public bool Disconnect();
+
+        public bool ChangePort(string portName);
+
+        public void SetExcitationFrequency(double frequency);
     }
 }
 

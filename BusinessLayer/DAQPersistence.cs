@@ -95,6 +95,16 @@ namespace BusinessLayer
         {
             return _daqRepository.Disconnect();
         }
+
+        public bool ChangeHardwarePort(string portName)
+        {
+            return _daqRepository.ChangePort(portName);
+        }
+
+        public void SetFrequency(double frequency)
+        {
+            _daqRepository.SetExcitationFrequency(frequency);
+        }
     }
 }
 

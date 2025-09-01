@@ -35,12 +35,16 @@ namespace ElectricalImpedanceTomography.Views
             BindingContext = _viewModel;
 
             _viewModel.DebugLog.CollectionChanged += OnDebugLogChanged;
+            _viewModel.MeshUpdated += () => MeshCanvasView?.InvalidateSurface();
         }
 
         protected override void OnAppearing()
         {
             base.OnAppearing();
             MeshCanvasView?.InvalidateSurface();
+            if (ConsoleScroll != null && ConsoleStack != null)
+                MainThread.BeginInvokeOnMainThread(async () =>
+                    await ConsoleScroll.ScrollToAsync(0, ConsoleStack.Height, false));
         }
 
         private void OnLoadMeasurementClicked(object sender, EventArgs e)
