@@ -5,6 +5,12 @@ using System.Linq;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.Meshing;
+using Microsoft.Maui.ApplicationModel;
+using SharpHook;
+using SharpHook.Native;
+using SharpHook.Reactive;
+using System.Reactive.Linq;
+using System.Reactive.Disposables;
 
 namespace ElectricalImpedanceTomography.Views;
 
@@ -39,6 +45,9 @@ public partial class MeshingPage : ContentPage
     private LBMElement? _draggedLbmElectrode;
     private FEMVertex? _draggedFemVertex;
 
+    private SimpleReactiveGlobalHook? _hook;
+    private CompositeDisposable? _hookSubscriptions;
+
     public MeshingPage()
     {
         InitializeComponent();
@@ -51,8 +60,38 @@ public partial class MeshingPage : ContentPage
     {
         base.OnAppearing();
         _viewModel.LoadAvailableMeshes();
-        _viewModel.GenerateMesh();
-        _viewModel.InvokeMeshChanged();
+       _viewModel.GenerateMesh();
+       _viewModel.InvokeMeshChanged();
+
+        _hook = new SimpleReactiveGlobalHook();
+        _hookSubscriptions = new CompositeDisposable
+        {
+            _hook.KeyPressed
+                .Where(e => e.Data.Mask.HasFlag(ModifierMask.Control) && e.Data.KeyCode == KeyCode.VcZ)
+                .Subscribe(_ => MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    _viewModel.Undo();
+                    MeshCanvas.InvalidateSurface();
+                })),
+            _hook.KeyPressed
+                .Where(e => e.Data.Mask.HasFlag(ModifierMask.Control) && e.Data.KeyCode == KeyCode.VcY)
+                .Subscribe(_ => MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    _viewModel.Redo();
+                    MeshCanvas.InvalidateSurface();
+                })),
+            _hook.KeyPressed
+                .Where(e => e.Data.Mask.HasFlag(ModifierMask.Control) && e.Data.KeyCode == KeyCode.VcS)
+                .Subscribe(_ => MainThread.BeginInvokeOnMainThread(() => OnSaveClicked(this, EventArgs.Empty)))
+        };
+        _ = _hook.RunAsync();
+    }
+
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+        _hookSubscriptions?.Dispose();
+        _hook?.Dispose();
     }
 
     private SKColor ColorForValue(double val, double min, double max)

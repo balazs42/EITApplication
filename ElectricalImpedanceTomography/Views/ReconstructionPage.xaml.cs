@@ -9,6 +9,12 @@ using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Workspace = Utility.Classes.Application.Workspace;
 using System.Linq;
+using Microsoft.Maui.ApplicationModel;
+using SharpHook;
+using SharpHook.Native;
+using SharpHook.Reactive;
+using System.Reactive.Linq;
+using System.Reactive.Disposables;
 
 namespace ElectricalImpedanceTomography.Views;
 
@@ -34,6 +40,9 @@ public partial class ReconstructionPage : ContentPage
     private bool _isPaused = false;
     private bool _hasStarted = false;
     private bool _sliderChanging = false;
+
+    private SimpleReactiveGlobalHook? _hook;
+    private CompositeDisposable? _hookSubscriptions;
 
     public ReconstructionPage()
     {
@@ -61,6 +70,34 @@ public partial class ReconstructionPage : ContentPage
     {
         base.OnAppearing();
         _viewModel.LoadAvailableReconstructions();
+
+        _hook = new SimpleReactiveGlobalHook();
+        _hookSubscriptions = new CompositeDisposable
+        {
+            _hook.KeyPressed
+                .Where(e => e.Data.KeyCode == KeyCode.VcSpace)
+                .Subscribe(_ => MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    if (PlayButton.IsVisible)
+                        OnPlayButtonClicked(PlayButton, EventArgs.Empty);
+                    else
+                        OnPauseButtonClicked(PauseButton, EventArgs.Empty);
+                })),
+            _hook.KeyPressed
+                .Where(e => e.Data.KeyCode == KeyCode.VcRight)
+                .Subscribe(_ => MainThread.BeginInvokeOnMainThread(() => OnStepButtonClicked(StepButton, EventArgs.Empty))),
+            _hook.KeyPressed
+                .Where(e => e.Data.KeyCode == KeyCode.VcEscape)
+                .Subscribe(_ => MainThread.BeginInvokeOnMainThread(() => OnStopButtonClicked(PlayButton, EventArgs.Empty)))
+        };
+        _ = _hook.RunAsync();
+    }
+
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+        _hookSubscriptions?.Dispose();
+        _hook?.Dispose();
     }
 
     private IMesh? GetMesh()
