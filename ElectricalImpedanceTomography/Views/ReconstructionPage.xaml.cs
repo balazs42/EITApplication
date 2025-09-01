@@ -54,6 +54,8 @@ public partial class ReconstructionPage : ContentPage
         _viewModel.ReconstructionUpdated += OnReconstructionUpdated;
 
         StepButton.IsEnabled = false;
+        PlayButton.IsVisible = true;
+        PauseButton.IsVisible = false;
     }
 
     private IMesh? GetMesh()
@@ -84,6 +86,8 @@ public partial class ReconstructionPage : ContentPage
             _hasStarted = true;
             _isPaused = false;
             StepButton.IsEnabled = false;
+            PlayButton.IsVisible = false;
+            PauseButton.IsVisible = true;
             return;
         }
 
@@ -92,6 +96,8 @@ public partial class ReconstructionPage : ContentPage
             _viewModel.ResumeReconstruction();
             _isPaused = false;
             StepButton.IsEnabled = false;
+            PlayButton.IsVisible = false;
+            PauseButton.IsVisible = true;
         }
         else
         {
@@ -105,6 +111,8 @@ public partial class ReconstructionPage : ContentPage
         _viewModel.PauseReconstruction();
         _isPaused = true;
         StepButton.IsEnabled = true;
+        PlayButton.IsVisible = true;
+        PauseButton.IsVisible = false;
     }
 
     private async void OnStepButtonClicked(object sender, EventArgs e)
@@ -123,6 +131,8 @@ public partial class ReconstructionPage : ContentPage
         _isPaused = false;
         _hasStarted = false;
         StepButton.IsEnabled = false;
+        PlayButton.IsVisible = true;
+        PauseButton.IsVisible = false;
     }
     #endregion
 
@@ -711,13 +721,23 @@ public partial class ReconstructionPage : ContentPage
         {
             var bc = new FEMBoundaryCondition(fem.GetElectrodes().Cast<FEMElectrode>().ToList());
             var popup = new BoundaryConditionsPopup(bc);
-            await this.ShowPopupAsync(popup);
+            var result = await this.ShowPopupAsync(popup) as BoundaryCondition;
+            if (result is FEMBoundaryCondition femBc)
+            {
+                fem.SetElectrodes(femBc.GetElectrodes().Cast<FEMElectrode>().ToList());
+                InvalidateAll();
+            }
         }
         else if (mesh is LBMMesh lbm)
         {
             var bc = new LBMBoundaryCondition(lbm.GetElectrodes().Cast<LBMElectrode>().ToList());
             var popup = new BoundaryConditionsPopup(bc);
-            await this.ShowPopupAsync(popup);
+            var result = await this.ShowPopupAsync(popup) as BoundaryCondition;
+            if (result is LBMBoundaryCondition lbmBc)
+            {
+                lbm.SetElectrodes(lbmBc.GetElectrodes().Cast<LBMElectrode>().ToList());
+                InvalidateAll();
+            }
         }
     }
 
