@@ -95,11 +95,6 @@
                                                    Value="{Binding ElectrodeCount}"
                                                    Max="32"/>
 
-                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10" IsVisible="{Binding IsCustomGeometry}">
-                        <Label Grid.Column="0" Text="Custom" VerticalOptions="Center"/>
-                        <Entry Grid.Column="1" Text="{Binding CustomPerimeter}" WidthRequest="150"/>
-                    </Grid>
-
                     <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10" IsVisible="{Binding InhomogenityEditing}">
                         <Label Grid.Column="0" Text="Inhomogenity Value" VerticalOptions="Center"/>
                         <Entry Grid.Column="1" Text="{Binding InhomogenityValue}" WidthRequest="80" Keyboard="Numeric"/>
@@ -168,11 +163,6 @@
                                 MinusImageSource="icon_minus2.png"
                                 Value="{Binding ElectrodeCount}"
                                 Max="64"/>
-
-                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10" IsVisible="{Binding IsCustomGeometry}">
-                        <Label Grid.Column="0" Text="Custom" VerticalOptions="Center"/>
-                        <Entry Grid.Column="1" Text="{Binding CustomPerimeter}" WidthRequest="150"/>
-                    </Grid>
 
                     <controls:PlusMinusEntryControl Grid.Row="0"
                                 LabelText="Inhomogenity Value"

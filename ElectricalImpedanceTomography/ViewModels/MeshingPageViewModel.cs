@@ -54,9 +54,6 @@ namespace ElectricalImpedanceTomography.ViewModels
         private int ny = 15;
 
         [ObservableProperty]
-        private string customPerimeter = string.Empty;
-
-        [ObservableProperty]
         private bool inhomogenityEditing;
 
         [ObservableProperty]
@@ -97,7 +94,8 @@ namespace ElectricalImpedanceTomography.ViewModels
             _drawnPerimeter = perimeter;
             _drawnElectrodes = electrodes;
             SelectedGeometry = GeometryType.Custom;
-            ElectrodeCount = electrodes.Count;
+            if (electrodes.Count > 0)
+                ElectrodeCount = electrodes.Count;
         }
 
         public void SaveMesh()
@@ -200,8 +198,6 @@ namespace ElectricalImpedanceTomography.ViewModels
             {
                 GeometryType.Circular => MeshFactory.CreateCircularFEMMesh(Layers, BoundaryFEMVertexCount, ElectrodeCount),
                 GeometryType.Rectangular => MeshFactory.CreateRectangularFEMMesh(Nx, Ny, ElectrodeCount),
-                GeometryType.Custom => MeshFactory.CreatePolygonFEMMesh(ParseCustomPerimeter(), ElectrodeCount),
-                GeometryType.Thorax => MeshFactory.CreateThoraxFEMMesh(ParseCustomPerimeter(), ElectrodeCount),
                 _ => MeshFactory.CreateCircularFEMMesh(Layers, BoundaryFEMVertexCount, ElectrodeCount)
             };
         }
@@ -239,11 +235,16 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         private LBMMesh GenerateLBMMesh()
         {
+            if (_drawnPerimeter != null && _drawnPerimeter.Count > 2)
+            {
+                var mesh = MeshFactory.CreateLBMMeshFromPerimeter(Nx, Ny, _drawnPerimeter, ElectrodeCount);
+                _drawnPerimeter = null;
+                _drawnElectrodes = null;
+                return mesh;
+            }
             return SelectedGeometry switch
             {
                 GeometryType.Rectangular => MeshFactory.CreateRectangularLBMMesh(Nx, Ny, ElectrodeCount),
-                GeometryType.Custom => MeshFactory.CreateLBMMeshFromPerimeter(Nx, Ny, ParseCustomPerimeter(), ElectrodeCount),
-                GeometryType.Thorax => MeshFactory.CreateThoraxLBMMesh(Nx, Ny, ParseCustomPerimeter(), ElectrodeCount),
                 _ => CreateCircularLBMMesh()
             };
         }
@@ -263,20 +264,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             return MeshFactory.CreateLBMMeshFromPerimeter(Nx, Ny, pts, ElectrodeCount);
         }
 
-        private IList<(double x, double y)> ParseCustomPerimeter()
-        {
-            var list = new List<(double x, double y)>();
-            if (string.IsNullOrWhiteSpace(CustomPerimeter))
-                return list;
-            var segments = CustomPerimeter.Split(';', StringSplitOptions.RemoveEmptyEntries);
-            foreach (var seg in segments)
-            {
-                var nums = seg.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                if (nums.Length >= 2 && double.TryParse(nums[0], out var x) && double.TryParse(nums[1], out var y))
-                    list.Add((x, y));
-            }
-            return list;
-        }
+        // Removed old CustomPerimeter parsing workflow
 
         public void RefreshConductivity()
         {
@@ -322,7 +310,6 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public bool IsFEM => SelectedMeshType == MeshType.FEM;
         public bool IsLBM => SelectedMeshType == MeshType.LBM;
-        public bool IsCustomGeometry => SelectedGeometry == GeometryType.Custom;
 
         partial void OnSelectedMeshTypeChanged(MeshType value)
         {
@@ -339,8 +326,16 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         partial void OnSelectedGeometryChanged(GeometryType value)
         {
-            OnPropertyChanged(nameof(IsCustomGeometry));
-            AutoGenerateMesh();
+            if (value == GeometryType.Custom)
+            {
+                _currentMesh = null;
+                Workspace.SetMesh(null);
+                MeshChanged?.Invoke();
+            }
+            else
+            {
+                AutoGenerateMesh();
+            }
         }
 
         partial void OnNxChanged(int value) => AutoGenerateMesh();
@@ -356,6 +351,13 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         private void AutoGenerateMesh()
         {
+            if (SelectedGeometry == GeometryType.Custom && _drawnPerimeter == null)
+            {
+                _currentMesh = null;
+                Workspace.SetMesh(null);
+                MeshChanged?.Invoke();
+                return;
+            }
             GenerateMesh();
             MeshChanged?.Invoke();
         }
