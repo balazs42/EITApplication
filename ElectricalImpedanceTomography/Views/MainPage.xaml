@@ -141,10 +141,13 @@
 
             <!-- Middle Panel -->
             <Grid Grid.Column="1" RowDefinitions="*, Auto" RowSpacing="10">
-                <Border Grid.Row="0">
+                <Border Grid.Row="0" Margin="5" StrokeShape="RoundRectangle 5">
                     <VerticalStackLayout Spacing="5">
                         <Label Text="{Binding User.Name, StringFormat='Welcome {0}!'}" FontSize="Large" FontAttributes="Italic"/>
                     </VerticalStackLayout>
+                    <Border.Shadow>
+                        <Shadow Brush="White" Opacity="0.5" Radius="3.0"/>
+                    </Border.Shadow>
                 </Border>
 
                 <Border Grid.Row="1" Stroke="LightGray" StrokeThickness="1" Padding="10" StrokeShape="RoundRectangle 3" HeightRequest="400" VerticalOptions="Start" BackgroundColor="{AppThemeBinding Light=White, Dark=#1F1F1F}">
@@ -204,17 +207,20 @@
                         Margin="10"
                         HeightRequest="400"
                         WidthRequest="400"
-                        Stroke="DarkGray"
                         StrokeThickness="2"
                         StrokeShape="RoundRectangle 10"
                         HorizontalOptions="Center"
                         VerticalOptions="Center">
 
-                <skia:SKCanvasView x:Name="MeshCanvasView"
-                                   Margin="10"
-                                   PaintSurface="OnCanvasViewPaintSurface"
-                                   HeightRequest="370"
-                                   WidthRequest="370"/>
+                    <skia:SKCanvasView x:Name="MeshCanvasView"
+                                       BackgroundColor="Transparent"
+                                       Margin="10"
+                                       PaintSurface="OnCanvasViewPaintSurface"
+                                       HeightRequest="370"
+                                       WidthRequest="370"/>
+                    <Border.Shadow>
+                        <Shadow Brush="White" Opacity="0.5" Radius="3.0"/>
+                    </Border.Shadow>
                 </Border>
             </Grid>
         </Grid>
