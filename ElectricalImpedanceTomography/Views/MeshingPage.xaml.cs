@@ -2,6 +2,7 @@ using ElectricalImpedanceTomography.ViewModels;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
 using System.Linq;
+using System.Collections.Generic;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.Meshing;
@@ -23,6 +24,7 @@ public partial class MeshingPage : ContentPage
     private readonly SKPaint _femStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1 };
     private readonly SKPaint _femFill = new() { Style = SKPaintStyle.Fill };
     private readonly SKPaint _electrodeFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.Yellow };
+    private readonly SKPaint _pointFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.SkyBlue };
 
     // caching values for coordinate transforms
     private float _cellW, _cellH;
@@ -44,7 +46,14 @@ public partial class MeshingPage : ContentPage
         InitializeComponent();
         _viewModel = Utility.Composition.Container.ResolveObject<MeshingPageViewModel>();
         BindingContext = _viewModel;
-        _viewModel.MeshChanged += () => { _selectedCells.Clear(); MeshCanvas.InvalidateSurface(); };
+        _viewModel.MeshChanged += () =>
+        {
+            _selectedCells.Clear();
+            _outlinePoints.Clear();
+            _electrodePoints.Clear();
+            _outlineClosed = false;
+            MeshCanvas.InvalidateSurface();
+        };
     }
 
     protected override void OnAppearing()
@@ -87,8 +96,8 @@ public partial class MeshingPage : ContentPage
         var mesh = _viewModel.GetCurrentMesh();
         if (mesh is null)
         {
-            if (_viewModel.SelectedMeshType == MeshType.FEM && _outlinePoints.Count > 0)
-                DrawFEMPreview(canvas);
+            if (_outlinePoints.Count > 0)
+                DrawPolygonPreview(canvas);
             return;
         }
 
@@ -212,22 +221,25 @@ public partial class MeshingPage : ContentPage
         MeshCanvas.InvalidateSurface();
     }
 
-    private void DrawFEMPreview(SKCanvas canvas)
-    {
-        if (_outlinePoints.Count < 2)
-            return;
+        private void DrawPolygonPreview(SKCanvas canvas)
+        {
+            if (_outlinePoints.Count < 1)
+                return;
 
-        using var path = new SKPath();
-        path.MoveTo(_outlinePoints[0]);
-        for (int i = 1; i < _outlinePoints.Count; i++)
-            path.LineTo(_outlinePoints[i]);
-        if (_outlineClosed)
-            path.Close();
-        canvas.DrawPath(path, _femStroke);
+            using var path = new SKPath();
+            path.MoveTo(_outlinePoints[0]);
+            for (int i = 1; i < _outlinePoints.Count; i++)
+                path.LineTo(_outlinePoints[i]);
+            if (_outlineClosed)
+                path.Close();
+            canvas.DrawPath(path, _femStroke);
 
-        foreach (var p in _electrodePoints)
-            canvas.DrawCircle(p, 4f, _electrodeFill);
-    }
+            foreach (var p in _outlinePoints)
+                canvas.DrawCircle(p, 3f, _pointFill);
+
+            foreach (var p in _electrodePoints)
+                canvas.DrawCircle(p, 4f, _electrodeFill);
+        }
 
     private async void OnAddNoiseTapped(object sender, TappedEventArgs e)
     {
@@ -247,8 +259,7 @@ public partial class MeshingPage : ContentPage
         var mesh = _viewModel.GetCurrentMesh();
         if (mesh == null)
         {
-            if (_viewModel.SelectedMeshType == MeshType.FEM)
-                HandleFEMDrawing(e);
+            HandlePolygonDrawing(e);
             return;
         }
 
@@ -404,11 +415,11 @@ public partial class MeshingPage : ContentPage
     MeshCanvas.InvalidateSurface();
     }
 
-    private void HandleFEMDrawing(SKTouchEventArgs e)
+    private void HandlePolygonDrawing(SKTouchEventArgs e)
     {
-        if (e.MouseButton == SKMouseButton.Left)
+        if (e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed)
         {
-            if (e.ActionType == SKTouchAction.Pressed)
+            if (!_isDrawing)
             {
                 _outlinePoints.Clear();
                 _electrodePoints.Clear();
@@ -416,26 +427,22 @@ public partial class MeshingPage : ContentPage
                 _isDrawing = true;
                 _outlinePoints.Add(e.Location);
             }
-            else if (e.ActionType == SKTouchAction.Moved && _isDrawing)
+            else
             {
-                _outlinePoints.Add(e.Location);
-            }
-            else if (e.ActionType == SKTouchAction.Released && _isDrawing)
-            {
-                _isDrawing = false;
-                _outlinePoints.Add(e.Location);
-                if (_outlinePoints.Count > 2)
+                var first = _outlinePoints[0];
+                if (_outlinePoints.Count >= 3 && Math.Abs(first.X - e.Location.X) < 10 && Math.Abs(first.Y - e.Location.Y) < 10)
                 {
-                    var first = _outlinePoints[0];
-                    if (Math.Abs(first.X - e.Location.X) < 5 && Math.Abs(first.Y - e.Location.Y) < 5)
-                    {
-                        _outlineClosed = true;
-                        _outlinePoints[_outlinePoints.Count - 1] = first;
-                    }
+                    _outlineClosed = true;
+                    _isDrawing = false;
+                    _outlinePoints.Add(first);
+                }
+                else
+                {
+                    _outlinePoints.Add(e.Location);
                 }
             }
         }
-        else if (e.MouseButton == SKMouseButton.Right && !_isDrawing && _outlinePoints.Count > 2)
+        else if (e.MouseButton == SKMouseButton.Right && _outlineClosed)
         {
             _electrodePoints.Add(e.Location);
         }
@@ -550,16 +557,30 @@ public partial class MeshingPage : ContentPage
     private async void OnGenerateClicked(object sender, EventArgs e)
     {
         if (sender is VisualElement v) await ShrinkViewAsync(v);
-        if (_viewModel.SelectedMeshType == MeshType.FEM && _outlineClosed && _outlinePoints.Count > 2)
+        if (_outlineClosed && _outlinePoints.Count > 2)
         {
-            var perimeter = _outlinePoints.Select(p => ((double)p.X, (double)p.Y)).ToList();
-            var electrodes = _electrodePoints.Select(p => ((double)p.X, (double)p.Y)).ToList();
-            _viewModel.SetCustomPolygon(perimeter, electrodes);
+            if (_viewModel.SelectedMeshType == MeshType.LBM)
+            {
+                var w = MeshCanvas.CanvasSize.Width;
+                var h = MeshCanvas.CanvasSize.Height;
+                var perimeter = _outlinePoints.Select(p => (
+                    (double)Math.Round(p.X / w * _viewModel.Nx),
+                    (double)Math.Round(p.Y / h * _viewModel.Ny)
+                )).ToList();
+                _viewModel.SetCustomPolygon(perimeter, new List<(double, double)>());
+            }
+            else
+            {
+                var perimeter = _outlinePoints.Select(p => ((double)p.X, (double)p.Y)).ToList();
+                var electrodes = _electrodePoints.Select(p => ((double)p.X, (double)p.Y)).ToList();
+                _viewModel.SetCustomPolygon(perimeter, electrodes);
+            }
             _outlinePoints.Clear();
             _electrodePoints.Clear();
             _outlineClosed = false;
         }
         _viewModel.GenerateMesh();
+        _viewModel.InvokeMeshChanged();
         MeshCanvas.InvalidateSurface();
     }
 }
