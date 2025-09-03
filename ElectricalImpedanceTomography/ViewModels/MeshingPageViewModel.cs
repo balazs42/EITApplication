@@ -306,7 +306,28 @@ namespace ElectricalImpedanceTomography.ViewModels
         partial void OnLayersChanged(int value) => AutoGenerateMesh();
 
         partial void OnBoundaryFEMVertexCountChanged(int value) => AutoGenerateMesh();
-        partial void OnElectrodeCountChanged(int value) => AutoGenerateMesh();
+        partial void OnElectrodeCountChanged(int value)
+        {
+            if (_currentMesh == null)
+            {
+                AutoGenerateMesh();
+                return;
+            }
+
+            if (_currentMesh is LBMMesh lbm)
+            {
+                lbm.PlaceEquidistantElectrodes(value);
+                RefreshLbmElectrodes();
+            }
+            else if (_currentMesh is FEMMesh fem)
+            {
+                fem.PlaceEquidistantElectrodes(value, ElectrodeContactImpedance, ElectrodeSize);
+            }
+
+            _currentMesh.Metadata.Parameters["electrodeCount"] = value.ToString();
+            Workspace.SetMesh(_currentMesh);
+            MeshChanged?.Invoke();
+        }
 
         partial void OnMeshSearchTextChanged(string value) => ApplyMeshFilter();
 
