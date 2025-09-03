@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.Meshing;
+using BH.Engine.Base;
 
 namespace ElectricalImpedanceTomography.Views;
 
@@ -559,11 +560,15 @@ public partial class MeshingPage : ContentPage
         if (sender is VisualElement v) await ShrinkViewAsync(v);
         if (_outlineClosed && _outlinePoints.Count > 2)
         {
+            var outline = _outlinePoints.ToList();
+            if (outline.Count > 1 && outline[0].Equals(outline[outline.Count - 1]))
+                outline.RemoveAt(outline.Count - 1);
+
             if (_viewModel.SelectedMeshType == MeshType.LBM)
             {
                 var w = MeshCanvas.CanvasSize.Width;
                 var h = MeshCanvas.CanvasSize.Height;
-                var perimeter = _outlinePoints.Select(p => (
+                var perimeter = outline.Select(p => (
                     (double)Math.Round(p.X / w * _viewModel.Nx),
                     (double)Math.Round(p.Y / h * _viewModel.Ny)
                 )).ToList();
@@ -571,7 +576,7 @@ public partial class MeshingPage : ContentPage
             }
             else
             {
-                var perimeter = _outlinePoints.Select(p => ((double)p.X, (double)p.Y)).ToList();
+                var perimeter = outline.Select(p => ((double)p.X, (double)p.Y)).ToList();
                 var electrodes = _electrodePoints.Select(p => ((double)p.X, (double)p.Y)).ToList();
                 _viewModel.SetCustomPolygon(perimeter, electrodes);
             }
