@@ -55,23 +55,15 @@ public partial class MeshingPage : ContentPage
         _viewModel.InvokeMeshChanged();
     }
 
-    private SKColor ColorForValue(double val, double min, double max)
+    private SKColor ColorForValue(double val, double max)
     {
-        double mid = (min + max) * 0.5;
-        if (val >= mid)
-        {
-            float t = (float)((val - mid) / (max - mid));
-            t = Math.Clamp(t, 0f, 1f);
-            byte r = (byte)(255 * t);
-            return new SKColor(r, 0, 0);
-        }
-        else
-        {
-            float t = (float)((mid - val) / (mid - min));
-            t = Math.Clamp(t, 0f, 1f);
-            byte b = (byte)(255 * t);
-            return new SKColor(0, 0, b);
-        }
+        if (max <= 1)
+            max = 1;
+        double t = (val - 1) / (max - 1);
+        t = Math.Clamp(t, 0.0, 1.0);
+        byte r = (byte)(255 * t);
+        byte b = (byte)(255 * (1 - t));
+        return new SKColor(r, 0, b);
     }
 
     private static async Task ShrinkViewAsync(VisualElement element)
@@ -146,8 +138,7 @@ public partial class MeshingPage : ContentPage
         _marginY = pad + (availH - usedH) / 2f;
 
         var elements = mesh.ElementsTyped;
-        double min = elements.Min(el => el.Conductivity);
-        double max = elements.Max(el => el.Conductivity);
+        double max = Math.Max(1.0, elements.Max(el => el.Conductivity));
 
         using var path = new SKPath();
         foreach (var el in elements)
@@ -157,7 +148,7 @@ public partial class MeshingPage : ContentPage
             var p3 = ToCanvas(el.Vertices[2]);
             path.Reset();
             path.MoveTo(p1); path.LineTo(p2); path.LineTo(p3); path.Close();
-            _femFill.Color = ColorForValue(el.Conductivity, min, max);
+            _femFill.Color = ColorForValue(el.Conductivity, max);
             canvas.DrawPath(path, _femFill);
             canvas.DrawPath(path, _femStroke);
         }

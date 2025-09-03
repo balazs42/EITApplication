@@ -82,6 +82,48 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
             return vv.Potential;
         }
 
+        public void PlaceEquidistantElectrodes(int numElectrodes, double zContact, double length)
+        {
+            foreach (var v in Vertices)
+            {
+                v.IsElectrode = false;
+                v.ElectrodeId = -1;
+            }
+
+            _electrodes.Clear();
+
+            if (numElectrodes <= 0)
+                return;
+
+            var boundary = Vertices.Where(v => v.IsBoundary).ToList();
+            if (boundary.Count == 0)
+                return;
+
+            double cx = boundary.Average(v => v.X);
+            double cy = boundary.Average(v => v.Y);
+
+            boundary = boundary
+                .OrderBy(v => Math.Atan2(v.Y - cy, v.X - cx))
+                .ToList();
+
+            int count = boundary.Count;
+            numElectrodes = Math.Min(numElectrodes, count);
+            double step = count / (double)numElectrodes;
+            double pos = 0.0;
+            for (int i = 0; i < numElectrodes; i++)
+            {
+                int idx = (int)Math.Floor(pos) % count;
+                var v = boundary[idx];
+                v.IsElectrode = true;
+                v.ElectrodeId = i;
+                var el = new FEMElectrode(i, v.GlobalId, 0.0, zContact, 0.0);
+                el.Length = length;
+                el.FEMVertexIds.Add(v.GlobalId);
+                _electrodes.Add(el);
+                pos += step;
+            }
+        }
+
 
         /// <summary>
         /// Creates a deep copy of this FEMMesh, including vertices, elements,
