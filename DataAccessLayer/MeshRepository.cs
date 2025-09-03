@@ -4,6 +4,7 @@ using Utility.Classes.Meshing;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.Factories;
+using System.Linq;
 
 namespace DataAccessLayer
 {
@@ -394,22 +395,26 @@ namespace DataAccessLayer
                     md.Parameters.TryGetValue("width", out var wStr);
                     md.Parameters.TryGetValue("height", out var hStr);
                     md.Parameters.TryGetValue("electrodeCount", out var elStr);
+                    md.Parameters.TryGetValue("layers", out var layersStr);
                     double width = double.Parse(wStr ?? "1");
                     double height = double.Parse(hStr ?? "1");
                     int electrodes = int.Parse(elStr ?? "16");
-                    return MeshFactory.CreateRectangularFEMMesh(width, height, electrodes);
+                    int layers = int.Parse(layersStr ?? "1");
+                    return MeshFactory.CreateRectangularFEMMesh(width, height, electrodes, layers);
                 }
                 string polygon = nameof(MeshFactory.CreatePolygonFEMMesh);
                 if (md.Generator == polygon || md.Generator == nameof(MeshFactory.CreateThoraxFEMMesh))
                 {
                     md.Parameters.TryGetValue("perimeter", out var pStr);
                     md.Parameters.TryGetValue("electrodeCount", out var elStr);
+                    md.Parameters.TryGetValue("layers", out var layersStr);
                     var points = (pStr ?? string.Empty).Split(';', StringSplitOptions.RemoveEmptyEntries)
                                     .Select(s => s.Split(','))
                                     .Select(parts => (double.Parse(parts[0]), double.Parse(parts[1])))
                                     .ToList();
                     int electrodes = int.Parse(elStr ?? "16");
-                    var mesh = MeshFactory.CreatePolygonFEMMesh(points, electrodes);
+                    int layers = int.Parse(layersStr ?? "1");
+                    var mesh = MeshFactory.CreatePolygonFEMMesh(points, layers, electrodes);
                     if (md.Generator == nameof(MeshFactory.CreateThoraxFEMMesh))
                         mesh.Metadata.Generator = nameof(MeshFactory.CreateThoraxFEMMesh);
                     return mesh;

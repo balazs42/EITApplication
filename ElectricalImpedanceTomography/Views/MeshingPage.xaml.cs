@@ -33,7 +33,6 @@ public partial class MeshingPage : ContentPage
 
     // drawing state for custom FEM meshes
     private readonly List<SKPoint> _outlinePoints = new();
-    private readonly List<SKPoint> _electrodePoints = new();
     private readonly HashSet<int> _selectedCells = new();
     private bool _isDrawing;
     private bool _outlineClosed;
@@ -51,7 +50,6 @@ public partial class MeshingPage : ContentPage
         {
             _selectedCells.Clear();
             _outlinePoints.Clear();
-            _electrodePoints.Clear();
             _outlineClosed = false;
             MeshCanvas.InvalidateSurface();
         };
@@ -180,7 +178,6 @@ public partial class MeshingPage : ContentPage
         {
             if (sender is VisualElement v) await ShrinkViewAsync(v);
             _outlinePoints.Clear();
-            _electrodePoints.Clear();
             _selectedCells.Clear();
             _outlineClosed = false;
             _isDrawing = false;
@@ -237,9 +234,6 @@ public partial class MeshingPage : ContentPage
 
             foreach (var p in _outlinePoints)
                 canvas.DrawCircle(p, 3f, _pointFill);
-
-            foreach (var p in _electrodePoints)
-                canvas.DrawCircle(p, 4f, _electrodeFill);
         }
 
     private async void OnAddNoiseTapped(object sender, TappedEventArgs e)
@@ -423,7 +417,6 @@ public partial class MeshingPage : ContentPage
             if (!_isDrawing)
             {
                 _outlinePoints.Clear();
-                _electrodePoints.Clear();
                 _outlineClosed = false;
                 _isDrawing = true;
                 _outlinePoints.Add(e.Location);
@@ -442,10 +435,6 @@ public partial class MeshingPage : ContentPage
                     _outlinePoints.Add(e.Location);
                 }
             }
-        }
-        else if (e.MouseButton == SKMouseButton.Right && _outlineClosed)
-        {
-            _electrodePoints.Add(e.Location);
         }
         MeshCanvas.InvalidateSurface();
         e.Handled = true;
@@ -572,16 +561,14 @@ public partial class MeshingPage : ContentPage
                     (double)Math.Round(p.X / w * _viewModel.Nx),
                     (double)Math.Round(p.Y / h * _viewModel.Ny)
                 )).ToList();
-                _viewModel.SetCustomPolygon(perimeter, new List<(double, double)>());
+                _viewModel.SetCustomPolygon(perimeter);
             }
             else
             {
                 var perimeter = outline.Select(p => ((double)p.X, (double)p.Y)).ToList();
-                var electrodes = _electrodePoints.Select(p => ((double)p.X, (double)p.Y)).ToList();
-                _viewModel.SetCustomPolygon(perimeter, electrodes);
+                _viewModel.SetCustomPolygon(perimeter);
             }
             _outlinePoints.Clear();
-            _electrodePoints.Clear();
             _outlineClosed = false;
         }
         _viewModel.GenerateMesh();

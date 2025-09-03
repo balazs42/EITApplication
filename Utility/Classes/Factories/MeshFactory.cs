@@ -4,6 +4,7 @@ using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.Application;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Utility.Classes.Factories
 {
@@ -240,10 +241,12 @@ namespace Utility.Classes.Factories
 
         /// <summary>
         /// Create a FEM mesh based on an ordered list of perimeter points forming a single loop.
-        /// The algorithm connects every consecutive boundary point with the centroid, producing
-        /// a fan triangulation.  Electrodes are placed on equally spaced boundary vertices.
+        /// The algorithm creates concentric scaled copies of the perimeter, distributes vertices
+        /// across the layers and performs a Delaunay triangulation. Electrodes are placed on
+        /// equally spaced boundary vertices. If electrodeCount exceeds the number of boundary
+        /// vertices it is clamped accordingly.
         /// </summary>
-        public static FEMMesh CreatePolygonFEMMesh(IList<(double x, double y)> perimeter, int electrodeCount = 16)
+        public static FEMMesh CreatePolygonFEMMesh(IList<(double x, double y)> perimeter, int layers, int electrodeCount = 16)
         {
             ValidatePerimeter(perimeter);
 
@@ -255,35 +258,55 @@ namespace Utility.Classes.Factories
             var center = new FEMVertex(vid++, cx, cy);
             vertices.Add(center);
 
-            for (int i = 0; i < perimeter.Count; i++)
+            for (int layer = 1; layer <= layers; layer++)
             {
-                var p = perimeter[i];
-                vertices.Add(new FEMVertex(vid++, p.x, p.y)
+                double t = (double)layer / layers;
+                for (int i = 0; i < perimeter.Count; i++)
                 {
-                    IsBoundary = true,
-                    BoundaryId = i
-                });
+                    var p = perimeter[i];
+                    double nx = cx + (p.x - cx) * t;
+                    double ny = cy + (p.y - cy) * t;
+                    vertices.Add(new FEMVertex(vid++, nx, ny)
+                    {
+                        IsBoundary = (layer == layers),
+                        BoundaryId = (layer == layers ? i : -1)
+                    });
+                }
             }
+
+            var triVerts = vertices.Select(v => new TriFEMVertex(v)).ToArray();
+            var delaunay = DelaunayTriangulation<TriFEMVertex, DefaultTriangulationCell<TriFEMVertex>>.Create(triVerts, 1e-3);
 
             var elements = new List<FEMElement>();
             int eid = 0;
-            for (int i = 0; i < perimeter.Count; i++)
+            foreach (var cell in delaunay.Cells)
             {
-                var v2 = vertices[i + 1];
-                var v3 = vertices[i + 2 > perimeter.Count ? 1 : i + 2];
-                elements.Add(new FEMElement(eid++, center, v2, v3));
+                var a = cell.Vertices[0].Original;
+                var b = cell.Vertices[1].Original;
+                var c = cell.Vertices[2].Original;
+
+                double mx = (a.X + b.X + c.X) / 3.0;
+                double my = (a.Y + b.Y + c.Y) / 3.0;
+                if (!IsPointInPolygon(mx, my, perimeter))
+                    continue;
+
+                elements.Add(new FEMElement(eid++, a, b, c));
             }
 
             var mesh = new FEMMesh(vertices, elements);
 
-            var boundaryVerts = vertices.Skip(1).ToList();
+            var boundaryVerts = vertices.Where(v => v.IsBoundary).OrderBy(v => v.BoundaryId).ToList();
             electrodeCount = Math.Min(electrodeCount, boundaryVerts.Count);
-            int step = Math.Max(boundaryVerts.Count / electrodeCount, 1);
+            double step = boundaryVerts.Count / (double)electrodeCount;
+            double pos = 0.0;
 
             var electrodes = new List<FEMElectrode>();
             for (int e = 0; e < electrodeCount; e++)
             {
-                var v = boundaryVerts[e * step];
+                int idx = (int)Math.Round(pos, MidpointRounding.AwayFromZero);
+                if (idx >= boundaryVerts.Count)
+                    idx = boundaryVerts.Count - 1;
+                var v = boundaryVerts[idx];
                 v.IsElectrode = true;
                 v.ElectrodeId = e;
 
@@ -295,6 +318,8 @@ namespace Utility.Classes.Factories
                     voltage: 1.0);
                 el.FEMVertexIds.Add(v.GlobalId);
                 electrodes.Add(el);
+
+                pos += step;
             }
 
             mesh.SetElectrodes(electrodes);
@@ -333,6 +358,7 @@ namespace Utility.Classes.Factories
             mesh.Metadata.Generator = nameof(CreatePolygonFEMMesh);
             mesh.Metadata.Parameters["electrodeCount"] = electrodeCount.ToString();
             mesh.Metadata.Parameters["perimeter"] = string.Join(";", perimeter.Select(p => $"{p.x},{p.y}"));
+            mesh.Metadata.Parameters["layers"] = layers.ToString();
 
             return mesh;
         }
@@ -340,7 +366,7 @@ namespace Utility.Classes.Factories
         /// <summary>
         /// Convenience wrapper that builds a rectangular FEM mesh from corner points.
         /// </summary>
-        public static FEMMesh CreateRectangularFEMMesh(double width, double height, int electrodeCount = 16)
+        public static FEMMesh CreateRectangularFEMMesh(double width, double height, int electrodeCount = 16, int layers = 1)
         {
             var hw = width / 2.0;
             var hh = height / 2.0;
@@ -351,23 +377,25 @@ namespace Utility.Classes.Factories
                 ( hw,  hh),
                 (-hw,  hh)
             };
-            var mesh = CreatePolygonFEMMesh(pts, electrodeCount);
+            var mesh = CreatePolygonFEMMesh(pts, layers, electrodeCount);
             mesh.Metadata.Generator = nameof(CreateRectangularFEMMesh);
             mesh.Metadata.Parameters["width"] = width.ToString();
             mesh.Metadata.Parameters["height"] = height.ToString();
             mesh.Metadata.Parameters["electrodeCount"] = electrodeCount.ToString();
+            mesh.Metadata.Parameters["layers"] = layers.ToString();
             return mesh;
         }
 
         /// <summary>
         /// Create a FEM mesh from an arbitrary thorax-shaped perimeter.
         /// </summary>
-        public static FEMMesh CreateThoraxFEMMesh(IList<(double x, double y)> perimeter, int electrodeCount = 16)
+        public static FEMMesh CreateThoraxFEMMesh(IList<(double x, double y)> perimeter, int electrodeCount = 16, int layers = 1)
         {
-            var mesh = CreatePolygonFEMMesh(perimeter, electrodeCount);
+            var mesh = CreatePolygonFEMMesh(perimeter, layers, electrodeCount);
             mesh.Metadata.Generator = nameof(CreateThoraxFEMMesh);
             mesh.Metadata.Parameters["electrodeCount"] = electrodeCount.ToString();
             mesh.Metadata.Parameters["perimeter"] = string.Join(";", perimeter.Select(p => $"{p.x},{p.y}"));
+            mesh.Metadata.Parameters["layers"] = layers.ToString();
             return mesh;
         }
 
