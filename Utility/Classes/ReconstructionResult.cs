@@ -8,7 +8,7 @@
         public ConductivityDistribution OriginalConductivityDistribution;      // The original conductivity distribution which we try to reconstruct
         public ConductivityDistribution InitialConductivitiyDistribution;      // The initial conductivity distribution from which we started the iterations
         public ConductivityDistribution ReconstructedConductivityDistribution; // The reconstructed conductivity distribution of the model
-
+        public List<ReconstructionFrame> Frames { get; private set; }
         #region Constructors
         public ReconstructionResult(Mesh mesh, PotentialDistribution currentPotentialDistribution, PotentialDistribution currentAdjointDistribution, ConductivityDistribution originalConductivityDistribution, ConductivityDistribution initialConductivitiyDistribution, ConductivityDistribution reconstructedConductivityDistribution)
         {
@@ -37,6 +37,7 @@
         public PotentialDistribution GetCurrentAdjointDistribution() => CurrentAdjointDistribution;
         public ConductivityDistribution GetOriginalConductivityDistribution() => OriginalConductivityDistribution;
         public ConductivityDistribution GetInitialConductivityDistribution() => InitialConductivitiyDistribution;
+        
         public ConductivityDistribution GetReconstructedConductivityDistribution() => ReconstructedConductivityDistribution;
         #endregion
         #region Setters
