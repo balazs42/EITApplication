@@ -57,9 +57,10 @@ public partial class MeshingPage : ContentPage
 
     private SKColor ColorForValue(double val, double max)
     {
-        if (max <= 1)
-            max = 1;
-        double t = (val - 1) / (max - 1);
+        double range = max - 1;
+        if (range <= 0)
+            return new SKColor(0, 0, 255);
+        double t = (val - 1) / range;
         t = Math.Clamp(t, 0.0, 1.0);
         byte r = (byte)(255 * t);
         byte b = (byte)(255 * (1 - t));
