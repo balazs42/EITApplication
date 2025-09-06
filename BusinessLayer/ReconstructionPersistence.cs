@@ -32,6 +32,7 @@ namespace BusinessLayer
 
         private double _gradientStepSize = 0.001;
         private double _regularizationWeight = 0.001;
+        private InitialDistributionTypes _initialDistributionType = InitialDistributionTypes.SlightlyDiffering;
 
         private bool _initialized = false;
 
@@ -59,7 +60,8 @@ namespace BusinessLayer
             _differentialEquationSolver = DifferentialEquationSolverFactory.Create(mesh, parameters.DifferentialEquationSolver, _numericSolver);
             _regularizer = RegularisationFactory.Create(parameters.RegularizationTechnique, _mesh);
             _errorMetric = ErrorMetricFactory.Create(parameters.ErrorMetric);
-            _numericOptimizer = NumericOptimizerFactory.Create(parameters.NumericOptimizer, ConductivityDistributionFactory.CreateSlightlyDiffering(mesh));
+            _initialDistributionType = parameters.InitialDistributionType;
+            _numericOptimizer = NumericOptimizerFactory.Create(parameters.NumericOptimizer, ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType));
 
             _inverseModel = InverseModelFactory.Create(_mesh, _numericOptimizer, _regularizer, _errorMetric, _differentialEquationSolver);
 
@@ -299,10 +301,8 @@ namespace BusinessLayer
             // Save the original distribution for the ReconstructionResult.
             ConductivityDistribution originalSigma = mesh.DeepCopy().GetConductivityDistribution();
 
-            // Start the reconstruction from a slightly perturbed homogeneous
-            // conductivity distribution.
-            ConductivityDistribution initialSigma = ConductivityDistributionFactory.CreateSlightlyDiffering(mesh, 0.95);
-            mesh.SetConductivityDistribution(initialSigma);
+            // Start the reconstruction from a user-specified initial conductivity distribution.
+            ConductivityDistribution initialSigma = mesh.GetConductivityDistribution();
 
             // Cache electrode and element information for repeated use.
             List<FEMElectrode> electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
@@ -401,8 +401,7 @@ namespace BusinessLayer
             EITMeasurement measurementFrames = SimulateLbmMeasurements(mesh, 1.0);
 
             ConductivityDistribution originalSigma = ((LBMMesh)mesh.DeepCopy()).GetConductivityDistribution();
-            ConductivityDistribution initialSigma = ConductivityDistributionFactory.CreateSlightlyDiffering(mesh, 0.95);
-            mesh.SetConductivityDistribution(initialSigma);
+            ConductivityDistribution initialSigma = mesh.GetConductivityDistribution();
 
             var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
             int electrodeCount = electrodes.Count;
@@ -483,8 +482,8 @@ namespace BusinessLayer
             List<double[]> simulatedMeasurements = SimulateFemMeasurements(mesh, excitationAmplitude);
             ConductivityDistribution originalConductivityDistribution = mesh.DeepCopy().GetConductivityDistribution();
 
-            // 2) Initialize conductivity (σ^{(0)}) to homogeneous distribution
-            ConductivityDistribution initialConductivityDistribution = ConductivityDistributionFactory.CreateSlightlyDiffering(mesh, 0.95);
+            // 2) Initialize conductivity (σ^{(0)}) based on user selection
+            ConductivityDistribution initialConductivityDistribution = ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType);
             mesh.SetConductivityDistribution(initialConductivityDistribution);
 
             List<FEMElectrode> electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
@@ -973,8 +972,8 @@ namespace BusinessLayer
 
             List<double[]> simulatedMeasurements = SimulateFemMeasurements(mesh, excitationAmplitude);
             
-            // 2) Initialize conductivity (σ^{(0)}) to homogeneous distribution
-            ConductivityDistribution sigma = ConductivityDistributionFactory.CreateSlightlyDiffering(mesh, 0.95);
+            // 2) Initialize conductivity (σ^{(0)}) based on user selection
+            ConductivityDistribution sigma = ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType);
             mesh.SetConductivityDistribution(sigma);
 
             List<FEMElectrode> electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
@@ -1235,8 +1234,8 @@ namespace BusinessLayer
             _regularizer = RegularisationFactory.Create(RegularizationTechnique.ZeroOrderTikhonov, mesh.DeepCopy(), 0.0);
             _numericOptimizer = NumericOptimizerFactory.Create(NumericOptimizer.GradientBased, ConductivityDistributionFactory.CreateRandom(mesh));
 
-            // Initialize conductivity (σ^{(0)}) to homogeneous distribution
-            ConductivityDistribution sigma0 = ConductivityDistributionFactory.CreateSlightlyDiffering(mesh, 0.95);
+            // Initialize conductivity (σ^{(0)}) based on user selection
+            ConductivityDistribution sigma0 = ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType);
             mesh.SetConductivityDistribution(sigma0);
 
             // Create new boundary conditions that will be fed to the Finite Element Solver

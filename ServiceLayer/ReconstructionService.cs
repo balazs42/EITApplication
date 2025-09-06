@@ -10,6 +10,7 @@ using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.ReconstructionParameters;
+using Utility.Classes.Factories;
 using Utility.Logger;
 
 using Workspace = Utility.Classes.Application.Workspace;
@@ -121,7 +122,8 @@ namespace ServiceLayer
                 Workspace.SetReconstructionResults(new List<ReconstructionResult>());
                 _reconstructionPersistence.InitializeReconstruction(mesh, parameters);
                 _originalSigma = ((Mesh)mesh.DeepCopy()).GetConductivityDistribution();
-                _initialSigma = mesh.GetConductivityDistribution();
+                _initialSigma = ConductivityDistributionFactory.CreateInitialDistribution(mesh, parameters.InitialDistributionType);
+                mesh.SetConductivityDistribution(_initialSigma);
                 if (mesh is FEMMesh fem)
                     _framesPerCycle = fem.GetElectrodes().Count;
                 else if (mesh is LBMMesh lbm)

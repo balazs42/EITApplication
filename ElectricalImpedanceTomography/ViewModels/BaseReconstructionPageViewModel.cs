@@ -1,5 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using Utility.Classes.ReconstructionParameters;
+using Utility.Classes.Factories;
 using Workspace = Utility.Classes.Application.Workspace;
 
 namespace ElectricalImpedanceTomography.ViewModels
@@ -20,6 +21,9 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         private static readonly NumericOptimizer[] NumericOptimizerValues = Enum.GetValues<NumericOptimizer>();
         public IEnumerable<NumericOptimizer> NumericOptimizerOptions => NumericOptimizerValues;
+
+        private static readonly InitialDistributionTypes[] InitialDistributionTypeValues = Enum.GetValues<InitialDistributionTypes>();
+        public IEnumerable<InitialDistributionTypes> InitialDistributionOptions => InitialDistributionTypeValues;
 
         [ObservableProperty]
         private EITReconstructionParameters reconstructionParameters = Workspace.GetReconstructionParameters();
