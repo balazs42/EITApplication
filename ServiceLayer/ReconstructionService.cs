@@ -182,17 +182,18 @@ namespace ServiceLayer
             }
         }
 
-        public ReconstructionResult InverseSolveStepFem(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double stepSize)
+        public ReconstructionFrame InverseSolveStepFem(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double stepSize)
         {
             try
             {
                 var femBc = boundaryCondition as FEMBoundaryCondition
                              ?? throw new ArgumentException("Boundary condition must be FEMBoundaryCondition", nameof(boundaryCondition));
-                ReconstructionResult reconstructionResult = _reconstructionPersistence.InverseSolveStepFem(mesh, femBc, measurement, stepSize);
 
-                Workspace.AddReconstructionResultToWorkspace(reconstructionResult);
+                ReconstructionFrame frame = _reconstructionPersistence.InverseSolveStepFem(mesh, femBc, measurement, stepSize);
 
-                return reconstructionResult;
+                Workspace.AddReconstructionFrameToWorkspace(frame);
+
+                return frame;
             }
             catch (Exception ex)
             {
@@ -241,7 +242,7 @@ namespace ServiceLayer
 
                 if (_simMeasurementIndex % _framesPerCycle == 0)
                 {
-                    var result = new ReconstructionResult(_mesh!, _originalSigma!, _initialSigma!, _mesh!.GetConductivityDistribution(), _currentCycleFrames.ToList());
+                    var result = new ReconstructionResult(_mesh!.GetMesh(), _originalSigma!, _initialSigma!, _mesh!.GetConductivityDistribution(), _currentCycleFrames.ToList());
                     Workspace.AddReconstructionResultToWorkspace(result);
                     ReconstructionUpdated?.Invoke(this, result);
                     _currentCycleFrames.Clear();
