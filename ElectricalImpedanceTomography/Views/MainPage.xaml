@@ -140,7 +140,7 @@
             </VerticalStackLayout>
 
             <!-- Middle Panel -->
-            <Grid Grid.Column="1" RowDefinitions="*, Auto" RowSpacing="10">
+            <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto" RowSpacing="10">
                 <Border Grid.Row="0" Margin="5" StrokeShape="RoundRectangle 5">
                     <VerticalStackLayout Spacing="5">
                         <Label Text="{Binding User.Name, StringFormat='Welcome {0}!'}" FontSize="Large" FontAttributes="Italic"/>
@@ -150,7 +150,14 @@
                     </Border.Shadow>
                 </Border>
 
-                <Border Grid.Row="1" Stroke="LightGray" StrokeThickness="1" Padding="10" StrokeShape="RoundRectangle 3" HeightRequest="400" VerticalOptions="Start" BackgroundColor="{AppThemeBinding Light=White, Dark=#1F1F1F}">
+                <controls:ImpedanceOrbView Grid.Row="1"
+                                           Model="{Binding CurrentImpedanceModel}"
+                                           HeightRequest="250"
+                                           WidthRequest="250"
+                                           HorizontalOptions="Center"
+                                           VerticalOptions="Center"/>
+
+                <Border Grid.Row="2" Stroke="LightGray" StrokeThickness="1" Padding="10" StrokeShape="RoundRectangle 3" HeightRequest="400" VerticalOptions="Start" BackgroundColor="{AppThemeBinding Light=White, Dark=#1F1F1F}">
                     <Grid RowDefinitions="Auto,*,Auto" RowSpacing="2">
                         <Grid Grid.Row="0" ColumnDefinitions="Auto, Auto" ColumnSpacing="5">
                             <Image Grid.Column="0" Source="icon_terminal2.png" HeightRequest="20" BackgroundColor="Transparent"/>
