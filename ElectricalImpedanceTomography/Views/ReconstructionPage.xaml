@@ -200,135 +200,74 @@
                 </Border>
 
                 <!-- Displays for reconstruction steps -->
-                <Grid Grid.Row="1" Margin="3" RowDefinitions="Auto, Auto, Auto, Auto" ColumnDefinitions="Auto, Auto" HorizontalOptions="Center" VerticalOptions="Center">
+                <Grid Grid.Row="1" Margin="3" RowDefinitions="Auto, Auto" ColumnDefinitions="Auto" HorizontalOptions="Center" VerticalOptions="Center">
+                    <!-- Partial results -->
+                    <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,Auto" HorizontalOptions="Center">
+                        <!-- Calculated Potential -->
+                        <VerticalStackLayout Grid.Column="0" HorizontalOptions="Center">
+                            <Label Text="Calculated Potential Distribution" HorizontalOptions="Center" FontFamily="SF Pro Text"/>
+                            <Border Stroke="DarkGray" StrokeThickness="2" Margin="10" HorizontalOptions="Center">
+                                <Grid RowDefinitions="Auto,Auto">
+                                    <skia:SKCanvasView x:Name="PotentialDistributionCanvas" PaintSurface="OnPotentialCanvasPaintSurface" EnableTouchEvents="True" Touch="OnPotentialCanvasTouch" HeightRequest="350" WidthRequest="350" Margin="10"/>
+                                    <skia:SKCanvasView Grid.Row="1" x:Name="PotentialColorbarCanvas" PaintSurface="OnPotentialColorbarPaintSurface" HeightRequest="40" WidthRequest="350"/>
+                                </Grid>
+                            </Border>
+                        </VerticalStackLayout>
+                        <!-- Adjoint Potential -->
+                        <VerticalStackLayout Grid.Column="1" HorizontalOptions="Center">
+                            <Label Text="Adjoint Potential Distribution" HorizontalOptions="Center" FontFamily="SF Pro Text"/>
+                            <Border Stroke="DarkGray" StrokeThickness="2" Margin="10" HorizontalOptions="Center">
+                                <Grid RowDefinitions="Auto,Auto">
+                                    <skia:SKCanvasView x:Name="AdjointDistributionCanvas" PaintSurface="OnAdjointCanvasPaintSurface" EnableTouchEvents="True" Touch="OnAdjointCanvasTouch" HeightRequest="350" WidthRequest="350" Margin="10"/>
+                                    <skia:SKCanvasView Grid.Row="1" x:Name="AdjointColorbarCanvas" PaintSurface="OnAdjointColorbarPaintSurface" HeightRequest="40" WidthRequest="350"/>
+                                </Grid>
+                            </Border>
+                        </VerticalStackLayout>
+                        <!-- Gradient -->
+                        <VerticalStackLayout Grid.Column="2" HorizontalOptions="Center">
+                            <Label Text="Conductivity Gradient" HorizontalOptions="Center" FontFamily="SF Pro Text"/>
+                            <Border Stroke="DarkGray" StrokeThickness="2" Margin="10" HorizontalOptions="Center">
+                                <Grid RowDefinitions="Auto,Auto">
+                                    <skia:SKCanvasView x:Name="GradientDistributionCanvas" PaintSurface="OnGradientCanvasPaintSurface" HeightRequest="350" WidthRequest="350" Margin="10"/>
+                                    <skia:SKCanvasView Grid.Row="1" x:Name="GradientColorbarCanvas" PaintSurface="OnGradientColorbarPaintSurface" HeightRequest="40" WidthRequest="350"/>
+                                </Grid>
+                            </Border>
+                        </VerticalStackLayout>
+                    </Grid>
 
-                    <!-- Original DIstribution Canvas -->
-                    <Label Grid.Row="0" 
-                           Grid.Column="0"
-                           Text="Original Distribution" 
-                           HorizontalOptions="Center" 
-                           VerticalOptions="Start"
-                           FontFamily="SF Pro Text"/>
-                    <Border Grid.Row="1"
-                            Grid.Column="0"
-                            Stroke="DarkGray"
-                            StrokeThickness="2"
-                            Margin="10"
-                            HorizontalOptions="Center"
-                            VerticalOptions="Center">
-                        <Grid ColumnDefinitions="Auto,40">
-                            <skia:SKCanvasView x:Name="OriginalDistributionCanvas"
-                                               PaintSurface="OnOriginalCanvasPaintSurface"
-                                               EnableTouchEvents="True"
-                                               Touch="OnOriginalCanvasTouch"
-                                               HeightRequest="350"
-                                               WidthRequest="350"
-                                               Margin="10" />
-                            <skia:SKCanvasView Grid.Column="1"
-                                               x:Name="OriginalColorbarCanvas"
-                                               PaintSurface="OnOriginalColorbarPaintSurface"
-                                               EnableTouchEvents="True"
-                                               Touch="OnOriginalCanvasTouch"
-                                               WidthRequest="40"
-                                               HeightRequest="350" />
-                        </Grid>
-                    </Border>
-
-                    <!-- Calculated Potential Canvas -->
-                    <Label Grid.Row="0" 
-                           Grid.Column="1"
-                           Text="Calculated Potential" 
-                           HorizontalOptions="Center" 
-                           VerticalOptions="Start"
-                           FontFamily="SF Pro Text"/>
-                    <Border Grid.Row="1"
-                            Grid.Column="1"
-                            Stroke="DarkGray"
-                            StrokeThickness="2"
-                            Margin="10"
-                            HorizontalOptions="Center"
-                            VerticalOptions="Center">
-                        <Grid ColumnDefinitions="Auto,40">
-                            <skia:SKCanvasView x:Name="PotentialDistributionCanvas"
-                                               PaintSurface="OnPotentialCanvasPaintSurface"
-                                               EnableTouchEvents="True"
-                                               Touch="OnPotentialCanvasTouch"
-                                               HeightRequest="350"
-                                               WidthRequest="350"
-                                               Margin="10" />
-                            <skia:SKCanvasView Grid.Column="1"
-                                               x:Name="PotentialColorbarCanvas"
-                                               PaintSurface="OnPotentialColorbarPaintSurface"
-                                               EnableTouchEvents="True"
-                                               Touch="OnPotentialCanvasTouch"
-                                               WidthRequest="40"
-                                               HeightRequest="350" />
-                        </Grid>
-                    </Border>
-
-                    <!-- Reconstruced Canvas -->
-                    <Label Grid.Row="2" 
-                           Grid.Column="0"
-                           Text="Reconstructed Distribution" 
-                           HorizontalOptions="Center" 
-                           VerticalOptions="Start"
-                           FontFamily="SF Pro Text"/>
-                    <Border Grid.Row="3"
-                            Grid.Column="0"
-                            Stroke="DarkGray"
-                            StrokeThickness="2"
-                            Margin="10"
-                            HorizontalOptions="Center"
-                            VerticalOptions="Center">
-                        <Grid ColumnDefinitions="Auto,40">
-                            <skia:SKCanvasView x:Name="ReconstructedDistributionCanvas"
-                                                PaintSurface="OnReconstructedCanvasPaintSurface"
-                                                EnableTouchEvents="True"
-                                                Touch="OnReconstructedCanvasTouch"
-                                                HeightRequest="350"
-                                                WidthRequest="350"
-                                                Margin="10" />
-                            <skia:SKCanvasView Grid.Column="1"
-                                               x:Name="ReconstructedColorbarCanvas"
-                                               PaintSurface="OnReconstructedColorbarPaintSurface"
-                                               EnableTouchEvents="True"
-                                               Touch="OnReconstructedCanvasTouch"
-                                               WidthRequest="40"
-                                               HeightRequest="350" />
-                        </Grid>
-                    </Border>
-
-                    <!-- Reconstruced Canvas -->
-                    <Label Grid.Row="2" 
-                           Grid.Column="1"
-                           Text="Adjoint Potential Distribution" 
-                           HorizontalOptions="Center" 
-                           VerticalOptions="Start"
-                           FontFamily="SF Pro Text"/>
-                    <Border Grid.Row="3"
-                            Grid.Column="1"
-                            Stroke="DarkGray"
-                            StrokeThickness="2"
-                            Margin="10"
-                            HorizontalOptions="Center"
-                            VerticalOptions="Center">
-                        <Grid ColumnDefinitions="Auto,40">
-                            <skia:SKCanvasView x:Name="AdjointDistributionCanvas"
-                                                PaintSurface="OnAdjointCanvasPaintSurface"
-                                                EnableTouchEvents="True"
-                                                Touch="OnAdjointCanvasTouch"
-                                                HeightRequest="350"
-                                                WidthRequest="350"
-                                                Margin="10" />
-                            <skia:SKCanvasView Grid.Column="1"
-                                               x:Name="AdjointColorbarCanvas"
-                                               PaintSurface="OnAdjointColorbarPaintSurface"
-                                               EnableTouchEvents="True"
-                                               Touch="OnAdjointCanvasTouch"
-                                               WidthRequest="40"
-                                               HeightRequest="350" />
-                        </Grid>
-                    </Border>
+                    <!-- Full results -->
+                    <Grid Grid.Row="1" ColumnDefinitions="Auto,Auto,Auto" HorizontalOptions="Center">
+                        <!-- Original -->
+                        <VerticalStackLayout Grid.Column="0" HorizontalOptions="Center">
+                            <Label Text="Original Conductivity Distribution" HorizontalOptions="Center" FontFamily="SF Pro Text"/>
+                            <Border Stroke="DarkGray" StrokeThickness="2" Margin="10" HorizontalOptions="Center">
+                                <Grid RowDefinitions="Auto,Auto">
+                                    <skia:SKCanvasView x:Name="OriginalDistributionCanvas" PaintSurface="OnOriginalCanvasPaintSurface" EnableTouchEvents="True" Touch="OnOriginalCanvasTouch" HeightRequest="350" WidthRequest="350" Margin="10"/>
+                                    <skia:SKCanvasView Grid.Row="1" x:Name="OriginalColorbarCanvas" PaintSurface="OnOriginalColorbarPaintSurface" HeightRequest="40" WidthRequest="350"/>
+                                </Grid>
+                            </Border>
+                        </VerticalStackLayout>
+                        <!-- Initial -->
+                        <VerticalStackLayout Grid.Column="1" HorizontalOptions="Center">
+                            <Label Text="Initial Conductivity Distribution" HorizontalOptions="Center" FontFamily="SF Pro Text"/>
+                            <Border Stroke="DarkGray" StrokeThickness="2" Margin="10" HorizontalOptions="Center">
+                                <Grid RowDefinitions="Auto,Auto">
+                                    <skia:SKCanvasView x:Name="InitialDistributionCanvas" PaintSurface="OnInitialCanvasPaintSurface" HeightRequest="350" WidthRequest="350" Margin="10"/>
+                                    <skia:SKCanvasView Grid.Row="1" x:Name="InitialColorbarCanvas" PaintSurface="OnInitialColorbarPaintSurface" HeightRequest="40" WidthRequest="350"/>
+                                </Grid>
+                            </Border>
+                        </VerticalStackLayout>
+                        <!-- Reconstructed -->
+                        <VerticalStackLayout Grid.Column="2" HorizontalOptions="Center">
+                            <Label Text="Reconstructed Conductivity Distribution" HorizontalOptions="Center" FontFamily="SF Pro Text"/>
+                            <Border Stroke="DarkGray" StrokeThickness="2" Margin="10" HorizontalOptions="Center">
+                                <Grid RowDefinitions="Auto,Auto">
+                                    <skia:SKCanvasView x:Name="ReconstructedDistributionCanvas" PaintSurface="OnReconstructedCanvasPaintSurface" EnableTouchEvents="True" Touch="OnReconstructedCanvasTouch" HeightRequest="350" WidthRequest="350" Margin="10"/>
+                                    <skia:SKCanvasView Grid.Row="1" x:Name="ReconstructedColorbarCanvas" PaintSurface="OnReconstructedColorbarPaintSurface" HeightRequest="40" WidthRequest="350"/>
+                                </Grid>
+                            </Border>
+                        </VerticalStackLayout>
+                    </Grid>
                 </Grid>
             </Grid>
             <Border Grid.Column="2" StrokeShape="RoundRectangle 5" Margin="5" WidthRequest="250" HorizontalOptions="End">

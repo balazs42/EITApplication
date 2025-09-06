@@ -37,6 +37,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         public ObservableCollection<ReconstructionInfo> FilteredReconstructions { get; } = [];
 
         public event EventHandler<ReconstructionResult>? ReconstructionUpdated;
+        public event EventHandler<ReconstructionFrame>? ReconstructionFrameUpdated;
 
         public ReconstructionPageViewModel(IReconstructionService reconstructionService)
         {
@@ -46,6 +47,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             ReconstructionParameters = Workspace.GetReconstructionParameters();
 
             _reconstructionService.ReconstructionUpdated += OnServiceReconstructionUpdated;
+            _reconstructionService.ReconstructionFrameUpdated += OnServiceFrameUpdated;
         }
 
         partial void OnReconstructionSearchTextChanged(string value) => ApplyReconstructionFilter();
@@ -124,7 +126,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public void StopReconstruction() => _reconstructionService.StopBackgroundReconstruction();
 
-        public Task<ReconstructionResult?> StepReconstructionAsync()
+        public Task<ReconstructionFrame?> StepReconstructionAsync()
         {
             InitializeReconstruction();
             return _reconstructionService.StepReconstructionAsync();
@@ -138,6 +140,9 @@ namespace ElectricalImpedanceTomography.ViewModels
             ReconstructionUpdated?.Invoke(this, result);
         }
 
+        private void OnServiceFrameUpdated(object? sender, ReconstructionFrame frame)
+            => ReconstructionFrameUpdated?.Invoke(this, frame);
+
         public void SaveReconstruction()
         {
             var results = Workspace.GetReconstructionResults();
@@ -149,8 +154,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public void LoadReconstruction(string filePath)
         {
-            var frames = _reconstructionService.LoadReconstruction(filePath);
-            Workspace.SetReconstructionResults(frames);
+            _reconstructionService.LoadReconstruction(filePath);
         }
 
         public void LoadAvailableReconstructions()
