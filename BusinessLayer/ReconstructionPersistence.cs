@@ -135,8 +135,8 @@ namespace BusinessLayer
 
         public PotentialDistribution ForwardSolveStepFem()
         {
-            if(_mesh is not LBMMesh mesh)
-                throw new TypeInitializationException("Mesh should be of type LBMMesh to use LBM solver!", new Exception("Invalid type in solver!"));
+            if (_mesh is not FEMMesh mesh)
+                throw new TypeInitializationException("Mesh should be of type FEMMesh to use FEM solver!", new Exception("Invalid type in solver!"));
 
             if (_differentialEquationSolver == null)
                 throw new NullReferenceException("Differential equation solver is null, check calling code!");
@@ -530,7 +530,7 @@ namespace BusinessLayer
                     double[] dObs = simulatedMeasurements[exc];
 
                     // Perform an inverse solve step and extract partial results
-                    var frame = InverseSolveStepFem(mesh, bc, dObs);
+                    var frame = InverseSolveStepFem(mesh, bc, dObs, gradientStepSize);
 
                     // Get the gradient expression from the inverse solve step
                     var dataGrad = frame.ConductivityGradient;
@@ -595,9 +595,22 @@ namespace BusinessLayer
             return new ReconstructionResult(mesh, originalConductivityDistribution, initialConductivityDistribution, reconstructedConductivityDistribution, frames);
         }
 
-        public ReconstructionResult InverseSolveLbm(int maxIterationCount, double gradientStepSize, double redularizationStepSize)
+        public ReconstructionResult InverseSolveLbm(int maxIterationCount,
+                                                    double gradientStepSize,
+                                                    double redularizationStepSize,
+                                                    double excitationAmplitude,
+                                                    double tolerance = 1e-6)
         {
-            throw new NotImplementedException();
+            if (_mesh is not LBMMesh mesh)
+                throw new TypeInitializationException("Mesh should be of type LBMMesh to use LBM solver!", new Exception("Invalid type in solver!"));
+
+            if (_regularizer == null)
+                throw new NullReferenceException("Regularizer is null, check calling code!");
+
+            _gradientStepSize = gradientStepSize;
+            _regularizationWeight = redularizationStepSize;
+
+            return RunLbmReconstruction(mesh, maxIterationCount);
         }
 
         private double CalculateTotalMisiftFem(FEMMesh mesh, List<double[]> simulatedMeasurements, FEMBoundaryCondition bc, double excitationAmplitude)
