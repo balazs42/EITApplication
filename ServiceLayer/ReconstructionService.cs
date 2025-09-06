@@ -47,15 +47,15 @@ namespace ServiceLayer
             _logger = logger;
         }
 
-        public PotentialDistribution SolveLbmForward()
+        public PotentialDistribution ForwardSolveStepLbm()
         {
             try
             {
                 Workspace.AddLogMessage("Reconstruction Service", "Performing LBM Forward Solve.");
 
-                return _reconstructionPersistence.SolveLbmForward();
+                return _reconstructionPersistence.ForwardSolveStepLbm();
             }
-            catch (Exception ex) 
+            catch (Exception ex)
             {
                 Workspace.AddErrorMessage(ex.Message);
                 _logger.LogError(ex.Message);
@@ -65,11 +65,20 @@ namespace ServiceLayer
             }
         }
 
-        public ReconstructionResult SolveLbmInverse(int maxIterationCount)
+        public ReconstructionResult InverseSolveLbm(int maxIterationCount,
+                                                     double gradientStepSize,
+                                                     double regularizationWeight,
+                                                     double excitationAmplitude,
+                                                     double tolerance = 1e-6)
         {
             try
             {
-                ReconstructionResult reconstructionResult = _reconstructionPersistence.SolveLbmInverse(maxIterationCount);
+                ReconstructionResult reconstructionResult =
+                    _reconstructionPersistence.InverseSolveLbm(maxIterationCount,
+                                                               gradientStepSize,
+                                                               regularizationWeight,
+                                                               excitationAmplitude,
+                                                               tolerance);
 
                 Workspace.AddReconstructionResultToWorkspace(reconstructionResult);
 
@@ -129,13 +138,13 @@ namespace ServiceLayer
             }
         }
 
-        public FEMMesh SolveFemForward(FEMMesh mesh)
+        public PotentialDistribution ForwardSolveStepFem()
         {
             try
             {
                 Workspace.AddLogMessage("Reconstruction Service", "Performing FEM forward solve.");
 
-                return _reconstructionPersistence.SolveFemForward(mesh);
+                return _reconstructionPersistence.ForwardSolveStepFem();
             }
             catch(Exception ex)
             {
@@ -146,30 +155,44 @@ namespace ServiceLayer
             }
         }
 
-        public FEMMesh SolveFemInverse(FEMMesh mesh, int maxIterCount, double stepSize, double regularization)
+        public ReconstructionResult InverseSolveFem(int maxIterCount,
+                                                     double stepSize,
+                                                     double regularizationWeight,
+                                                     double excitationAmplitude,
+                                                     double tolerance = 1e-6)
         {
             try
             {
-                return _reconstructionPersistence.SolveFemInverse(mesh, maxIterCount, stepSize, regularization);
-            }
-            catch(Exception ex)
-            {
-                _logger.LogError(ex.Message);
-                Console.WriteLine(ex.Message);
-                Debug.WriteLine(ex.Message);
-                throw;
-            }
-        }
-
-        public ReconstructionResult InverseSolveStepFem(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double stepSize)
-        {
-            try
-            {
-                ReconstructionResult reconstructionResult = _reconstructionPersistence.InverseSolveStepFem(mesh, measurement, boundaryCondition, stepSize);
+                var reconstructionResult = _reconstructionPersistence.InverseSolveFem(maxIterCount,
+                                                                                       stepSize,
+                                                                                       regularizationWeight,
+                                                                                       excitationAmplitude,
+                                                                                       tolerance);
 
                 Workspace.AddReconstructionResultToWorkspace(reconstructionResult);
 
                 return reconstructionResult;
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                Console.WriteLine(ex.Message);
+                Debug.WriteLine(ex.Message);
+                throw;
+            }
+        }
+
+        public ReconstructionFrame InverseSolveStepFem(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double stepSize)
+        {
+            try
+            {
+                var femBc = boundaryCondition as FEMBoundaryCondition
+                             ?? throw new ArgumentException("Boundary condition must be FEMBoundaryCondition", nameof(boundaryCondition));
+                ReconstructionFrame frame = _reconstructionPersistence.InverseSolveStepFem(mesh, femBc, measurement, stepSize);
+
+                Workspace.AddReconstructionFrameToWorkspace(frame);
+
+                return frame;
             }
             catch (Exception ex)
             {
@@ -218,7 +241,7 @@ namespace ServiceLayer
 
                 if (_simMeasurementIndex % _framesPerCycle == 0)
                 {
-                    var result = new ReconstructionResult(_mesh!, _originalSigma!, _initialSigma!, _mesh!.GetConductivityDistribution(), _currentCycleFrames.ToList());
+                    var result = new ReconstructionResult(_mesh!.GetMesh(), _originalSigma!, _initialSigma!, _mesh!.GetConductivityDistribution(), _currentCycleFrames.ToList());
                     Workspace.AddReconstructionResultToWorkspace(result);
                     ReconstructionUpdated?.Invoke(this, result);
                     _currentCycleFrames.Clear();
@@ -229,7 +252,7 @@ namespace ServiceLayer
             }
             else if (_mesh is LBMMesh)
             {
-                var result = SolveLbmInverse(1);
+                var result = InverseSolveLbm(1, _stepSize, _regularizationWeight, _excitationAmplitude);
                 ReconstructionUpdated?.Invoke(this, result);
                 _currentIteration++;
                 return null;
