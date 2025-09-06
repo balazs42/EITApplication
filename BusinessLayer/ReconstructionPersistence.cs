@@ -669,9 +669,14 @@ namespace BusinessLayer
             return _differentialEquationSolver.Solve(_mesh, bc, null);
         }
 
-        [MemberNotNull(nameof(_differentialEquationSolver), nameof(_errorMetric))]
         private ReconstructionFrame LbmSolveStep(LBMMesh mesh, LBMBoundaryCondition bc, double[] currentMeasurement)
         {
+            if (_differentialEquationSolver == null)
+                throw new NullReferenceException("Cannot perform solve step, DE solver is null.");
+
+            if (_errorMetric == null)
+                throw new NullReferenceException("Cannot perform solve step Error Metric is null.");
+
             var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
 
             // Solve Forward to extract simulated potentials
