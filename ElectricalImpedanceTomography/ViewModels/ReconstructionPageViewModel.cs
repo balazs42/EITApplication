@@ -85,20 +85,20 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             InitializeReconstruction();
 
-            if (_mesh is FEMMesh femMesh)
-                _reconstructionService.SolveFemForward(femMesh);
-            else if (_mesh is LBMMesh lbmMesh)
-                _reconstructionService.SolveLbmForward();
+            if (_mesh is FEMMesh)
+                _reconstructionService.ForwardSolveStepFem();
+            else if (_mesh is LBMMesh)
+                _reconstructionService.ForwardSolveStepLbm();
         }
 
         public void OnSolveInverseClicked(object sender, EventArgs e)
         {
             InitializeReconstruction();
 
-            if (_mesh is FEMMesh femMesh)
-                _reconstructionService.SolveFemInverse(femMesh, MaxIterationCount, StepSize, RegularizationWeight);
-            else if (_mesh is LBMMesh lbmMesh)
-                _reconstructionService.SolveLbmInverse(MaxIterationCount);
+            if (_mesh is FEMMesh)
+                _reconstructionService.InverseSolveFem(MaxIterationCount, StepSize, RegularizationWeight, ExcitationCurrentAmplitude);
+            else if (_mesh is LBMMesh)
+                _reconstructionService.InverseSolveLbm(MaxIterationCount, StepSize, RegularizationWeight, ExcitationCurrentAmplitude);
         }
 
         private double CalculateResidual(ConductivityDistribution reconstructed, ConductivityDistribution original)

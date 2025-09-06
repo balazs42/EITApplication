@@ -23,14 +23,22 @@ namespace ServiceLayer
         Task<ReconstructionFrame?> StepReconstructionAsync();
 
         // --- LBM Reconstruction ---
-        PotentialDistribution SolveLbmForward();
-        ReconstructionResult SolveLbmInverse(int maxIterationCount);
+        PotentialDistribution ForwardSolveStepLbm();
+        ReconstructionResult InverseSolveLbm(int maxIterationCount,
+                                             double gradientStepSize,
+                                             double regularizationWeight,
+                                             double excitationAmplitude,
+                                             double tolerance = 1e-6);
         EITMeasurement SimulateLbmMeasurements(LBMMesh mesh, double excitaionAmplitude);
 
         // --- FEM Reconstruction
-        FEMMesh SolveFemForward(FEMMesh mesh);
-        FEMMesh SolveFemInverse(FEMMesh mesh, int maxIterCount, double stepSize, double regularization);
-        ReconstructionResult InverseSolveStepFem(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double stepSize);
+        PotentialDistribution ForwardSolveStepFem();
+        ReconstructionResult InverseSolveFem(int maxIterationCount,
+                                             double gradientStepSize,
+                                             double regularizationWeight,
+                                             double excitationAmplitude,
+                                             double tolerance = 1e-6);
+        ReconstructionFrame InverseSolveStepFem(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double stepSize);
         List<double[]> SimulateFemMeasurements(FEMMesh mesh, double excitationAmplitude);
 
         // --- Graph-based Reconstruction ---
