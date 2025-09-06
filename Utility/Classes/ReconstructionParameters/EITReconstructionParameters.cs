@@ -1,5 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using Utility.Classes.Meshing;
+using Utility.Classes.Factories;
 
 namespace Utility.Classes.ReconstructionParameters
 {
@@ -13,8 +14,11 @@ namespace Utility.Classes.ReconstructionParameters
         private ErrorMetric errorMetric = ErrorMetric.L2;
         [ObservableProperty]
         private NumericSolver numericSolver = NumericSolver.LUDecomposition;
-        [ObservableProperty] 
+        [ObservableProperty]
         private NumericOptimizer numericOptimizer = NumericOptimizer.GradientBased;
+
+        [ObservableProperty]
+        private InitialDistributionTypes initialDistributionType = InitialDistributionTypes.SlightlyDiffering;
 
         public MeshType Mesh = MeshType.FEM;
 
@@ -25,20 +29,23 @@ namespace Utility.Classes.ReconstructionParameters
             ErrorMetric = ErrorMetric.L2;
             NumericSolver = NumericSolver.LUDecomposition;
             NumericOptimizer = NumericOptimizer.GradientBased;
+            InitialDistributionType = InitialDistributionTypes.SlightlyDiffering;
             Mesh = MeshType.FEM;
         }
 
         public EITReconstructionParameters(DifferentialEquationSolver differentialEquationSolver, 
-                                           RegularizationTechnique regularizationTechnique, 
-                                           ErrorMetric errorMetric, 
-                                           NumericSolver numericSolver, 
-                                           NumericOptimizer numericOptimizer)
+                                           RegularizationTechnique regularizationTechnique,
+                                           ErrorMetric errorMetric,
+                                           NumericSolver numericSolver,
+                                           NumericOptimizer numericOptimizer,
+                                           InitialDistributionTypes initialDistributionType = InitialDistributionTypes.SlightlyDiffering)
         {
             DifferentialEquationSolver = differentialEquationSolver;
             RegularizationTechnique = regularizationTechnique;
             ErrorMetric = errorMetric;
             NumericSolver = numericSolver;
             NumericOptimizer = numericOptimizer;
+            InitialDistributionType = initialDistributionType;
 
             Mesh = (differentialEquationSolver == DifferentialEquationSolver.FiniteElementMethod) ? MeshType.FEM : MeshType.LBM;
         }
