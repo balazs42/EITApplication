@@ -623,7 +623,7 @@ public partial class ReconstructionPage : ContentPage
             ComputeFemTransform(fem, new SKImageInfo((int)view.CanvasSize.Width, (int)view.CanvasSize.Height));
             var verts = fem.Vertices;
             var nearest = verts.OrderBy(v => (ToCanvas(v) - e.Location).LengthSquared).First();
-            var pd = _currentResult?.GetMesh()?.GetPotentialDistribution() ?? fem.GetPotentialDistribution();
+            var pd = _currentFrame?.CalculatedPotentialDistribution ?? fem.GetPotentialDistribution();
             double val = pd.GetPotential(nearest.GlobalId);
             _hoverPotentialLines = new[] { $"GID: {nearest.GlobalId}", $"Φ: {val:F3}" };
             _hoverPotentialPt = e.Location;
@@ -638,7 +638,7 @@ public partial class ReconstructionPage : ContentPage
             if (e.ActionType == SKTouchAction.Released)
             { _hoverPotentialLines = null; _hoverPotentialPt = null; view.InvalidateSurface(); e.Handled = true; return; }
             var el = lbm.GetElementAt(col, row);
-            var pd = _currentResult?.GetMesh()?.GetPotentialDistribution() ?? lbm.GetPotentialDistribution();
+            var pd = _currentFrame?.CalculatedPotentialDistribution ?? lbm.GetPotentialDistribution();
             double val = pd.Potentials[el.Id];
             _hoverPotentialLines = new[] { $"ID: {el.Id}", $"Φ: {val:F3}" };
             _hoverPotentialPt = e.Location;
@@ -702,7 +702,7 @@ public partial class ReconstructionPage : ContentPage
             ComputeFemTransform(fem, new SKImageInfo((int)view.CanvasSize.Width, (int)view.CanvasSize.Height));
             var verts = fem.Vertices;
             var nearest = verts.OrderBy(v => (ToCanvas(v) - e.Location).LengthSquared).First();
-            var pd = (_currentResult?.CurrentAdjointDistribution ?? fem.GetPotentialDistribution());
+            var pd = (_currentFrame?.CalculatedAdjointDistribution ?? fem.GetPotentialDistribution());
             double val = pd.GetPotential(nearest.GlobalId);
             _hoverAdjointLines = new[] { $"GID: {nearest.GlobalId}", $"Φ: {val:F3}" };
             _hoverAdjointPt = e.Location;
@@ -716,7 +716,7 @@ public partial class ReconstructionPage : ContentPage
             if (e.ActionType == SKTouchAction.Released)
             { _hoverAdjointLines = null; _hoverAdjointPt = null; view.InvalidateSurface(); e.Handled = true; return; }
             var el = lbm.GetElementAt(col, row);
-            var pd = (_currentResult?.CurrentAdjointDistribution ?? lbm.GetPotentialDistribution());
+            var pd = (_currentFrame?.CalculatedAdjointDistribution ?? lbm.GetPotentialDistribution());
             double val = pd.Potentials[el.Id];
             _hoverAdjointLines = new[] { $"ID: {el.Id}", $"Φ: {val:F3}" };
             _hoverAdjointPt = e.Location;
