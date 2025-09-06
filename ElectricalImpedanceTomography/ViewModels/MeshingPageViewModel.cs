@@ -113,6 +113,18 @@ namespace ElectricalImpedanceTomography.ViewModels
             Workspace.SetMesh(_currentMesh);
         }
 
+        public void LoadMeshFromWorkspace()
+        {
+            var mesh = Workspace.GetMesh();
+            if (mesh == null)
+                return;
+            _currentMesh = mesh;
+            selectedMeshType = mesh is FEMMesh ? MeshType.FEM : MeshType.LBM;
+            OnPropertyChanged(nameof(SelectedMeshType));
+            OnPropertyChanged(nameof(IsFEM));
+            OnPropertyChanged(nameof(IsLBM));
+        }
+
         public void PushState()
         {
             if (_currentMesh != null)

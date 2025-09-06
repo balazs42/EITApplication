@@ -51,7 +51,9 @@ public partial class MeshingPage : ContentPage
     {
         base.OnAppearing();
         _viewModel.LoadAvailableMeshes();
-        _viewModel.GenerateMesh();
+        _viewModel.LoadMeshFromWorkspace();
+        if (_viewModel.GetCurrentMesh() == null)
+            _viewModel.GenerateMesh();
         _viewModel.InvokeMeshChanged();
     }
 
