@@ -2,6 +2,8 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
+using System.Threading;
+using System.Threading.Tasks;
 using Utility.Classes;
 using Utility.Classes.Factories;
 using Utility.Classes.Measurement;
@@ -32,6 +34,16 @@ namespace BusinessLayer
         private double _regularizationWeight = 0.001;
 
         private bool _initialized = false;
+
+        // --- Background reconstruction bookkeeping ---
+        // Holds the running reconstruction task.  The task performs full
+        // cycles of the inverse solver until a stop is requested.
+        private Task<ReconstructionResult>? _backgroundTask;
+
+        // Flag set by the Stop() method.  When true the background task
+        // finishes the current cycle and then returns the accumulated
+        // reconstruction result.
+        private bool _stopRequested = false;
 
         public ReconstructionPersistence(IDAQRepository daqRepository, IReconstructionRepository reconstructionRepository)
         {
@@ -66,19 +78,59 @@ namespace BusinessLayer
             {
                 LBMBoundaryCondition bc = boundaryCondition as LBMBoundaryCondition ?? throw new ArgumentException("Cannot convert boundary condition to LBM boundary condition, check calling code!");
 
-                return InverseSolveStepLbm(lbmMesh, bc, measurement, gradientStepSize);
+                return InverseSolveStepLbm(lbmMesh, bc, measurement);
             }
             else throw new ArgumentOutOfRangeException();
         }
 
-        public ReconstructionResult Run(int maxIterationCount, double gradientStepSize, double redularizationStepSize)
+        public void Run(int maxIterationCount, double gradientStepSize, double redularizationStepSize)
         {
-            throw new NotImplementedException();
+            if (!_initialized || _mesh == null)
+                throw new InvalidOperationException("Reconstruction must be initialised before calling Run().");
+
+            // Store the user supplied step sizes so the background task can
+            // access them while updating the conductivity distribution.
+            _gradientStepSize = gradientStepSize;
+            _regularizationWeight = redularizationStepSize;
+
+            // Reset the stop flag in case a previous reconstruction has been
+            // executed.
+            _stopRequested = false;
+
+            // Spawn the background task.  Depending on the mesh type the
+            // appropriate reconstruction routine is executed.  The task keeps
+            // running until Stop() sets the _stopRequested flag or the
+            // maximum iteration count is reached.
+            _backgroundTask = Task.Run(() =>
+            {
+                if (_mesh is FEMMesh femMesh)
+                    return RunFemReconstruction(femMesh, maxIterationCount);
+                else if (_mesh is LBMMesh lbmMesh)
+                    return RunLbmReconstruction(lbmMesh, maxIterationCount);
+                else
+                    throw new ArgumentOutOfRangeException("Unsupported mesh type for reconstruction.");
+            });
         }
 
         public ReconstructionResult Stop()
         {
-            throw new NotImplementedException();
+            if (_backgroundTask == null)
+                throw new InvalidOperationException("Run() must be called before Stop().");
+
+            // Signal the background task to finish the current iteration and
+            // exit gracefully.  The task checks the _stopRequested flag at the
+            // start of every cycle.
+            _stopRequested = true;
+
+            // Wait for the task to complete and return the final reconstruction
+            // result.  Using GetAwaiter().GetResult() avoids AggregateException
+            // wrapping and propagates the original exception if one occurred.
+            var result = _backgroundTask.GetAwaiter().GetResult();
+
+            // Clear task reference so a new reconstruction can be started.
+            _backgroundTask = null;
+
+            return result;
         }
 
         public PotentialDistribution ForwardSolveStepFem()
@@ -214,6 +266,205 @@ namespace BusinessLayer
             );
 
             return new ReconstructionFrame(dataGrad, phi, mu, new ConductivityDistribution(new()));
+        }
+
+        // ------------------------------------------------------------------
+        //  Private background task implementations
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        ///     Runs the complete FEM reconstruction in a background task.
+        ///     Each iteration excites neighbouring electrode pairs, performs
+        ///     a forward and adjoint solve and accumulates the resulting
+        ///     gradient.  After all electrode pairs are processed the
+        ///     regularization term is added, the gradient is normalised and the
+        ///     conductivity distribution is updated.
+        /// </summary>
+        /// <param name="mesh">Finite element mesh being reconstructed.</param>
+        /// <param name="maxIterationCount">Maximum number of reconstruction
+        ///     cycles to execute.</param>
+        /// <returns>The final reconstruction result produced by the task.</returns>
+        private ReconstructionResult RunFemReconstruction(FEMMesh mesh, int maxIterationCount)
+        {
+            if (_errorMetric == null || _regularizer == null)
+                throw new NullReferenceException("Error metric or regularizer not initialised.");
+
+            // --- Prepare reference data --------------------------------------------------
+
+            // Simulate measurements on a copy of the original conductivity
+            // distribution.  These measurements serve as the observed data for
+            // the inverse problem.
+            List<double[]> measurementFrames = SimulateFemMeasurements(mesh, 1.0);
+
+            // Save the original distribution for the ReconstructionResult.
+            ConductivityDistribution originalSigma = mesh.DeepCopy().GetConductivityDistribution();
+
+            // Start the reconstruction from a slightly perturbed homogeneous
+            // conductivity distribution.
+            ConductivityDistribution initialSigma = ConductivityDistributionFactory.CreateSlightlyDiffering(mesh, 0.95);
+            mesh.SetConductivityDistribution(initialSigma);
+
+            // Cache electrode and element information for repeated use.
+            List<FEMElectrode> electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
+            int electrodeCount = electrodes.Count;
+
+            var elements = mesh.GetElements().Cast<FEMElement>().ToList();
+
+            // Container that stores intermediate frames for later inspection.
+            List<ReconstructionFrame> frames = new();
+
+            // --- Iterative reconstruction loop -----------------------------------------
+            for (int iter = 0; iter < maxIterationCount && !_stopRequested; iter++)
+            {
+                // Initialise an accumulator for the gradient contributions of
+                // all electrode pairs.
+                Dictionary<int, double> totalGrad = elements.ToDictionary(el => el.Id, _ => 0.0);
+
+                for (int exc = 0; exc < electrodeCount; exc++)
+                {
+                    // Reset electrode roles before applying a new excitation
+                    // pattern.  The excitation amplitude is set to unity for
+                    // simplicity; the measurement data already includes this
+                    // amplitude.
+                    foreach (var el in electrodes)
+                    {
+                        el.Current = 0.0;
+                        el.IsExcitation = false;
+                        el.IsGround = false;
+                        el.Potential = 0.0;
+                    }
+
+                    electrodes[exc % electrodeCount].IsExcitation = true;
+                    electrodes[exc % electrodeCount].Current = 1.0;
+                    electrodes[(exc + 1) % electrodeCount].IsGround = true;
+                    electrodes[(exc + 1) % electrodeCount].Current = -1.0;
+
+                    // Boundary condition reflecting the just configured
+                    // electrode setup.
+                    var bc = new FEMBoundaryCondition(electrodes);
+
+                    // Measurement corresponding to this excitation pattern.
+                    double[] dObs = measurementFrames[exc];
+
+                    // Perform forward/adjoint solve and obtain the gradient
+                    // contribution for this electrode pair.  The gradient step
+                    // size is set to unity so the returned gradient represents
+                    // ∇J_data without any scaling.
+                    var frame = InverseSolveStepFem(mesh, bc, dObs, 1.0);
+
+                    frames.Add(frame);
+
+                    foreach (var kvp in frame.ConductivityGradient.Conductivities)
+                        totalGrad[kvp.Key] += kvp.Value;
+                }
+
+                // Add regularisation gradient to the accumulated data
+                // gradient and normalise by the number of electrode pairs.
+                var sigma = mesh.GetConductivityDistribution();
+                var regGrad = _regularizer.EvaluateGradient(mesh, sigma);
+                foreach (var key in totalGrad.Keys.ToList())
+                {
+                    double g = totalGrad[key] + _regularizationWeight * regGrad.GetConductivity(key);
+                    totalGrad[key] = g / electrodeCount;
+                }
+
+                // Update the conductivity distribution by taking a step along
+                // the accumulated gradient.
+                var newSigmaDict = sigma.Conductivities.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value + _gradientStepSize * totalGrad[kvp.Key]);
+
+                mesh.SetConductivityDistribution(new ConductivityDistribution(newSigmaDict));
+            }
+
+            // Final reconstructed distribution after termination of the loop.
+            ConductivityDistribution reconstructed = mesh.GetConductivityDistribution();
+
+            return new ReconstructionResult(mesh,
+                                            originalSigma,
+                                            initialSigma,
+                                            reconstructed,
+                                            frames);
+        }
+
+        /// <summary>
+        ///     Background reconstruction routine for Lattice Boltzmann meshes.
+        ///     The structure mirrors <see cref="RunFemReconstruction"/> but
+        ///     utilises LBM specific data structures and operators.
+        /// </summary>
+        private ReconstructionResult RunLbmReconstruction(LBMMesh mesh, int maxIterationCount)
+        {
+            if (_errorMetric == null)
+                throw new NullReferenceException("Error metric not initialised.");
+
+            // Simulated measurement frames taken as observed data.
+            EITMeasurement measurementFrames = SimulateLbmMeasurements(mesh, 1.0);
+
+            ConductivityDistribution originalSigma = ((LBMMesh)mesh.DeepCopy()).GetConductivityDistribution();
+            ConductivityDistribution initialSigma = ConductivityDistributionFactory.CreateSlightlyDiffering(mesh, 0.95);
+            mesh.SetConductivityDistribution(initialSigma);
+
+            var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
+            int electrodeCount = electrodes.Count;
+
+            var elements = mesh.GetElements().ToList();
+
+            List<ReconstructionFrame> frames = new();
+
+            for (int iter = 0; iter < maxIterationCount && !_stopRequested; iter++)
+            {
+                Dictionary<int, double> totalGrad = elements.ToDictionary(el => el.Id, _ => 0.0);
+
+                for (int exc = 0; exc < electrodeCount; exc++)
+                {
+                    foreach (var el in electrodes)
+                    {
+                        el.Current = 0.0;
+                        el.IsExcitation = false;
+                        el.IsGround = false;
+                        el.Potential = 0.0;
+                    }
+
+                    electrodes[exc % electrodeCount].IsExcitation = true;
+                    electrodes[exc % electrodeCount].Current = 1.0;
+                    electrodes[(exc + 1) % electrodeCount].IsGround = true;
+                    electrodes[(exc + 1) % electrodeCount].Current = -1.0;
+
+                    var bc = new LBMBoundaryCondition(electrodes);
+                    double[] dObs = measurementFrames.Frames[exc];
+
+                    var frame = InverseSolveStepLbm(mesh, bc, dObs);
+
+                    frames.Add(frame);
+
+                    foreach (var kvp in frame.ConductivityGradient.Conductivities)
+                        totalGrad[kvp.Key] += kvp.Value;
+                }
+
+                var sigma = mesh.GetConductivityDistribution();
+                var regGrad = _regularizer?.EvaluateGradient(mesh, sigma);
+                foreach (var key in totalGrad.Keys.ToList())
+                {
+                    double g = totalGrad[key];
+                    if (regGrad != null)
+                        g += _regularizationWeight * regGrad.GetConductivity(key);
+                    totalGrad[key] = g / electrodeCount;
+                }
+
+                var newSigmaDict = sigma.Conductivities.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value + _gradientStepSize * totalGrad[kvp.Key]);
+
+                mesh.SetConductivityDistribution(new ConductivityDistribution(newSigmaDict));
+            }
+
+            ConductivityDistribution reconstructed = mesh.GetConductivityDistribution();
+
+            return new ReconstructionResult(mesh,
+                                            originalSigma,
+                                            initialSigma,
+                                            reconstructed,
+                                            frames);
         }
 
         public ReconstructionResult InverseSolveFem(int maxIterationCount, double gradientStepSize, double redularizationStepSize, double excitationAmplitude, double tolerance = 1e-6)
