@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using ElectricalImpedanceTomography.Controls;
 using Utility.Classes;
 using Utility.Classes.Application;
 using Utility.Classes.Factories;
@@ -30,6 +31,9 @@ namespace ElectricalImpedanceTomography.ViewModels
         private double excitationFrequency = 1.0;
 
         [ObservableProperty]
+        private CurrentImpedanceModel currentImpedanceModel = new();
+
+        [ObservableProperty]
         private bool hardwareConnected;
 
         [ObservableProperty]
@@ -44,6 +48,16 @@ namespace ElectricalImpedanceTomography.ViewModels
         partial void OnReconstructionParametersChanged(EITReconstructionParameters value)
         {
             Workspace.SetReconstructionParameters(value);
+        }
+
+        partial void OnCurrentAmplitudeChanged(double value)
+        {
+            CurrentImpedanceModel.Intensity = (float)Math.Clamp(value, 0, 1);
+        }
+
+        partial void OnExcitationFrequencyChanged(double value)
+        {
+            CurrentImpedanceModel.Color = value > 1 ? Colors.Red : Colors.CornflowerBlue;
         }
 
         private static readonly DifferentialEquationSolver[] SolverValues = Enum.GetValues<DifferentialEquationSolver>();
