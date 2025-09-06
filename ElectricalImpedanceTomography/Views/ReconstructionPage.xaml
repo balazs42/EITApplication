@@ -80,7 +80,7 @@
                     
                         <!-- Parameter Configuration -->
                         <Border Grid.Column="1" Padding="5" Background="Transparent" Stroke="Gray">
-                            <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="5">
+                            <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="5">
                                 <Label Grid.Row="0" Text="Parameter Selection" FontAttributes="Bold" FontSize="Medium" Margin="0, 0, 0, 10"/>
                                 <Label Grid.Row="1" HorizontalOptions="Center" Text="Regularization Weight (θ)" FontFamily="SF Pro Text"/>
                                 <Entry Grid.Row="2" Text="{Binding RegularizationWeight}"/>
@@ -88,6 +88,8 @@
                                 <Entry Grid.Row="4" Text="{Binding StepSize}"/>
                                 <Label Grid.Row="5" HorizontalOptions="Center" Text="Max Iteration Count" FontFamily="SF Pro Text"/>
                                 <Entry Grid.Row="6" Text="{Binding MaxIterationCount}"/>
+                                <Label Grid.Row="7" HorizontalOptions="Center" Text="Initial Distribution" FontFamily="SF Pro Text"/>
+                                <Picker Grid.Row="8" ItemsSource="{Binding InitialDistributionOptions}" SelectedItem="{Binding ReconstructionParameters.InitialDistributionType}"/>
 
                             </Grid>
                         </Border>
@@ -199,6 +201,12 @@
                                 Minimum="0"
                                 Maximum="0"
                                 ValueChanged="OnPlaybackSliderValueChanged" />
+                        <Label x:Name="PlaybackFrameLabel"
+                               Grid.Row="1"
+                               Grid.Column="3"
+                               VerticalOptions="Center"
+                               Text="0 / 0"
+                               FontFamily="SF Pro Text"/>
                     </Grid>
                 </Border>
 
@@ -231,7 +239,7 @@
                             <Label Text="Conductivity Gradient" HorizontalOptions="Center" FontFamily="SF Pro Text"/>
                             <Border Stroke="DarkGray" StrokeThickness="2" Margin="10" HorizontalOptions="Center">
                                 <Grid RowDefinitions="Auto,Auto">
-                                    <skia:SKCanvasView x:Name="GradientDistributionCanvas" PaintSurface="OnGradientCanvasPaintSurface" HeightRequest="275" WidthRequest="275" Margin="10"/>
+                                    <skia:SKCanvasView x:Name="GradientDistributionCanvas" PaintSurface="OnGradientCanvasPaintSurface" EnableTouchEvents="True" Touch="OnGradientCanvasTouch" HeightRequest="275" WidthRequest="275" Margin="10"/>
                                     <skia:SKCanvasView Grid.Row="1" x:Name="GradientColorbarCanvas" PaintSurface="OnGradientColorbarPaintSurface" HeightRequest="20" WidthRequest="275"/>
                                 </Grid>
                             </Border>
@@ -255,7 +263,7 @@
                             <Label Text="Initial Conductivity Distribution" HorizontalOptions="Center" FontFamily="SF Pro Text"/>
                             <Border Stroke="DarkGray" StrokeThickness="2" Margin="10" HorizontalOptions="Center">
                                 <Grid RowDefinitions="Auto,Auto">
-                                    <skia:SKCanvasView x:Name="InitialDistributionCanvas" PaintSurface="OnInitialCanvasPaintSurface" HeightRequest="275" WidthRequest="275" Margin="10"/>
+                                    <skia:SKCanvasView x:Name="InitialDistributionCanvas" PaintSurface="OnInitialCanvasPaintSurface" EnableTouchEvents="True" Touch="OnInitialCanvasTouch" HeightRequest="275" WidthRequest="275" Margin="10"/>
                                     <skia:SKCanvasView Grid.Row="1" x:Name="InitialColorbarCanvas" PaintSurface="OnInitialColorbarPaintSurface" HeightRequest="20" WidthRequest="275"/>
                                 </Grid>
                             </Border>

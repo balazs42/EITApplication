@@ -8,6 +8,7 @@ using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Workspace = Utility.Classes.Application.Workspace;
+using System;
 using System.Linq;
 
 namespace ElectricalImpedanceTomography.Views;
@@ -163,7 +164,7 @@ public partial class ReconstructionPage : ContentPage
             PlaybackSlider.Value = PlaybackSlider.Maximum;
         }
         _sliderChanging = false;
-        Dispatcher.Dispatch(InvalidateAll);
+        Dispatcher.Dispatch(() => { InvalidateAll(); UpdatePlaybackLabel(); });
     }
 
     private void OnReconstructionFrameUpdated(object? sender, ReconstructionFrame frame)
@@ -185,6 +186,7 @@ public partial class ReconstructionPage : ContentPage
             PotentialColorbarCanvas.InvalidateSurface();
             AdjointColorbarCanvas.InvalidateSurface();
             GradientColorbarCanvas.InvalidateSurface();
+            UpdatePlaybackLabel();
         });
     }
 
@@ -723,6 +725,98 @@ public partial class ReconstructionPage : ContentPage
             view.InvalidateSurface(); e.Handled = true;
         }
     }
+
+    private async void OnInitialCanvasTouch(object sender, SKTouchEventArgs e)
+    {
+        if (e.MouseButton == SKMouseButton.Right && e.ActionType == SKTouchAction.Pressed)
+        { await ShowDisplayModeMenu(); e.Handled = true; return; }
+        var mesh = GetMesh(); if (mesh == null) return; var view = (SKCanvasView)sender;
+        if (mesh is FEMMesh fem)
+        {
+            if (e.ActionType == SKTouchAction.Released)
+            { _hoverInitialLines = null; _hoverInitialPt = null; view.InvalidateSurface(); e.Handled = true; return; }
+            ComputeFemTransform(fem, new SKImageInfo((int)view.CanvasSize.Width, (int)view.CanvasSize.Height));
+            _hoverInitialLines = null;
+            var cd = (_currentResult?.InitialConductivitiyDistribution ?? fem.GetConductivityDistribution());
+            foreach (var elem in fem.GetElements().Cast<FEMElement>())
+            {
+                var c0 = ToCanvas(elem.Vertices[0]);
+                var c1 = ToCanvas(elem.Vertices[1]);
+                var c2 = ToCanvas(elem.Vertices[2]);
+                if (PointInTriangle(e.Location, c0, c1, c2, out _, out _, out _))
+                {
+                    double val = cd.GetConductivity(elem.Id);
+                    _hoverInitialLines = new[] { $"Elem: {elem.Id}", $"σ: {val:F3}" };
+                    _hoverInitialPt = e.Location;
+                    break;
+                }
+            }
+            view.InvalidateSurface(); e.Handled = true;
+        }
+        else if (mesh is LBMMesh lbm)
+        {
+            float cw = view.CanvasSize.Width / lbm.Nx; float ch = view.CanvasSize.Height / lbm.Ny;
+            int col = (int)(e.Location.X / cw); int row = (int)(e.Location.Y / ch);
+            col = Math.Clamp(col, 0, lbm.Nx - 1); row = Math.Clamp(row, 0, lbm.Ny - 1);
+            if (e.ActionType == SKTouchAction.Released)
+            { _hoverInitialLines = null; _hoverInitialPt = null; view.InvalidateSurface(); e.Handled = true; return; }
+            var el = lbm.GetElementAt(col, row);
+            var cd = (_currentResult?.InitialConductivitiyDistribution ?? lbm.GetConductivityDistribution());
+            double val = cd.Conductivities[el.Id];
+            _hoverInitialLines = new[] { $"ID: {el.Id}", $"σ: {val:F3}" };
+            _hoverInitialPt = e.Location;
+            view.InvalidateSurface(); e.Handled = true;
+        }
+    }
+
+    private async void OnGradientCanvasTouch(object sender, SKTouchEventArgs e)
+    {
+        if (e.MouseButton == SKMouseButton.Right && e.ActionType == SKTouchAction.Pressed)
+        { await ShowDisplayModeMenu(); e.Handled = true; return; }
+        var mesh = GetMesh(); if (mesh == null) return; var view = (SKCanvasView)sender;
+        if (mesh is FEMMesh fem)
+        {
+            if (e.ActionType == SKTouchAction.Released)
+            { _hoverGradientLines = null; _hoverGradientPt = null; view.InvalidateSurface(); e.Handled = true; return; }
+            ComputeFemTransform(fem, new SKImageInfo((int)view.CanvasSize.Width, (int)view.CanvasSize.Height));
+            _hoverGradientLines = null;
+            var cd = _currentFrame?.ConductivityGradient;
+            if (cd != null)
+            {
+                foreach (var elem in fem.GetElements().Cast<FEMElement>())
+                {
+                    var c0 = ToCanvas(elem.Vertices[0]);
+                    var c1 = ToCanvas(elem.Vertices[1]);
+                    var c2 = ToCanvas(elem.Vertices[2]);
+                    if (PointInTriangle(e.Location, c0, c1, c2, out _, out _, out _))
+                    {
+                        double val = cd.GetConductivity(elem.Id);
+                        _hoverGradientLines = new[] { $"Elem: {elem.Id}", $"∂σ: {val:F3}" };
+                        _hoverGradientPt = e.Location;
+                        break;
+                    }
+                }
+            }
+            view.InvalidateSurface(); e.Handled = true;
+        }
+        else if (mesh is LBMMesh lbm)
+        {
+            float cw = view.CanvasSize.Width / lbm.Nx; float ch = view.CanvasSize.Height / lbm.Ny;
+            int col = (int)(e.Location.X / cw); int row = (int)(e.Location.Y / ch);
+            col = Math.Clamp(col, 0, lbm.Nx - 1); row = Math.Clamp(row, 0, lbm.Ny - 1);
+            if (e.ActionType == SKTouchAction.Released)
+            { _hoverGradientLines = null; _hoverGradientPt = null; view.InvalidateSurface(); e.Handled = true; return; }
+            var el = lbm.GetElementAt(col, row);
+            var cd = _currentFrame?.ConductivityGradient;
+            if (cd != null)
+            {
+                double val = cd.Conductivities[el.Id];
+                _hoverGradientLines = new[] { $"ID: {el.Id}", $"∂σ: {val:F3}" };
+                _hoverGradientPt = e.Location;
+            }
+            view.InvalidateSurface(); e.Handled = true;
+        }
+    }
     #endregion
 
     private async Task ShowDisplayModeMenu()
@@ -788,7 +882,7 @@ public partial class ReconstructionPage : ContentPage
                 _viewModel.Residual = CalculateResidual(_currentResult.ReconstructedConductivityDistribution,
                                                        _currentResult.OriginalConductivityDistribution);
             }
-            Dispatcher.Dispatch(InvalidateAll);
+            Dispatcher.Dispatch(() => { InvalidateAll(); UpdatePlaybackLabel(); });
         }
     }
 
@@ -842,8 +936,15 @@ public partial class ReconstructionPage : ContentPage
                 _viewModel.Residual = CalculateResidual(res.ReconstructedConductivityDistribution,
                                                        res.OriginalConductivityDistribution);
             }
-            Dispatcher.Dispatch(InvalidateAll);
+            Dispatcher.Dispatch(() => { InvalidateAll(); UpdatePlaybackLabel(); });
         }
+    }
+
+    private void UpdatePlaybackLabel()
+    {
+        int total = (int)Math.Round(PlaybackSlider.Maximum) + 1;
+        int current = (int)Math.Round(PlaybackSlider.Value) + 1;
+        PlaybackFrameLabel.Text = $"{current} / {total}";
     }
 
     private async void OnSolveForwardClicked(object sender, EventArgs e)

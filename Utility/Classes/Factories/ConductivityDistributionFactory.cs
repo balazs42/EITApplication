@@ -1,5 +1,7 @@
 ﻿using Utility.Classes.Meshing.FiniteElementMesh;
+using System;
 using Workspace = Utility.Classes.Application.Workspace;
+using Utility.Classes;
 
 namespace Utility.Classes.Factories
 {
@@ -126,6 +128,19 @@ namespace Utility.Classes.Factories
             Workspace.AddLogMessage("ConductivityDistributionFactory", "Created from FEMMesh ConductivityDistribution object.");
 
             return new ConductivityDistribution(conductivityDistribution);
+        }
+
+        public static ConductivityDistribution CreateInitialDistribution(IMesh mesh, InitialDistributionTypes type)
+        {
+            return type switch
+            {
+                InitialDistributionTypes.Homogeneous => CreateHomogeneous(mesh),
+                InitialDistributionTypes.Random => CreateRandom(mesh),
+                InitialDistributionTypes.SlightlyDiffering => CreateSlightlyDiffering(mesh, 0.95),
+                InitialDistributionTypes.RandomSlightlyDiffering =>
+                    CreateRandomSlightlyDiffering(mesh, Math.Max(1, mesh.GetElements().Count / 10), 0.95),
+                _ => CreateHomogeneous(mesh)
+            };
         }
     }
 }
