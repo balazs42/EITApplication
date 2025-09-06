@@ -1,4 +1,6 @@
-﻿using Utility.Classes.ReconstructionParameters;
+﻿using System.Collections.Generic;
+using Utility.Classes;
+using Utility.Classes.ReconstructionParameters;
 
 namespace Utility.Classes.Application
 {
@@ -13,6 +15,7 @@ namespace Utility.Classes.Application
         private static double _regularizationWeight = 1e-3;
 
         private static List<ReconstructionResult> _reconstructionResults = [];
+        private static List<ReconstructionFrame> _reconstructionFrames = [];
         private static List<WorkspaceMessage> _messages = [];
         public static event Action<WorkspaceMessage>? MessageAdded;
 
@@ -39,11 +42,13 @@ namespace Utility.Classes.Application
         public static void SetReconstructionParameters(EITReconstructionParameters eITReconstructionParameters) => _reconstructionParameters = eITReconstructionParameters;
         public static void SetMesh(IMesh? mesh) => _mesh = mesh;
         public static void SetReconstructionResults(List<ReconstructionResult> results) => _reconstructionResults = results;
+        public static void SetReconstructionFrames(List<ReconstructionFrame> frames) => _reconstructionFrames = frames;
 
         public static User GetUser() => _user;
         public static EITReconstructionParameters GetReconstructionParameters() => _reconstructionParameters;
         public static IMesh? GetMesh() => _mesh;
         public static List<ReconstructionResult> GetReconstructionResults() => _reconstructionResults;
+        public static List<ReconstructionFrame> GetReconstructionFrames() => _reconstructionFrames;
 
         public static int MaxIterationCount
         {
@@ -65,6 +70,8 @@ namespace Utility.Classes.Application
 
         public static void AddReconstructionResultToWorkspace(ReconstructionResult reconstructionResult) => _reconstructionResults.Add(reconstructionResult);
         public static void RemoveReconstructionResultFromWorkspace(int index) => _reconstructionResults.RemoveAt(index);
+        public static void AddReconstructionFrameToWorkspace(ReconstructionFrame frame) => _reconstructionFrames.Add(frame);
+        public static void ClearReconstructionFrames() => _reconstructionFrames.Clear();
 
         private static void AddMessage(string message, WorkspaceMessageType type = WorkspaceMessageType.Log)
         {
