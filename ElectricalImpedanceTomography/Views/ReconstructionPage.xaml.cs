@@ -18,6 +18,7 @@ public partial class ReconstructionPage : ContentPage
     public event EventHandler<int>? PotentialModeChanged;
 
     private ReconstructionResult? _currentResult;
+    private ReconstructionFrame? _currentFrame;
 
     // FEM transform helpers
     private float _scale, _marginX, _marginY, _meshWidth, _meshHeight, _minX, _minY, _canvasHeight;
@@ -27,6 +28,8 @@ public partial class ReconstructionPage : ContentPage
     private string[]? _hoverPotentialLines; private SKPoint? _hoverPotentialPt;
     private string[]? _hoverReconstructedLines; private SKPoint? _hoverReconstructedPt;
     private string[]? _hoverAdjointLines; private SKPoint? _hoverAdjointPt;
+    private string[]? _hoverInitialLines; private SKPoint? _hoverInitialPt;
+    private string[]? _hoverGradientLines; private SKPoint? _hoverGradientPt;
 
     private enum PotentialDisplayMode { Default, Grayscale, Inverted, Heatmap, Rainbow }
     private PotentialDisplayMode _potMode = PotentialDisplayMode.Default;
@@ -51,6 +54,7 @@ public partial class ReconstructionPage : ContentPage
         PotentialModeChanged += OnPotentialModeChanged;
 
         _viewModel.ReconstructionUpdated += OnReconstructionUpdated;
+        _viewModel.ReconstructionFrameUpdated += OnReconstructionFrameUpdated;
 
         StepButton.IsEnabled = false;
         PlayButton.IsVisible = true;
@@ -150,15 +154,38 @@ public partial class ReconstructionPage : ContentPage
     private void OnReconstructionUpdated(object? sender, ReconstructionResult result)
     {
         _currentResult = result;
+        _currentFrame = result.Frames.LastOrDefault();
         _sliderChanging = true;
-        var results = Workspace.GetReconstructionResults();
-        if (results.Count > 0)
+        var frames = Workspace.GetReconstructionFrames();
+        if (frames.Count > 0)
         {
-            PlaybackSlider.Maximum = results.Count - 1;
+            PlaybackSlider.Maximum = frames.Count - 1;
             PlaybackSlider.Value = PlaybackSlider.Maximum;
         }
         _sliderChanging = false;
         Dispatcher.Dispatch(InvalidateAll);
+    }
+
+    private void OnReconstructionFrameUpdated(object? sender, ReconstructionFrame frame)
+    {
+        _currentFrame = frame;
+        _sliderChanging = true;
+        var frames = Workspace.GetReconstructionFrames();
+        if (frames.Count > 0)
+        {
+            PlaybackSlider.Maximum = frames.Count - 1;
+            PlaybackSlider.Value = PlaybackSlider.Maximum;
+        }
+        _sliderChanging = false;
+        Dispatcher.Dispatch(() =>
+        {
+            PotentialDistributionCanvas.InvalidateSurface();
+            AdjointDistributionCanvas.InvalidateSurface();
+            GradientDistributionCanvas.InvalidateSurface();
+            PotentialColorbarCanvas.InvalidateSurface();
+            AdjointColorbarCanvas.InvalidateSurface();
+            GradientColorbarCanvas.InvalidateSurface();
+        });
     }
 
     #region Drawing helpers
@@ -336,7 +363,7 @@ public partial class ReconstructionPage : ContentPage
     private void DrawColorBar(SKCanvas canvas, SKImageInfo info, double min, double max, bool isPotential)
     {
         canvas.Clear(SKColor.Parse("#1E1E1E"));
-        var rect = new SKRect(0, 0, info.Width, info.Height - 20);
+        var rect = new SKRect(0, 0, info.Width, info.Height);
         int steps = 256;
         var colors = new SKColor[steps];
         var positions = new float[steps];
@@ -349,8 +376,8 @@ public partial class ReconstructionPage : ContentPage
         }
         using var paint = new SKPaint
         {
-            Shader = SKShader.CreateLinearGradient(new SKPoint(rect.Left, rect.Top),
-                                                   new SKPoint(rect.Left, rect.Bottom),
+            Shader = SKShader.CreateLinearGradient(new SKPoint(rect.Left, rect.Bottom),
+                                                   new SKPoint(rect.Right, rect.Bottom),
                                                    colors,
                                                    positions,
                                                    SKShaderTileMode.Clamp)
@@ -359,8 +386,9 @@ public partial class ReconstructionPage : ContentPage
         using var border = new SKPaint { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1 };
         canvas.DrawRect(rect, border);
         using var text = new SKPaint { Color = SKColors.White, TextSize = 14, IsAntialias = true };
-        canvas.DrawText(max.ToString("F2"), rect.Left + 2, 14, text);
-        canvas.DrawText(min.ToString("F2"), rect.Left + 2, info.Height - 2, text);
+        canvas.DrawText(min.ToString("F2"), rect.Left, rect.Bottom - 2, text);
+        float w = text.MeasureText(max.ToString("F2"));
+        canvas.DrawText(max.ToString("F2"), rect.Right - w, rect.Bottom - 2, text);
     }
     #endregion
 
@@ -383,9 +411,8 @@ public partial class ReconstructionPage : ContentPage
 
     private void OnPotentialCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
-        _currentResult ??= Workspace.GetReconstructionResults().LastOrDefault();
         var mesh = GetMesh();
-        var pd = _currentResult?.CurrentPotentialDistribution ?? mesh?.GetPotentialDistribution();
+        var pd = _currentFrame?.CalculatedPotentialDistribution ?? mesh?.GetPotentialDistribution();
         if (mesh is FEMMesh fem && pd != null)
             DrawFemPotential(e, fem, pd, _hoverPotentialLines, _hoverPotentialPt);
         else if (mesh is LBMMesh lbm && pd != null)
@@ -394,7 +421,6 @@ public partial class ReconstructionPage : ContentPage
 
     private void OnReconstructedCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
-        _currentResult ??= Workspace.GetReconstructionResults().LastOrDefault();
         var mesh = GetMesh();
         var cd = _currentResult?.ReconstructedConductivityDistribution ?? mesh?.GetConductivityDistribution();
         if (mesh is FEMMesh fem && cd != null)
@@ -405,13 +431,32 @@ public partial class ReconstructionPage : ContentPage
 
     private void OnAdjointCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
-        _currentResult ??= Workspace.GetReconstructionResults().LastOrDefault();
         var mesh = GetMesh();
-        var pd = _currentResult?.CurrentAdjointDistribution ?? mesh?.GetPotentialDistribution();
+        var pd = _currentFrame?.CalculatedAdjointDistribution ?? mesh?.GetPotentialDistribution();
         if (mesh is FEMMesh fem && pd != null)
             DrawFemPotential(e, fem, pd, _hoverAdjointLines, _hoverAdjointPt);
         else if (mesh is LBMMesh lbm && pd != null)
             DrawLbmField(e, lbm, pd.Potentials, true, _hoverAdjointLines, _hoverAdjointPt);
+    }
+
+    private void OnInitialCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
+    {
+        var mesh = GetMesh();
+        var cd = _currentResult?.InitialConductivitiyDistribution ?? mesh?.GetConductivityDistribution();
+        if (mesh is FEMMesh fem && cd != null)
+            DrawFemConductivity(e, fem, cd, _hoverInitialLines, _hoverInitialPt);
+        else if (mesh is LBMMesh lbm && cd != null)
+            DrawLbmField(e, lbm, cd.Conductivities, false, _hoverInitialLines, _hoverInitialPt);
+    }
+
+    private void OnGradientCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
+    {
+        var mesh = GetMesh();
+        var cd = _currentFrame?.ConductivityGradient;
+        if (mesh is FEMMesh fem && cd != null)
+            DrawFemConductivity(e, fem, cd, _hoverGradientLines, _hoverGradientPt);
+        else if (mesh is LBMMesh lbm && cd != null)
+            DrawLbmField(e, lbm, cd.Conductivities, false, _hoverGradientLines, _hoverGradientPt);
     }
 
     private void OnOriginalColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
@@ -438,9 +483,8 @@ public partial class ReconstructionPage : ContentPage
 
     private void OnPotentialColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
-        _currentResult ??= Workspace.GetReconstructionResults().LastOrDefault();
         var mesh = GetMesh();
-        var pd = _currentResult?.CurrentPotentialDistribution ?? mesh?.GetPotentialDistribution();
+        var pd = _currentFrame?.CalculatedPotentialDistribution ?? mesh?.GetPotentialDistribution();
         if (pd != null)
         {
             double min = pd.Potentials.Values.Min();
@@ -452,7 +496,6 @@ public partial class ReconstructionPage : ContentPage
 
     private void OnReconstructedColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
-        _currentResult ??= Workspace.GetReconstructionResults().LastOrDefault();
         var mesh = GetMesh();
         if (mesh is FEMMesh fem)
         {
@@ -474,15 +517,47 @@ public partial class ReconstructionPage : ContentPage
 
     private void OnAdjointColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
-        _currentResult ??= Workspace.GetReconstructionResults().LastOrDefault();
         var mesh = GetMesh();
-        var pd = _currentResult?.CurrentAdjointDistribution ?? mesh?.GetPotentialDistribution();
+        var pd = _currentFrame?.CalculatedAdjointDistribution ?? mesh?.GetPotentialDistribution();
         if (pd != null)
         {
             double min = pd.Potentials.Values.Min();
             double max = pd.Potentials.Values.Max();
             if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
             DrawColorBar(e.Surface.Canvas, e.Info, min, max, true);
+        }
+    }
+
+    private void OnInitialColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
+    {
+        var mesh = GetMesh();
+        if (mesh is FEMMesh fem)
+        {
+            var cd = _currentResult?.InitialConductivitiyDistribution ?? fem.GetConductivityDistribution();
+            double min = cd.Conductivities.Values.Min();
+            double max = cd.Conductivities.Values.Max();
+            if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
+            DrawColorBar(e.Surface.Canvas, e.Info, min, max, false);
+        }
+        else if (mesh is LBMMesh lbm)
+        {
+            var cd = _currentResult?.InitialConductivitiyDistribution ?? lbm.GetConductivityDistribution();
+            double min = cd.Conductivities.Values.Min();
+            double max = cd.Conductivities.Values.Max();
+            if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
+            DrawColorBar(e.Surface.Canvas, e.Info, min, max, false);
+        }
+    }
+
+    private void OnGradientColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
+    {
+        var cd = _currentFrame?.ConductivityGradient;
+        if (cd != null)
+        {
+            double min = cd.Conductivities.Values.Min();
+            double max = cd.Conductivities.Values.Max();
+            if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
+            DrawColorBar(e.Surface.Canvas, e.Info, min, max, false);
         }
     }
     #endregion
@@ -661,13 +736,17 @@ public partial class ReconstructionPage : ContentPage
     private void InvalidateAll()
     {
         OriginalDistributionCanvas.InvalidateSurface();
-        PotentialDistributionCanvas.InvalidateSurface();
+        InitialDistributionCanvas.InvalidateSurface();
         ReconstructedDistributionCanvas.InvalidateSurface();
+        PotentialDistributionCanvas.InvalidateSurface();
         AdjointDistributionCanvas.InvalidateSurface();
+        GradientDistributionCanvas.InvalidateSurface();
         OriginalColorbarCanvas.InvalidateSurface();
-        PotentialColorbarCanvas.InvalidateSurface();
+        InitialColorbarCanvas.InvalidateSurface();
         ReconstructedColorbarCanvas.InvalidateSurface();
+        PotentialColorbarCanvas.InvalidateSurface();
         AdjointColorbarCanvas.InvalidateSurface();
+        GradientColorbarCanvas.InvalidateSurface();
     }
 
     private static double CalculateResidual(ConductivityDistribution reconstructed, ConductivityDistribution original)
@@ -699,7 +778,9 @@ public partial class ReconstructionPage : ContentPage
             _viewModel.LoadReconstruction(info.FilePath);
             var results = Workspace.GetReconstructionResults();
             _currentResult = results.LastOrDefault();
-            PlaybackSlider.Maximum = results.Count > 0 ? results.Count - 1 : 0;
+            var frames = Workspace.GetReconstructionFrames();
+            _currentFrame = frames.LastOrDefault();
+            PlaybackSlider.Maximum = frames.Count > 0 ? frames.Count - 1 : 0;
             PlaybackSlider.Value = PlaybackSlider.Maximum;
             if (_currentResult != null)
             {
@@ -735,15 +816,32 @@ public partial class ReconstructionPage : ContentPage
         if (_sliderChanging)
             return;
 
-        var results = Workspace.GetReconstructionResults();
+        var frames = Workspace.GetReconstructionFrames();
         int index = (int)Math.Round(e.NewValue);
-        if (index >= 0 && index < results.Count)
+        if (index >= 0 && index < frames.Count)
         {
-            var result = results[index];
-            _currentResult = result;
-            _viewModel.IterationCount = index + 1;
-            _viewModel.Residual = CalculateResidual(result.ReconstructedConductivityDistribution,
-                                                   result.OriginalConductivityDistribution);
+            _currentFrame = frames[index];
+            var results = Workspace.GetReconstructionResults();
+            ReconstructionResult? res = null;
+            int cumulative = 0;
+            int iter = 0;
+            foreach (var r in results)
+            {
+                cumulative += r.Frames.Count;
+                iter++;
+                if (index < cumulative)
+                {
+                    res = r;
+                    break;
+                }
+            }
+            if (res != null)
+            {
+                _currentResult = res;
+                _viewModel.IterationCount = iter;
+                _viewModel.Residual = CalculateResidual(res.ReconstructedConductivityDistribution,
+                                                       res.OriginalConductivityDistribution);
+            }
             Dispatcher.Dispatch(InvalidateAll);
         }
     }

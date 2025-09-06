@@ -15,11 +15,12 @@ namespace ServiceLayer
 
         // --- Background reconstruction control ---
         event EventHandler<ReconstructionResult> ReconstructionUpdated;
+        event EventHandler<ReconstructionFrame> ReconstructionFrameUpdated;
         void StartBackgroundReconstruction(int maxIterationCount, double stepSize, double regularizationWeight, double excitationAmplitude);
         void PauseBackgroundReconstruction();
         void ResumeBackgroundReconstruction();
         void StopBackgroundReconstruction();
-        Task<ReconstructionResult?> StepReconstructionAsync();
+        Task<ReconstructionFrame?> StepReconstructionAsync();
 
         // --- LBM Reconstruction ---
         PotentialDistribution SolveLbmForward();

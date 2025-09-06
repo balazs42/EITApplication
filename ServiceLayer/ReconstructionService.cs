@@ -33,8 +33,13 @@ namespace ServiceLayer
         private double _excitationAmplitude;
         private List<double[]> _simulatedMeasurements = new();
         private int _simMeasurementIndex;
+        private List<ReconstructionFrame> _currentCycleFrames = new();
+        private ConductivityDistribution? _originalSigma;
+        private ConductivityDistribution? _initialSigma;
+        private int _framesPerCycle;
 
         public event EventHandler<ReconstructionResult>? ReconstructionUpdated;
+        public event EventHandler<ReconstructionFrame>? ReconstructionFrameUpdated;
 
         public ReconstructionService(IReconstructionPersistence reconstructionPersistence, ILogger logger)
         {
@@ -102,7 +107,18 @@ namespace ServiceLayer
                 _mesh = mesh;
                 _simulatedMeasurements.Clear();
                 _simMeasurementIndex = 0;
+                _currentCycleFrames.Clear();
+                Workspace.ClearReconstructionFrames();
+                Workspace.SetReconstructionResults(new List<ReconstructionResult>());
                 _reconstructionPersistence.InitializeReconstruction(mesh, parameters);
+                _originalSigma = ((Mesh)mesh.DeepCopy()).GetConductivityDistribution();
+                _initialSigma = mesh.GetConductivityDistribution();
+                if (mesh is FEMMesh fem)
+                    _framesPerCycle = fem.GetElectrodes().Count;
+                else if (mesh is LBMMesh lbm)
+                    _framesPerCycle = lbm.GetElectrodes().Count;
+                else
+                    _framesPerCycle = 1;
             }
             catch(Exception ex)
             {
@@ -181,7 +197,7 @@ namespace ServiceLayer
 
         #region Background reconstruction
 
-        private ReconstructionResult? PerformInverseStep()
+        private ReconstructionFrame? PerformInverseStep()
         {
             if (_mesh is FEMMesh femMesh)
             {
@@ -194,13 +210,29 @@ namespace ServiceLayer
                 var electrodes = femMesh.GetElectrodes().Cast<FEMElectrode>().ToList();
                 var bc = new FEMBoundaryCondition(electrodes);
 
-                var result = InverseSolveStepFem(femMesh, measurement, bc, _stepSize);
+                var frame = _reconstructionPersistence.Step(measurement, bc, _stepSize, _regularizationWeight);
                 _simMeasurementIndex++;
-                return result;
+                Workspace.AddReconstructionFrameToWorkspace(frame);
+                _currentCycleFrames.Add(frame);
+                ReconstructionFrameUpdated?.Invoke(this, frame);
+
+                if (_simMeasurementIndex % _framesPerCycle == 0)
+                {
+                    var result = new ReconstructionResult(_mesh!, _originalSigma!, _initialSigma!, _mesh!.GetConductivityDistribution(), _currentCycleFrames.ToList());
+                    Workspace.AddReconstructionResultToWorkspace(result);
+                    ReconstructionUpdated?.Invoke(this, result);
+                    _currentCycleFrames.Clear();
+                    _currentIteration++;
+                }
+
+                return frame;
             }
             else if (_mesh is LBMMesh)
             {
-                return SolveLbmInverse(1);
+                var result = SolveLbmInverse(1);
+                ReconstructionUpdated?.Invoke(this, result);
+                _currentIteration++;
+                return null;
             }
 
             return null;
@@ -216,13 +248,7 @@ namespace ServiceLayer
                     continue;
                 }
 
-                var result = PerformInverseStep();
-                if (result != null)
-                {
-                    _currentIteration++;
-                    ReconstructionUpdated?.Invoke(this, result);
-                }
-
+                PerformInverseStep();
                 await Task.Yield();
             }
         }
@@ -250,15 +276,10 @@ namespace ServiceLayer
             _isPaused = false;
         }
 
-        public async Task<ReconstructionResult?> StepReconstructionAsync()
+        public async Task<ReconstructionFrame?> StepReconstructionAsync()
         {
-            var result = await Task.Run(PerformInverseStep);
-            if (result != null)
-            {
-                _currentIteration++;
-                ReconstructionUpdated?.Invoke(this, result);
-            }
-            return result;
+            var frame = await Task.Run(PerformInverseStep);
+            return frame;
         }
 
         #endregion
@@ -353,6 +374,7 @@ namespace ServiceLayer
             {
                 var frames = _reconstructionPersistence.LoadReconstruction(filePath);
                 Workspace.SetReconstructionResults(frames);
+                Workspace.SetReconstructionFrames(frames.SelectMany(r => r.Frames).ToList());
                 return frames;
             }
             catch (Exception ex)
