@@ -14,6 +14,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         private readonly IReconstructionService _reconstructionService;
 
         private IMesh? _mesh = Workspace.GetMesh();
+        private IMesh? _initializedMesh;
 
         [ObservableProperty]
         private int iterationCount = 0;
@@ -55,7 +56,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         private void UpdateMesh() => _mesh = Workspace.GetMesh();
         private void UpdateReconstructionParameters() => ReconstructionParameters = Workspace.GetReconstructionParameters();
 
-        private void InitializeReconstruction()
+        private void InitializeReconstruction(bool force = false)
         {
             UpdateMesh();
             UpdateReconstructionParameters();
@@ -66,7 +67,12 @@ namespace ElectricalImpedanceTomography.ViewModels
             if (mesh == null)
                 throw new NullReferenceException("Mesh was null during reconstruction initialization, check calling code!");
 
-            _reconstructionService.InitializeReconstruction(mesh, reconstructionParameters);
+            if (force || _initializedMesh != mesh)
+            {
+                _reconstructionService.InitializeReconstruction(mesh, reconstructionParameters);
+                _initializedMesh = mesh;
+                IterationCount = 0;
+            }
         }
 
         public bool CheckReconstructionMethodAgainstMesh()
@@ -83,7 +89,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public void OnSolveForwardClicked(object sender, EventArgs e)
         {
-            InitializeReconstruction();
+            InitializeReconstruction(force: true);
 
             if (_mesh is FEMMesh)
                 _reconstructionService.ForwardSolveStepFem();
@@ -93,7 +99,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public void OnSolveInverseClicked(object sender, EventArgs e)
         {
-            InitializeReconstruction();
+            InitializeReconstruction(force: true);
 
             if (_mesh is FEMMesh)
                 _reconstructionService.InverseSolveFem(MaxIterationCount, StepSize, RegularizationWeight, ExcitationCurrentAmplitude);
@@ -115,8 +121,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public void StartBackgroundReconstruction()
         {
-            InitializeReconstruction();
-            IterationCount = 0;
+            InitializeReconstruction(force: true);
             _reconstructionService.StartBackgroundReconstruction(MaxIterationCount, StepSize, RegularizationWeight, ExcitationCurrentAmplitude);
         }
 
@@ -124,7 +129,11 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public void ResumeReconstruction() => _reconstructionService.ResumeBackgroundReconstruction();
 
-        public void StopReconstruction() => _reconstructionService.StopBackgroundReconstruction();
+        public void StopReconstruction()
+        {
+            _reconstructionService.StopBackgroundReconstruction();
+            _initializedMesh = null;
+        }
 
         public Task<ReconstructionFrame?> StepReconstructionAsync()
         {
