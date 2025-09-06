@@ -3,7 +3,6 @@ using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.ReconstructionParameters;
-using System.Collections.Generic;
 
 namespace BusinessLayer
 {
@@ -11,16 +10,24 @@ namespace BusinessLayer
     {
         public void InitializeReconstruction(IMesh mesh, EITReconstructionParameters parameters);
 
-        // --- LBM Reconstruction ---
-        public PotentialDistribution SolveLbmForward();
-        public ReconstructionResult SolveLbmInverse(int maxIterationCount);
-        public EITMeasurement SimulateLbmMeasurements(LBMMesh mesh, double excitationAmplitude);
+        public ReconstructionFrame Step(double[] measurement, BoundaryCondition boundaryCondition, double gradientStepSize, double redularizationStepSize);
+        public ReconstructionResult Run(int maxIterationCount, double gradientStepSize, double redularizationStepSize);
+        public ReconstructionResult Stop();
 
-        // --- FEM Reconstruction --- 
-        public FEMMesh SolveFemForward(FEMMesh mesh);
-        public FEMMesh SolveFemInverse(FEMMesh mesh, int maxIterCount, double stepSize, double regularization);
-        public ReconstructionResult InverseSolveStepFem(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double stepSize);
-        public List<double[]> SimulateFemMeasurements(FEMMesh mesh, double excitationAmplitude);
+        // --- Forward Solve Functions ---
+        public PotentialDistribution ForwardSolveStepFem();
+        public PotentialDistribution ForwardSolveStepLbm();
+
+        // --- Inverse Solve Functions ---
+        public ReconstructionFrame InverseSolveStepFem(FEMMesh mesh, FEMBoundaryCondition bc, double[] currentMeasurement, double gradientStepSize);
+        public ReconstructionFrame InverseSolveStepLbm(LBMMesh mesh, LBMBoundaryCondition bc, double[] currentMeasurement, double gradientStepSize);
+
+        public ReconstructionResult InverseSolveFem(int maxIterationCount, double gradientStepSize, double redularizationStepSize, double excitationAmplitude, double tolerance = 1e-6);
+        public ReconstructionResult InverseSolveLbm(int maxIterationCount, double gradientStepSize, double redularizationStepSize, double excitationAmplitude, double tolerance = 1e-6);
+
+
+        public List<double[]> SimulateFemMeasurements(double excitationAmplitude);
+        public EITMeasurement SimulateLbmMeasurements(double excitationAmplitude);
 
         // --- Graph-based Reconstruction ---
         /// <summary>

@@ -3,6 +3,14 @@ using Workspace = Utility.Classes.Application.Workspace;
 
 namespace Utility.Classes.Factories
 {
+    public enum InitialDistributionTypes
+    {
+        Homogeneous = 1,
+        Random = 2,
+        SlightlyDiffering = 3,
+        RandomSlightlyDiffering = 4
+    }
+
     public static class ConductivityDistributionFactory
     {
         /// <summary>
