@@ -2,6 +2,8 @@
 using System.IO.Ports;
 using System.Numerics;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using Utility.Classes.Configurations;
 using Utility.Classes.Measurement;
 
@@ -32,23 +34,37 @@ namespace DataAccessLayer
     public class DAQRepository : IDAQRepository
     {
         // --- Serial Port Configuration ---
-        private static string   _portName =     "COM3";
-        private static int      _baudRate =     115_200;
+        private static string   _portName =     "COM3";      // default port name
+        private static int      _baudRate =     115_200;      // default baud rate
         private static Parity   _parity =       Parity.None;
         private static int      _dataBits =     8;
         private static StopBits _stopBits =     StopBits.One;
         private static int      _writeTOms =    1_000;
         private static int      _readTOms =     5_000;
 
-        // --- CancellationToken for the Background Sampling Task ---
-        private readonly CancellationTokenSource _cts = new();
-        private readonly Task? _backgroundTask;
+        // --- Runtime hardware state ----------------------------------------------------
+        // A single SerialPort instance is kept open while connected.  All communication
+        // with the acquisition hardware flows through this object.
+        private SerialPort? _serialPort;
+
+        // Token used to stop the background acquisition loop.  It is recreated on every
+        // new connection so that the repository can be re‑connected after a disconnect.
+        private CancellationTokenSource? _cts;
+
+        // Background task that continuously reads blocks from the hardware.  The task is
+        // started on Connect() and stopped on Disconnect().
+        private Task? _backgroundTask;
 
         // --- Event To Invoke When a Measurement is Received ---
         public event EventHandler<EITMeasurement>? MeasurementReceived;
 
         private readonly int _frameLength;
         private const char _dataSeparator = ';';
+
+        // Lock object used to synchronise access to the SerialPort.  The SerialPort class
+        // itself is not thread‑safe, therefore any concurrent read/write or connect/
+        // disconnect actions must be protected.
+        private readonly object _serialLock = new();
 
 
         public DAQRepository() : this(16) { }
@@ -94,48 +110,55 @@ namespace DataAccessLayer
         public EITMeasurement GetEITMeasurement()
             => ReadBlock() ?? throw new InvalidOperationException("No data received");
 
+        /// <summary>
+        /// Reads a single measurement block from the currently connected serial port.
+        /// The method assumes that <see cref="Connect"/> has been successfully called
+        /// and will return <c>null</c> if the operation times out or the repository is
+        /// not connected.
+        /// </summary>
         private EITMeasurement? ReadBlock()
         {
-            using var port = new SerialPort(_portName, _baudRate, _parity,
-                                            _dataBits, _stopBits)
-            {
-                ReadTimeout = _readTOms,
-                WriteTimeout = _writeTOms,
-                NewLine = "\n"
-            };
+            // Guard: no active connection means nothing to read
+            if (_serialPort == null || !_serialPort.IsOpen)
+                return null;
 
             try
             {
-                port.Open();
-
-                /*–– wait for header –––––––––––––––––––––––––––––––––––––––*/
-                string line;
-                do { line = port.ReadLine().Trim(); }
-                while (!line.StartsWith("Measurements", StringComparison.OrdinalIgnoreCase));
-
-                /*–– read data rows –––––––––––––––––––––––––––––––––––––––*/
-                List<double[]> frames = [];
-                for (int row = 0; row < _frameLength; ++row)
+                lock (_serialLock)
                 {
-                    line = port.ReadLine();
+                    /*–– wait for header –––––––––––––––––––––––––––––––––*/
+                    string line;
+                    do { line = _serialPort.ReadLine().Trim(); }
+                    while (!line.StartsWith("Measurements", StringComparison.OrdinalIgnoreCase));
 
-                    // Convert read lines to 
-                    var entries = line.Split(_dataSeparator);
-                    double[] nums = new double[_frameLength];
-                    for (int i = 0; i < nums.Length; i++)
-                        nums[i] = Convert.ToDouble(entries[i]);
+                    /*–– read data rows –––––––––––––––––––––––––––––––––*/
+                    List<double[]> frames = [];
+                    for (int row = 0; row < _frameLength; ++row)
+                    {
+                        line = _serialPort.ReadLine();
 
-                    frames.Add(nums);
+                        // Convert read line to numbers.  The use of _frameLength makes
+                        // the method adaptable to a different number of electrodes.
+                        var entries = line.Split(_dataSeparator);
+                        double[] nums = new double[_frameLength];
+                        for (int i = 0; i < nums.Length; i++)
+                            nums[i] = Convert.ToDouble(entries[i]);
+
+                        frames.Add(nums);
+                    }
+
+                    /*–– consume end marker –––––––––––––––––––––––––––––*/
+                    line = _serialPort.ReadLine().Trim();
+                    if (!line.StartsWith("End of measurements", StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidDataException("Missing end marker.");
+
+                    return new EITMeasurement(frames);
                 }
-
-                /*–– consume end marker –––––––––––––––––––––––––––––––––––*/
-                line = port.ReadLine().Trim();
-                if (!line.StartsWith("End of measurements", StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidDataException("Missing end marker.");
-
-                return new EITMeasurement(frames);
             }
-            catch (TimeoutException) { return null; }
+            catch (TimeoutException)
+            {
+                return null;
+            }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Serial error: {ex.Message}");
@@ -389,38 +412,123 @@ namespace DataAccessLayer
                 File.Delete(file);
         }
 
+        /// <summary>
+        /// Opens the serial connection to the acquisition hardware and starts the
+        /// background sampling task.  The method is safe to call multiple times – if the
+        /// port is already open the call is ignored.
+        /// </summary>
         public bool Connect()
         {
-            throw new NotImplementedException();
+            lock (_serialLock)
+            {
+                if (_serialPort?.IsOpen == true)
+                    return true;        // already connected
+
+                try
+                {
+                    // Create and configure the serial port
+                    _serialPort = new SerialPort(_portName, _baudRate, _parity,
+                                                _dataBits, _stopBits)
+                    {
+                        ReadTimeout = _readTOms,
+                        WriteTimeout = _writeTOms,
+                        NewLine = "\n",
+                    };
+
+                    _serialPort.Open();
+
+                    // Start the background acquisition loop
+                    _cts = new CancellationTokenSource();
+                    _backgroundTask = Task.Run(() => SerialLoopAsync(_cts.Token));
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Connect failed: {ex.Message}");
+                    _serialPort?.Dispose();
+                    _serialPort = null;
+                    return false;
+                }
+            }
         }
 
+        /// <summary>
+        /// Stops the background sampling task and closes the serial port.  Any errors
+        /// during shutdown are swallowed and <c>false</c> is returned.
+        /// </summary>
         public bool Disconnect()
         {
-            throw new NotImplementedException();
+            lock (_serialLock)
+            {
+                try
+                {
+                    _cts?.Cancel();
+                    try { _backgroundTask?.Wait(); } catch { /* ignore */ }
+                    _cts?.Dispose();
+                    _cts = null;
+
+                    if (_serialPort?.IsOpen == true)
+                        _serialPort.Close();
+                    _serialPort?.Dispose();
+                    _serialPort = null;
+
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Disconnect failed: {ex.Message}");
+                    return false;
+                }
+            }
         }
 
+        /// <summary>
+        /// Change the serial port used for communication.  If a connection is active it
+        /// will be closed and reopened on the new port.
+        /// </summary>
         public bool ChangePort(string portName)
         {
+            if (string.IsNullOrWhiteSpace(portName))
+                return false;
+
+            bool reconnect = _serialPort?.IsOpen == true;
+            if (reconnect)
+                Disconnect();
+
             _portName = portName;
-            return true;
+
+            return !reconnect || Connect();
         }
 
+        /// <summary>
+        /// Sends a command to the hardware to update the excitation frequency.  The
+        /// command format (<c>FREQ &lt;value&gt;</c>) is deliberately simple so that the
+        /// user can adapt it to the actual firmware implementation.  Any response from
+        /// the device is ignored, but the method will throw if no connection is present.
+        /// </summary>
         public void SetExcitationFrequency(double frequency)
         {
-            // TODO: implement hardware frequency setting
+            if (_serialPort == null || !_serialPort.IsOpen)
+                throw new InvalidOperationException("Hardware not connected");
+
+            try
+            {
+                lock (_serialLock)
+                {
+                    _serialPort.WriteLine($"FREQ {frequency}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to set frequency: {ex.Message}");
+            }
         }
 
         /*───────────────────────────────────────────────────────────────────*/
         public void Dispose()
         {
-            _cts.Cancel();
-            try 
-            {
-                if(_backgroundTask != null)
-                    _backgroundTask.Wait(); 
-            } 
-            catch { /* ignore */ }
-            _cts.Dispose();
+            // Ensure all resources are freed
+            Disconnect();
         }
 
         /// <summary>
