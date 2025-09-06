@@ -94,9 +94,10 @@ namespace DataAccessLayer
                     var orig = DeserializeConductivity(frameEl.Element("Original"));
                     var init = DeserializeConductivity(frameEl.Element("Initial"));
                     var recon = DeserializeConductivity(frameEl.Element("Reconstructed"));
-                    frames.Add(new ReconstructionResult(new PotentialDistribution(new Dictionary<int, double>()),
-                                                        new PotentialDistribution(new Dictionary<int, double>()),
-                                                        orig, init, recon));
+                    frames.Add(new ReconstructionResult(orig,
+                                                        init,
+                                                        recon,
+                                                        new List<ReconstructionFrame>()));
                 }
             }
             return frames;
