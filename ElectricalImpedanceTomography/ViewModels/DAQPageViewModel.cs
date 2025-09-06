@@ -106,6 +106,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         }
 
         [RelayCommand]
+        [Obsolete]
         private async Task ConfigureChannelAsync(PlotModel model)
         {
             int index = PlotModels.IndexOf(model);
