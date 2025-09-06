@@ -11,7 +11,7 @@ namespace BusinessLayer
         public void InitializeReconstruction(IMesh mesh, EITReconstructionParameters parameters);
 
         public ReconstructionFrame Step(double[] measurement, BoundaryCondition boundaryCondition, double gradientStepSize, double redularizationStepSize);
-        public ReconstructionResult Run(int maxIterationCount, double gradientStepSize, double redularizationStepSize);
+        public void Run(int maxIterationCount, double gradientStepSize, double redularizationStepSize);
         public ReconstructionResult Stop();
 
         // --- Forward Solve Functions ---
@@ -20,14 +20,14 @@ namespace BusinessLayer
 
         // --- Inverse Solve Functions ---
         public ReconstructionFrame InverseSolveStepFem(FEMMesh mesh, FEMBoundaryCondition bc, double[] currentMeasurement, double gradientStepSize);
-        public ReconstructionFrame InverseSolveStepLbm(LBMMesh mesh, LBMBoundaryCondition bc, double[] currentMeasurement, double gradientStepSize);
+        public ReconstructionFrame InverseSolveStepLbm(LBMMesh mesh, LBMBoundaryCondition bc, double[] currentMeasurement);
 
         public ReconstructionResult InverseSolveFem(int maxIterationCount, double gradientStepSize, double redularizationStepSize, double excitationAmplitude, double tolerance = 1e-6);
         public ReconstructionResult InverseSolveLbm(int maxIterationCount, double gradientStepSize, double redularizationStepSize, double excitationAmplitude, double tolerance = 1e-6);
 
 
-        public List<double[]> SimulateFemMeasurements(double excitationAmplitude);
-        public EITMeasurement SimulateLbmMeasurements(double excitationAmplitude);
+        public List<double[]> SimulateFemMeasurements(FEMMesh mesh, double excitationAmplitude);
+        public EITMeasurement SimulateLbmMeasurements(LBMMesh mesh, double excitationAmplitude);
 
         // --- Graph-based Reconstruction ---
         /// <summary>
