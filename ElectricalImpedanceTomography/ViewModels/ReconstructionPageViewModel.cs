@@ -5,8 +5,6 @@ using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Workspace = Utility.Classes.Application.Workspace;
 using System.Collections.ObjectModel;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace ElectricalImpedanceTomography.ViewModels
 {

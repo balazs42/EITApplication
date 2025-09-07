@@ -49,7 +49,7 @@ namespace ElectricalImpedanceTomography.Controls
             StartRippleAnimation();
         }
 
-        private void OnPinchUpdated(object sender, PinchGestureUpdatedEventArgs e)
+        private void OnPinchUpdated(object? sender, PinchGestureUpdatedEventArgs e)
         {
             if (e.Status == GestureStatus.Running)
             {
@@ -58,7 +58,7 @@ namespace ElectricalImpedanceTomography.Controls
             }
         }
 
-        private void OnPanUpdated(object sender, PanUpdatedEventArgs e)
+        private void OnPanUpdated(object? sender, PanUpdatedEventArgs e)
         {
             if (e.StatusType == GestureStatus.Started)
             {
@@ -78,7 +78,7 @@ namespace ElectricalImpedanceTomography.Controls
             }
         }
 
-        private void OnPointerMoved(object sender, PointerEventArgs e)
+        private void OnPointerMoved(object? sender, PointerEventArgs e)
         {
             var position = e.GetPosition(this);
             if (position != null)
