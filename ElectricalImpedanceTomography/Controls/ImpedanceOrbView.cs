@@ -184,7 +184,7 @@ namespace ElectricalImpedanceTomography.Controls
                 canvas.FillCircle(0, 0, radius);
 
                 canvas.SaveState();
-                canvas.ClipCircle(0, 0, radius);
+                canvas.DrawCircle(0, 0, radius);
 
                 float highlightCenterX = highlightX - radius * 0.3f;
                 float highlightCenterY = highlightY - radius * 0.3f;
