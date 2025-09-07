@@ -22,6 +22,10 @@ namespace ServiceLayer
         void StopBackgroundReconstruction();
         Task<ReconstructionFrame?> StepReconstructionAsync();
 
+        Task<ReconstructionResult?> RunFullReconstructionCycleAsync(double stepSize,
+                                                                    double regularizationWeight,
+                                                                    double excitationAmplitude);
+
         // --- LBM Reconstruction ---
         PotentialDistribution ForwardSolveStepLbm();
         ReconstructionResult InverseSolveLbm(int maxIterationCount,

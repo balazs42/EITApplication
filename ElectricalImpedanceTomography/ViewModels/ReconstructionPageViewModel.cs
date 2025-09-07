@@ -140,6 +140,14 @@ namespace ElectricalImpedanceTomography.ViewModels
             return _reconstructionService.StepReconstructionAsync();
         }
 
+        public Task<ReconstructionResult?> RunFullReconstructionCycleAsync()
+        {
+            InitializeReconstruction();
+            return _reconstructionService.RunFullReconstructionCycleAsync(StepSize,
+                                                                          RegularizationWeight,
+                                                                          ExcitationCurrentAmplitude);
+        }
+
         private void OnServiceReconstructionUpdated(object? sender, ReconstructionResult result)
         {
             IterationCount++;
