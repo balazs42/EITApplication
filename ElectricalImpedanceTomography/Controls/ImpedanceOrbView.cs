@@ -154,8 +154,8 @@ namespace ElectricalImpedanceTomography.Controls
                     Radius = radius,
                     GradientStops = new[]
                     {
-                        new GradientStop(centerColor, 0f),
-                        new GradientStop(edgeColor, 1f)
+                        new PaintGradientStop(0f, centerColor),
+                        new PaintGradientStop(1f, edgeColor)
                     }
                 };
 
@@ -163,7 +163,7 @@ namespace ElectricalImpedanceTomography.Controls
                 canvas.FillCircle(0, 0, radius);
 
                 canvas.SaveState();
-                canvas.ClipCircle(0, 0, radius);
+                canvas.DrawCircle(0, 0, radius);
 
                 float highlightCenterX = highlightX - radius * 0.3f;
                 float highlightCenterY = highlightY - radius * 0.3f;
@@ -175,8 +175,8 @@ namespace ElectricalImpedanceTomography.Controls
                     Radius = highlightRadius,
                     GradientStops = new[]
                     {
-                        new GradientStop(Colors.White.WithAlpha(0.7f), 0f),
-                        new GradientStop(Colors.White.WithAlpha(0f), 1f)
+                        new PaintGradientStop(0f, Colors.White.WithAlpha(0.7f)),
+                        new PaintGradientStop(1f, Colors.White.WithAlpha(0f))
                     }
                 };
 
