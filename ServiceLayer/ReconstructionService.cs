@@ -1,10 +1,5 @@
 ﻿using BusinessLayer;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Utility.Classes;
 using Utility.Classes.Measurement;
 using Utility.Classes.Meshing.FiniteElementMesh;
@@ -109,7 +104,7 @@ namespace ServiceLayer
             }
         }
 
-        public void InitializeReconstruction(IMesh mesh, EITReconstructionParameters parameters)
+        public void InitializeReconstruction(IMesh mesh, EITReconstructionParameters parameters, bool reinit)
         {
             try
             {
@@ -120,7 +115,7 @@ namespace ServiceLayer
                 _currentCycleFrames.Clear();
                 Workspace.ClearReconstructionFrames();
                 Workspace.SetReconstructionResults(new List<ReconstructionResult>());
-                _reconstructionPersistence.InitializeReconstruction(mesh, parameters);
+                _reconstructionPersistence.InitializeReconstruction(mesh, parameters, reinit);
                 _originalSigma = ((Mesh)mesh.DeepCopy()).GetConductivityDistribution();
                 _initialSigma = ConductivityDistributionFactory.CreateInitialDistribution(mesh, parameters.InitialDistributionType);
                 mesh.SetConductivityDistribution(_initialSigma);

@@ -11,7 +11,7 @@ namespace ServiceLayer
 {
     public interface IReconstructionService
     {
-        void InitializeReconstruction(IMesh mesh, EITReconstructionParameters parameters);
+        void InitializeReconstruction(IMesh mesh, EITReconstructionParameters parameters, bool reinit);
 
         // --- Background reconstruction control ---
         event EventHandler<ReconstructionResult> ReconstructionUpdated;

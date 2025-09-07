@@ -70,7 +70,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             if (force || _initializedMesh != mesh)
             {
-                _reconstructionService.InitializeReconstruction(mesh, reconstructionParameters);
+                _reconstructionService.InitializeReconstruction(mesh, reconstructionParameters, true);
                 _initializedMesh = mesh;
                 IterationCount = 0;
             }

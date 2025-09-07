@@ -1,9 +1,6 @@
 ﻿using DataAccessLayer;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
-using System.Threading;
-using System.Threading.Tasks;
 using Utility.Classes;
 using Utility.Classes.Factories;
 using Utility.Classes.Measurement;
@@ -52,20 +49,23 @@ namespace BusinessLayer
             _reconstructionRepository = reconstructionRepository;
         }
 
-        public void InitializeReconstruction(IMesh mesh, EITReconstructionParameters parameters)
+        public void InitializeReconstruction(IMesh mesh, EITReconstructionParameters parameters, bool reinit)
         {
-            _mesh = mesh;
+            if(!_initialized || reinit)
+            {
+                _mesh = mesh;
 
-            _numericSolver = NumericSolverFactory.Create(parameters.NumericSolver);
-            _differentialEquationSolver = DifferentialEquationSolverFactory.Create(mesh, parameters.DifferentialEquationSolver, _numericSolver);
-            _regularizer = RegularisationFactory.Create(parameters.RegularizationTechnique, _mesh);
-            _errorMetric = ErrorMetricFactory.Create(parameters.ErrorMetric);
-            _initialDistributionType = parameters.InitialDistributionType;
-            _numericOptimizer = NumericOptimizerFactory.Create(parameters.NumericOptimizer, ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType));
+                _numericSolver = NumericSolverFactory.Create(parameters.NumericSolver);
+                _differentialEquationSolver = DifferentialEquationSolverFactory.Create(mesh, parameters.DifferentialEquationSolver, _numericSolver);
+                _regularizer = RegularisationFactory.Create(parameters.RegularizationTechnique, _mesh);
+                _errorMetric = ErrorMetricFactory.Create(parameters.ErrorMetric);
+                _initialDistributionType = parameters.InitialDistributionType;
+                _numericOptimizer = NumericOptimizerFactory.Create(parameters.NumericOptimizer, ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType));
 
-            _inverseModel = InverseModelFactory.Create(_mesh, _numericOptimizer, _regularizer, _errorMetric, _differentialEquationSolver);
+                _inverseModel = InverseModelFactory.Create(_mesh, _numericOptimizer, _regularizer, _errorMetric, _differentialEquationSolver);
 
-            _initialized = true;
+                _initialized = true;
+            }
         }
 
         public ReconstructionFrame Step(double[] measurement, BoundaryCondition boundaryCondition, double gradientStepSize, double redularizationStepSize)
