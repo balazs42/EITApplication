@@ -310,6 +310,64 @@ namespace ServiceLayer
             return frame;
         }
 
+        public async Task<ReconstructionResult?> RunFullReconstructionCycleAsync(double stepSize,
+                                                                               double regularizationWeight,
+                                                                               double excitationAmplitude)
+        {
+            _stepSize = stepSize;
+            _regularizationWeight = regularizationWeight;
+            _excitationAmplitude = excitationAmplitude;
+            _currentCycleFrames.Clear();
+
+            return await Task.Run(() =>
+            {
+                if (_mesh is FEMMesh femMesh)
+                {
+                    if (_simulatedMeasurements.Count == 0)
+                        _simulatedMeasurements = _reconstructionPersistence.SimulateFemMeasurements(femMesh, _excitationAmplitude);
+
+                    var electrodes = femMesh.GetElectrodes().Cast<FEMElectrode>().ToList();
+                    var bc = new FEMBoundaryCondition(electrodes);
+
+                    foreach (var measurement in _simulatedMeasurements)
+                    {
+                        var frame = _reconstructionPersistence.Step(measurement, bc, _stepSize, _regularizationWeight);
+                        Workspace.AddReconstructionFrameToWorkspace(frame);
+                        _currentCycleFrames.Add(frame);
+                        ReconstructionFrameUpdated?.Invoke(this, frame);
+                    }
+
+                    var result = new ReconstructionResult(_mesh!.GetMesh(), _originalSigma!, _initialSigma!, _mesh!.GetConductivityDistribution(), _currentCycleFrames.ToList());
+                    Workspace.AddReconstructionResultToWorkspace(result);
+                    ReconstructionUpdated?.Invoke(this, result);
+                    _currentCycleFrames.Clear();
+                    return result;
+                }
+                else if (_mesh is LBMMesh lbmMesh)
+                {
+                    var meas = _reconstructionPersistence.SimulateLbmMeasurements(lbmMesh, _excitationAmplitude);
+                    var electrodes = lbmMesh.GetElectrodes().Cast<LBMElectrode>().ToList();
+                    var bc = new LBMBoundaryCondition(electrodes);
+
+                    foreach (var measurement in meas.Frames)
+                    {
+                        var frame = _reconstructionPersistence.Step(measurement, bc, _stepSize, _regularizationWeight);
+                        Workspace.AddReconstructionFrameToWorkspace(frame);
+                        _currentCycleFrames.Add(frame);
+                        ReconstructionFrameUpdated?.Invoke(this, frame);
+                    }
+
+                    var result = new ReconstructionResult(_mesh!.GetMesh(), _originalSigma!, _initialSigma!, _mesh!.GetConductivityDistribution(), _currentCycleFrames.ToList());
+                    Workspace.AddReconstructionResultToWorkspace(result);
+                    ReconstructionUpdated?.Invoke(this, result);
+                    _currentCycleFrames.Clear();
+                    return result;
+                }
+
+                return null;
+            });
+        }
+
         #endregion
 
         /// <summary>

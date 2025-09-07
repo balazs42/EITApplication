@@ -36,7 +36,6 @@ public partial class ReconstructionPage : ContentPage
     private PotentialDisplayMode _potMode = PotentialDisplayMode.Default;
 
     private bool _isPaused = false;
-    private bool _hasStarted = false;
     private bool _sliderChanging = false;
 
     public ReconstructionPage()
@@ -98,33 +97,19 @@ public partial class ReconstructionPage : ContentPage
         }
 
         await AnimateButtonAsync(sender);
-        if (!_hasStarted)
-        {
-            _viewModel.StartBackgroundReconstruction();
-            _hasStarted = true;
-            _isPaused = false;
-            StepButton.IsEnabled = false;
-            PlayerBackButton.IsEnabled = false;
-            PlayerForwardButton.IsEnabled = false;
-            PlayButton.IsVisible = false;
-            PauseButton.IsVisible = true;
-            return;
-        }
+        StepButton.IsEnabled = false;
+        PlayerBackButton.IsEnabled = false;
+        PlayerForwardButton.IsEnabled = false;
+        PlayButton.IsEnabled = false;
+        _isPaused = false;
 
-        if (_isPaused)
-        {
-            _viewModel.ResumeReconstruction();
-            _isPaused = false;
-            StepButton.IsEnabled = false;
-            PlayerBackButton.IsEnabled = false;
-            PlayerForwardButton.IsEnabled = false;
-            PlayButton.IsVisible = false;
-            PauseButton.IsVisible = true;
-        }
-        else
-        {
-            await DisplayAlert("Reconstruction Running", "You should either pause or stop reconstruction to start a new one.", "OK");
-        }
+        await _viewModel.RunFullReconstructionCycleAsync();
+
+        _isPaused = true;
+        StepButton.IsEnabled = true;
+        PlayerBackButton.IsEnabled = true;
+        PlayerForwardButton.IsEnabled = true;
+        PlayButton.IsEnabled = true;
     }
 
     private async void OnPauseButtonClicked(object sender, EventArgs e)
@@ -153,12 +138,10 @@ public partial class ReconstructionPage : ContentPage
         await AnimateButtonAsync(sender);
         _viewModel.StopReconstruction();
         _isPaused = false;
-        _hasStarted = false;
         StepButton.IsEnabled = false;
         PlayerBackButton.IsEnabled = false;
         PlayerForwardButton.IsEnabled = false;
-        PlayButton.IsVisible = true;
-        PauseButton.IsVisible = false;
+        PlayButton.IsEnabled = true;
     }
     #endregion
 
