@@ -42,6 +42,10 @@ namespace ElectricalImpedanceTomography.Controls
             pan.PanUpdated += OnPanUpdated;
             GestureRecognizers.Add(pan);
 
+            var pointer = new PointerGestureRecognizer();
+            pointer.PointerMoved += OnPointerMoved;
+            GestureRecognizers.Add(pointer);
+
             StartRippleAnimation();
         }
 
@@ -70,6 +74,22 @@ namespace ElectricalImpedanceTomography.Controls
 
                 _drawable.RotationY += (float)deltaX * 0.01f;
                 _drawable.RotationX += (float)deltaY * 0.01f;
+                Invalidate();
+            }
+        }
+
+        private void OnPointerMoved(object sender, PointerEventArgs e)
+        {
+            var position = e.GetPosition(this);
+            if (position != null)
+            {
+                float radius = (float)(Math.Min(Width, Height) / 2f * 0.8f);
+                float limit = radius * 0.5f;
+                float relativeX = (float)(position.Value.X - Width / 2);
+                float relativeY = (float)(position.Value.Y - Height / 2);
+                _drawable.HighlightX = Math.Clamp(relativeX, -limit, limit);
+                _drawable.HighlightY = Math.Clamp(relativeY, -limit, limit);
+
                 Invalidate();
             }
         }
@@ -124,6 +144,8 @@ namespace ElectricalImpedanceTomography.Controls
             public float Scale { get; set; } = 0.9f;
             public float RotationX { get; set; }
             public float RotationY { get; set; }
+            public float HighlightX { get; set; }
+            public float HighlightY { get; set; }
 
             public void Draw(ICanvas canvas, RectF dirtyRect)
             {
@@ -133,8 +155,8 @@ namespace ElectricalImpedanceTomography.Controls
                 canvas.Scale(Scale, Scale);
 
                 float radius = Math.Min(dirtyRect.Width, dirtyRect.Height) / 2f * 0.8f;
-                float highlightX = (float)(Math.Sin(RotationY) * radius * 0.5f);
-                float highlightY = (float)(Math.Sin(RotationX) * radius * 0.5f);
+                float highlightX = HighlightX + (float)(Math.Sin(RotationY) * radius * 0.5f);
+                float highlightY = HighlightY + (float)(Math.Sin(RotationX) * radius * 0.5f);
 
                 float alpha = 0.5f + 0.5f * Intensity;
                 var centerColor = Color.FromRgba(
@@ -163,7 +185,7 @@ namespace ElectricalImpedanceTomography.Controls
                 canvas.FillCircle(0, 0, radius);
 
                 canvas.SaveState();
-                canvas.DrawCircle(0, 0, radius);
+                canvas.ClipCircle(0, 0, radius);
 
                 float highlightCenterX = highlightX - radius * 0.3f;
                 float highlightCenterY = highlightY - radius * 0.3f;
