@@ -249,19 +249,49 @@ namespace ServiceLayer
 
                 return frame;
             }
-            else if (_mesh is LBMMesh)
+            else if (_mesh is LBMMesh lbmMesh)
             {
-                var result = InverseSolveLbm(1, _stepSize, _regularizationWeight, _excitationAmplitude);
-
-                foreach (var frame in result.Frames)
+                if (_simulatedMeasurements.Count == 0)
                 {
-                    Workspace.AddReconstructionFrameToWorkspace(frame);
-                    ReconstructionFrameUpdated?.Invoke(this, frame);
+                    var meas = _reconstructionPersistence.SimulateLbmMeasurements(lbmMesh, _excitationAmplitude);
+                    _simulatedMeasurements = meas.Frames;
                 }
 
-                ReconstructionUpdated?.Invoke(this, result);
-                _currentIteration++;
-                return result.Frames.LastOrDefault();
+                var electrodes = lbmMesh.GetElectrodes().Cast<LBMElectrode>().ToList();
+
+                foreach (var el in electrodes)
+                {
+                    el.Current = 0.0;
+                    el.IsExcitation = false;
+                    el.IsGround = false;
+                    el.Potential = 0.0;
+                }
+
+                int electrodeCount = electrodes.Count;
+                int exc = _simMeasurementIndex % electrodeCount;
+                electrodes[exc].IsExcitation = true;
+                electrodes[exc].Current = _excitationAmplitude;
+                electrodes[(exc + 1) % electrodeCount].IsGround = true;
+                electrodes[(exc + 1) % electrodeCount].Current = -_excitationAmplitude;
+
+                var bc = new LBMBoundaryCondition(electrodes);
+                double[] measurement = _simulatedMeasurements[exc];
+                var frame = _reconstructionPersistence.Step(measurement, bc, _stepSize, _regularizationWeight);
+                _simMeasurementIndex++;
+                Workspace.AddReconstructionFrameToWorkspace(frame);
+                _currentCycleFrames.Add(frame);
+                ReconstructionFrameUpdated?.Invoke(this, frame);
+
+                if (_simMeasurementIndex % _framesPerCycle == 0)
+                {
+                    var result = new ReconstructionResult(_mesh!.GetMesh(), _originalSigma!, _initialSigma!, _mesh!.GetConductivityDistribution(), _currentCycleFrames.ToList());
+                    Workspace.AddReconstructionResultToWorkspace(result);
+                    ReconstructionUpdated?.Invoke(this, result);
+                    _currentCycleFrames.Clear();
+                    _currentIteration++;
+                }
+
+                return frame;
             }
 
             return null;
