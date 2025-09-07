@@ -141,19 +141,20 @@
 
             <!-- Middle Panel -->
             <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto" RowSpacing="10">
-                <Border Grid.Row="0" Margin="5" StrokeShape="RoundRectangle 5">
+                <Border Grid.Row="0" Margin="5" StrokeShape="RoundRectangle 5" Stroke="Transparent">
                     <VerticalStackLayout Spacing="5">
-                        <Label Text="{Binding User.Name, StringFormat='Welcome {0}!'}" FontSize="Large" FontAttributes="Italic"/>
+                        <Label Text="{Binding User.Name, StringFormat='Welcome {0}!'}" FontSize="Large" FontAttributes="Bold" FontFamily="SF Pro Display" VerticalOptions="Center" HorizontalOptions="Center"/>
                     </VerticalStackLayout>
                     <Border.Shadow>
-                        <Shadow Brush="White" Opacity="0.5" Radius="3.0"/>
+                        <Shadow Brush="Gray" Opacity="0.5" Radius="3.0"/>
                     </Border.Shadow>
                 </Border>
 
                 <controls:ImpedanceOrbView Grid.Row="1"
+                                           Margin="10"
                                            Model="{Binding CurrentImpedanceModel}"
-                                           HeightRequest="250"
-                                           WidthRequest="250"
+                                           HeightRequest="175"
+                                           WidthRequest="175"
                                            HorizontalOptions="Center"
                                            VerticalOptions="Center"/>
 

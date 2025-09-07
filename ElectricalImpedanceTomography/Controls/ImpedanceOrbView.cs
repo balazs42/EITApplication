@@ -100,7 +100,7 @@ namespace ElectricalImpedanceTomography.Controls
                 Invalidate();
             }, 0, 1);
 
-            animation.Commit(this, "RippleAnim", 16, 1000, Easing.Linear, (v, c) => StartRippleAnimation(), () => true);
+            animation.Commit(this, "RippleAnim", 16, 2500, Easing.Linear, (v, c) => StartRippleAnimation());
         }
 
         private class OrbDrawable : IDrawable
@@ -108,7 +108,7 @@ namespace ElectricalImpedanceTomography.Controls
             public Color Color { get; set; } = Colors.CornflowerBlue;
             public float Intensity { get; set; }
             public float Ripple { get; set; }
-            public float Scale { get; set; } = 1f;
+            public float Scale { get; set; } = 0.9f;
             public float Rotation { get; set; }
 
             public void Draw(ICanvas canvas, RectF dirtyRect)
@@ -117,7 +117,7 @@ namespace ElectricalImpedanceTomography.Controls
 
                 canvas.Translate(dirtyRect.Center.X, dirtyRect.Center.Y);
                 canvas.Rotate(Rotation);
-                canvas.Scale(Scale);
+                canvas.Scale(Scale, Scale);
 
                 float radius = Math.Min(dirtyRect.Width, dirtyRect.Height) / 2f * 0.8f;
                 var fillColor = Color.WithAlpha(0.5f + 0.5f * Intensity);
