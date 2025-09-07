@@ -156,30 +156,34 @@ public partial class ReconstructionPage : ContentPage
     {
         _currentResult = result;
         _currentFrame = result.Frames.LastOrDefault();
-        _sliderChanging = true;
         var frames = Workspace.GetReconstructionFrames();
-        if (frames.Count > 0)
+        Dispatcher.Dispatch(() =>
         {
-            PlaybackSlider.Maximum = frames.Count - 1;
-            PlaybackSlider.Value = PlaybackSlider.Maximum;
-        }
-        _sliderChanging = false;
-        Dispatcher.Dispatch(() => { InvalidateAll(); UpdatePlaybackLabel(); });
+            _sliderChanging = true;
+            if (frames.Count > 0)
+            {
+                PlaybackSlider.Maximum = frames.Count - 1;
+                PlaybackSlider.Value = PlaybackSlider.Maximum;
+            }
+            _sliderChanging = false;
+            InvalidateAll();
+            UpdatePlaybackLabel();
+        });
     }
 
     private void OnReconstructionFrameUpdated(object? sender, ReconstructionFrame frame)
     {
         _currentFrame = frame;
-        _sliderChanging = true;
         var frames = Workspace.GetReconstructionFrames();
-        if (frames.Count > 0)
-        {
-            PlaybackSlider.Maximum = frames.Count - 1;
-            PlaybackSlider.Value = PlaybackSlider.Maximum;
-        }
-        _sliderChanging = false;
         Dispatcher.Dispatch(() =>
         {
+            _sliderChanging = true;
+            if (frames.Count > 0)
+            {
+                PlaybackSlider.Maximum = frames.Count - 1;
+                PlaybackSlider.Value = PlaybackSlider.Maximum;
+            }
+            _sliderChanging = false;
             PotentialDistributionCanvas.InvalidateSurface();
             AdjointDistributionCanvas.InvalidateSurface();
             GradientDistributionCanvas.InvalidateSurface();

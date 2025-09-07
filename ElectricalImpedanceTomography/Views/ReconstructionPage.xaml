@@ -207,6 +207,38 @@
                                VerticalOptions="Center"
                                Text="0 / 0"
                                FontFamily="SF Pro Text"/>
+
+                        <Image x:Name="PlayerBackButton"
+                               Grid.Row="1"
+                               Grid.Column="4"
+                               Rotation="180"
+                               Source="icon_next_player.png"
+                               HeightRequest="35"
+                               WidthRequest="35"
+                               HorizontalOptions="End"
+                               Margin="5">
+                            <Image.Shadow>
+                                <Shadow Brush="White" Opacity="1.0" Radius="1.0"/>
+                            </Image.Shadow>
+                            <Image.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnPlayerBackButtontapped"/>
+                            </Image.GestureRecognizers>
+                        </Image>
+                        <Image x:Name="PlayerForwardButton"
+                               Grid.Row="1"
+                               Grid.Column="5"
+                               Source="icon_next_player.png"
+                               HeightRequest="35"
+                               WidthRequest="35"
+                               HorizontalOptions="Start"
+                               Margin="5">
+                            <Image.Shadow>
+                                <Shadow Brush="White" Opacity="1.0" Radius="1.0"/>
+                            </Image.Shadow>
+                            <Image.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnPlayerForwardButtontapped"/>
+                            </Image.GestureRecognizers>
+                        </Image>
                     </Grid>
                 </Border>
 
