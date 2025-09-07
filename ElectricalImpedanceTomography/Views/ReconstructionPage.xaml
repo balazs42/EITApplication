@@ -216,7 +216,8 @@
                                HeightRequest="35"
                                WidthRequest="35"
                                HorizontalOptions="End"
-                               Margin="5">
+                               Margin="5"
+                               IsEnabled="False">
                             <Image.Shadow>
                                 <Shadow Brush="White" Opacity="1.0" Radius="1.0"/>
                             </Image.Shadow>
@@ -231,7 +232,8 @@
                                HeightRequest="35"
                                WidthRequest="35"
                                HorizontalOptions="Start"
-                               Margin="5">
+                               Margin="5"
+                               IsEnabled="False">
                             <Image.Shadow>
                                 <Shadow Brush="White" Opacity="1.0" Radius="1.0"/>
                             </Image.Shadow>

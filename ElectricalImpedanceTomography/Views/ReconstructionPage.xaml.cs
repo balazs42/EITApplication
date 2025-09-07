@@ -60,6 +60,8 @@ public partial class ReconstructionPage : ContentPage
         StepButton.IsEnabled = false;
         PlayButton.IsVisible = true;
         PauseButton.IsVisible = false;
+        PlayerBackButton.IsEnabled = false;
+        PlayerForwardButton.IsEnabled = false;
     }
 
     protected override void OnAppearing()
@@ -102,6 +104,8 @@ public partial class ReconstructionPage : ContentPage
             _hasStarted = true;
             _isPaused = false;
             StepButton.IsEnabled = false;
+            PlayerBackButton.IsEnabled = false;
+            PlayerForwardButton.IsEnabled = false;
             PlayButton.IsVisible = false;
             PauseButton.IsVisible = true;
             return;
@@ -112,6 +116,8 @@ public partial class ReconstructionPage : ContentPage
             _viewModel.ResumeReconstruction();
             _isPaused = false;
             StepButton.IsEnabled = false;
+            PlayerBackButton.IsEnabled = false;
+            PlayerForwardButton.IsEnabled = false;
             PlayButton.IsVisible = false;
             PauseButton.IsVisible = true;
         }
@@ -127,6 +133,8 @@ public partial class ReconstructionPage : ContentPage
         _viewModel.PauseReconstruction();
         _isPaused = true;
         StepButton.IsEnabled = true;
+        PlayerBackButton.IsEnabled = true;
+        PlayerForwardButton.IsEnabled = true;
         PlayButton.IsVisible = true;
         PauseButton.IsVisible = false;
     }
@@ -146,10 +154,41 @@ public partial class ReconstructionPage : ContentPage
         _viewModel.StopReconstruction();
         _isPaused = false;
         _hasStarted = false;
+        StepButton.IsEnabled = false;
+        PlayerBackButton.IsEnabled = false;
+        PlayerForwardButton.IsEnabled = false;
         PlayButton.IsVisible = true;
         PauseButton.IsVisible = false;
     }
     #endregion
+
+    private async void OnPlayerBackButtontapped(object sender, TappedEventArgs e)
+    {
+        if (!_isPaused)
+            return;
+
+        await AnimateButtonAsync(sender);
+        var frames = Workspace.GetReconstructionFrames();
+        int index = (int)Math.Round(PlaybackSlider.Value);
+        if (index > 0)
+        {
+            PlaybackSlider.Value = index - 1;
+        }
+    }
+
+    private async void OnPlayerForwardButtontapped(object sender, TappedEventArgs e)
+    {
+        if (!_isPaused)
+            return;
+
+        await AnimateButtonAsync(sender);
+        var frames = Workspace.GetReconstructionFrames();
+        int index = (int)Math.Round(PlaybackSlider.Value);
+        if (index < frames.Count - 1)
+        {
+            PlaybackSlider.Value = index + 1;
+        }
+    }
 
 
     private void OnReconstructionUpdated(object? sender, ReconstructionResult result)
