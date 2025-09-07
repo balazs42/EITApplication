@@ -382,10 +382,13 @@ namespace ServiceLayer
 
                     foreach (var measurement in meas.Frames)
                     {
+                        electrodes = lbmMesh.GetElectrodes().Cast<LBMElectrode>().ToList();
+                        bc = new LBMBoundaryCondition(electrodes);
                         var frame = _reconstructionPersistence.Step(measurement, bc, _stepSize, _regularizationWeight);
                         Workspace.AddReconstructionFrameToWorkspace(frame);
                         _currentCycleFrames.Add(frame);
                         ReconstructionFrameUpdated?.Invoke(this, frame);
+                        lbmMesh.ShiftExcitationElectrodes(DrivePattern.Adjecent);
                     }
 
                     var result = new ReconstructionResult(_mesh!.GetMesh(), _originalSigma!, _initialSigma!, _mesh!.GetConductivityDistribution(), _currentCycleFrames.ToList());

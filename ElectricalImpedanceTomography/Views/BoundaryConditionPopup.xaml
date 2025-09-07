@@ -6,9 +6,11 @@
     xmlns:meshing="clr-namespace:Utility.Classes.Meshing;assembly=Utility"
     xmlns:viewmodel="clr-namespace:ElectricalImpedanceTomography.ViewModels"
     x:Class="ElectricalImpedanceTomography.Views.BoundaryConditionsPopup"
-    x:DataType="viewmodel:BoundaryConditionsPopupViewModel">
+    x:DataType="viewmodel:BoundaryConditionsPopupViewModel"
+    Color="Transparent">
 
     <Border
+        StrokeShape="RoundRectangle 10"
         Padding="16"
         BackgroundColor="Gray"
         WidthRequest="500"
@@ -28,7 +30,7 @@
                             Margin="0,8,0,8">
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="meshing:Electrode">
-                        <Border Padding="8" Margin="0,4">
+                        <Border Padding="8" Margin="0,4" StrokeShape="RoundRectangle 5">
                             <Grid ColumnDefinitions="*,*,*,*,*" RowDefinitions="Auto, Auto, Auto" ColumnSpacing="6" RowSpacing="5">
                                 <!-- Electrode ID -->
                                 <Label Text="{Binding Id, StringFormat='Id:#{0}'}"

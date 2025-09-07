@@ -1,5 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
-using System.Xml.Linq;
+﻿using Utility.Classes.Measurement;
 using Utility.Classes.Meshing;
 using Utility.Classes.Meshing.GraphMesh;
 
@@ -142,6 +141,57 @@ namespace Utility.Classes
         {
             for (int i = 0; i < _electrodes.Count; i++)
                 _electrodes[i].Potential = ReadPotentialOf(_electrodes[i]);
+        }
+
+        private void ResetElectrodes()
+        {
+            foreach(var el in _electrodes)
+            {
+                el.IsExcitation = false;
+                el.IsMeasuring = true;
+                el.IsGround = false;
+
+                el.Current = 0.0;
+                el.Potential = 0.0;
+                el.ZContact = 1.0;
+            }
+        }
+
+        public void ShiftExcitationElectrodes(DrivePattern drivePattern)
+        {
+            var excitationElectrode = _electrodes.Find(x => x.IsExcitation) ?? throw new NullReferenceException("Could not find an electrode which is specified as excitation!");
+            int excitationElectrodeId = excitationElectrode.Id;
+
+            double excitationCurrent = excitationElectrode.Current;
+
+            var groundElectrode = _electrodes.Find(x => x.IsGround) ?? throw new NullReferenceException("Could not find an electrode which is specified as ground!");
+            int groundElectrodeId = groundElectrode.Id;
+
+            double groundCurrent = groundElectrode.Current;
+
+            int electrodeCount = _electrodes.Count;
+
+            ResetElectrodes();
+
+            switch(drivePattern)
+            {
+                case DrivePattern.Adjecent:
+                    int newExcitationElectrodeId = (excitationElectrodeId + 1) % electrodeCount;
+                    _electrodes[newExcitationElectrodeId].Current = excitationCurrent;
+                    _electrodes[newExcitationElectrodeId].IsExcitation = true;
+                    _electrodes[newExcitationElectrodeId].IsMeasuring = false;
+                    
+                    int newGroundElectrodeId = (groundElectrodeId + 1) % electrodeCount;
+                    _electrodes[newGroundElectrodeId].Current = groundCurrent;
+                    _electrodes[newGroundElectrodeId].IsGround = true;
+                    _electrodes[newGroundElectrodeId].IsMeasuring = false;
+                    break;
+                case DrivePattern.Opposite:
+                    //TODO
+                    break;
+                default:
+                    break;
+            }
         }
 
         protected abstract IEnumerable<int> StateKeys();                       
