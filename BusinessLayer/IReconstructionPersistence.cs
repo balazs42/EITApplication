@@ -8,7 +8,7 @@ namespace BusinessLayer
 {
     public interface IReconstructionPersistence
     {
-        public void InitializeReconstruction(IMesh mesh, EITReconstructionParameters parameters);
+        public void InitializeReconstruction(IMesh mesh, EITReconstructionParameters parameters, bool reinit);
 
         public ReconstructionFrame Step(double[] measurement, BoundaryCondition boundaryCondition, double gradientStepSize, double redularizationStepSize);
         public void Run(int maxIterationCount, double gradientStepSize, double redularizationStepSize);

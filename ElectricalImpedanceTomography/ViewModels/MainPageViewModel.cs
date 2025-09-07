@@ -262,7 +262,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                         break;
                     }
                     var parms = Workspace.GetReconstructionParameters();
-                    _reconstructionService.InitializeReconstruction(m, parms);
+                    _reconstructionService.InitializeReconstruction(m, parms, true);
                     Workspace.AddInfoMessage("Reconstruction initialized.");
                     break;
                 case "openpage":
