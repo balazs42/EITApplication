@@ -255,9 +255,16 @@ namespace ServiceLayer
             else if (_mesh is LBMMesh)
             {
                 var result = InverseSolveLbm(1, _stepSize, _regularizationWeight, _excitationAmplitude);
+
+                foreach (var frame in result.Frames)
+                {
+                    Workspace.AddReconstructionFrameToWorkspace(frame);
+                    ReconstructionFrameUpdated?.Invoke(this, frame);
+                }
+
                 ReconstructionUpdated?.Invoke(this, result);
                 _currentIteration++;
-                return null;
+                return result.Frames.LastOrDefault();
             }
 
             return null;

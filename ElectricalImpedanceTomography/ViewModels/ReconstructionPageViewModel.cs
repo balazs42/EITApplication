@@ -6,6 +6,7 @@ using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Workspace = Utility.Classes.Application.Workspace;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace ElectricalImpedanceTomography.ViewModels
 {
@@ -87,24 +88,24 @@ namespace ElectricalImpedanceTomography.ViewModels
             return true;
         }
 
-        public void OnSolveForwardClicked(object sender, EventArgs e)
+        public async void OnSolveForwardClicked(object sender, EventArgs e)
         {
             InitializeReconstruction(force: true);
 
             if (_mesh is FEMMesh)
-                _reconstructionService.ForwardSolveStepFem();
+                await Task.Run(() => _reconstructionService.ForwardSolveStepFem());
             else if (_mesh is LBMMesh)
-                _reconstructionService.ForwardSolveStepLbm();
+                await Task.Run(() => _reconstructionService.ForwardSolveStepLbm());
         }
 
-        public void OnSolveInverseClicked(object sender, EventArgs e)
+        public async void OnSolveInverseClicked(object sender, EventArgs e)
         {
             InitializeReconstruction(force: true);
 
             if (_mesh is FEMMesh)
-                _reconstructionService.InverseSolveFem(MaxIterationCount, StepSize, RegularizationWeight, ExcitationCurrentAmplitude);
+                await Task.Run(() => _reconstructionService.InverseSolveFem(MaxIterationCount, StepSize, RegularizationWeight, ExcitationCurrentAmplitude));
             else if (_mesh is LBMMesh)
-                _reconstructionService.InverseSolveLbm(MaxIterationCount, StepSize, RegularizationWeight, ExcitationCurrentAmplitude);
+                await Task.Run(() => _reconstructionService.InverseSolveLbm(MaxIterationCount, StepSize, RegularizationWeight, ExcitationCurrentAmplitude));
         }
 
         private double CalculateResidual(ConductivityDistribution reconstructed, ConductivityDistribution original)
