@@ -62,10 +62,10 @@ namespace ServiceLayer
         }
 
         public ReconstructionResult InverseSolveLbm(int maxIterationCount,
-                                                     double gradientStepSize,
-                                                     double regularizationWeight,
-                                                     double excitationAmplitude,
-                                                     double tolerance = 1e-6)
+                                                    double gradientStepSize,
+                                                    double regularizationWeight,
+                                                    double excitationAmplitude,
+                                                    double tolerance = 1e-6)
         {
             try
             {
@@ -109,22 +109,23 @@ namespace ServiceLayer
             try
             {
                 Workspace.AddLogMessage("Reconstruction Service", "Reconstruction initialization started with the specified EITReconstructionParameters object.");
+
                 _mesh = mesh;
                 _simulatedMeasurements.Clear();
                 _simMeasurementIndex = 0;
                 _currentCycleFrames.Clear();
+
                 Workspace.ClearReconstructionFrames();
+
                 Workspace.SetReconstructionResults(new List<ReconstructionResult>());
+
                 _reconstructionPersistence.InitializeReconstruction(mesh, parameters, reinit);
-                _originalSigma = ((Mesh)mesh.DeepCopy()).GetConductivityDistribution();
+                _originalSigma = mesh.DeepCopy().GetConductivityDistribution();
                 _initialSigma = ConductivityDistributionFactory.CreateInitialDistribution(mesh, parameters.InitialDistributionType);
+
                 mesh.SetConductivityDistribution(_initialSigma);
-                if (mesh is FEMMesh fem)
-                    _framesPerCycle = fem.GetElectrodes().Count;
-                else if (mesh is LBMMesh lbm)
-                    _framesPerCycle = lbm.GetElectrodes().Count;
-                else
-                    _framesPerCycle = 1;
+
+                _framesPerCycle = (mesh.GetElectrodes().Count > 0) ? mesh.GetElectrodes().Count : 1;
             }
             catch(Exception ex)
             {
@@ -153,18 +154,18 @@ namespace ServiceLayer
         }
 
         public ReconstructionResult InverseSolveFem(int maxIterCount,
-                                                     double stepSize,
-                                                     double regularizationWeight,
-                                                     double excitationAmplitude,
-                                                     double tolerance = 1e-6)
+                                                    double stepSize,
+                                                    double regularizationWeight,
+                                                    double excitationAmplitude,
+                                                    double tolerance = 1e-6)
         {
             try
             {
                 var reconstructionResult = _reconstructionPersistence.InverseSolveFem(maxIterCount,
-                                                                                       stepSize,
-                                                                                       regularizationWeight,
-                                                                                       excitationAmplitude,
-                                                                                       tolerance);
+                                                                                      stepSize,
+                                                                                      regularizationWeight,
+                                                                                      excitationAmplitude,
+                                                                                      tolerance);
 
                 Workspace.AddReconstructionResultToWorkspace(reconstructionResult);
 
