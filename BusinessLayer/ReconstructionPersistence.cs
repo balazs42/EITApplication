@@ -311,7 +311,7 @@ namespace BusinessLayer
             var elements = mesh.GetElements().Cast<FEMElement>().ToList();
 
             // Container that stores intermediate frames for later inspection.
-            List<ReconstructionFrame> frames = new();
+            List<ReconstructionFrame> frames = [];
 
             // --- Iterative reconstruction loop -----------------------------------------
             for (int iter = 0; iter < maxIterationCount && !_stopRequested; iter++)
