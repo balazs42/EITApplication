@@ -445,6 +445,12 @@ namespace ServiceLayer
                     var newSigmaDict = prevSigma.Conductivities.ToDictionary(
                         kvp => kvp.Key,
                         kvp => kvp.Value + (accumGrad.TryGetValue(kvp.Key, out var g) ? g / frameCount : 0.0));
+
+                    // Clip conductivity values that would fall below 0.0
+                    foreach (var kvp in newSigmaDict)
+                        if (kvp.Value < 0.0)
+                            newSigmaDict[kvp.Key] = 0.0;
+
                     var newSigma = new ConductivityDistribution(newSigmaDict);
                     _discretization.SetConductivityDistribution(newSigma);
                     _initialSigma = newSigma;
