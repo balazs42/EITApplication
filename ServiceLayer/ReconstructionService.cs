@@ -225,7 +225,15 @@ namespace ServiceLayer
             {
                 if (_simulatedMeasurements.Count == 0)
                 {
-                    _simulatedMeasurements = _reconstructionPersistence.SimulateFemMeasurements(femMesh, _excitationAmplitude);
+                    // Generate synthetic measurements using the original
+                    // conductivity distribution so that residuals are
+                    // non-zero even after the reconstruction mesh has been
+                    // reset to an initial guess.
+                    FEMMesh measMesh = (FEMMesh)femMesh.DeepCopy();
+                    if (_originalSigma != null)
+                        measMesh.SetConductivityDistribution(_originalSigma);
+                    _simulatedMeasurements =
+                        _reconstructionPersistence.SimulateFemMeasurements(measMesh, _excitationAmplitude);
                 }
 
                 // Select the measurement frame corresponding to the current
@@ -276,7 +284,13 @@ namespace ServiceLayer
             {
                 if (_simulatedMeasurements.Count == 0)
                 {
-                    var meas = _reconstructionPersistence.SimulateLbmMeasurements(lbmMesh, _excitationAmplitude);
+                    // Generate measurements from the original conductivity to
+                    // avoid a zero residual when comparing against the
+                    // reconstruction mesh.
+                    LBMMesh measMesh = (LBMMesh)lbmMesh.DeepCopy();
+                    if (_originalSigma != null)
+                        measMesh.SetConductivityDistribution(_originalSigma);
+                    var meas = _reconstructionPersistence.SimulateLbmMeasurements(measMesh, _excitationAmplitude);
                     _simulatedMeasurements = meas.Frames;
                 }
 
@@ -378,7 +392,13 @@ namespace ServiceLayer
                 if (_mesh is FEMMesh femMesh)
                 {
                     if (_simulatedMeasurements.Count == 0)
-                        _simulatedMeasurements = _reconstructionPersistence.SimulateFemMeasurements(femMesh, _excitationAmplitude);
+                    {
+                        FEMMesh measMesh = (FEMMesh)femMesh.DeepCopy();
+                        if (_originalSigma != null)
+                            measMesh.SetConductivityDistribution(_originalSigma);
+                        _simulatedMeasurements =
+                            _reconstructionPersistence.SimulateFemMeasurements(measMesh, _excitationAmplitude);
+                    }
 
                     var electrodes = femMesh.GetElectrodes().Cast<FEMElectrode>().ToList();
                     int electrodeCount = electrodes.Count;
@@ -417,7 +437,10 @@ namespace ServiceLayer
                 }
                 else if (_mesh is LBMMesh lbmMesh)
                 {
-                    var meas = _reconstructionPersistence.SimulateLbmMeasurements(lbmMesh, _excitationAmplitude);
+                    LBMMesh measMesh = (LBMMesh)lbmMesh.DeepCopy();
+                    if (_originalSigma != null)
+                        measMesh.SetConductivityDistribution(_originalSigma);
+                    var meas = _reconstructionPersistence.SimulateLbmMeasurements(measMesh, _excitationAmplitude);
                     var electrodes = lbmMesh.GetElectrodes().Cast<LBMElectrode>().ToList();
                     var bc = new LBMBoundaryCondition(electrodes);
 
