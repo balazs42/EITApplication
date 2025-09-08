@@ -48,9 +48,11 @@
         <HorizontalStackLayout Spacing="50" HorizontalOptions="Center">
 
             <Border x:Name="MainPageButton"
-                    StrokeShape="RoundRectangle 5"
+                    StrokeShape="RoundRectangle 20"
                     Stroke="Transparent"
-                    BackgroundColor="#555555">
+                    BackgroundColor="#555555"
+                    Margin="5"
+                    Padding="5">
                 <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5">
                     <Image Grid.Column="0" Source="icon_home.png" HeightRequest="30" Margin="3"/>
                     <Label Grid.Column="1" 
@@ -72,8 +74,10 @@
             </Border>
 
             <Border x:Name="DAQPageButton"
-                    StrokeShape="RoundRectangle 5"
+                    StrokeShape="RoundRectangle 20"
                     Stroke="Transparent"
+                    Margin="5"
+                    Padding="5"
                     BackgroundColor="#555555">
                 <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5">
                     <Image Grid.Column="0" Source="icon_hardware.png" HeightRequest="30"/>
@@ -96,10 +100,11 @@
             </Border>
 
             <Border x:Name="MeshingPageButton"
-                    StrokeShape="RoundRectangle 5"
+                    StrokeShape="RoundRectangle 20"
                     Stroke="Transparent"
                     BackgroundColor="#555555"
-                    Padding="3">
+                    Margin="5"
+                    Padding="5">
                 <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5">
                     <Image Grid.Column="0" Source="icon_mesh2.png" HeightRequest="30"/>
                     <Label Grid.Column="1" 
@@ -121,10 +126,11 @@
             </Border>
 
             <Border x:Name="ReconstructionPageButton"
-                    StrokeShape="RoundRectangle 5"
+                    StrokeShape="RoundRectangle 20"
                     Stroke="Transparent"
                     BackgroundColor="#555555"
-                    Padding="3">
+                    Margin="5"
+                    Padding="5">
                 <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5">
                     <Image Grid.Column="0" Source="icon_reconstruction3.png" HeightRequest="30"/>
                     <Label Grid.Column="1" 

@@ -22,7 +22,7 @@
         </Style>
         <converters:MessageTypeToColorConverter x:Key="MessageTypeToColorConverter"/>
     </ContentPage.Resources>
-    
+
     <Grid RowDefinitions="Auto, Auto">
         <controls:NavBarControl Grid.Row="0" CurrentPageName="MainPage"/>
 
@@ -73,7 +73,7 @@
                         </Button>
                     </VerticalStackLayout>
                 </Border>
-                
+
                 <!-- Navigation Menu-->
                 <Border Stroke="Gray" StrokeThickness="1" Padding="10" StrokeShape="RoundRectangle 3">
                     <VerticalStackLayout Spacing="8">
@@ -81,10 +81,10 @@
                             <Image Grid.Column="0" Source="icon_navigation.png" HeightRequest="20"/>
                             <Label Grid.Column="1" Text="Navigation" FontAttributes="Italic" FontSize="Medium"/>
                         </Grid>
-                        
+
                         <Border StrokeShape="RoundRectangle 5" Background="#1A1A1A" Padding="3">
                             <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5" HorizontalOptions="Center">
-                            <Image Grid.Column="0" Source="icon_hardware.png" BackgroundColor="Transparent" HeightRequest="30" WidthRequest="30"/>
+                                <Image Grid.Column="0" Source="icon_hardware.png" BackgroundColor="Transparent" HeightRequest="30" WidthRequest="30"/>
                                 <Label Grid.Column="1" Text="Hardware" HorizontalOptions="Center" VerticalOptions="Center"/>
                             </Grid>
                             <Border.GestureRecognizers>
@@ -113,7 +113,7 @@
                         </Border>
                     </VerticalStackLayout>
                 </Border>
-                
+
                 <Border Stroke="LightGray" StrokeThickness="1" Padding="10" StrokeShape="RoundRectangle 3">
                     <VerticalStackLayout Spacing="6">
                         <Grid ColumnDefinitions="Auto, *" ColumnSpacing="5">
