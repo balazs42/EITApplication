@@ -22,10 +22,10 @@ namespace Utility.Classes.ReconstructionParameters
         /// mesh initialization should be done and boundary conditions in forward case should be set the measured values
         /// in the adjoint case, should be set to the adjoint source.
         /// </summary>
-        /// <param name="mesh">Mesh object that will be used to solve the equations.</param>
+        /// <param name="discretization">Mesh object that will be used to solve the equations.</param>
         /// <param name="boundaryCondition">The specified boundaryConditions</param>
         /// <returns></returns>
-        PotentialDistribution Solve(IMesh mesh, BoundaryCondition boundaryCondition, Complex[]? adjointSource);
+        PotentialDistribution Solve(IDiscretization discretization, BoundaryCondition boundaryCondition, Complex[]? adjointSource);
     }
 
     public sealed class FiniteElementDESolver : IDifferentialEquationSolver
@@ -47,14 +47,14 @@ namespace Utility.Classes.ReconstructionParameters
         /// <param name="bc">The boundary conditions which should be applied to the calculations.</param>
         /// <returns></returns>
         /// <exception cref="ArgumentException"></exception>
-        public PotentialDistribution Solve(IMesh mesh, BoundaryCondition bc, Complex[]? adjointSource)
+        public PotentialDistribution Solve(IDiscretization discretization, BoundaryCondition bc, Complex[]? adjointSource)
         {
             // Standard forward solve
             if(adjointSource == null)
-                return _solver.SolveForward(mesh, bc);
+                return _solver.SolveForward(discretization, bc);
             // Adjoint solve
             else 
-                return _solver.SolveAdjoint(mesh, bc, adjointSource);
+                return _solver.SolveAdjoint(discretization, bc, adjointSource);
         }
     }
 
@@ -74,12 +74,12 @@ namespace Utility.Classes.ReconstructionParameters
             _solver = new LatticeBoltzmannSolver(_maxIterations, _convergenceThreshold, _checkInterval);
         }
 
-        public PotentialDistribution Solve(IMesh mesh, BoundaryCondition bc, Complex[]? adjointSource)
+        public PotentialDistribution Solve(IDiscretization discretization, BoundaryCondition bc, Complex[]? adjointSource)
         {
             if (adjointSource == null)
-                return _solver.SolveForward(mesh, bc);
+                return _solver.SolveForward(discretization, bc);
             else
-                return _solver.SolveAdjoint(mesh, bc, adjointSource);
+                return _solver.SolveAdjoint(discretization, bc, adjointSource);
         }
     }
 
@@ -99,9 +99,9 @@ namespace Utility.Classes.ReconstructionParameters
         /// BoundaryCondition 'bc' is expected to have been applied to the mesh
         /// before invoking (same convention as the other DESolvers).
         /// </summary>
-        public PotentialDistribution Solve(IMesh mesh, BoundaryCondition bc, Complex[]? adjointSource)
+        public PotentialDistribution Solve(IDiscretization discretization, BoundaryCondition bc, Complex[]? adjointSource)
         {
-            if (mesh is FEMMesh femMesh)
+            if (discretization is FEMMesh femMesh)
             {
                 if (adjointSource == null)
                 {
@@ -119,7 +119,7 @@ namespace Utility.Classes.ReconstructionParameters
             {
                 throw new NotImplementedException(
                     "Graph-based DE solver currently supports FEM meshes. " +
-                    "LBM path can be enabled once LBMMesh graph mapping is integrated here.");
+                    "LBM path can be enabled once LBMGrid graph mapping is integrated here.");
             }
         }
 
@@ -164,9 +164,9 @@ namespace Utility.Classes.ReconstructionParameters
             return newMesh!.GetPotentialDistribution();
         }
 
-        public ConductivityDistribution InverseSolve(IMesh mesh, BoundaryCondition bc, Complex[] ajdointSource)
+        public ConductivityDistribution InverseSolve(IDiscretization discretization, BoundaryCondition bc, Complex[] ajdointSource)
         {
-            if (mesh is FEMMesh femMesh)
+            if (discretization is FEMMesh femMesh)
             {
                 return _solver.Iteration(femMesh, _numericSolver);
             }

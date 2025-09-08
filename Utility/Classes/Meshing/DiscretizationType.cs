@@ -1,6 +1,6 @@
 ﻿namespace Utility.Classes.Meshing
 {
-    public enum MeshType
+    public enum DiscretizationType
     {
         FEM = 1,
         LBM = 2

@@ -8,9 +8,9 @@ namespace Utility.Classes.Application
     {
         private static User _user { get; set; } = new DefaultUser(0, "No User");
         private static EITReconstructionParameters _reconstructionParameters = new();
-        private static IMesh? _mesh { get; set; } = null;
-        private static IMesh? _originalMesh { get; set; } = null;
-        private static IMesh? _initialMesh { get; set; } = null;
+        private static IDiscretization? _discretization{ get; set; } = null;
+        private static IDiscretization? _originalDiscretization { get; set; } = null;
+        private static IDiscretization? _initialDiscretization { get; set; } = null;
 
         private static int _maxIterationCount = 50;
         private static double _stepSize = 0.001;
@@ -24,7 +24,7 @@ namespace Utility.Classes.Application
 
         private static bool _initialized = false; 
 
-        public static void Initialize(User user, EITReconstructionParameters? eITReconstructionParameters, IMesh? mesh)
+        public static void Initialize(User user, EITReconstructionParameters? eITReconstructionParameters, IDiscretization? discretization)
         {
             if(_initialized) return;
 
@@ -33,8 +33,8 @@ namespace Utility.Classes.Application
             if(eITReconstructionParameters != null)
                 _reconstructionParameters = eITReconstructionParameters;
             
-            if(mesh != null)
-                _mesh = mesh;
+            if(discretization != null)
+                _discretization = discretization;
 
             _initialized = true;
 
@@ -43,18 +43,18 @@ namespace Utility.Classes.Application
 
         public static void SetUser(User user) => _user = user;
         public static void SetReconstructionParameters(EITReconstructionParameters eITReconstructionParameters) => _reconstructionParameters = eITReconstructionParameters;
-        public static void SetMesh(IMesh? mesh) => _mesh = mesh;
-        public static void SetOriginalMesh(IMesh? originalMesh) => _originalMesh = originalMesh;
-        public static void SetInitialMesh(IMesh? initialMesh) => _initialMesh = initialMesh;
+        public static void SetDiscretization(IDiscretization? discretization) => _discretization = discretization;
+        public static void SetOriginalDiscretization(IDiscretization? originalDiscretization) => _originalDiscretization = originalDiscretization;
+        public static void SetInitialDiscretization(IDiscretization? initialDiscretization) => _initialDiscretization = initialDiscretization;
         public static void SetReconstructionResults(List<ReconstructionResult> results) => _reconstructionResults = results;
         public static void SetReconstructionFrames(List<ReconstructionFrame> frames) => _reconstructionFrames = frames;
         public static void SetOriginalConductivityDistribution(ConductivityDistribution? sigma) => _originalConductivityDistribution = sigma;
 
         public static User GetUser() => _user;
         public static EITReconstructionParameters GetReconstructionParameters() => _reconstructionParameters;
-        public static IMesh? GetMesh() => _mesh;
-        public static IMesh? GetOriginalMesh() => _originalMesh;
-        public static IMesh? GetInitialMesh() => _initialMesh;
+        public static IDiscretization? GetDiscretization() => _discretization;
+        public static IDiscretization? GetOriginalDiscretization() => _originalDiscretization;
+        public static IDiscretization? GetInitialDiscretization() => _initialDiscretization;
         public static List<ReconstructionResult> GetReconstructionResults() => _reconstructionResults;
         public static List<ReconstructionFrame> GetReconstructionFrames() => _reconstructionFrames;
         public static ConductivityDistribution? GetOriginalConductivityDistribution() => _originalConductivityDistribution;

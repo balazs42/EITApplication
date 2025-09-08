@@ -18,12 +18,12 @@ namespace Utility.Classes.Factories
         /// <summary>
         /// Creates a homogeneous distribution which has the same strucuture as the provided mesh's.
         /// </summary>
-        /// <param name="mesh">The mesh that contians the conductivity distribution definition.</param>
+        /// <param name="discretization">The mesh that contians the conductivity distribution definition.</param>
         /// <param name="homogeneousValue">The value which we will set the conductivities to.</param>
         /// <returns>The homogeneous distribution.</returns>
-        public static ConductivityDistribution CreateHomogeneous(IMesh mesh, double homogeneousValue = 1.0)
+        public static ConductivityDistribution CreateHomogeneous(IDiscretization discretization, double homogeneousValue = 1.0)
         {
-            ConductivityDistribution homogeneousDistribution = new ConductivityDistribution(mesh.GetConductivityDistribution().Conductivities);
+            ConductivityDistribution homogeneousDistribution = new ConductivityDistribution(discretization.GetConductivityDistribution().Conductivities);
 
             // Reassing conductivity values
             foreach (var kvp in homogeneousDistribution.Conductivities)
@@ -37,14 +37,14 @@ namespace Utility.Classes.Factories
         /// <summary>
         /// Creates a completely random conductivity distribution.
         /// </summary>
-        /// <param name="mesh">The mesh that contians the conductivity distribution definition.</param>
+        /// <param name="discretization">The mesh that contians the conductivity distribution definition.</param>
         /// <param name="max">The max amount that conductivities can take.</param>
         /// <returns>A random conductivity distribution which resembles the same structure provided in the mesh.</returns>
-        public static ConductivityDistribution CreateRandom(IMesh mesh, double max = 1.0)
+        public static ConductivityDistribution CreateRandom(IDiscretization discretization, double max = 1.0)
         {
             Random r = new Random();
 
-            ConductivityDistribution randomDistribution = new ConductivityDistribution(mesh.GetConductivityDistribution().Conductivities);
+            ConductivityDistribution randomDistribution = new ConductivityDistribution(discretization.GetConductivityDistribution().Conductivities);
 
             // Reassing conductivity values
             foreach (var kvp in randomDistribution.Conductivities)
@@ -58,17 +58,17 @@ namespace Utility.Classes.Factories
         /// <summary>
         /// Creates  slightly differing conductivity distribution, by scaling the mesh conductivities.
         /// </summary>
-        /// <param name="mesh">The mesh that contians the conductivity distribution definition.</param>
+        /// <param name="discretization">The mesh that contians the conductivity distribution definition.</param>
         /// <param name="scaling">The scaling parameter which scales the provided conductivites.</param>
         /// <returns>The scaled conductivity distribution.</returns>
-        public static ConductivityDistribution CreateSlightlyDiffering(IMesh mesh, double scaling = 0.95)
+        public static ConductivityDistribution CreateSlightlyDiffering(IDiscretization discretization, double scaling = 0.95)
         {
             if (scaling < 0.0 || scaling > 1.0)
                 scaling = 0.5;
 
-            int elementCount = mesh.GetElements().Count;
+            int elementCount = discretization.GetElements().Count;
 
-            ConductivityDistribution conductivityDistribution = new ConductivityDistribution(mesh.GetConductivityDistribution().Conductivities);
+            ConductivityDistribution conductivityDistribution = new ConductivityDistribution(discretization.GetConductivityDistribution().Conductivities);
 
             foreach (var kvp in conductivityDistribution.Conductivities)
                     conductivityDistribution.Conductivities[kvp.Key] = conductivityDistribution.Conductivities[kvp.Key] * scaling;
@@ -81,25 +81,25 @@ namespace Utility.Classes.Factories
         /// <summary>
         /// Creates a slightly differning conductivity distribution by scaling some random element's conductivities.
         /// </summary>
-        /// <param name="mesh">The mesh that contians the conductivity distribution definition</param>
+        /// <param name="discretization">The mesh that contians the conductivity distribution definition</param>
         /// <param name="numDiffering">Number of elements that should be modified.</param>
         /// <param name="scaling">The scaling parameter that should be used on the random elements.</param>
         /// <returns>The randomly scaled conductivity distribution.</returns>
-        public static ConductivityDistribution CreateRandomSlightlyDiffering(IMesh mesh, int numDiffering, double scaling = 0.95)
+        public static ConductivityDistribution CreateRandomSlightlyDiffering(IDiscretization discretization, int numDiffering, double scaling = 0.95)
         {
             if (scaling < 0.0 || scaling > 1.0)
                 scaling = 0.5;
 
             Random r = new Random();
 
-            int elementCount = mesh.GetElements().Count;
+            int elementCount = discretization.GetElements().Count;
 
             double ratio = (double)numDiffering / (double)elementCount;
 
             if (ratio > 1.0)
                 ratio = 1.0;
 
-            ConductivityDistribution conductivityDistribution = new ConductivityDistribution(mesh.GetConductivityDistribution().Conductivities);
+            ConductivityDistribution conductivityDistribution = new ConductivityDistribution(discretization.GetConductivityDistribution().Conductivities);
 
             // Set randomly elements conductivity to slightly differing values
             foreach (var kvp in conductivityDistribution.Conductivities)
@@ -130,16 +130,16 @@ namespace Utility.Classes.Factories
             return new ConductivityDistribution(conductivityDistribution);
         }
 
-        public static ConductivityDistribution CreateInitialDistribution(IMesh mesh, InitialDistributionTypes type)
+        public static ConductivityDistribution CreateInitialDistribution(IDiscretization discretization, InitialDistributionTypes type)
         {
             return type switch
             {
-                InitialDistributionTypes.Homogeneous => CreateHomogeneous(mesh),
-                InitialDistributionTypes.Random => CreateRandom(mesh),
-                InitialDistributionTypes.SlightlyDiffering => CreateSlightlyDiffering(mesh, 0.95),
+                InitialDistributionTypes.Homogeneous => CreateHomogeneous(discretization),
+                InitialDistributionTypes.Random => CreateRandom(discretization),
+                InitialDistributionTypes.SlightlyDiffering => CreateSlightlyDiffering(discretization, 0.95),
                 InitialDistributionTypes.RandomSlightlyDiffering =>
-                    CreateRandomSlightlyDiffering(mesh, Math.Max(1, mesh.GetElements().Count / 10), 0.95),
-                _ => CreateHomogeneous(mesh)
+                    CreateRandomSlightlyDiffering(discretization, Math.Max(1, discretization.GetElements().Count / 10), 0.95),
+                _ => CreateHomogeneous(discretization)
             };
         }
     }

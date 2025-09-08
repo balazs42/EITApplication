@@ -3,7 +3,7 @@ using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 
 namespace Utility.Classes.Meshing.FiniteElementMesh
 {
-    public class FEMMesh : Mesh<FEMElement, FEMElectrode>
+    public class FEMMesh : Discretization<FEMElement, FEMElectrode>
     {
         public List<FEMVertex> Vertices { get; set; } = [];
         private List<Edge> _edges { get; set; } = [];
@@ -129,7 +129,7 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
         /// Creates a deep copy of this FEMMesh, including vertices, elements,
         /// electrode list, and distributions.
         /// </summary>
-        public override Mesh DeepCopy()
+        public override Discretization DeepCopy()
         {
             var FEMVertexMap = new Dictionary<int, FEMVertex>(Vertices.Count);
             var newVertices = new List<FEMVertex>(Vertices.Count);
@@ -167,7 +167,7 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
 
             var copy = new FEMMesh(newVertices, newElements)
             {
-                Metadata = new MeshMetadata
+                Metadata = new DiscretizationMetaData
                 {
                     CreatedOn = this.Metadata.CreatedOn,
                     Generator = this.Metadata.Generator,
@@ -208,7 +208,7 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
             return copy;
         }
 
-        public override void LogMesh()
+        public override void LogDiscretization()
         {
             Console.WriteLine($"FEM | V={Vertices.Count}, E={_elements.Count}, EL={_electrodes.Count}");
         }

@@ -17,11 +17,11 @@ namespace Utility.Classes.Models
         private readonly IRegularizer _regularizer;
         private readonly IErrorMetric _errorMetric;
         private readonly IDifferentialEquationSolver _deSolver;
-        private readonly IMesh _mesh;
+        private readonly IDiscretization _discretization;
 
-        public InverseModel(IMesh mesh, INumericOptimizer numericOptimizer, IRegularizer regularizer, IErrorMetric errorMetric, IDifferentialEquationSolver deSolver)
+        public InverseModel(IDiscretization discretization, INumericOptimizer numericOptimizer, IRegularizer regularizer, IErrorMetric errorMetric, IDifferentialEquationSolver deSolver)
         {
-            _mesh = mesh;
+            _discretization = discretization;
             _numericOptimizer = numericOptimizer;
             _regularizer = regularizer;
             _errorMetric = errorMetric;
@@ -38,7 +38,7 @@ namespace Utility.Classes.Models
         public ConductivityDistribution Solve(ConductivityDistribution initialSigma, EITMeasurement measurements, int maxIterations = 50)
         {
             var currentSigma = initialSigma;
-            var mesh = _mesh;
+            var mesh = _discretization;
 
             Debug.WriteLine($"Starting inverse problem solution using {_deSolver.GetType().Name}...");
 
@@ -85,7 +85,7 @@ namespace Utility.Classes.Models
         /// Computes the total gradient of the cost function (J_misfit + J_regularization)
         /// by summing the contributions from all measurement patterns and the regularization term.
         /// </summary>
-        private ConductivityDistribution ComputeTotalGradient(IMesh mesh, ConductivityDistribution sigma, EITMeasurement measurements)
+        private ConductivityDistribution ComputeTotalGradient(IDiscretization discretization, ConductivityDistribution sigma, EITMeasurement measurements)
         {
             // Initialize a dictionary to accumulate the gradient from all sources.
             var totalGradientDict = sigma.Conductivities.ToDictionary(kvp => kvp.Key, kvp => 0.0);
@@ -123,7 +123,7 @@ namespace Utility.Classes.Models
 
             // === Regularization Gradient Calculation ===
             // After summing the misfit gradients from all patterns, add the regularization gradient.
-            var regGradient = _regularizer.EvaluateGradient(mesh, sigma);
+            var regGradient = _regularizer.EvaluateGradient(discretization, sigma);
             foreach (var kvp in regGradient.Conductivities)
                 totalGradientDict[kvp.Key] += kvp.Value;
 
@@ -135,7 +135,7 @@ namespace Utility.Classes.Models
         /// <summary>
         /// Implements a backtracking line search to find a step size that provides sufficient decrease in the cost function.
         /// </summary>
-        private double FindOptimalStepSize(IMesh mesh, ConductivityDistribution sigma, EITMeasurement measurements, ConductivityDistribution gradient, double currentCost)
+        private double FindOptimalStepSize(IDiscretization discretization, ConductivityDistribution sigma, EITMeasurement measurements, ConductivityDistribution gradient, double currentCost)
         {
             double stepSize = 1.0; // Start with a large step size
             int maxLineSearchIter = 10;
@@ -147,7 +147,7 @@ namespace Utility.Classes.Models
                 var newSigma = _numericOptimizer.OptimizationStep(sigma, gradient, stepSize);
 
                 // Calculate the cost function's value at this new trial point.
-                double newCost = CalculateTotalCost(mesh, newSigma, measurements);
+                double newCost = CalculateTotalCost(discretization, newSigma, measurements);
 
                 // Check for sufficient decrease (Armijo condition). If the new cost is lower, we've found a good step.
                 if (newCost < currentCost)
@@ -164,7 +164,7 @@ namespace Utility.Classes.Models
         /// <summary>
         /// Utility function to calculate the total cost J = Σ(J_misfit) + J_regularization for a given conductivity.
         /// </summary>
-        private double CalculateTotalCost(IMesh mesh, ConductivityDistribution sigma, EITMeasurement measurements)
+        private double CalculateTotalCost(IDiscretization discretization, ConductivityDistribution sigma, EITMeasurement measurements)
         {
             double totalMisfit = 0.0;
 
@@ -182,7 +182,7 @@ namespace Utility.Classes.Models
             }
 
             // Add the regularization penalty.
-            double regTerm = _regularizer.EvaluateTerm(mesh, sigma);
+            double regTerm = _regularizer.EvaluateTerm(discretization, sigma);
             return totalMisfit + regTerm;
         }
 
@@ -212,13 +212,13 @@ namespace Utility.Classes.Models
         /// <param name="mesh">The mesh (FEM or LBM) being used.</param>
         /// <param name="sourcePerElectrode">The raw residual vector from the error metric (size 16).</param>
         /// <returns>A source vector defined for every element in the mesh.</returns>
-        private Complex[] MapAdjointSourceToMesh(IMesh mesh, double[] sourcePerElectrode)
+        private Complex[] MapAdjointSourceToMesh(IDiscretization discretization, double[] sourcePerElectrode)
         {
             // The source vector must match the number of elements in the grid.
-            var sourceVector = new Complex[mesh.GetElements().Count];
+            var sourceVector = new Complex[discretization.GetElements().Count];
 
             // We iterate through the physical electrodes that are defined on the mesh.
-            var electrodesOnMesh = mesh.GetElectrodes();
+            var electrodesOnMesh = discretization.GetElectrodes();
             if (electrodesOnMesh == null) return sourceVector; // Return zero vector if no electrodes
 
             foreach (var electrode in electrodesOnMesh)

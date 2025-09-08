@@ -20,7 +20,7 @@ namespace BusinessLayer
 
         private InverseModel? _inverseModel = null;
         
-        private IMesh? _mesh = null;
+        private IDiscretization? _discretization = null;
         private INumericSolver? _numericSolver = null;
         private IDifferentialEquationSolver? _differentialEquationSolver = null;
         private IRegularizer? _regularizer = null;
@@ -58,21 +58,21 @@ namespace BusinessLayer
             _initialSigma = initial;
         }
 
-        public void InitializeReconstruction(IMesh mesh, EITReconstructionParameters parameters, bool reinit)
+        public void InitializeReconstruction(IDiscretization discretization, EITReconstructionParameters parameters, bool reinit)
         {
             if(!_initialized || reinit)
             {
-                _mesh = mesh;
+                _discretization = discretization;
 
                 _numericSolver = NumericSolverFactory.Create(parameters.NumericSolver);
-                _differentialEquationSolver = DifferentialEquationSolverFactory.Create(mesh, parameters.DifferentialEquationSolver, _numericSolver);
-                _regularizer = RegularisationFactory.Create(parameters.RegularizationTechnique, _mesh);
+                _differentialEquationSolver = DifferentialEquationSolverFactory.Create(discretization, parameters.DifferentialEquationSolver, _numericSolver);
+                _regularizer = RegularisationFactory.Create(parameters.RegularizationTechnique, _discretization);
                 _errorMetric = ErrorMetricFactory.Create(parameters.ErrorMetric);
                 _initialDistributionType = parameters.InitialDistributionType;
-                var initSigma = _initialSigma ?? ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType);
+                var initSigma = _initialSigma ?? ConductivityDistributionFactory.CreateInitialDistribution(discretization, _initialDistributionType);
                 _numericOptimizer = NumericOptimizerFactory.Create(parameters.NumericOptimizer, initSigma);
 
-                _inverseModel = InverseModelFactory.Create(_mesh, _numericOptimizer, _regularizer, _errorMetric, _differentialEquationSolver);
+                _inverseModel = InverseModelFactory.Create(_discretization, _numericOptimizer, _regularizer, _errorMetric, _differentialEquationSolver);
 
                 _initialized = true;
             }
@@ -80,24 +80,24 @@ namespace BusinessLayer
 
         public ReconstructionFrame Step(double[] measurement, BoundaryCondition boundaryCondition, double gradientStepSize, double redularizationStepSize)
         {
-            if (_mesh is FEMMesh femMesh)
+            if (_discretization is FEMMesh femMesh)
             {
                 FEMBoundaryCondition bc = boundaryCondition as FEMBoundaryCondition ?? throw new ArgumentException("Cannot convert boundary condition to FEM boundary condition, check calling code!");
 
                 return InverseSolveStepFem(femMesh, bc, measurement, gradientStepSize);
             }
-            else if (_mesh is LBMMesh lbmMesh)
+            else if (_discretization is LBMGrid lbmGrid)
             {
                 LBMBoundaryCondition bc = boundaryCondition as LBMBoundaryCondition ?? throw new ArgumentException("Cannot convert boundary condition to LBM boundary condition, check calling code!");
 
-                return InverseSolveStepLbm(lbmMesh, bc, measurement);
+                return InverseSolveStepLbm(lbmGrid, bc, measurement);
             }
             else throw new ArgumentOutOfRangeException();
         }
 
         public void Run(int maxIterationCount, double gradientStepSize, double redularizationStepSize)
         {
-            if (!_initialized || _mesh == null)
+            if (!_initialized || _discretization == null)
                 throw new InvalidOperationException("Reconstruction must be initialised before calling Run().");
 
             // Store the user supplied step sizes so the background task can
@@ -115,10 +115,10 @@ namespace BusinessLayer
             // maximum iteration count is reached.
             _backgroundTask = Task.Run(() =>
             {
-                if (_mesh is FEMMesh femMesh)
+                if (_discretization is FEMMesh femMesh)
                     return RunFemReconstruction(femMesh, maxIterationCount);
-                else if (_mesh is LBMMesh lbmMesh)
-                    return RunLbmReconstruction(lbmMesh, maxIterationCount);
+                else if (_discretization is LBMGrid lbmGrid)
+                    return RunLbmReconstruction(lbmGrid, maxIterationCount);
                 else
                     throw new ArgumentOutOfRangeException("Unsupported mesh type for reconstruction.");
             });
@@ -147,7 +147,7 @@ namespace BusinessLayer
 
         public PotentialDistribution ForwardSolveStepFem()
         {
-            if (_mesh is not FEMMesh mesh)
+            if (_discretization is not FEMMesh mesh)
                 throw new TypeInitializationException("Mesh should be of type FEMMesh to use FEM solver!", new Exception("Invalid type in solver!"));
 
             if (_differentialEquationSolver == null)
@@ -162,17 +162,17 @@ namespace BusinessLayer
 
         public PotentialDistribution ForwardSolveStepLbm()
         {
-            if (_mesh is not LBMMesh mesh)
-                throw new TypeInitializationException("Mesh should be of type LBMMesh to use LBM solver!", new Exception("Invalid type in solver!"));
+            if (_discretization is not LBMGrid lbmGrid)
+                throw new TypeInitializationException("Mesh should be of type LBMGrid to use LBM solver!", new Exception("Invalid type in solver!"));
 
             if (_differentialEquationSolver == null)
                 throw new NullReferenceException("Differential equation solver is null, check calling code!");
 
-            var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
+            var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
 
             LBMBoundaryCondition boundaryConditions = new(electrodes);
 
-            return _differentialEquationSolver.Solve(_mesh, boundaryConditions, null);
+            return _differentialEquationSolver.Solve(lbmGrid, boundaryConditions, null);
 
         }
 
@@ -238,7 +238,7 @@ namespace BusinessLayer
             return new ReconstructionFrame(dataGrad, phi, mu, regularization);
         }
 
-        public ReconstructionFrame InverseSolveStepLbm(LBMMesh mesh, LBMBoundaryCondition bc, double[] currentMeasurement)
+        public ReconstructionFrame InverseSolveStepLbm(LBMGrid mesh, LBMBoundaryCondition bc, double[] currentMeasurement)
         {
             if (_differentialEquationSolver == null)
                 throw new NullReferenceException("Differential equation solver is null, check calling code!");
@@ -407,16 +407,16 @@ namespace BusinessLayer
         ///     The structure mirrors <see cref="RunFemReconstruction"/> but
         ///     utilises LBM specific data structures and operators.
         /// </summary>
-        private ReconstructionResult RunLbmReconstruction(LBMMesh mesh, int maxIterationCount)
+        private ReconstructionResult RunLbmReconstruction(LBMGrid mesh, int maxIterationCount)
         {
             if (_errorMetric == null)
                 throw new NullReferenceException("Error metric not initialised.");
 
-            ConductivityDistribution originalSigma = _originalSigma ?? ((LBMMesh)mesh.DeepCopy()).GetConductivityDistribution();
+            ConductivityDistribution originalSigma = _originalSigma ?? ((LBMGrid)mesh.DeepCopy()).GetConductivityDistribution();
             EITMeasurement measurementFrames;
             if (_originalSigma != null)
             {
-                LBMMesh measMesh = (LBMMesh)mesh.DeepCopy();
+                LBMGrid measMesh = (LBMGrid)mesh.DeepCopy();
                 measMesh.SetConductivityDistribution(originalSigma);
                 measurementFrames = SimulateLbmMeasurements(measMesh, 1.0);
             }
@@ -493,7 +493,7 @@ namespace BusinessLayer
 
         public ReconstructionResult InverseSolveFem(int maxIterationCount, double gradientStepSize, double redularizationStepSize, double excitationAmplitude, double tolerance = 1e-6)
         {
-            if(_mesh is not FEMMesh mesh)
+            if(_discretization is not FEMMesh mesh)
                 throw new TypeInitializationException("Mesh should be of type FEMMesh to use FEM solver!", new Exception("Invalid type in solver!"));
 
             if (_regularizer == null)
@@ -634,8 +634,8 @@ namespace BusinessLayer
                                                     double excitationAmplitude,
                                                     double tolerance = 1e-6)
         {
-            if (_mesh is not LBMMesh mesh)
-                throw new TypeInitializationException("Mesh should be of type LBMMesh to use LBM solver!", new Exception("Invalid type in solver!"));
+            if (_discretization is not LBMGrid lbmGrid)
+                throw new TypeInitializationException("Mesh should be of type LBMGrid to use LBM solver!", new Exception("Invalid type in solver!"));
 
             if (_regularizer == null)
                 throw new NullReferenceException("Regularizer is null, check calling code!");
@@ -643,7 +643,7 @@ namespace BusinessLayer
             _gradientStepSize = gradientStepSize;
             _regularizationWeight = redularizationStepSize;
 
-            return RunLbmReconstruction(mesh, maxIterationCount);
+            return RunLbmReconstruction(lbmGrid, maxIterationCount);
         }
 
         private double CalculateTotalMisiftFem(FEMMesh mesh, List<double[]> simulatedMeasurements, FEMBoundaryCondition bc, double excitationAmplitude)
@@ -690,19 +690,19 @@ namespace BusinessLayer
 
         private PotentialDistribution SolveLbmForward()
         {
-            LBMMesh? mesh = _mesh as LBMMesh;
+            LBMGrid? lbmGrid = _discretization as LBMGrid;
 
-            if (_inverseModel == null || _mesh == null || mesh == null || _differentialEquationSolver == null)
+            if (_inverseModel == null || _discretization == null || lbmGrid == null || _differentialEquationSolver == null)
                 throw new NullReferenceException();
 
-            var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
+            var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
 
             LBMBoundaryCondition bc = new(electrodes);
 
-            return _differentialEquationSolver.Solve(_mesh, bc, null);
+            return _differentialEquationSolver.Solve(lbmGrid, bc, null);
         }
 
-        private ReconstructionFrame LbmSolveStep(LBMMesh mesh, LBMBoundaryCondition bc, double[] currentMeasurement)
+        private ReconstructionFrame LbmSolveStep(LBMGrid mesh, LBMBoundaryCondition bc, double[] currentMeasurement)
         {
             if (_differentialEquationSolver == null)
                 throw new NullReferenceException("Cannot perform solve step, DE solver is null.");
@@ -747,28 +747,28 @@ namespace BusinessLayer
         public ReconstructionResult SolveLbmInverse(int maxIterationCount)
         {
             double stepSize = _gradientStepSize;
-            LBMMesh? mesh = (_mesh as LBMMesh);
+            LBMGrid? lbmGrid = (_discretization as LBMGrid);
 
-            if (_inverseModel == null || _mesh == null || mesh == null || _differentialEquationSolver == null || _errorMetric == null)
+            if (_inverseModel == null || _discretization == null || lbmGrid == null || _differentialEquationSolver == null || _errorMetric == null)
                 throw new NullReferenceException();
 
-            ConductivityDistribution originalConductivityDistribution = _originalSigma ?? ((LBMMesh)mesh.DeepCopy()).GetConductivityDistribution();
-            mesh = (LBMMesh)mesh.DeepCopy();
+            ConductivityDistribution originalConductivityDistribution = _originalSigma ?? ((LBMGrid)lbmGrid.DeepCopy()).GetConductivityDistribution();
+            lbmGrid = (LBMGrid)lbmGrid.DeepCopy();
 
-            var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
+            var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
 
             LBMBoundaryCondition bc = new(electrodes);
 
             EITMeasurement measurementFrames;
             if (_originalSigma != null)
             {
-                LBMMesh measMesh = (LBMMesh)mesh.DeepCopy();
+                LBMGrid measMesh = (LBMGrid)lbmGrid.DeepCopy();
                 measMesh.SetConductivityDistribution(originalConductivityDistribution);
                 measurementFrames = SimulateLbmMeasurements(measMesh, 1.0);
             }
             else
             {
-                measurementFrames = SimulateLbmMeasurements(mesh, 1.0);
+                measurementFrames = SimulateLbmMeasurements(lbmGrid, 1.0);
             }
 
             // Container to hold partial results from reconstrucion
@@ -784,11 +784,11 @@ namespace BusinessLayer
                 {
                     double[] currentMeasurement = measurementFrames.GetNextFrame();
 
-                    var frame = LbmSolveStep(mesh, bc, currentMeasurement);
+                    var frame = LbmSolveStep(lbmGrid, bc, currentMeasurement);
 
                     // --- Set new conductivities ---
                     double step = stepSize;  
-                    var sigma = mesh.GetConductivityDistribution();
+                    var sigma = lbmGrid.GetConductivityDistribution();
 
                     var newSigmaDict = sigma.Conductivities.ToDictionary(
                         kvp => kvp.Key,
@@ -798,29 +798,29 @@ namespace BusinessLayer
                     );
 
                     sigma = new ConductivityDistribution(newSigmaDict);
-                    mesh.SetConductivityDistribution(sigma);
+                    lbmGrid.SetConductivityDistribution(sigma);
 
                     // Add partial results
                     frames.Add(frame);
                 }
             }
 
-            ConductivityDistribution reconstructedConductivityDistribution = mesh.GetConductivityDistribution();
+            ConductivityDistribution reconstructedConductivityDistribution = lbmGrid.GetConductivityDistribution();
 
-            var initialConductivityDistribution = _initialSigma ?? mesh.GetConductivityDistribution();
-            return new ReconstructionResult((LBMMesh)_mesh,
+            var initialConductivityDistribution = _initialSigma ?? lbmGrid.GetConductivityDistribution();
+            return new ReconstructionResult((LBMGrid)lbmGrid,
                                             originalConductivityDistribution,
                                             initialConductivityDistribution,
                                             reconstructedConductivityDistribution,
                                             frames);
         }
 
-        public EITMeasurement SimulateLbmMeasurements(LBMMesh mesh, double exciationAmplitude)
+        public EITMeasurement SimulateLbmMeasurements(LBMGrid mesh, double exciationAmplitude)
         {
             if (_differentialEquationSolver == null)
                 throw new NullReferenceException("Differential equation solver was null, check initializiation code!");
 
-            LBMMesh deepCopy = (LBMMesh)mesh.DeepCopy();
+            LBMGrid deepCopy = (LBMGrid)mesh.DeepCopy();
             var electrodes = deepCopy.GetElectrodes().Cast<LBMElectrode>().ToList();
             int electrodeCount = electrodes.Count;
 

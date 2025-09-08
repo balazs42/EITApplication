@@ -26,11 +26,11 @@ namespace ElectricalImpedanceTomography.ViewModels
         private DateTime saveTime;
 
         // mesh parameter bindings
-        private static readonly MeshType[] MeshTypeValues = Enum.GetValues<MeshType>();
-        public IEnumerable<MeshType> MeshTypes => MeshTypeValues;
+        private static readonly DiscretizationType[] MeshTypeValues = Enum.GetValues<DiscretizationType>();
+        public IEnumerable<DiscretizationType> MeshTypes => MeshTypeValues;
 
         [ObservableProperty]
-        private MeshType selectedMeshType = MeshType.FEM;
+        private DiscretizationType selectedMeshType = DiscretizationType.FEM;
 
         private static readonly GeometryType[] GeometryTypeValues = Enum.GetValues<GeometryType>();
         public IEnumerable<GeometryType> GeometryTypes => GeometryTypeValues;
@@ -71,12 +71,12 @@ namespace ElectricalImpedanceTomography.ViewModels
         [ObservableProperty]
         private string meshSearchText = string.Empty;
 
-        public ObservableCollection<MeshInfo> AvailableMeshes { get; } = [];
-        public ObservableCollection<MeshInfo> FilteredMeshes { get; } = [];
+        public ObservableCollection<DiscretizationInfo> AvailableMeshes { get; } = [];
+        public ObservableCollection<DiscretizationInfo> FilteredMeshes { get; } = [];
 
-        private IMesh? _currentMesh;
-        private readonly Stack<IMesh> _undoStack = new();
-        private readonly Stack<IMesh> _redoStack = new();
+        private IDiscretization? _currentDiscretization;
+        private readonly Stack<IDiscretization> _undoStack = new();
+        private readonly Stack<IDiscretization> _redoStack = new();
         private IList<(double x, double y)>? _customPerimeter;
 
         public event Action? MeshChanged;
@@ -86,7 +86,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             _daqService = dAQService;
         }
 
-        public IMesh? GetCurrentMesh() => _currentMesh;
+        public IDiscretization? GetCurrentMesh() => _currentDiscretization;
 
         public void SetCustomPolygon(IList<(double x, double y)> perimeter)
         {
@@ -96,31 +96,31 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public void SaveMesh()
         {
-            if (_currentMesh is FEMMesh fem)
+            if (_currentDiscretization is FEMMesh fem)
                 _daqService.SaveFEMMesh(fem, Name);
-            else if (_currentMesh is LBMMesh lbm)
-                _daqService.SaveLBMMesh(lbm, Name);
+            else if (_currentDiscretization is LBMGrid lbm)
+                _daqService.SaveLBMGrid(lbm, Name);
 
             LoadAvailableMeshes();
         }
 
         public void LoadMesh(string filePath)
         {
-            _currentMesh = SelectedMeshType == MeshType.FEM
+            _currentDiscretization = SelectedMeshType == DiscretizationType.FEM
                 ? _daqService.LoadFEMMesh(filePath)
-                : _daqService.LoadLBMMesh(filePath);
+                : _daqService.LoadLBMGrid(filePath);
 
-            Workspace.SetMesh(_currentMesh);
-            Workspace.SetOriginalMesh(_currentMesh.DeepCopy());
+            Workspace.SetDiscretization(_currentDiscretization);
+            Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
         }
 
         public void LoadMeshFromWorkspace()
         {
-            var mesh = Workspace.GetMesh();
-            if (mesh == null)
+            var discretization = Workspace.GetDiscretization();
+            if (discretization == null)
                 return;
-            _currentMesh = mesh;
-            SelectedMeshType = mesh is FEMMesh ? MeshType.FEM : MeshType.LBM;
+            _currentDiscretization = discretization;
+            SelectedMeshType = discretization is FEMMesh ? DiscretizationType.FEM : DiscretizationType.LBM;
             OnPropertyChanged(nameof(SelectedMeshType));
             OnPropertyChanged(nameof(IsFEM));
             OnPropertyChanged(nameof(IsLBM));
@@ -128,9 +128,9 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public void PushState()
         {
-            if (_currentMesh != null)
+            if (_currentDiscretization != null)
             {
-                _undoStack.Push(_currentMesh.DeepCopy());
+                _undoStack.Push(_currentDiscretization.DeepCopy());
                 _redoStack.Clear();
             }
         }
@@ -140,12 +140,12 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             if (_undoStack.Count == 0)
                 return;
-            if (_currentMesh != null)
-                _redoStack.Push(_currentMesh.DeepCopy());
-            _currentMesh = _undoStack.Pop();
+            if (_currentDiscretization != null)
+                _redoStack.Push(_currentDiscretization.DeepCopy());
+            _currentDiscretization = _undoStack.Pop();
 
-            Workspace.SetMesh(_currentMesh);
-            Workspace.SetOriginalMesh(_currentMesh.DeepCopy());
+            Workspace.SetDiscretization(_currentDiscretization);
+            Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
 
             MeshChanged?.Invoke();
         }
@@ -155,35 +155,35 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             if (_redoStack.Count == 0)
                 return;
-            if (_currentMesh != null)
-                _undoStack.Push(_currentMesh.DeepCopy());
-            _currentMesh = _redoStack.Pop();
+            if (_currentDiscretization != null)
+                _undoStack.Push(_currentDiscretization.DeepCopy());
+            _currentDiscretization = _redoStack.Pop();
 
-            Workspace.SetMesh(_currentMesh);
-            Workspace.SetOriginalMesh(_currentMesh.DeepCopy());
+            Workspace.SetDiscretization(_currentDiscretization);
+            Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
 
             MeshChanged?.Invoke();
         }
 
         public void GenerateMesh()
         {
-            if (_currentMesh != null)
+            if (_currentDiscretization != null)
                 PushState();
-            _currentMesh = SelectedMeshType == MeshType.FEM ? GenerateFEMMesh() : GenerateLBMMesh();
+            _currentDiscretization = SelectedMeshType == DiscretizationType.FEM ? GenerateFEMMesh() : GenerateLBMGrid();
 
-            Workspace.SetMesh(_currentMesh);
-            Workspace.SetOriginalMesh(_currentMesh.DeepCopy());
+            Workspace.SetDiscretization(_currentDiscretization);
+            Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
 
-            if (_currentMesh != null)
+            if (_currentDiscretization != null)
             {
-                _currentMesh.Metadata.CreatedOn = DateTime.UtcNow;
-                _currentMesh.Metadata.ElementCount = _currentMesh.GetElements().Count;
+                _currentDiscretization.Metadata.CreatedOn = DateTime.UtcNow;
+                _currentDiscretization.Metadata.ElementCount = _currentDiscretization.GetElements().Count;
             }
-            if (_currentMesh != null)
+            if (_currentDiscretization != null)
             {
-                foreach (var el in _currentMesh.GetElectrodes())
+                foreach (var el in _currentDiscretization.GetElectrodes())
                     el.ZContact = ElectrodeContactImpedance;
-                if (_currentMesh is FEMMesh fem)
+                if (_currentDiscretization is FEMMesh fem)
                     foreach (var el in fem.ElectrodesTyped)
                         el.Length = ElectrodeSize;
             }
@@ -191,11 +191,11 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public void AddNoiseToMesh()
         {
-            if (_currentMesh == null)
+            if (_currentDiscretization == null)
                 return;
 
             PushState();
-            MeshFactory.AddGaussianNoise(_currentMesh);
+            MeshFactory.AddGaussianNoise(_currentDiscretization);
         }
 
         private FEMMesh GenerateFEMMesh()
@@ -214,21 +214,21 @@ namespace ElectricalImpedanceTomography.ViewModels
             };
         }
 
-        private LBMMesh GenerateLBMMesh()
+        private LBMGrid GenerateLBMGrid()
         {
             if (_customPerimeter != null && _customPerimeter.Count > 2)
             {
-                var mesh = MeshFactory.CreateLBMMeshFromPerimeter(Nx, Ny, _customPerimeter, ElectrodeCount);
+                var mesh = MeshFactory.CreateLBMGridFromPerimeter(Nx, Ny, _customPerimeter, ElectrodeCount);
                 return mesh;
             }
             return SelectedGeometry switch
             {
-                GeometryType.Rectangular => MeshFactory.CreateRectangularLBMMesh(Nx, Ny, ElectrodeCount),
-                _ => CreateCircularLBMMesh()
+                GeometryType.Rectangular => MeshFactory.CreateRectangularLBMGrid(Nx, Ny, ElectrodeCount),
+                _ => CreateCircularLBMGrid()
             };
         }
 
-        private LBMMesh CreateCircularLBMMesh()
+        private LBMGrid CreateCircularLBMGrid()
         {
             int radius = Math.Min(Nx, Ny) / 2 - 1;
             int cx = Nx / 2;
@@ -240,22 +240,22 @@ namespace ElectricalImpedanceTomography.ViewModels
                 double th = 2 * Math.PI * i / n;
                 pts.Add((cx + radius * Math.Cos(th), cy + radius * Math.Sin(th)));
             }
-            return MeshFactory.CreateLBMMeshFromPerimeter(Nx, Ny, pts, ElectrodeCount);
+            return MeshFactory.CreateLBMGridFromPerimeter(Nx, Ny, pts, ElectrodeCount);
         }
 
         // Removed old CustomPerimeter parsing workflow
 
         public void RefreshConductivity()
         {
-            if (_currentMesh == null) 
+            if (_currentDiscretization == null) 
                 return;
-            var dict = _currentMesh.GetElements().ToDictionary(e => e.Id, e => e.Conductivity);
-            _currentMesh.SetConductivityDistribution(new ConductivityDistribution(dict));
+            var dict = _currentDiscretization.GetElements().ToDictionary(e => e.Id, e => e.Conductivity);
+            _currentDiscretization.SetConductivityDistribution(new ConductivityDistribution(dict));
         }
 
         public void RefreshLbmElectrodes()
         {
-            if (_currentMesh is not LBMMesh mesh) return;
+            if (_currentDiscretization is not LBMGrid mesh) return;
             var electrodes = new List<LBMElectrode>();
             int id = 0;
             foreach (var el in mesh.ElementsTyped)
@@ -266,7 +266,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public void RefreshFemElectrodes()
         {
-            if (_currentMesh is not FEMMesh mesh) return;
+            if (_currentDiscretization is not FEMMesh mesh) return;
             var verts = mesh.Vertices.Where(v => v.IsElectrode).ToList();
             var electrodes = new List<FEMElectrode>();
             for (int i = 0; i < verts.Count; i++)
@@ -282,19 +282,19 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public void Clear()
         {
-            _currentMesh = null;
+            _currentDiscretization = null;
             _customPerimeter = null;
 
-            Workspace.SetMesh(null);
-            Workspace.SetOriginalMesh(null);
+            Workspace.SetDiscretization(null);
+            Workspace.SetOriginalDiscretization(null);
 
             MeshChanged?.Invoke();
         }
 
-        public bool IsFEM => SelectedMeshType == MeshType.FEM;
-        public bool IsLBM => SelectedMeshType == MeshType.LBM;
+        public bool IsFEM => SelectedMeshType == DiscretizationType.FEM;
+        public bool IsLBM => SelectedMeshType == DiscretizationType.LBM;
 
-        partial void OnSelectedMeshTypeChanged(MeshType value)
+        partial void OnSelectedMeshTypeChanged(DiscretizationType value)
         {
             OnPropertyChanged(nameof(IsFEM));
             OnPropertyChanged(nameof(IsLBM));
@@ -311,11 +311,11 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             if (value == GeometryType.Custom)
             {
-                _currentMesh = null;
+                _currentDiscretization = null;
                 _customPerimeter = null;
 
-                Workspace.SetMesh(null);
-                Workspace.SetOriginalMesh(null);
+                Workspace.SetDiscretization(null);
+                Workspace.SetOriginalDiscretization(null);
                 
                 MeshChanged?.Invoke();
             }
@@ -335,25 +335,25 @@ namespace ElectricalImpedanceTomography.ViewModels
         partial void OnBoundaryFEMVertexCountChanged(int value) => AutoGenerateMesh();
         partial void OnElectrodeCountChanged(int value)
         {
-            if (_currentMesh == null)
+            if (_currentDiscretization == null)
             {
                 AutoGenerateMesh();
                 return;
             }
 
-            if (_currentMesh is LBMMesh lbm)
+            if (_currentDiscretization is LBMGrid lbm)
             {
                 lbm.PlaceEquidistantElectrodes(value);
                 RefreshLbmElectrodes();
             }
-            else if (_currentMesh is FEMMesh fem)
+            else if (_currentDiscretization is FEMMesh fem)
             {
                 fem.PlaceEquidistantElectrodes(value, ElectrodeContactImpedance, ElectrodeSize);
             }
 
-            _currentMesh.Metadata.Parameters["electrodeCount"] = value.ToString();
-            Workspace.SetMesh(_currentMesh);
-            Workspace.SetOriginalMesh(_currentMesh.DeepCopy());
+            _currentDiscretization.Metadata.Parameters["electrodeCount"] = value.ToString();
+            Workspace.SetDiscretization(_currentDiscretization);
+            Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
             MeshChanged?.Invoke();
         }
 

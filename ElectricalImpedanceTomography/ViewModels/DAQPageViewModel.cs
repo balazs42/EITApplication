@@ -114,7 +114,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 return;
 
             var popup = new ChannelSettingsPopup(_channelGains[index], _channelOffsets[index]);
-            var result = await Application.Current.MainPage.ShowPopupAsync(popup);
+            var result = await (Application.Current?.MainPage ?? throw new NullReferenceException()).ShowPopupAsync(popup);
             if (result is ValueTuple<double, double> tuple)
             {
                 _channelGains[index] = tuple.Item1;

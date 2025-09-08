@@ -19,10 +19,10 @@ namespace ServiceLayer
         EITMeasurement LoadEITMeasurement(string name, DateTime savedAt);
         void DeleteEITMeasurement(string name, DateTime savedAt);
         void SaveFEMMesh(FEMMesh mesh, string name);
-        void SaveLBMMesh(LBMMesh mesh, string name);
+        void SaveLBMGrid(LBMGrid grid, string name);
         FEMMesh LoadFEMMesh(string filePath);
-        LBMMesh LoadLBMMesh(string filePath);
-        IEnumerable<MeshInfo> GetMeshes();
+        LBMGrid LoadLBMGrid(string filePath);
+        IEnumerable<DiscretizationInfo> GetMeshes();
         bool ConnectHardware();
         bool DisconnectHardware();
         bool ChangeHardwarePort(string portName);

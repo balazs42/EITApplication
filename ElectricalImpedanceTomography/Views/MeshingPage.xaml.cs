@@ -95,21 +95,21 @@ public partial class MeshingPage : ContentPage
             return;
         }
 
-        if (mesh is LBMMesh lbm)
-            DrawLBMMesh(canvas, e.Info, lbm);
+        if (mesh is LBMGrid lbm)
+            DrawLBMGrid(canvas, e.Info, lbm);
         else if (mesh is FEMMesh fem)
             DrawFEMMesh(canvas, e.Info, fem);
     }
 
-    private void DrawLBMMesh(SKCanvas canvas, SKImageInfo info, LBMMesh mesh)
+    private void DrawLBMGrid(SKCanvas canvas, SKImageInfo info, LBMGrid grid)
     {
-        _cellW = (float)info.Width / mesh.Nx;
-        _cellH = (float)info.Height / mesh.Ny;
-        for (int y = 0; y < mesh.Ny; y++)
+        _cellW = (float)info.Width / grid.Nx;
+        _cellH = (float)info.Height / grid.Ny;
+        for (int y = 0; y < grid.Ny; y++)
         {
-            for (int x = 0; x < mesh.Nx; x++)
+            for (int x = 0; x < grid.Nx; x++)
             {
-                var el = mesh.GetElementAt(x, y);
+                var el = grid.GetElementAt(x, y);
                 SKPaint fill;
                 if (_selectedCells.Contains(el.Id))
                     fill = _lbmSelected;
@@ -252,7 +252,7 @@ public partial class MeshingPage : ContentPage
             return;
         }
 
-        if (mesh is LBMMesh lbm)
+        if (mesh is LBMGrid lbm)
         {
             int x = (int)(e.Location.X / _cellW);
             int y = (int)(e.Location.Y / _cellH);
@@ -390,7 +390,7 @@ public partial class MeshingPage : ContentPage
 
     private void ApplySelectionConductivity()
     {
-        if (_viewModel.GetCurrentMesh() is not LBMMesh lbm)
+        if (_viewModel.GetCurrentMesh() is not LBMGrid lbm)
             return;
 
         _viewModel.PushState();
@@ -460,7 +460,7 @@ public partial class MeshingPage : ContentPage
     {
         if (sender is Border border)
         {
-            if(border.BindingContext is MeshInfo info)
+            if(border.BindingContext is DiscretizationInfo info)
             {
                 _viewModel.LoadMesh(info.FilePath);
                 MeshCanvas.InvalidateSurface();
@@ -547,7 +547,7 @@ public partial class MeshingPage : ContentPage
             if (outline.Count > 1 && outline[0].Equals(outline[outline.Count - 1]))
                 outline.RemoveAt(outline.Count - 1);
 
-            if (_viewModel.SelectedMeshType == MeshType.LBM)
+            if (_viewModel.SelectedMeshType == DiscretizationType.LBM)
             {
                 var w = MeshCanvas.CanvasSize.Width;
                 var h = MeshCanvas.CanvasSize.Height;

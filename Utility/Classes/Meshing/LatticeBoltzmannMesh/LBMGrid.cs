@@ -6,7 +6,7 @@ using Utility.Classes.Meshing.Graph.Graph;
 
 namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
 {
-    public class LBMMesh : Mesh<LBMElement, LBMElectrode>
+    public class LBMGrid : Discretization<LBMElement, LBMElectrode>
     {
         private const int _defaultNx = 15;
         private const int _defaultNy = 15;
@@ -29,7 +29,7 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
         /// <param name="nx">Number of cells in the x dimension.</param>
         /// <param name="ny">Number of cells in the y dimension.</param>
         [JsonConstructor]
-        public LBMMesh(int nx = _defaultNx, int ny = _defaultNy)
+        public LBMGrid(int nx = _defaultNx, int ny = _defaultNy)
         {
             Nx = nx;
             Ny = ny;
@@ -85,7 +85,7 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
             PotentialDistribution = new PotentialDistribution(pd);
         }
 
-        public LBMMesh(List<LBMElement> elements, int nx = _defaultNy, int ny = _defaultNy)
+        public LBMGrid(List<LBMElement> elements, int nx = _defaultNy, int ny = _defaultNy)
         {
             Nx = nx;
             Ny = ny;
@@ -217,16 +217,16 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
         }
 
         // --- Egyéb kötelezők ---
-        public override void LogMesh()
+        public override void LogDiscretization()
         {
             Console.WriteLine($"LBM | {Nx}x{Ny}, E={_elements.Count}, EL={_electrodes.Count}");
         }
 
-        public override Mesh DeepCopy()
+        public override Discretization DeepCopy()
         {
-            var copy = new LBMMesh(Nx, Ny)
+            var copy = new LBMGrid(Nx, Ny)
             {
-                Metadata = new MeshMetadata
+                Metadata = new DiscretizationMetaData
                 {
                     CreatedOn = this.Metadata.CreatedOn,
                     Generator = this.Metadata.Generator,
@@ -284,13 +284,13 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
         /// Conductivity is replicated; potentials are copied.
         /// Electrodes are re-centered inside the corresponding refined block.
         /// </summary>
-        public override LBMMesh RefineUniform(int factor = 2)
+        public override LBMGrid RefineUniform(int factor = 2)
         {
-            if (factor <= 1) return (LBMMesh)this.DeepCopy();
+            if (factor <= 1) return (LBMGrid)this.DeepCopy();
 
             int NX = Nx * factor;
             int NY = Ny * factor;
-            var fine = new LBMMesh(NX, NY);
+            var fine = new LBMGrid(NX, NY);
 
             // Map conductivity/potential
             for (int y = 0; y < Ny; y++)
@@ -410,7 +410,7 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
             return new GraphMesh.Graph(verts, edges);
         }
 
-        public override LBMMesh FromGraph(GraphMesh.Graph graphToConvert)
+        public override LBMGrid FromGraph(GraphMesh.Graph graphToConvert)
         {
             if (graphToConvert == null) throw new ArgumentNullException(nameof(graphToConvert));
             if (graphToConvert.Vertices.Count == 0)
@@ -427,7 +427,7 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
             int NX = (maxX - minX + 1) + 2;
             int NY = (maxY - minY + 1) + 2;
 
-            var mesh = new LBMMesh(NX, NY);
+            var mesh = new LBMGrid(NX, NY);
 
             // Map graph FEMVertex -> new grid cell index (shift by +1,+1 due to wall border)
             var lookup = graphToConvert.Vertices.ToDictionary(

@@ -51,18 +51,18 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             SystemRHS = new Complex[N_phi + L];
         }
 
-        public PotentialDistribution SolveForward(IMesh mesh, BoundaryCondition boundaryCondition)
+        public PotentialDistribution SolveForward(IDiscretization discretization, BoundaryCondition boundaryCondition)
         {
-            var femMesh = mesh as FEMMesh ?? throw new InvalidCastException();
+            var femMesh = discretization as FEMMesh ?? throw new InvalidCastException();
             var bc = boundaryCondition as FEMBoundaryCondition ?? throw new InvalidCastException();
             var bcElectrodes = bc.GetElectrodes();
 
             return Solve(femMesh, bcElectrodes);
         }
 
-        public PotentialDistribution SolveAdjoint(IMesh mesh, BoundaryCondition boundaryCondition, Complex[] adjointSource)
+        public PotentialDistribution SolveAdjoint(IDiscretization discretization, BoundaryCondition boundaryCondition, Complex[] adjointSource)
         {
-            var femMesh = mesh as FEMMesh ?? throw new InvalidCastException();
+            var femMesh = discretization as FEMMesh ?? throw new InvalidCastException();
             var bc = boundaryCondition as FEMBoundaryCondition ?? throw new InvalidCastException();
             var electrodes = femMesh.GetElectrodes();
             var bcElectrodes = bc.GetElectrodes();

@@ -12,8 +12,8 @@ namespace ElectricalImpedanceTomography.ViewModels
     {
         private readonly IReconstructionService _reconstructionService;
 
-        private IMesh? _mesh = Workspace.GetMesh();
-        private IMesh? _initializedMesh;
+        private IDiscretization? _discretization = Workspace.GetDiscretization();
+        private IDiscretization? _initializedDiscretization;
 
         [ObservableProperty]
         private int iterationCount = 0;
@@ -52,7 +52,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         partial void OnReconstructionSearchTextChanged(string value) => ApplyReconstructionFilter();
 
-        private void UpdateMesh() => _mesh = Workspace.GetMesh();
+        private void UpdateMesh() => _discretization = Workspace.GetDiscretization();
         private void UpdateReconstructionParameters() => ReconstructionParameters = Workspace.GetReconstructionParameters();
 
         private void InitializeReconstruction(bool force = false)
@@ -60,16 +60,16 @@ namespace ElectricalImpedanceTomography.ViewModels
             UpdateMesh();
             UpdateReconstructionParameters();
 
-            var mesh = _mesh;
+            var mesh = _discretization;
             var reconstructionParameters = ReconstructionParameters;
 
             if (mesh == null)
                 throw new NullReferenceException("Mesh was null during reconstruction initialization, check calling code!");
 
-            if (force || _initializedMesh != mesh)
+            if (force || _initializedDiscretization != mesh)
             {
                 _reconstructionService.InitializeReconstruction(mesh, reconstructionParameters, true);
-                _initializedMesh = mesh;
+                _initializedDiscretization = mesh;
 
                 IterationCount = 0;
             }
@@ -77,10 +77,10 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public bool CheckReconstructionMethodAgainstMesh()
         {
-            if(_mesh is FEMMesh)
+            if(_discretization is FEMMesh)
                 if (ReconstructionParameters.DifferentialEquationSolver != Utility.Classes.ReconstructionParameters.DifferentialEquationSolver.FiniteElementMethod)
                     return false;
-            else if(_mesh is LBMMesh)
+            else if(_discretization is LBMGrid)
                 if (ReconstructionParameters.DifferentialEquationSolver != Utility.Classes.ReconstructionParameters.DifferentialEquationSolver.LatticeBoltzmannMethod)
                     return false;
 
@@ -91,9 +91,9 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             InitializeReconstruction(force: true);
 
-            if (_mesh is FEMMesh)
+            if (_discretization is FEMMesh)
                 await Task.Run(() => _reconstructionService.ForwardSolveStepFem());
-            else if (_mesh is LBMMesh)
+            else if (_discretization is LBMGrid)
                 await Task.Run(() => _reconstructionService.ForwardSolveStepLbm());
         }
 
@@ -101,9 +101,9 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             InitializeReconstruction(force: true);
 
-            if (_mesh is FEMMesh)
+            if (_discretization is FEMMesh)
                 await Task.Run(() => _reconstructionService.InverseSolveFem(MaxIterationCount, StepSize, RegularizationWeight, ExcitationCurrentAmplitude));
-            else if (_mesh is LBMMesh)
+            else if (_discretization is LBMGrid)
                 await Task.Run(() => _reconstructionService.InverseSolveLbm(MaxIterationCount, StepSize, RegularizationWeight, ExcitationCurrentAmplitude));
         }
 
@@ -132,7 +132,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         public void StopReconstruction()
         {
             _reconstructionService.StopBackgroundReconstruction();
-            _initializedMesh = null;
+            _initializedDiscretization = null;
         }
 
         public Task<ReconstructionFrame?> StepReconstructionAsync()

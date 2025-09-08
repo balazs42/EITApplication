@@ -7,51 +7,51 @@ namespace Utility.Classes
     /// <summary>
     /// Basic interface for a Mesh type later on. This helps the meshes to be a generic type.
     /// </summary>
-    public interface IMesh
+    public interface IDiscretization
     {
-        void LogMesh();
+        void LogDiscretization();
 
         ConductivityDistribution GetConductivityDistribution();
         PotentialDistribution GetPotentialDistribution();
         void SetPotentialDistribution(PotentialDistribution pd);
         void SetConductivityDistribution(ConductivityDistribution cd);
 
-        Mesh GetMesh();
+        Discretization GetDiscretization();
 
         IReadOnlyList<Electrode> GetElectrodes();
-        IReadOnlyList<MeshElement> GetElements();
+        IReadOnlyList<DiscretizationElement> GetElements();
         double[] GetElectrodePotentials();
 
 
-        Mesh DeepCopy();
+        Discretization DeepCopy();
 
-        MeshMetadata Metadata { get; set; }
+        DiscretizationMetaData Metadata { get; set; }
     }
 
     /// <summary>
     /// This class provides a bridging abstraction between the interface and the actual abstract class
     /// from which mesh structures should inherit from
     /// </summary>
-    public abstract class Mesh : IMesh
+    public abstract class Discretization : IDiscretization
     {
         public abstract ConductivityDistribution ConductivityDistribution { get; protected set; }
         public abstract PotentialDistribution PotentialDistribution { get; protected set; }
 
-        public MeshMetadata Metadata { get; set; } = new();
+        public DiscretizationMetaData Metadata { get; set; } = new();
 
         public ConductivityDistribution GetConductivityDistribution() => ConductivityDistribution;
         public PotentialDistribution GetPotentialDistribution() => PotentialDistribution;
-        public Mesh GetMesh() => this;
+        public Discretization GetDiscretization() => this;
 
-        public abstract IReadOnlyList<MeshElement> GetElements();
+        public abstract IReadOnlyList<DiscretizationElement> GetElements();
         public abstract IReadOnlyList<Electrode> GetElectrodes();
         public abstract double[] GetElectrodePotentials();
 
         public abstract void SetConductivityDistribution(ConductivityDistribution cd);
         public abstract void SetPotentialDistribution(PotentialDistribution pd);        
 
-        public abstract void LogMesh();
-        public abstract Mesh DeepCopy();
+        public abstract void LogDiscretization();
+        public abstract Discretization DeepCopy();
 
         protected static void ValidateSameKeys(IEnumerable<int> a, IEnumerable<int> b)
         {
@@ -66,8 +66,8 @@ namespace Utility.Classes
     /// All mesh types have to inherit from ths Mesh abstract class. 
     /// This implements basic mesh functionality, like holding electrodes and elements, etc. data.
     /// </summary>
-    public abstract class Mesh<TElement, TElectrode> : Mesh
-        where TElement : MeshElement
+    public abstract class Discretization<TElement, TElectrode> : Discretization
+        where TElement : DiscretizationElement
         where TElectrode : Electrode
     {
         protected readonly List<TElement> _elements = [];
@@ -76,8 +76,8 @@ namespace Utility.Classes
         public IReadOnlyList<TElement> ElementsTyped => _elements;
         public IReadOnlyList<TElectrode> ElectrodesTyped => _electrodes;
 
-        public sealed override IReadOnlyList<MeshElement> GetElements()
-            => _elements.Cast<MeshElement>().ToList();
+        public sealed override IReadOnlyList<DiscretizationElement> GetElements()
+            => _elements.Cast<DiscretizationElement>().ToList();
         public sealed override IReadOnlyList<Electrode> GetElectrodes()
             => _electrodes.Cast<Electrode>().ToList();
 
@@ -206,7 +206,7 @@ namespace Utility.Classes
         /// </summary>
         /// <param name="n">Number of leves of refinement.</param>
         /// <returns>The refined mesh object.</returns>
-        public abstract Mesh<TElement, TElectrode> RefineUniform(int n);
+        public abstract Discretization<TElement, TElectrode> RefineUniform(int n);
         
         /// <summary>
         /// Convert the spatial discretization of the domain to a graph representation.
@@ -219,6 +219,6 @@ namespace Utility.Classes
         /// </summary>
         /// <param name="graphToConvert">The graph to convert.</param>
         /// <returns>A mesh object that resembles the original graph.</returns>
-        public abstract Mesh<TElement, TElectrode> FromGraph(Graph graphToConvert);
+        public abstract Discretization<TElement, TElectrode> FromGraph(Graph graphToConvert);
     }
 }

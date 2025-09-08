@@ -20,7 +20,7 @@ namespace Utility.Classes.ReconstructionParameters
         [ObservableProperty]
         private InitialDistributionTypes initialDistributionType = InitialDistributionTypes.SlightlyDiffering;
 
-        public MeshType Mesh = MeshType.FEM;
+        public DiscretizationType Mesh = DiscretizationType.FEM;
 
         public EITReconstructionParameters()
         {
@@ -30,7 +30,7 @@ namespace Utility.Classes.ReconstructionParameters
             NumericSolver = NumericSolver.LUDecomposition;
             NumericOptimizer = NumericOptimizer.GradientBased;
             InitialDistributionType = InitialDistributionTypes.SlightlyDiffering;
-            Mesh = MeshType.FEM;
+            Mesh = DiscretizationType.FEM;
         }
 
         public EITReconstructionParameters(DifferentialEquationSolver differentialEquationSolver, 
@@ -47,7 +47,7 @@ namespace Utility.Classes.ReconstructionParameters
             NumericOptimizer = numericOptimizer;
             InitialDistributionType = initialDistributionType;
 
-            Mesh = (differentialEquationSolver == DifferentialEquationSolver.FiniteElementMethod) ? MeshType.FEM : MeshType.LBM;
+            Mesh = (differentialEquationSolver == DifferentialEquationSolver.FiniteElementMethod) ? DiscretizationType.FEM : DiscretizationType.LBM;
         }
     }
 }

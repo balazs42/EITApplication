@@ -63,9 +63,9 @@ namespace Utility.Tests
             if (Math.Abs(g.GetConductivity(2) + 0.4) > 1e-12) throw new Exception("ZOT grad[2]");
         }
 
-        private static LBMMesh TinyLBM(int nx = 4, int ny = 4, int measuring = 4)
+        private static LBMGrid TinyLBM(int nx = 4, int ny = 4, int measuring = 4)
         {
-            var m = new LBMMesh(nx, ny);
+            var m = new LBMGrid(nx, ny);
             // place a handful of measuring electrodes on non-wall cells
             List<LBMElectrode> electrodes = [];
             int id = 0;

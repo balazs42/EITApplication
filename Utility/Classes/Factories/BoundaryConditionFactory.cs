@@ -11,7 +11,7 @@ namespace Utility.Classes.Factories
         /// Creates a homogeneous boundary condition where all currents are zero.
         /// This is required for the adjoint problem.
         /// </summary>
-        public static FEMBoundaryCondition CreateHomogeneous(Mesh mesh)
+        public static FEMBoundaryCondition CreateHomogeneous(Discretization mesh)
         {
             FEMMesh? femMesh = mesh as FEMMesh;
 

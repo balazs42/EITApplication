@@ -1,6 +1,6 @@
 namespace Utility.Classes.Meshing
 {
-    public class MeshMetadata
+    public class DiscretizationMetaData
     {
         public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
         public string Generator { get; set; } = string.Empty;

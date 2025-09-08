@@ -6,7 +6,7 @@
     /// (-1, 0)     (0, 0)     (1, 0)
     /// (-1,-1)     (0,-1)     (1,-1)
     /// </summary>
-    public sealed class LBMElement : MeshElement
+    public sealed class LBMElement : DiscretizationElement
     {
         /// <summary>
         /// Holds direct references to the 9 neighboring elements in D2Q9 directions.

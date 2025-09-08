@@ -10,9 +10,9 @@ namespace Utility.Classes.Factories
             public ConductivityDistribution InverseSolve();
         }
 
-        public static InverseModel Create(IMesh mesh, INumericOptimizer numericOptimizer, IRegularizer regularizer, IErrorMetric errorMetric, IDifferentialEquationSolver deSolver)
+        public static InverseModel Create(IDiscretization discretization, INumericOptimizer numericOptimizer, IRegularizer regularizer, IErrorMetric errorMetric, IDifferentialEquationSolver deSolver)
         {
-            return new InverseModel(mesh, numericOptimizer, regularizer, errorMetric, deSolver);
+            return new InverseModel(discretization, numericOptimizer, regularizer, errorMetric, deSolver);
         }
     }
 }
