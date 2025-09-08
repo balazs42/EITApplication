@@ -225,11 +225,42 @@ namespace ServiceLayer
             {
                 if (_simulatedMeasurements.Count == 0)
                 {
-                    _simulatedMeasurements = _reconstructionPersistence.SimulateFemMeasurements(femMesh, _excitationAmplitude);
+                    // Generate synthetic measurements using the original
+                    // conductivity distribution so that residuals are
+                    // non-zero even after the reconstruction mesh has been
+                    // reset to an initial guess.
+                    FEMMesh measMesh = (FEMMesh)femMesh.DeepCopy();
+                    if (_originalSigma != null)
+                        measMesh.SetConductivityDistribution(_originalSigma);
+                    _simulatedMeasurements =
+                        _reconstructionPersistence.SimulateFemMeasurements(measMesh, _excitationAmplitude);
                 }
 
-                var measurement = _simulatedMeasurements[_simMeasurementIndex % _simulatedMeasurements.Count];
+                // Select the measurement frame corresponding to the current
+                // excitation pair.  Electrode roles must be reconfigured for
+                // each frame so that the boundary condition reflects the
+                // rotating drive pattern.
+                int electrodeCount = femMesh.GetElectrodes().Count;
+                int exc = _simMeasurementIndex % electrodeCount;
+                var measurement = _simulatedMeasurements[exc];
+
                 var electrodes = femMesh.GetElectrodes().Cast<FEMElectrode>().ToList();
+
+                // Reset electrode state before assigning the new excitation
+                // pattern.
+                foreach (var el in electrodes)
+                {
+                    el.Current = 0.0;
+                    el.IsExcitation = false;
+                    el.IsGround = false;
+                    el.Potential = 0.0;
+                }
+
+                electrodes[exc].IsExcitation = true;
+                electrodes[exc].Current = _excitationAmplitude;
+                electrodes[(exc + 1) % electrodeCount].IsGround = true;
+                electrodes[(exc + 1) % electrodeCount].Current = -_excitationAmplitude;
+
                 var bc = new FEMBoundaryCondition(electrodes);
 
                 var frame = _reconstructionPersistence.Step(measurement, bc, _stepSize, _regularizationWeight);
@@ -253,7 +284,13 @@ namespace ServiceLayer
             {
                 if (_simulatedMeasurements.Count == 0)
                 {
-                    var meas = _reconstructionPersistence.SimulateLbmMeasurements(lbmMesh, _excitationAmplitude);
+                    // Generate measurements from the original conductivity to
+                    // avoid a zero residual when comparing against the
+                    // reconstruction mesh.
+                    LBMMesh measMesh = (LBMMesh)lbmMesh.DeepCopy();
+                    if (_originalSigma != null)
+                        measMesh.SetConductivityDistribution(_originalSigma);
+                    var meas = _reconstructionPersistence.SimulateLbmMeasurements(measMesh, _excitationAmplitude);
                     _simulatedMeasurements = meas.Frames;
                 }
 
@@ -355,13 +392,37 @@ namespace ServiceLayer
                 if (_mesh is FEMMesh femMesh)
                 {
                     if (_simulatedMeasurements.Count == 0)
-                        _simulatedMeasurements = _reconstructionPersistence.SimulateFemMeasurements(femMesh, _excitationAmplitude);
+                    {
+                        FEMMesh measMesh = (FEMMesh)femMesh.DeepCopy();
+                        if (_originalSigma != null)
+                            measMesh.SetConductivityDistribution(_originalSigma);
+                        _simulatedMeasurements =
+                            _reconstructionPersistence.SimulateFemMeasurements(measMesh, _excitationAmplitude);
+                    }
 
                     var electrodes = femMesh.GetElectrodes().Cast<FEMElectrode>().ToList();
-                    var bc = new FEMBoundaryCondition(electrodes);
+                    int electrodeCount = electrodes.Count;
 
-                    foreach (var measurement in _simulatedMeasurements)
+                    for (int i = 0; i < _simulatedMeasurements.Count; i++)
                     {
+                        // Reset electrode roles before configuring the current
+                        // excitation/measurement pair.
+                        foreach (var el in electrodes)
+                        {
+                            el.Current = 0.0;
+                            el.IsExcitation = false;
+                            el.IsGround = false;
+                            el.Potential = 0.0;
+                        }
+
+                        electrodes[i % electrodeCount].IsExcitation = true;
+                        electrodes[i % electrodeCount].Current = _excitationAmplitude;
+                        electrodes[(i + 1) % electrodeCount].IsGround = true;
+                        electrodes[(i + 1) % electrodeCount].Current = -_excitationAmplitude;
+
+                        var bc = new FEMBoundaryCondition(electrodes);
+                        var measurement = _simulatedMeasurements[i];
+
                         var frame = _reconstructionPersistence.Step(measurement, bc, _stepSize, _regularizationWeight);
                         Workspace.AddReconstructionFrameToWorkspace(frame);
                         _currentCycleFrames.Add(frame);
@@ -376,7 +437,10 @@ namespace ServiceLayer
                 }
                 else if (_mesh is LBMMesh lbmMesh)
                 {
-                    var meas = _reconstructionPersistence.SimulateLbmMeasurements(lbmMesh, _excitationAmplitude);
+                    LBMMesh measMesh = (LBMMesh)lbmMesh.DeepCopy();
+                    if (_originalSigma != null)
+                        measMesh.SetConductivityDistribution(_originalSigma);
+                    var meas = _reconstructionPersistence.SimulateLbmMeasurements(measMesh, _excitationAmplitude);
                     var electrodes = lbmMesh.GetElectrodes().Cast<LBMElectrode>().ToList();
                     var bc = new LBMBoundaryCondition(electrodes);
 
