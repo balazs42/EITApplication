@@ -1,7 +1,7 @@
 ﻿using Google.OrTools.LinearSolver;
-using Utility.Classes.Meshing;
-using Utility.Classes.Meshing.LatticeBoltzmannMesh;
-using Utility.Classes.Meshing.FiniteElementMesh;
+using Utility.Classes.Discretizer;
+using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
+using Utility.Classes.Discretizer.FiniteElementMesh;
 
 namespace Utility.Classes.ReconstructionParameters
 {

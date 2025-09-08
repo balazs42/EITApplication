@@ -1,7 +1,7 @@
-﻿using Utility.Classes.Meshing.FiniteElementMesh;
-using System;
+﻿using Utility.Classes.Discretizer;
+using Utility.Classes.Discretizer.FiniteElementMesh;
+
 using Workspace = Utility.Classes.Application.Workspace;
-using Utility.Classes;
 
 namespace Utility.Classes.Factories
 {
@@ -42,7 +42,7 @@ namespace Utility.Classes.Factories
         /// <returns>A random conductivity distribution which resembles the same structure provided in the mesh.</returns>
         public static ConductivityDistribution CreateRandom(IDiscretization discretization, double max = 1.0)
         {
-            Random r = new Random();
+            Random r = new();
 
             ConductivityDistribution randomDistribution = new ConductivityDistribution(discretization.GetConductivityDistribution().Conductivities);
 

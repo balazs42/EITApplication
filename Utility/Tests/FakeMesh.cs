@@ -1,6 +1,6 @@
 ﻿using Utility.Classes;
-using Utility.Classes.Meshing;
-using Utility.Classes.Meshing.FiniteElementMesh;
+using Utility.Classes.Discretizer;
+using Utility.Classes.Discretizer.FiniteElementMesh;
 
 namespace Utility.Tests
 {
@@ -50,7 +50,7 @@ namespace Utility.Tests
         public IReadOnlyList<FEMVertex> GetElectrodeVertices() => _vertices.Where(v => v.IsElectrode).ToList();
 
         public Discretization DeepCopy() => null!;
-        public Classes.Meshing.GraphMesh.Graph ToGraph() => null!;
+        public Classes.Discretizer.GraphMesh.Graph ToGraph() => null!;
         public Discretization FromGraph() => null!;
 
         public void SetConductivityDistribution(ConductivityDistribution cd) => _sigma = cd;

@@ -1,6 +1,4 @@
-﻿using System.Transactions;
-
-namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
+﻿namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
 {
     public class LBMElectrode : Electrode
     {

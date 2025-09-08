@@ -1,4 +1,6 @@
-﻿namespace Utility.Classes
+﻿using Utility.Classes.Discretizer;
+
+namespace Utility.Classes
 {
     public class ReconstructionResult
     {

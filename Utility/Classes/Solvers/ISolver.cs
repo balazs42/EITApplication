@@ -1,5 +1,6 @@
 ﻿using System.Numerics;
 using Utility.Classes.Measurement;
+using Utility.Classes.Discretizer;
 
 namespace Utility.Classes.Solvers
 {

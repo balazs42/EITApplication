@@ -1,6 +1,6 @@
-using Utility.Classes.Meshing;
-using Utility.Classes.Meshing.FiniteElementMesh;
-using Utility.Classes.Meshing.LatticeBoltzmannMesh;
+using Utility.Classes.Discretizer;
+using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 
 namespace DataAccessLayer
 {
@@ -10,6 +10,6 @@ namespace DataAccessLayer
         void SaveLBMGrid(LBMGrid grid, string name);
         FEMMesh LoadFEMMesh(string filePath);
         LBMGrid LoadLBMGrid(string filePath);
-        IEnumerable<DiscretizationInfo> GetMeshes();
+        IEnumerable<DiscretizationInfo> GetDiscretizationInfos();
     }
 }

@@ -1,6 +1,4 @@
-using System.Collections.Generic;
-using System.Linq;
-using Utility.Classes.Meshing.GraphMesh;
+using Utility.Classes.Discretizer.GraphMesh;
 
 namespace Utility.Classes.Solvers.GraphBasedSolver
 {

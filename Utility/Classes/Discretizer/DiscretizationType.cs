@@ -1,4 +1,4 @@
-﻿namespace Utility.Classes.Meshing
+﻿namespace Utility.Classes.Discretizer
 {
     public enum DiscretizationType
     {

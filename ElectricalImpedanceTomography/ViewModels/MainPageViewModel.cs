@@ -1,15 +1,11 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ServiceLayer;
-using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Linq;
 using ElectricalImpedanceTomography.Controls;
-using Utility.Classes;
 using Utility.Classes.Application;
 using Utility.Classes.Factories;
-using Utility.Classes.Meshing;
+using Utility.Classes.Discretizer;
 using Utility.Classes.ReconstructionParameters;
 
 using Workspace = Utility.Classes.Application.Workspace;
@@ -45,21 +41,11 @@ namespace ElectricalImpedanceTomography.ViewModels
         [ObservableProperty]
         private string consoleInput = string.Empty;
 
-        partial void OnReconstructionParametersChanged(EITReconstructionParameters value)
-        {
-            Workspace.SetReconstructionParameters(value);
-        }
+        partial void OnReconstructionParametersChanged(EITReconstructionParameters value) => Workspace.SetReconstructionParameters(value);
+        partial void OnCurrentAmplitudeChanged(double value) => CurrentImpedanceModel.Intensity = (float)Math.Clamp(value, 0, 1);
+        partial void OnExcitationFrequencyChanged(double value) => CurrentImpedanceModel.Color = value > 1 ? Colors.Red : Colors.CornflowerBlue;
 
-        partial void OnCurrentAmplitudeChanged(double value)
-        {
-            CurrentImpedanceModel.Intensity = (float)Math.Clamp(value, 0, 1);
-        }
-
-        partial void OnExcitationFrequencyChanged(double value)
-        {
-            CurrentImpedanceModel.Color = value > 1 ? Colors.Red : Colors.CornflowerBlue;
-        }
-
+        
         private static readonly DifferentialEquationSolver[] SolverValues = Enum.GetValues<DifferentialEquationSolver>();
         public IEnumerable<DifferentialEquationSolver> Solvers => SolverValues;
         private static readonly RegularizationTechnique[] RegularizationValues = Enum.GetValues<RegularizationTechnique>();

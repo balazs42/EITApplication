@@ -1,4 +1,5 @@
-﻿using Utility.Classes.Meshing.FiniteElementMesh;
+﻿using Utility.Classes.Discretizer;
+using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.ReconstructionParameters;
 using Utility.Classes.Solvers.GraphBasedSolver;
 

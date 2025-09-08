@@ -1,10 +1,8 @@
-﻿using Utility.Classes.Meshing;
+﻿using Utility.Classes.Discretizer;
 using MIConvexHull;
-using Utility.Classes.Meshing.FiniteElementMesh;
-using Utility.Classes.Meshing.LatticeBoltzmannMesh;
+using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Application;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace Utility.Classes.Factories
 {

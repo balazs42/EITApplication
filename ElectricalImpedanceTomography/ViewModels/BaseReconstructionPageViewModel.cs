@@ -1,6 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using Utility.Classes.ReconstructionParameters;
 using Utility.Classes.Factories;
+
 using Workspace = Utility.Classes.Application.Workspace;
 
 namespace ElectricalImpedanceTomography.ViewModels
@@ -28,10 +29,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         [ObservableProperty]
         private EITReconstructionParameters reconstructionParameters = Workspace.GetReconstructionParameters();
 
-        partial void OnReconstructionParametersChanged(EITReconstructionParameters value)
-        {
-            Workspace.SetReconstructionParameters(value);
-        }
+        partial void OnReconstructionParametersChanged(EITReconstructionParameters value) => Workspace.SetReconstructionParameters(value);
 
         [ObservableProperty]
         private int layers = 2;

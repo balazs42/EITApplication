@@ -1,12 +1,9 @@
 using ElectricalImpedanceTomography.ViewModels;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
-using System.Linq;
-using System.Collections.Generic;
-using Utility.Classes.Meshing.FiniteElementMesh;
-using Utility.Classes.Meshing.LatticeBoltzmannMesh;
-using Utility.Classes.Meshing;
-using BH.Engine.Base;
+using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
+using Utility.Classes.Discretizer;
 
 namespace ElectricalImpedanceTomography.Views;
 

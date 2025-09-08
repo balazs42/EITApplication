@@ -1,11 +1,9 @@
-using System;
-using System.Collections.Generic;
 using System.Numerics;
 using BusinessLayer;
 using System.Diagnostics;
-using Utility.Classes.Meshing;
-using Utility.Classes.Meshing.FiniteElementMesh;
-using Utility.Classes.Meshing.LatticeBoltzmannMesh;
+using Utility.Classes.Discretizer;
+using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Measurement;
 using Utility.Logger;
 
@@ -202,11 +200,11 @@ namespace ServiceLayer
             }
         }
 
-        public IEnumerable<DiscretizationInfo> GetMeshes()
+        public IEnumerable<DiscretizationInfo> GetDiscretizationInfos()
         {
             try
             {
-                return _daqPersistence.GetMeshes();
+                return _daqPersistence.GetDiscretizationInfos();
             }
             catch (Exception ex)
             {

@@ -1,4 +1,4 @@
-﻿namespace Utility.Classes.Meshing
+﻿namespace Utility.Classes.Discretizer
 {
     /// <summary>
     /// General mesh descriptor that can be used in both cases of the meshes

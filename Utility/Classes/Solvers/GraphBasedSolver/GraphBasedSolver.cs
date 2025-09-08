@@ -1,5 +1,5 @@
-﻿using Utility.Classes.Meshing.FiniteElementMesh;
-using Utility.Classes.Meshing.GraphMesh;
+﻿using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Discretizer.GraphMesh;
 using Utility.Classes.ReconstructionParameters;
 
 namespace Utility.Classes.Solvers.GraphBasedSolver

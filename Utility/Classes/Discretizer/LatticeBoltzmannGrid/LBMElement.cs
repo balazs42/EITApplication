@@ -1,4 +1,4 @@
-﻿namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
+﻿namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
 {
 
     /// <summary>

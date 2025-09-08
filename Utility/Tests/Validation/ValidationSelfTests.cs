@@ -1,9 +1,7 @@
 using System.Diagnostics;
-using System.Collections.Generic;
-using System.Linq;
 using Utility.Classes;
 using Utility.Classes.Factories;
-using Utility.Classes.Meshing.FiniteElementMesh;
+using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Solvers.FiniteElementSolver;
 
 namespace Utility.Tests.Validation;

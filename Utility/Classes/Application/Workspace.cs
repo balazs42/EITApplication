@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using Utility.Classes;
+﻿using Utility.Classes.Discretizer;
 using Utility.Classes.ReconstructionParameters;
 
 namespace Utility.Classes.Application

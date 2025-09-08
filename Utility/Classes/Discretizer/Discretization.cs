@@ -1,8 +1,7 @@
-﻿using Utility.Classes.Measurement;
-using Utility.Classes.Meshing;
-using Utility.Classes.Meshing.GraphMesh;
+﻿using Utility.Classes.Discretizer.GraphMesh;
+using Utility.Classes.Measurement;
 
-namespace Utility.Classes
+namespace Utility.Classes.Discretizer
 {
     /// <summary>
     /// Basic interface for a Mesh type later on. This helps the meshes to be a generic type.

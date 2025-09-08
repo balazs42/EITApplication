@@ -1,7 +1,8 @@
 ﻿using System.Numerics;
 using Utility.Classes.Measurement;
-using Utility.Classes.Meshing.FiniteElementMesh;
-using Utility.Classes.Meshing.GraphMesh;
+using Utility.Classes.Discretizer;
+using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Discretizer.GraphMesh;
 using Utility.Classes.Solvers.FiniteElementSolver;
 using Utility.Classes.Solvers.GraphBasedSolver;
 using Utility.Classes.Solvers.LatticeBoltzmannSolver;
@@ -167,9 +168,7 @@ namespace Utility.Classes.ReconstructionParameters
         public ConductivityDistribution InverseSolve(IDiscretization discretization, BoundaryCondition bc, Complex[] ajdointSource)
         {
             if (discretization is FEMMesh femMesh)
-            {
                 return _solver.Iteration(femMesh, _numericSolver);
-            }
             else
                 throw new NotImplementedException("Cannot use graph based solver, the LBM mesh -> graph representation implmenetiation is not yet done!");
         }

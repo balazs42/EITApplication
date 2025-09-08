@@ -1,6 +1,6 @@
 ﻿using System.Numerics;
 using Utility.Classes.Measurement;
-using Utility.Classes.Meshing.LatticeBoltzmannMesh;
+using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 
 namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 {

@@ -1,4 +1,4 @@
-﻿namespace Utility.Classes.Meshing.Graph.Graph
+﻿namespace Utility.Classes.Discretizer.GraphMesh 
 {
     /// <summary>
     /// Represents a FEMVertex in a standard graph structure, can be used for planar resistor network reconstruciton.

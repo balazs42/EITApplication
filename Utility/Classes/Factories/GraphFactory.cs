@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using Utility.Classes.Meshing.GraphMesh;
-using Utility.Classes.Meshing.Graph.Graph;
+using Utility.Classes.Discretizer.GraphMesh;
 
 namespace Utility.Classes.Factories
 {

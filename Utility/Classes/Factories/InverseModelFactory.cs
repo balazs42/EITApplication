@@ -1,4 +1,5 @@
-﻿using Utility.Classes.Models;
+﻿using Utility.Classes.Discretizer;
+using Utility.Classes.Models;
 using Utility.Classes.ReconstructionParameters;
 
 namespace Utility.Classes.Factories
@@ -11,8 +12,6 @@ namespace Utility.Classes.Factories
         }
 
         public static InverseModel Create(IDiscretization discretization, INumericOptimizer numericOptimizer, IRegularizer regularizer, IErrorMetric errorMetric, IDifferentialEquationSolver deSolver)
-        {
-            return new InverseModel(discretization, numericOptimizer, regularizer, errorMetric, deSolver);
-        }
+            => new(discretization, numericOptimizer, regularizer, errorMetric, deSolver);
     }
 }
