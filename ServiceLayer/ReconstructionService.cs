@@ -432,7 +432,23 @@ namespace ServiceLayer
                         ReconstructionFrameUpdated?.Invoke(this, frame);
                     }
 
-                    var result = new ReconstructionResult(_mesh!.GetMesh(), _originalSigma!, _initialSigma!, _mesh!.GetConductivityDistribution(), _currentCycleFrames.ToList());
+                    // accumulate gradient and update conductivity distribution
+                    var frameCount = _currentCycleFrames.Count;
+                    var prevSigma = _mesh!.GetConductivityDistribution();
+                    var accumGrad = new Dictionary<int, double>();
+                    foreach (var frame in _currentCycleFrames)
+                        foreach (var kvp in frame.ConductivityGradient.Conductivities)
+                            accumGrad[kvp.Key] = accumGrad.TryGetValue(kvp.Key, out var g) ? g + kvp.Value : kvp.Value;
+
+                    var newSigmaDict = prevSigma.Conductivities.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value + (accumGrad.TryGetValue(kvp.Key, out var g) ? g / frameCount : 0.0));
+                    var newSigma = new ConductivityDistribution(newSigmaDict);
+                    _mesh.SetConductivityDistribution(newSigma);
+                    _initialSigma = newSigma;
+                    _reconstructionPersistence.SetConductivityDistributions(_originalSigma!, _initialSigma!);
+
+                    var result = new ReconstructionResult(_mesh!.GetMesh(), _originalSigma!, prevSigma, newSigma, _currentCycleFrames.ToList());
                     Workspace.AddReconstructionResultToWorkspace(result);
                     ReconstructionUpdated?.Invoke(this, result);
                     _currentCycleFrames.Clear();
@@ -456,7 +472,22 @@ namespace ServiceLayer
                         lbmMesh.ShiftExcitationElectrodes(DrivePattern.Adjecent);
                     }
 
-                    var result = new ReconstructionResult(_mesh!.GetMesh(), _originalSigma!, _initialSigma!, _mesh!.GetConductivityDistribution(), _currentCycleFrames.ToList());
+                    var frameCount = _currentCycleFrames.Count;
+                    var prevSigma = _mesh!.GetConductivityDistribution();
+                    var accumGrad = new Dictionary<int, double>();
+                    foreach (var frame in _currentCycleFrames)
+                        foreach (var kvp in frame.ConductivityGradient.Conductivities)
+                            accumGrad[kvp.Key] = accumGrad.TryGetValue(kvp.Key, out var g) ? g + kvp.Value : kvp.Value;
+
+                    var newSigmaDict = prevSigma.Conductivities.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value + (accumGrad.TryGetValue(kvp.Key, out var g) ? g / frameCount : 0.0));
+                    var newSigma = new ConductivityDistribution(newSigmaDict);
+                    _mesh.SetConductivityDistribution(newSigma);
+                    _initialSigma = newSigma;
+                    _reconstructionPersistence.SetConductivityDistributions(_originalSigma!, _initialSigma!);
+
+                    var result = new ReconstructionResult(_mesh!.GetMesh(), _originalSigma!, prevSigma, newSigma, _currentCycleFrames.ToList());
                     Workspace.AddReconstructionResultToWorkspace(result);
                     ReconstructionUpdated?.Invoke(this, result);
                     _currentCycleFrames.Clear();
