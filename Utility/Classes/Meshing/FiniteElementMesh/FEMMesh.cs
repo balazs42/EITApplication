@@ -203,9 +203,8 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
                 copy.SetElectrodes(new List<FEMElectrode>());
             }
 
-            copy.SetConductivityDistribution(new ConductivityDistribution(this.ConductivityDistribution.Conductivities));
-            copy.SetPotentialDistribution(new PotentialDistribution(this.PotentialDistribution.Potentials));
-
+            copy.SetConductivityDistribution(new ConductivityDistribution(new Dictionary<int, double>(this.ConductivityDistribution.Conductivities)));
+            copy.SetPotentialDistribution(new PotentialDistribution(new Dictionary<int, double>(this.PotentialDistribution.Potentials)));
             return copy;
         }
 
