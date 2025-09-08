@@ -31,6 +31,9 @@ namespace BusinessLayer
         private double _regularizationWeight = 0.001;
         private InitialDistributionTypes _initialDistributionType = InitialDistributionTypes.SlightlyDiffering;
 
+        private ConductivityDistribution? _originalSigma = null;
+        private ConductivityDistribution? _initialSigma = null;
+
         private bool _initialized = false;
 
         // --- Background reconstruction bookkeeping ---
@@ -49,6 +52,12 @@ namespace BusinessLayer
             _reconstructionRepository = reconstructionRepository;
         }
 
+        public void SetConductivityDistributions(ConductivityDistribution original, ConductivityDistribution initial)
+        {
+            _originalSigma = original;
+            _initialSigma = initial;
+        }
+
         public void InitializeReconstruction(IMesh mesh, EITReconstructionParameters parameters, bool reinit)
         {
             if(!_initialized || reinit)
@@ -60,7 +69,8 @@ namespace BusinessLayer
                 _regularizer = RegularisationFactory.Create(parameters.RegularizationTechnique, _mesh);
                 _errorMetric = ErrorMetricFactory.Create(parameters.ErrorMetric);
                 _initialDistributionType = parameters.InitialDistributionType;
-                _numericOptimizer = NumericOptimizerFactory.Create(parameters.NumericOptimizer, ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType));
+                var initSigma = _initialSigma ?? ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType);
+                _numericOptimizer = NumericOptimizerFactory.Create(parameters.NumericOptimizer, initSigma);
 
                 _inverseModel = InverseModelFactory.Create(_mesh, _numericOptimizer, _regularizer, _errorMetric, _differentialEquationSolver);
 
@@ -293,17 +303,20 @@ namespace BusinessLayer
 
             // --- Prepare reference data --------------------------------------------------
 
-            // Save the original distribution for the ReconstructionResult and
-            // generate synthetic measurements that represent the observed data
-            // for the inverse problem.
-            ConductivityDistribution originalSigma = mesh.DeepCopy().GetConductivityDistribution();
-            List<double[]> measurementFrames = SimulateFemMeasurements(mesh, 1.0);
+            ConductivityDistribution originalSigma = _originalSigma ?? mesh.DeepCopy().GetConductivityDistribution();
+            List<double[]> measurementFrames;
+            if (_originalSigma != null)
+            {
+                FEMMesh measMesh = (FEMMesh)mesh.DeepCopy();
+                measMesh.SetConductivityDistribution(originalSigma);
+                measurementFrames = SimulateFemMeasurements(measMesh, 1.0);
+            }
+            else
+            {
+                measurementFrames = SimulateFemMeasurements(mesh, 1.0);
+            }
 
-            // Replace the mesh conductivity with the user-selected initial
-            // distribution so that the simulated data differs from the
-            // observed measurements, yielding a non-zero adjoint source.
-            ConductivityDistribution initialSigma = ConductivityDistributionFactory
-                                                        .CreateInitialDistribution(mesh, _initialDistributionType);
+            ConductivityDistribution initialSigma = _initialSigma ?? ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType);
             mesh.SetConductivityDistribution(initialSigma);
 
             // Cache electrode and element information for repeated use.
@@ -399,11 +412,21 @@ namespace BusinessLayer
             if (_errorMetric == null)
                 throw new NullReferenceException("Error metric not initialised.");
 
-            // Simulated measurement frames taken as observed data.
-            EITMeasurement measurementFrames = SimulateLbmMeasurements(mesh, 1.0);
+            ConductivityDistribution originalSigma = _originalSigma ?? ((LBMMesh)mesh.DeepCopy()).GetConductivityDistribution();
+            EITMeasurement measurementFrames;
+            if (_originalSigma != null)
+            {
+                LBMMesh measMesh = (LBMMesh)mesh.DeepCopy();
+                measMesh.SetConductivityDistribution(originalSigma);
+                measurementFrames = SimulateLbmMeasurements(measMesh, 1.0);
+            }
+            else
+            {
+                measurementFrames = SimulateLbmMeasurements(mesh, 1.0);
+            }
 
-            ConductivityDistribution originalSigma = ((LBMMesh)mesh.DeepCopy()).GetConductivityDistribution();
-            ConductivityDistribution initialSigma = mesh.GetConductivityDistribution();
+            ConductivityDistribution initialSigma = _initialSigma ?? mesh.GetConductivityDistribution();
+            mesh.SetConductivityDistribution(initialSigma);
 
             var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
             int electrodeCount = electrodes.Count;
@@ -481,11 +504,20 @@ namespace BusinessLayer
 
             _regularizationWeight = redularizationStepSize;
 
-            List<double[]> simulatedMeasurements = SimulateFemMeasurements(mesh, excitationAmplitude);
-            ConductivityDistribution originalConductivityDistribution = mesh.DeepCopy().GetConductivityDistribution();
+            ConductivityDistribution originalConductivityDistribution = _originalSigma ?? mesh.DeepCopy().GetConductivityDistribution();
+            List<double[]> simulatedMeasurements;
+            if (_originalSigma != null)
+            {
+                FEMMesh measMesh = (FEMMesh)mesh.DeepCopy();
+                measMesh.SetConductivityDistribution(originalConductivityDistribution);
+                simulatedMeasurements = SimulateFemMeasurements(measMesh, excitationAmplitude);
+            }
+            else
+            {
+                simulatedMeasurements = SimulateFemMeasurements(mesh, excitationAmplitude);
+            }
 
-            // 2) Initialize conductivity (σ^{(0)}) based on user selection
-            ConductivityDistribution initialConductivityDistribution = ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType);
+            ConductivityDistribution initialConductivityDistribution = _initialSigma ?? ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType);
             mesh.SetConductivityDistribution(initialConductivityDistribution);
 
             List<FEMElectrode> electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
@@ -720,15 +752,24 @@ namespace BusinessLayer
             if (_inverseModel == null || _mesh == null || mesh == null || _differentialEquationSolver == null || _errorMetric == null)
                 throw new NullReferenceException();
 
-            ConductivityDistribution originalConductivityDistribution = ((LBMMesh)mesh.DeepCopy()).GetConductivityDistribution();
+            ConductivityDistribution originalConductivityDistribution = _originalSigma ?? ((LBMMesh)mesh.DeepCopy()).GetConductivityDistribution();
             mesh = (LBMMesh)mesh.DeepCopy();
 
             var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
 
             LBMBoundaryCondition bc = new(electrodes);
 
-            // --- Simulate Measurements for the Inverse Solver ---
-            EITMeasurement measurementFrames = SimulateLbmMeasurements(mesh, 1.0);
+            EITMeasurement measurementFrames;
+            if (_originalSigma != null)
+            {
+                LBMMesh measMesh = (LBMMesh)mesh.DeepCopy();
+                measMesh.SetConductivityDistribution(originalConductivityDistribution);
+                measurementFrames = SimulateLbmMeasurements(measMesh, 1.0);
+            }
+            else
+            {
+                measurementFrames = SimulateLbmMeasurements(mesh, 1.0);
+            }
 
             // Container to hold partial results from reconstrucion
             List<ReconstructionFrame> frames = [];
@@ -766,9 +807,10 @@ namespace BusinessLayer
 
             ConductivityDistribution reconstructedConductivityDistribution = mesh.GetConductivityDistribution();
 
+            var initialConductivityDistribution = _initialSigma ?? mesh.GetConductivityDistribution();
             return new ReconstructionResult((LBMMesh)_mesh,
                                             originalConductivityDistribution,
-                                            originalConductivityDistribution,
+                                            initialConductivityDistribution,
                                             reconstructedConductivityDistribution,
                                             frames);
         }
