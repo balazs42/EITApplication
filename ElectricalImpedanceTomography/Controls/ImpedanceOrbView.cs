@@ -112,7 +112,7 @@ namespace ElectricalImpedanceTomography.Controls
             }
         }
 
-        private void OnModelPropertyChanged(object sender, PropertyChangedEventArgs e)
+        private void OnModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (Model == null)
                 return;

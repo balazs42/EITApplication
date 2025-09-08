@@ -384,10 +384,13 @@ namespace ServiceLayer
                     {
                         electrodes = lbmMesh.GetElectrodes().Cast<LBMElectrode>().ToList();
                         bc = new LBMBoundaryCondition(electrodes);
+
                         var frame = _reconstructionPersistence.Step(measurement, bc, _stepSize, _regularizationWeight);
+
                         Workspace.AddReconstructionFrameToWorkspace(frame);
                         _currentCycleFrames.Add(frame);
                         ReconstructionFrameUpdated?.Invoke(this, frame);
+
                         lbmMesh.ShiftExcitationElectrodes(DrivePattern.Adjecent);
                     }
 

@@ -206,12 +206,14 @@ public partial class ReconstructionPage : ContentPage
                 PlaybackSlider.Value = PlaybackSlider.Maximum;
             }
             _sliderChanging = false;
+
             PotentialDistributionCanvas.InvalidateSurface();
             AdjointDistributionCanvas.InvalidateSurface();
             GradientDistributionCanvas.InvalidateSurface();
             PotentialColorbarCanvas.InvalidateSurface();
             AdjointColorbarCanvas.InvalidateSurface();
             GradientColorbarCanvas.InvalidateSurface();
+
             UpdatePlaybackLabel();
         });
     }
