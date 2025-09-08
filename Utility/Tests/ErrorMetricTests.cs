@@ -1,4 +1,5 @@
 ﻿using Utility.Classes.ReconstructionParameters;
+using Utility.Classes.Meshing.FiniteElementMesh;
 using Xunit;
 
 namespace Utility.Tests
@@ -31,6 +32,47 @@ namespace Utility.Tests
         {
             // Arrange a tiny LBMMesh with 4 electrodes and deterministic coordinates,
             /// TODO: validate W2
+        }
+
+        [Fact]
+        public void Wasserstein2_FEM_Evaluate_Produces_Finite_Value()
+        {
+            var mesh = TinyFEM();
+
+            // Simple distributions over 4 electrodes
+            double[] meas = { 0.0, 1.0, 0.0, 0.0 };
+            double[] sim = { 1.0, 0.0, 0.0, 0.0 };
+
+            IErrorMetric w2 = new Wasserstein2ErrorMetric();
+            double val = w2.Evaluate(mesh, meas, sim);
+            Assert.True(val >= 0.0);
+
+            var phi = w2.EvaluateAdjointSource(mesh, meas, sim);
+            Assert.Equal(meas.Length, phi.Length);
+        }
+
+        private static FEMMesh TinyFEM()
+        {
+            var v1 = new FEMVertex { GlobalId = 0, X = 0, Y = 0, IsElectrode = true };
+            var v2 = new FEMVertex { GlobalId = 1, X = 1, Y = 0, IsElectrode = true };
+            var v3 = new FEMVertex { GlobalId = 2, X = 1, Y = 1, IsElectrode = true };
+            var v4 = new FEMVertex { GlobalId = 3, X = 0, Y = 1, IsElectrode = true };
+
+            var elems = new List<FEMElement>
+            {
+                new FEMElement(0, v1, v2, v3),
+                new FEMElement(1, v1, v3, v4)
+            };
+
+            var electrodes = new List<FEMElectrode>
+            {
+                new FEMElectrode(0, 0, 0.0, 0.0, 0.0, isMeasuring: true),
+                new FEMElectrode(1, 1, 0.0, 0.0, 0.0, isMeasuring: true),
+                new FEMElectrode(2, 2, 0.0, 0.0, 0.0, isMeasuring: true),
+                new FEMElectrode(3, 3, 0.0, 0.0, 0.0, isMeasuring: true)
+            };
+
+            return new FEMMesh(new[] { v1, v2, v3, v4 }, elems, electrodes);
         }
 
         private sealed class DoubleArrayComparer : IEqualityComparer<double[]>
