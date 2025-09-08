@@ -1,5 +1,7 @@
 ﻿using Google.OrTools.LinearSolver;
+using Utility.Classes.Meshing;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
+using Utility.Classes.Meshing.FiniteElementMesh;
 
 namespace Utility.Classes.ReconstructionParameters
 {
@@ -108,22 +110,36 @@ namespace Utility.Classes.ReconstructionParameters
 
         private OptimalTransportResult SolveOT(IMesh mesh, double[] measured, double[] simulated)
         {
-            if (mesh is not LBMMesh lbm)
-                throw new ArgumentException("Wasserstein-2 currently implemented for LBMMesh because it needs lattice coordinates.");
-
-            // (1) Pick electrodes, filter to *measuring* ones and ignore NaNs.
-            var all = lbm.GetElectrodes().Cast<LBMElectrode>().OrderBy(e => e.Id).ToList();
+            // (1) Gather electrodes and coordinate provider
+            var all = mesh.GetElectrodes().OrderBy(e => e.Id).ToList();
             if (all.Count != measured.Length || all.Count != simulated.Length)
                 throw new ArgumentException("Electrode count must match data length.");
 
-            var (a, aLoc, aIndexMap) = BuildDistribution(simulated, all, lbm); // source: simulated
-            var (b, bLoc, _) = BuildDistribution(measured, all, lbm); // target: measured
+            Func<Electrode, (double x, double y)> coord;
+            if (mesh is LBMMesh lbm)
+                coord = e =>
+                {
+                    var le = (LBMElectrode)e;
+                    var (x, y) = ToXY(lbm, le.GridId);
+                    return (x, y);
+                };
+            else if (mesh is FEMMesh fem)
+                coord = e =>
+                {
+                    var fe = (FEMElectrode)e;
+                    return GetCoord(fem, fe);
+                };
+            else
+                throw new ArgumentException("Wasserstein-2 currently implemented for LBMMesh or FEMMesh because it needs electrode coordinates.");
+
+            var (a, aLoc, aIndexMap) = BuildDistribution(simulated, all, coord); // source: simulated
+            var (b, bLoc, _) = BuildDistribution(measured, all, coord); // target: measured
 
             // If nothing valid (e.g., all NaN), return zero
             if (a.Length == 0 || b.Length == 0)
                 return new OptimalTransportResult(measured, simulated, 0.0, new double[all.Count]);
 
-            // (2) Cost matrix c_{ij} = squared Euclidean distance on lattice
+            // (2) Cost matrix c_{ij} = squared Euclidean distance on coordinates
             int m = a.Length, n = b.Length;
             double[,] C = new double[m, n];
             for (int i = 0; i < m; i++)
@@ -179,11 +195,11 @@ namespace Utility.Classes.ReconstructionParameters
             return new OptimalTransportResult(measured, simulated, optimal, phiFull);
         }
 
-        private static (double[] mass, List<(int x, int y)> loc, List<(int srcIdx, int electrodeIdx)> indexMap)
-            BuildDistribution(double[] raw, List<LBMElectrode> electrodes, LBMMesh mesh)
+        private static (double[] mass, List<(double x, double y)> loc, List<(int srcIdx, int electrodeIdx)> indexMap)
+            BuildDistribution(double[] raw, List<Electrode> electrodes, Func<Electrode, (double x, double y)> getCoord)
         {
             var vals = new List<double>();
-            var coords = new List<(int x, int y)>();
+            var coords = new List<(double x, double y)>();
             var map = new List<(int, int)>();
 
             double minVal = double.PositiveInfinity;
@@ -196,13 +212,13 @@ namespace Utility.Classes.ReconstructionParameters
 
                 minVal = Math.Min(minVal, v);
                 vals.Add(v);
-                coords.Add(ToXY(mesh, e.GridId));
+                coords.Add(getCoord(e));
                 map.Add((vals.Count - 1, i)); // (index in 'vals', electrode index)
             }
 
             // Shift to nonnegative, then normalize to probability
             if (vals.Count == 0)
-                return (Array.Empty<double>(), new List<(int, int)>(), new List<(int, int)>());
+                return (Array.Empty<double>(), new List<(double, double)>(), new List<(int, int)>());
 
             if (minVal < 0.0)
                 for (int k = 0; k < vals.Count; k++) vals[k] -= minVal;
@@ -222,12 +238,26 @@ namespace Utility.Classes.ReconstructionParameters
             return (vals.ToArray(), coords, map);
         }
 
-        private static (int x, int y) ToXY(LBMMesh mesh, int gridId)
+        private static (double x, double y) ToXY(LBMMesh mesh, int gridId)
         {
             // Prefer mesh API if public; otherwise decode (id = y*Nx + x)
             int x = gridId % mesh.Nx;
             int y = gridId / mesh.Nx;
             return (x, y);
+        }
+
+        private static (double x, double y) GetCoord(FEMMesh mesh, FEMElectrode e)
+        {
+            if (!e.PointElectrode && e.FEMVertexIds != null && e.FEMVertexIds.Count > 0)
+            {
+                var verts = mesh.Vertices.Where(v => e.FEMVertexIds.Contains(v.GlobalId)).ToList();
+                double x = verts.Average(v => v.X);
+                double y = verts.Average(v => v.Y);
+                return (x, y);
+            }
+
+            var vtx = mesh.Vertices.First(v => v.GlobalId == e.MeshId);
+            return (vtx.X, vtx.Y);
         }
 
         private sealed class OptimalTransportResult
