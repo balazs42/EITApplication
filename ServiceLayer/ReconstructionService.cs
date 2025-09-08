@@ -109,7 +109,7 @@ namespace ServiceLayer
             try
             {
                 Workspace.AddLogMessage("Reconstruction Service", "Reconstruction initialization started with the specified EITReconstructionParameters object.");
-
+                Workspace.SetMesh(mesh);
                 _mesh = mesh;
                 _simulatedMeasurements.Clear();
                 _simMeasurementIndex = 0;
@@ -120,9 +120,11 @@ namespace ServiceLayer
                 Workspace.SetReconstructionResults(new List<ReconstructionResult>());
 
                 _originalSigma = mesh.DeepCopy().GetConductivityDistribution();
-                _initialSigma = ConductivityDistributionFactory.CreateInitialDistribution(mesh, parameters.InitialDistributionType);
+                _initialSigma = Workspace.GetInitialMesh()?.GetConductivityDistribution() ?? ConductivityDistributionFactory.CreateInitialDistribution(mesh, parameters.InitialDistributionType);
                 mesh.SetConductivityDistribution(_initialSigma);
+
                 Workspace.SetOriginalConductivityDistribution(_originalSigma);
+
                 _reconstructionPersistence.SetConductivityDistributions(_originalSigma, _initialSigma);
                 _reconstructionPersistence.InitializeReconstruction(mesh, parameters, reinit);
 
@@ -394,11 +396,10 @@ namespace ServiceLayer
                 {
                     if (_simulatedMeasurements.Count == 0)
                     {
-                        FEMMesh measMesh = (FEMMesh)femMesh.DeepCopy();
-                        if (_originalSigma != null)
-                            measMesh.SetConductivityDistribution(_originalSigma);
-                        _simulatedMeasurements =
-                            _reconstructionPersistence.SimulateFemMeasurements(measMesh, _excitationAmplitude);
+                        FEMMesh measMesh = (FEMMesh)(Workspace.GetOriginalMesh() ?? throw new NullReferenceException()).DeepCopy();
+                        //if (_originalSigma != null)
+                        //    measMesh.SetConductivityDistribution(_originalSigma);
+                        _simulatedMeasurements = _reconstructionPersistence.SimulateFemMeasurements(measMesh, _excitationAmplitude);
                     }
 
                     var electrodes = femMesh.GetElectrodes().Cast<FEMElectrode>().ToList();

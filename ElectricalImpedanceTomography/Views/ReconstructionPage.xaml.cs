@@ -429,12 +429,12 @@ public partial class ReconstructionPage : ContentPage
         var mesh = GetMesh();
         if (mesh is FEMMesh fem)
         {
-            var cd = _currentResult?.OriginalConductivityDistribution ?? Workspace.GetOriginalConductivityDistribution() ?? fem.GetConductivityDistribution();
+            var cd = Workspace.GetOriginalConductivityDistribution() ?? fem.GetConductivityDistribution();
             DrawFemConductivity(e, fem, cd, _hoverOriginalLines, _hoverOriginalPt);
         }
         else if (mesh is LBMMesh lbm)
         {
-            var cd = _currentResult?.OriginalConductivityDistribution ?? Workspace.GetOriginalConductivityDistribution() ?? lbm.GetConductivityDistribution();
+            var cd = Workspace.GetOriginalConductivityDistribution() ?? lbm.GetConductivityDistribution();
             DrawLbmField(e, lbm, cd.Conductivities, false, _hoverOriginalLines, _hoverOriginalPt);
         }
     }
