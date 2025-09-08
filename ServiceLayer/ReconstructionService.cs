@@ -119,11 +119,12 @@ namespace ServiceLayer
 
                 Workspace.SetReconstructionResults(new List<ReconstructionResult>());
 
-                _reconstructionPersistence.InitializeReconstruction(mesh, parameters, reinit);
                 _originalSigma = mesh.DeepCopy().GetConductivityDistribution();
                 _initialSigma = ConductivityDistributionFactory.CreateInitialDistribution(mesh, parameters.InitialDistributionType);
-
                 mesh.SetConductivityDistribution(_initialSigma);
+                Workspace.SetOriginalConductivityDistribution(_originalSigma);
+                _reconstructionPersistence.SetConductivityDistributions(_originalSigma, _initialSigma);
+                _reconstructionPersistence.InitializeReconstruction(mesh, parameters, reinit);
 
                 _framesPerCycle = (mesh.GetElectrodes().Count > 0) ? mesh.GetElectrodes().Count : 1;
             }

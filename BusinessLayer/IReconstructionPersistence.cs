@@ -8,6 +8,7 @@ namespace BusinessLayer
 {
     public interface IReconstructionPersistence
     {
+        void SetConductivityDistributions(ConductivityDistribution original, ConductivityDistribution initial);
         public void InitializeReconstruction(IMesh mesh, EITReconstructionParameters parameters, bool reinit);
 
         public ReconstructionFrame Step(double[] measurement, BoundaryCondition boundaryCondition, double gradientStepSize, double redularizationStepSize);
