@@ -177,6 +177,7 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
 
             if (_electrodes.Count > 0)
             {
+                var electrodeCopies = new List<FEMElectrode>(_electrodes.Count);
                 foreach (var e in _electrodes)
                 {
                     var e2 = new FEMElectrode(
@@ -193,11 +194,15 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
                     if (e.FEMVertexIds?.Count > 0)
                         e2.FEMVertexIds.AddRange(e.FEMVertexIds);
 
-                    copy.ElectrodesTyped.ToList().Add(e2); 
+                    electrodeCopies.Add(e2);
                 }
+                copy.SetElectrodes(electrodeCopies);
+            }
+            else
+            {
+                copy.SetElectrodes(new List<FEMElectrode>());
             }
 
-            copy.SetElectrodes(_electrodes);
             copy.SetConductivityDistribution(new ConductivityDistribution(this.ConductivityDistribution.Conductivities));
             copy.SetPotentialDistribution(new PotentialDistribution(this.PotentialDistribution.Potentials));
 

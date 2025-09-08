@@ -293,16 +293,18 @@ namespace BusinessLayer
 
             // --- Prepare reference data --------------------------------------------------
 
-            // Simulate measurements on a copy of the original conductivity
-            // distribution.  These measurements serve as the observed data for
-            // the inverse problem.
+            // Save the original distribution for the ReconstructionResult and
+            // generate synthetic measurements that represent the observed data
+            // for the inverse problem.
+            ConductivityDistribution originalSigma = mesh.DeepCopy().GetConductivityDistribution();
             List<double[]> measurementFrames = SimulateFemMeasurements(mesh, 1.0);
 
-            // Save the original distribution for the ReconstructionResult.
-            ConductivityDistribution originalSigma = mesh.DeepCopy().GetConductivityDistribution();
-
-            // Start the reconstruction from a user-specified initial conductivity distribution.
-            ConductivityDistribution initialSigma = mesh.GetConductivityDistribution();
+            // Replace the mesh conductivity with the user-selected initial
+            // distribution so that the simulated data differs from the
+            // observed measurements, yielding a non-zero adjoint source.
+            ConductivityDistribution initialSigma = ConductivityDistributionFactory
+                                                        .CreateInitialDistribution(mesh, _initialDistributionType);
+            mesh.SetConductivityDistribution(initialSigma);
 
             // Cache electrode and element information for repeated use.
             List<FEMElectrode> electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
