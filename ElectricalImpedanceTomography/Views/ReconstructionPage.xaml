@@ -107,9 +107,17 @@
                             <Entry Grid.Row="4" Text="{Binding GroundElectrodeId}"/>
                             <Label Grid.Row="5" Text="Drive Pattern:" />
                             <Grid Grid.Row="6" ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto" HorizontalOptions="Center" ColumnSpacing="20">
-                                <CheckBox Grid.Column="0" HorizontalOptions="Center" VerticalOptions="Center" IsChecked="{Binding AdjecentDrivePattern}" CheckedChanged="OnAdjecentDrivePatternChecked"/>
+                                <CheckBox Grid.Column="0" 
+                                          HorizontalOptions="Center" 
+                                          VerticalOptions="Center" 
+                                          IsChecked="{Binding AdjecentDrivePattern}"
+                                          CheckedChanged="OnAdjecentDrivePatternChecked"/>
                                 <Label Grid.Column="1" Text="Adjecent" VerticalOptions="Center" HorizontalOptions="Start"/>
-                                <CheckBox Grid.Column="2" HorizontalOptions="Center" VerticalOptions="Center" IsChecked="{Binding OppositeDrivePattern}" CheckedChanged="OnOppositeDrivePatternChecked"/>
+                                <CheckBox Grid.Column="2"
+                                          HorizontalOptions="Center" 
+                                          VerticalOptions="Center" 
+                                          IsChecked="{Binding OppositeDrivePattern}"
+                                          CheckedChanged="OnOppositeDrivePatternChecked"/>
                                 <Label Grid.Column="3" Text="Opposite" HorizontalOptions="Start" VerticalOptions="Center"/>
                             </Grid>
                             <Button Grid.Row="7" Text="Edit Boundary Conditions" Background="PaleTurquoise" FontAttributes="Bold" Clicked="OnEditBoundaryConditionsClicked"/>
@@ -137,8 +145,7 @@
                           ColumnSpacing="15"
                           HorizontalOptions="Center">
                         <Border x:Name="PlayButton" Grid.Column="0" HeightRequest="50" WidthRequest="50" Margin="5" HorizontalOptions="Center" VerticalOptions="Center">
-                            <ImageButton 
-                                         Padding="3"
+                            <ImageButton Padding="3"
                                          Background="Transparent"
                                          HeightRequest="30"
                                          WidthRequest="30"
@@ -146,8 +153,7 @@
                                          Clicked="OnPlayButtonClicked"/>
                         </Border>
                         <Border x:Name="PauseButton" Grid.Column="0" HeightRequest="50" WidthRequest="50" Margin="5" HorizontalOptions="Center" VerticalOptions="Center">
-                            <ImageButton 
-                                         Padding="3"
+                            <ImageButton Padding="3"
                                          Background="Transparent"
                                          HeightRequest="30"
                                          Source="icon_pause_blue.png"

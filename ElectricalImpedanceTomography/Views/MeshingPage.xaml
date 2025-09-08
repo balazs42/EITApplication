@@ -65,19 +65,19 @@
 
                     <!-- FEM parameters -->
                     <controls:PlusMinusEntryControl Margin="10"
-                               LabelText="Layers"
-                               PlusImageSource="icon_plus2.png"
-                               MinusImageSource="icon_minus2.png"
-                               Value="{Binding Layers}"
-                               Max="20"/>
+                                                    LabelText="Layers"
+                                                    PlusImageSource="icon_plus2.png"
+                                                    MinusImageSource="icon_minus2.png"
+                                                    Value="{Binding Layers}"
+                                                    Max="20"/>
 
                     <controls:PlusMinusEntryControl Margin="10"
-                               LabelText="Boundary Vertices"
-                               PlusImageSource="icon_plus2.png"
-                               MinusImageSource="icon_minus2.png"
-                               Value="{Binding BoundaryFEMVertexCount}"
-                               Max="100"/>
-                    
+                                                    LabelText="Boundary Vertices"
+                                                    PlusImageSource="icon_plus2.png"
+                                                    MinusImageSource="icon_minus2.png"
+                                                    Value="{Binding BoundaryFEMVertexCount}"
+                                                    Max="100"/>      
+
                     <BoxView WidthRequest="200" HeightRequest="2" BackgroundColor="Gray"/>
 
                     <Grid ColumnDefinitions="Auto, *" ColumnSpacing="10" Margin="10">
@@ -101,18 +101,18 @@
                     </Grid>
 
                     <controls:PlusMinusEntryControl Margin="10"
-                               LabelText="Contact Impedance"
-                               PlusImageSource="icon_plus2.png"
-                               MinusImageSource="icon_minus2.png"
-                               Value="{Binding ElectrodeContactImpedance}"
-                               Max="10"/>
+                                                    LabelText="Contact Impedance"
+                                                    PlusImageSource="icon_plus2.png"
+                                                    MinusImageSource="icon_minus2.png"
+                                                    Value="{Binding ElectrodeContactImpedance}"
+                                                    Max="10"/>       
 
                     <controls:PlusMinusEntryControl Margin="10"
-                               LabelText="Electrode Size [%]"
-                               PlusImageSource="icon_plus2.png"
-                               MinusImageSource="icon_minus2.png"
-                               Value="{Binding ElectrodeSize}"
-                               Max="100"/>
+                                                    LabelText="Electrode Size [%]"
+                                                    PlusImageSource="icon_plus2.png"
+                                                    MinusImageSource="icon_minus2.png"
+                                                    Value="{Binding ElectrodeSize}"
+                                                    Max="100"/>
                 </VerticalStackLayout>
             </Border>
 
@@ -158,18 +158,18 @@
                                        
                     <!-- Common parameters -->
                     <controls:PlusMinusEntryControl Grid.Row="0"
-                                LabelText="Electrode Num"
-                                PlusImageSource="icon_plus2.png"
-                                MinusImageSource="icon_minus2.png"
-                                Value="{Binding ElectrodeCount}"
-                                Max="64"/>
+                                                    LabelText="Electrode Num"
+                                                    PlusImageSource="icon_plus2.png"
+                                                    MinusImageSource="icon_minus2.png"
+                                                    Value="{Binding ElectrodeCount}"
+                                                    Max="64"/>      
 
                     <controls:PlusMinusEntryControl Grid.Row="0"
-                                LabelText="Inhomogenity Value"
-                                PlusImageSource="icon_plus2.png"
-                                MinusImageSource="icon_minus2.png"
-                                Value="{Binding InhomogenityValue}"
-                                Max="10"/>
+                                                    LabelText="Inhomogenity Value"
+                                                    PlusImageSource="icon_plus2.png"
+                                                    MinusImageSource="icon_minus2.png"
+                                                    Value="{Binding InhomogenityValue}"
+                                                    Max="10"/>
 
                     <controls:PlusMinusEntryControl Grid.Row="0"
                                                     LabelText="Contact Impedance"
@@ -260,7 +260,11 @@
                                     <Grid ColumnDefinitions="Auto, *, Auto" ColumnSpacing="10">
                                         <Image Grid.Column="0" Source="icon_edit2.png" HeightRequest="25"/>
                                         <Label Grid.Column="1" Text="Edit" HorizontalOptions="Center" VerticalOptions="Center" FontSize="Medium" FontAttributes="Bold"/>
-                                        <CheckBox x:Name="EditingCheckbox" Grid.Column="2" IsChecked="{Binding InhomogenityEditing}" HeightRequest="25" WidthRequest="25"/>
+                                        <CheckBox x:Name="EditingCheckbox"
+                                                  Grid.Column="2"
+                                                  IsChecked="{Binding InhomogenityEditing}" 
+                                                  HeightRequest="25" 
+                                                  WidthRequest="25"/>
                                     </Grid>
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Tapped="OnEditClicked" />
@@ -316,8 +320,6 @@
                     </Grid>
                 </Border>
                 
-               
-
                 <Label Grid.Row="1" 
                        Text="{Binding HoveredElementInfo, StringFormat='Element Info: {0}'}"
                        HorizontalOptions="Center"
@@ -332,12 +334,12 @@
                         HorizontalOptions="Center"
                         VerticalOptions="Center">
                     <skia:SKCanvasView x:Name="MeshCanvas"
-                           PaintSurface="OnMeshCanvasPaintSurface"
-                           EnableTouchEvents="True"
-                           Touch="OnMeshCanvasTouch"
-                           HeightRequest="700"
-                           WidthRequest="700"
-                           Margin="10" />
+                                       PaintSurface="OnMeshCanvasPaintSurface"
+                                       EnableTouchEvents="True"
+                                       Touch="OnMeshCanvasTouch"
+                                       HeightRequest="700"
+                                       WidthRequest="700"
+                                       Margin="10" />
                 </Border>
             </Grid>
 
@@ -367,8 +369,6 @@
                     </Border>
                 </VerticalStackLayout>
             </Border>
-
-
         </Grid>
     </Grid>
 </ContentPage>
