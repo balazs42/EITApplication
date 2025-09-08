@@ -4,6 +4,7 @@
              x:Class="ElectricalImpedanceTomography.Controls.ReconstructionParametersControl"
              xmlns:converters="clr-namespace:ElectricalImpedanceTomography.Converters"
              xmlns:viewmodels="clr-namespace:ElectricalImpedanceTomography.ViewModels"
+             xmlns:parameters="clr-namespace:Utility.Classes.ReconstructionParameters;assembly=Utility"
              x:DataType="viewmodels:BaseReconstructionPageViewModel">
     <ContentView.Resources>
         <Style TargetType="Picker">

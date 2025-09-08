@@ -46,8 +46,8 @@ namespace Utility.Tests
         public IReadOnlyList<FEMVertex> GetVertices() => _vertices;
         public IReadOnlyList<DiscretizationElement> GetElements() => _elements;
 
-        public double[] GetElectrodePotentials() => _electrodes.Select(e => e.Potential).ToArray();
-        public IReadOnlyList<FEMVertex> GetElectrodeVertices() => _vertices.Where(v => v.IsElectrode).ToList();
+        public double[] GetElectrodePotentials() => [.. _electrodes.Select(e => e.Potential)];
+        public IReadOnlyList<FEMVertex> GetElectrodeVertices() => [.. _vertices.Where(v => v.IsElectrode)];
 
         public Discretization DeepCopy() => null!;
         public Classes.Discretizer.GraphMesh.Graph ToGraph() => null!;

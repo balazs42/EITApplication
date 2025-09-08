@@ -1007,23 +1007,23 @@ public partial class ReconstructionPage : ContentPage
         var mesh = GetDiscretization();
         if (mesh is FEMMesh fem)
         {
-            var bc = new FEMBoundaryCondition(fem.GetElectrodes().Cast<FEMElectrode>().ToList());
+            var bc = new FEMBoundaryCondition([.. fem.GetElectrodes().Cast<FEMElectrode>()]);
             var popup = new BoundaryConditionsPopup(bc);
             var result = await this.ShowPopupAsync(popup) as BoundaryCondition;
             if (result is FEMBoundaryCondition femBc)
             {
-                fem.SetElectrodes(femBc.GetElectrodes().Cast<FEMElectrode>().ToList());
+                fem.SetElectrodes([.. femBc.GetElectrodes().Cast<FEMElectrode>()]);
                 InvalidateAll();
             }
         }
         else if (mesh is LBMGrid lbm)
         {
-            var bc = new LBMBoundaryCondition(lbm.GetElectrodes().Cast<LBMElectrode>().ToList());
+            var bc = new LBMBoundaryCondition([.. lbm.GetElectrodes().Cast<LBMElectrode>()]);
             var popup = new BoundaryConditionsPopup(bc);
             var result = await this.ShowPopupAsync(popup) as BoundaryCondition;
             if (result is LBMBoundaryCondition lbmBc)
             {
-                lbm.SetElectrodes(lbmBc.GetElectrodes().Cast<LBMElectrode>().ToList());
+                lbm.SetElectrodes([.. lbmBc.GetElectrodes().Cast<LBMElectrode>()]);
                 InvalidateAll();
             }
         }

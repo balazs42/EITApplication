@@ -35,7 +35,7 @@ namespace Utility.Classes.Measurement
 
         public void InitFEM(List<FEMElectrode> electrodes)
         {
-            SetElectrodes(electrodes.Cast<FEMElectrode>().ToList());
+            SetElectrodes([.. electrodes.Cast<FEMElectrode>()]);
             NumElectrodes = _electrodes.Count;
 
             var groundElectrode = _electrodes.Find(x => x.IsGround);
@@ -59,7 +59,7 @@ namespace Utility.Classes.Measurement
 
         public override void Initialize(IEnumerable<Electrode> electrodes)
         {
-            InitFEM(electrodes.Cast<FEMElectrode>().ToList());
+            InitFEM([.. electrodes.Cast<FEMElectrode>()]);
         }
     }
 }

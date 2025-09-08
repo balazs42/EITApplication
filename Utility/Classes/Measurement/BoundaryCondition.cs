@@ -96,14 +96,12 @@ namespace Utility.Classes.Measurement
         }
 
         public List<TElectrode> GetElectrodes() => _electrodes;
-
-        public override List<double> GetElectrodeCurrentsList() => _electrodes.Select(x => x.Current).ToList();
-
-        public override List<double> GetElectrodePotentialsList() => _electrodes.Select(x => x.Potential).ToList();
+        public override List<double> GetElectrodeCurrentsList() => [.. _electrodes.Select(x => x.Current)];
+        public override List<double> GetElectrodePotentialsList() => [.. _electrodes.Select(x => x.Potential)];
 
         public override double[] GetElectrodeCurrents()
         {
-            NumElectrodes = _electrodes.Count();
+            NumElectrodes = _electrodes.Count;
             double[] currents = new double[NumElectrodes];
             for (int i = 0; i < NumElectrodes; i++)
                 currents[i] = _electrodes.ElementAt(i).Current;
@@ -113,7 +111,7 @@ namespace Utility.Classes.Measurement
 
         public override double[] GetElectrodePotentials()
         {
-            NumElectrodes = _electrodes.Count();
+            NumElectrodes = _electrodes.Count;
             double[] potentials = new double[NumElectrodes];
             for (int i = 0; i < NumElectrodes; i++)
                 potentials[i] = _electrodes.ElementAt(i).Potential;
@@ -123,7 +121,7 @@ namespace Utility.Classes.Measurement
 
         public override void SetElectrodeCurrents(IEnumerable<double> currents)
         {
-            NumElectrodes = _electrodes.Count();
+            NumElectrodes = _electrodes.Count;
             if (currents.Count() != NumElectrodes)
                 throw new ArgumentOutOfRangeException("Cannot set currents, item count mismatch between currents and electrodes. Check code!");
 
@@ -133,7 +131,7 @@ namespace Utility.Classes.Measurement
 
         public override void SetElectrodeCurrents(double[] currents)
         {
-            NumElectrodes = _electrodes.Count();
+            NumElectrodes = _electrodes.Count;
             if (currents.Length != NumElectrodes)
                 throw new ArgumentOutOfRangeException("Cannot set currents, item count mismatch between currents and electrodes. Check code!");
             for (int i = 0; i < NumElectrodes; i++)
@@ -142,7 +140,7 @@ namespace Utility.Classes.Measurement
 
         public override void SetElectrodePotentials(IEnumerable<double> potentials)
         {
-            NumElectrodes = _electrodes.Count();
+            NumElectrodes = _electrodes.Count;
             if (potentials.Count() != NumElectrodes)
                 throw new ArgumentOutOfRangeException("Cannot set potentials, item count mismatch between potentials and electrodes. Check code!");
 
@@ -152,7 +150,7 @@ namespace Utility.Classes.Measurement
 
         public override void SetElectrodePotentials(double[] potentials)
         {
-            NumElectrodes = _electrodes.Count();
+            NumElectrodes = _electrodes.Count;
             if (potentials.Length != NumElectrodes)
                 throw new ArgumentOutOfRangeException("Cannot set potentials, item count mismatch between potentials and electrodes. Check code!");
             for (int i = 0; i < NumElectrodes; i++)

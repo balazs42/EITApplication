@@ -101,9 +101,7 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
             double cx = boundary.Average(v => v.X);
             double cy = boundary.Average(v => v.Y);
 
-            boundary = boundary
-                .OrderBy(v => Math.Atan2(v.Y - cy, v.X - cx))
-                .ToList();
+            boundary = [.. boundary.OrderBy(v => Math.Atan2(v.Y - cy, v.X - cx))];
 
             int count = boundary.Count;
             numElectrodes = Math.Min(numElectrodes, count);

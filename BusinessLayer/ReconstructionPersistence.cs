@@ -320,7 +320,7 @@ namespace BusinessLayer
             mesh.SetConductivityDistribution(initialSigma);
 
             // Cache electrode and element information for repeated use.
-            List<FEMElectrode> electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
+            List<FEMElectrode> electrodes = [.. mesh.GetElectrodes().Cast<FEMElectrode>()];
             int electrodeCount = electrodes.Count;
 
             var elements = mesh.GetElements().Cast<FEMElement>().ToList();
@@ -433,7 +433,7 @@ namespace BusinessLayer
 
             var elements = mesh.GetElements().ToList();
 
-            List<ReconstructionFrame> frames = new();
+            List<ReconstructionFrame> frames = [];
 
             for (int iter = 0; iter < maxIterationCount && !_stopRequested; iter++)
             {
@@ -513,14 +513,12 @@ namespace BusinessLayer
                 simulatedMeasurements = SimulateFemMeasurements(measMesh, excitationAmplitude);
             }
             else
-            {
                 simulatedMeasurements = SimulateFemMeasurements(mesh, excitationAmplitude);
-            }
-
+            
             ConductivityDistribution initialConductivityDistribution = _initialSigma ?? ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType);
             mesh.SetConductivityDistribution(initialConductivityDistribution);
 
-            List<FEMElectrode> electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
+            List<FEMElectrode> electrodes = [.. mesh.GetElectrodes().Cast<FEMElectrode>()];
             var bc = new FEMBoundaryCondition(electrodes);
             int electrodeCount = electrodes.Count;
 
@@ -536,10 +534,9 @@ namespace BusinessLayer
             {
                 Debug.WriteLine($"\n=== Inverse iteration {iter} ===");
 
-                Dictionary<int, double> totalGrad = new();
+                Dictionary<int, double> totalGrad = [];
                 for (int i = 0; i < elementCount; i++)
                     totalGrad.Add(i, 0.0);
-
 
                 // Iterate around with the excitation electrodes
                 for (int exc = 0; exc < electrodeCount; exc++)
@@ -878,7 +875,7 @@ namespace BusinessLayer
             ConductivityDistribution sigma = ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType);
             mesh.SetConductivityDistribution(sigma);
 
-            List<FEMElectrode> electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
+            List<FEMElectrode> electrodes = [.. mesh.GetElectrodes().Cast<FEMElectrode>()];
             var bc = new FEMBoundaryCondition(electrodes);
             int electrodeCount = electrodes.Count;
 
@@ -1141,7 +1138,7 @@ namespace BusinessLayer
             mesh.SetConductivityDistribution(sigma0);
 
             // Create new boundary conditions that will be fed to the Finite Element Solver
-            List<FEMElectrode> electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
+            List<FEMElectrode> electrodes = [.. mesh.GetElectrodes().Cast<FEMElectrode>()];
             var bc = new FEMBoundaryCondition(electrodes);
             var electrodeCount = electrodes.Count;
 
