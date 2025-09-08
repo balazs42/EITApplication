@@ -227,8 +227,31 @@ namespace ServiceLayer
                     _simulatedMeasurements = _reconstructionPersistence.SimulateFemMeasurements(femMesh, _excitationAmplitude);
                 }
 
-                var measurement = _simulatedMeasurements[_simMeasurementIndex % _simulatedMeasurements.Count];
+                // Select the measurement frame corresponding to the current
+                // excitation pair.  Electrode roles must be reconfigured for
+                // each frame so that the boundary condition reflects the
+                // rotating drive pattern.
+                int electrodeCount = femMesh.GetElectrodes().Count;
+                int exc = _simMeasurementIndex % electrodeCount;
+                var measurement = _simulatedMeasurements[exc];
+
                 var electrodes = femMesh.GetElectrodes().Cast<FEMElectrode>().ToList();
+
+                // Reset electrode state before assigning the new excitation
+                // pattern.
+                foreach (var el in electrodes)
+                {
+                    el.Current = 0.0;
+                    el.IsExcitation = false;
+                    el.IsGround = false;
+                    el.Potential = 0.0;
+                }
+
+                electrodes[exc].IsExcitation = true;
+                electrodes[exc].Current = _excitationAmplitude;
+                electrodes[(exc + 1) % electrodeCount].IsGround = true;
+                electrodes[(exc + 1) % electrodeCount].Current = -_excitationAmplitude;
+
                 var bc = new FEMBoundaryCondition(electrodes);
 
                 var frame = _reconstructionPersistence.Step(measurement, bc, _stepSize, _regularizationWeight);
@@ -357,10 +380,28 @@ namespace ServiceLayer
                         _simulatedMeasurements = _reconstructionPersistence.SimulateFemMeasurements(femMesh, _excitationAmplitude);
 
                     var electrodes = femMesh.GetElectrodes().Cast<FEMElectrode>().ToList();
-                    var bc = new FEMBoundaryCondition(electrodes);
+                    int electrodeCount = electrodes.Count;
 
-                    foreach (var measurement in _simulatedMeasurements)
+                    for (int i = 0; i < _simulatedMeasurements.Count; i++)
                     {
+                        // Reset electrode roles before configuring the current
+                        // excitation/measurement pair.
+                        foreach (var el in electrodes)
+                        {
+                            el.Current = 0.0;
+                            el.IsExcitation = false;
+                            el.IsGround = false;
+                            el.Potential = 0.0;
+                        }
+
+                        electrodes[i % electrodeCount].IsExcitation = true;
+                        electrodes[i % electrodeCount].Current = _excitationAmplitude;
+                        electrodes[(i + 1) % electrodeCount].IsGround = true;
+                        electrodes[(i + 1) % electrodeCount].Current = -_excitationAmplitude;
+
+                        var bc = new FEMBoundaryCondition(electrodes);
+                        var measurement = _simulatedMeasurements[i];
+
                         var frame = _reconstructionPersistence.Step(measurement, bc, _stepSize, _regularizationWeight);
                         Workspace.AddReconstructionFrameToWorkspace(frame);
                         _currentCycleFrames.Add(frame);
