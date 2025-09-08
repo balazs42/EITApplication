@@ -15,7 +15,7 @@ namespace Utility.Classes.Measurement
 
         public void InitLBM(List<LBMElectrode> electrodes)
         {
-            SetElectrodes(electrodes.Cast<LBMElectrode>().ToList());
+            SetElectrodes([.. electrodes.Cast<LBMElectrode>()]);
             NumElectrodes = _electrodes.Count;
 
             var groundElectrode = _electrodes.Find(x => x.IsGround);
@@ -39,7 +39,7 @@ namespace Utility.Classes.Measurement
 
         public override void Initialize(IEnumerable<Electrode> electrodes)
         {
-            SetElectrodes(electrodes.Cast<LBMElectrode>().ToList());
+            SetElectrodes([.. electrodes.Cast<LBMElectrode>()]);
         }
     }
 }

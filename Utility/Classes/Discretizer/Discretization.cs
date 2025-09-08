@@ -21,7 +21,6 @@ namespace Utility.Classes.Discretizer
         IReadOnlyList<DiscretizationElement> GetElements();
         double[] GetElectrodePotentials();
 
-
         Discretization DeepCopy();
 
         DiscretizationMetaData Metadata { get; set; }
@@ -76,12 +75,12 @@ namespace Utility.Classes.Discretizer
         public IReadOnlyList<TElectrode> ElectrodesTyped => _electrodes;
 
         public sealed override IReadOnlyList<DiscretizationElement> GetElements()
-            => _elements.Cast<DiscretizationElement>().ToList();
+            => [.. _elements.Cast<DiscretizationElement>()];
         public sealed override IReadOnlyList<Electrode> GetElectrodes()
-            => _electrodes.Cast<Electrode>().ToList();
+            => [.. _electrodes.Cast<Electrode>()];
 
         public sealed override double[] GetElectrodePotentials()
-            => _electrodes.Select(ReadPotentialOf).ToArray();
+            => [.. _electrodes.Select(ReadPotentialOf)];
 
         public sealed override void SetConductivityDistribution(ConductivityDistribution cd)
         {

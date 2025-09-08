@@ -294,7 +294,11 @@ namespace ServiceLayer
 
                 if (_simMeasurementIndex % _framesPerCycle == 0)
                 {
-                    var result = new ReconstructionResult(_discretization!.GetDiscretization(), _originalSigma!, _initialSigma!, _discretization!.GetConductivityDistribution(), _currentCycleFrames.ToList());
+                    var result = new ReconstructionResult(_discretization!.GetDiscretization(),
+                                                          _originalSigma!,
+                                                          _initialSigma!,
+                                                          _discretization!.GetConductivityDistribution(),
+                                                          [.. _currentCycleFrames]);
                     Workspace.AddReconstructionResultToWorkspace(result);
                     ReconstructionUpdated?.Invoke(this, result);
                     _currentCycleFrames.Clear();
@@ -334,7 +338,11 @@ namespace ServiceLayer
 
                 if (_simMeasurementIndex % _framesPerCycle == 0)
                 {
-                    var result = new ReconstructionResult(_discretization!.GetDiscretization(), _originalSigma!, _initialSigma!, _discretization!.GetConductivityDistribution(), _currentCycleFrames.ToList());
+                    var result = new ReconstructionResult(_discretization!.GetDiscretization(),
+                                                          _originalSigma!,
+                                                          _initialSigma!, 
+                                                          _discretization!.GetConductivityDistribution(),
+                                                          [.. _currentCycleFrames]);
                     Workspace.AddReconstructionResultToWorkspace(result);
                     ReconstructionUpdated?.Invoke(this, result);
                     _currentCycleFrames.Clear();
@@ -455,7 +463,11 @@ namespace ServiceLayer
                     _initialSigma = newSigma;
                     _reconstructionPersistence.SetConductivityDistributions(_originalSigma!, _initialSigma!);
 
-                    var result = new ReconstructionResult(_discretization!.GetDiscretization(), _originalSigma!, prevSigma, newSigma, _currentCycleFrames.ToList());
+                    var result = new ReconstructionResult(_discretization!.GetDiscretization(),
+                                                          _originalSigma!,
+                                                          prevSigma, 
+                                                          newSigma, 
+                                                          [.. _currentCycleFrames]);
                     Workspace.AddReconstructionResultToWorkspace(result);
                     ReconstructionUpdated?.Invoke(this, result);
                     _currentCycleFrames.Clear();
@@ -494,7 +506,11 @@ namespace ServiceLayer
                     _initialSigma = newSigma;
                     _reconstructionPersistence.SetConductivityDistributions(_originalSigma!, _initialSigma!);
 
-                    var result = new ReconstructionResult(_discretization!.GetDiscretization(), _originalSigma!, prevSigma, newSigma, _currentCycleFrames.ToList());
+                    var result = new ReconstructionResult(_discretization!.GetDiscretization(), 
+                                                          _originalSigma!,
+                                                          prevSigma, 
+                                                          newSigma, 
+                                                          [.. _currentCycleFrames]);
                     Workspace.AddReconstructionResultToWorkspace(result);
                     ReconstructionUpdated?.Invoke(this, result);
                     _currentCycleFrames.Clear();
@@ -597,7 +613,7 @@ namespace ServiceLayer
             {
                 var frames = _reconstructionPersistence.LoadReconstruction(filePath);
                 Workspace.SetReconstructionResults(frames);
-                Workspace.SetReconstructionFrames(frames.SelectMany(r => r.Frames).ToList());
+                Workspace.SetReconstructionFrames([.. frames.SelectMany(r => r.Frames)]);
                 return frames;
             }
             catch (Exception ex)

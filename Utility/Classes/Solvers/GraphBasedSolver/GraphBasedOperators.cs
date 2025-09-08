@@ -62,13 +62,14 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
                                  .Where(t => t.v.BoundaryId != 0)
                                  .Select(t => t.i)
                                  .ToList();
-            if (boundary.Count == 0) boundary = Enumerable.Range(0, _graph.Vertices.Count).ToList();
+            if (boundary.Count == 0) boundary = [.. Enumerable.Range(0, _graph.Vertices.Count)];
 
             (double x, double y) VPos(int id)
             {
                 var v = mesh.Vertices.FirstOrDefault(p => p.GlobalId == id) ?? mesh.Vertices[id];
                 return (v.X, v.Y);
             }
+
             int Nearest((double x, double y) p)
             {
                 double best = double.MaxValue; int bestIdx = 0;
@@ -92,7 +93,7 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
                 else
                     set.Add(Nearest(VPos(e.MeshId)));
 
-                map[ell] = set.ToList();
+                map[ell] = [.. set];
             }
             return map;
         }

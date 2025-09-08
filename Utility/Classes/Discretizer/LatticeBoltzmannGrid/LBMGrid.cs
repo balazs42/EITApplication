@@ -160,13 +160,11 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                 }
             }
 
-            boundary = boundary
-                .OrderBy(el =>
+            boundary = [.. boundary.OrderBy(el =>
                 {
                     var (bx, by) = ToLattice(el.Id);
                     return Math.Atan2(by - cy, bx - cx);
-                })
-                .ToList();
+                })];
 
             int count = boundary.Count;
             double step = count / (double)numElectrodes;
@@ -272,7 +270,7 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                           .ToDictionary(el => el.Id, el => el.Fi.Sum());
             copy.SetPotentialDistribution(new PotentialDistribution(pd));
 
-            copy.SetElements(copy.ElementsTyped.ToList());
+            copy.SetElements([.. copy.ElementsTyped]);
 
             return copy;
         }
