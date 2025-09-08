@@ -17,6 +17,7 @@ namespace Utility.Classes.Application
         private static List<ReconstructionResult> _reconstructionResults = [];
         private static List<ReconstructionFrame> _reconstructionFrames = [];
         private static List<WorkspaceMessage> _messages = [];
+        private static ConductivityDistribution? _originalConductivityDistribution = null;
         public static event Action<WorkspaceMessage>? MessageAdded;
 
         private static bool _initialized = false; 
@@ -43,12 +44,14 @@ namespace Utility.Classes.Application
         public static void SetMesh(IMesh? mesh) => _mesh = mesh;
         public static void SetReconstructionResults(List<ReconstructionResult> results) => _reconstructionResults = results;
         public static void SetReconstructionFrames(List<ReconstructionFrame> frames) => _reconstructionFrames = frames;
+        public static void SetOriginalConductivityDistribution(ConductivityDistribution? sigma) => _originalConductivityDistribution = sigma;
 
         public static User GetUser() => _user;
         public static EITReconstructionParameters GetReconstructionParameters() => _reconstructionParameters;
         public static IMesh? GetMesh() => _mesh;
         public static List<ReconstructionResult> GetReconstructionResults() => _reconstructionResults;
         public static List<ReconstructionFrame> GetReconstructionFrames() => _reconstructionFrames;
+        public static ConductivityDistribution? GetOriginalConductivityDistribution() => _originalConductivityDistribution;
 
         public static int MaxIterationCount
         {

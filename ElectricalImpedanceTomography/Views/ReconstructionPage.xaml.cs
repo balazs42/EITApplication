@@ -429,12 +429,12 @@ public partial class ReconstructionPage : ContentPage
         var mesh = GetMesh();
         if (mesh is FEMMesh fem)
         {
-            var cd = _currentResult?.OriginalConductivityDistribution ?? fem.GetConductivityDistribution();
+            var cd = _currentResult?.OriginalConductivityDistribution ?? Workspace.GetOriginalConductivityDistribution() ?? fem.GetConductivityDistribution();
             DrawFemConductivity(e, fem, cd, _hoverOriginalLines, _hoverOriginalPt);
         }
         else if (mesh is LBMMesh lbm)
         {
-            var cd = _currentResult?.OriginalConductivityDistribution ?? lbm.GetConductivityDistribution();
+            var cd = _currentResult?.OriginalConductivityDistribution ?? Workspace.GetOriginalConductivityDistribution() ?? lbm.GetConductivityDistribution();
             DrawLbmField(e, lbm, cd.Conductivities, false, _hoverOriginalLines, _hoverOriginalPt);
         }
     }
@@ -495,7 +495,7 @@ public partial class ReconstructionPage : ContentPage
         var mesh = GetMesh();
         if (mesh is FEMMesh fem)
         {
-            var cd = _currentResult?.OriginalConductivityDistribution ?? fem.GetConductivityDistribution();
+            var cd = _currentResult?.OriginalConductivityDistribution ?? Workspace.GetOriginalConductivityDistribution() ?? fem.GetConductivityDistribution();
             double min = cd.Conductivities.Values.Min();
             double max = cd.Conductivities.Values.Max();
             if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
@@ -503,7 +503,7 @@ public partial class ReconstructionPage : ContentPage
         }
         else if (mesh is LBMMesh lbm)
         {
-            var cd = _currentResult?.OriginalConductivityDistribution ?? lbm.GetConductivityDistribution();
+            var cd = _currentResult?.OriginalConductivityDistribution ?? Workspace.GetOriginalConductivityDistribution() ?? lbm.GetConductivityDistribution();
             double min = cd.Conductivities.Values.Min();
             double max = cd.Conductivities.Values.Max();
             if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
@@ -608,7 +608,7 @@ public partial class ReconstructionPage : ContentPage
             }
             ComputeFemTransform(fem, new SKImageInfo((int)view.CanvasSize.Width, (int)view.CanvasSize.Height));
             _hoverOriginalLines = null; _hoverOriginalPt = null;
-            var cd = (_currentResult?.OriginalConductivityDistribution ?? fem.GetConductivityDistribution());
+            var cd = (_currentResult?.OriginalConductivityDistribution ?? Workspace.GetOriginalConductivityDistribution() ?? fem.GetConductivityDistribution());
             foreach (var elem in fem.GetElements().Cast<FEMElement>())
             {
                 var c0 = ToCanvas(elem.Vertices[0]);
@@ -633,7 +633,7 @@ public partial class ReconstructionPage : ContentPage
             if (e.ActionType == SKTouchAction.Released)
             { _hoverOriginalLines = null; _hoverOriginalPt = null; view.InvalidateSurface(); e.Handled = true; return; }
             var el = lbm.GetElementAt(col, row);
-            var cd = (_currentResult?.OriginalConductivityDistribution ?? lbm.GetConductivityDistribution());
+            var cd = (_currentResult?.OriginalConductivityDistribution ?? Workspace.GetOriginalConductivityDistribution() ?? lbm.GetConductivityDistribution());
             double val = cd.Conductivities[el.Id];
             _hoverOriginalLines = new[] { $"ID: {el.Id}", $"σ: {val:F3}" };
             _hoverOriginalPt = e.Location;
