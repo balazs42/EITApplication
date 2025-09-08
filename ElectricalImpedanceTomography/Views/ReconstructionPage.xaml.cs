@@ -1004,8 +1004,8 @@ public partial class ReconstructionPage : ContentPage
     private async void OnEditBoundaryConditionsClicked(object sender, EventArgs e)
     {
         await AnimateButtonAsync(sender);
-        var mesh = GetDiscretization();
-        if (mesh is FEMMesh fem)
+        var discretization = GetDiscretization();
+        if (discretization is FEMMesh fem)
         {
             var bc = new FEMBoundaryCondition([.. fem.GetElectrodes().Cast<FEMElectrode>()]);
             var popup = new BoundaryConditionsPopup(bc);
@@ -1016,7 +1016,7 @@ public partial class ReconstructionPage : ContentPage
                 InvalidateAll();
             }
         }
-        else if (mesh is LBMGrid lbm)
+        else if (discretization is LBMGrid lbm)
         {
             var bc = new LBMBoundaryCondition([.. lbm.GetElectrodes().Cast<LBMElectrode>()]);
             var popup = new BoundaryConditionsPopup(bc);
