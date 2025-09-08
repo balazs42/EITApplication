@@ -111,6 +111,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 : _daqService.LoadLBMMesh(filePath);
 
             Workspace.SetMesh(_currentMesh);
+            Workspace.SetOriginalMesh(_currentMesh.DeepCopy());
         }
 
         public void LoadMeshFromWorkspace()
@@ -119,7 +120,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             if (mesh == null)
                 return;
             _currentMesh = mesh;
-            selectedMeshType = mesh is FEMMesh ? MeshType.FEM : MeshType.LBM;
+            SelectedMeshType = mesh is FEMMesh ? MeshType.FEM : MeshType.LBM;
             OnPropertyChanged(nameof(SelectedMeshType));
             OnPropertyChanged(nameof(IsFEM));
             OnPropertyChanged(nameof(IsLBM));
@@ -142,7 +143,10 @@ namespace ElectricalImpedanceTomography.ViewModels
             if (_currentMesh != null)
                 _redoStack.Push(_currentMesh.DeepCopy());
             _currentMesh = _undoStack.Pop();
+
             Workspace.SetMesh(_currentMesh);
+            Workspace.SetOriginalMesh(_currentMesh.DeepCopy());
+
             MeshChanged?.Invoke();
         }
 
@@ -154,7 +158,10 @@ namespace ElectricalImpedanceTomography.ViewModels
             if (_currentMesh != null)
                 _undoStack.Push(_currentMesh.DeepCopy());
             _currentMesh = _redoStack.Pop();
+
             Workspace.SetMesh(_currentMesh);
+            Workspace.SetOriginalMesh(_currentMesh.DeepCopy());
+
             MeshChanged?.Invoke();
         }
 
@@ -165,6 +172,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             _currentMesh = SelectedMeshType == MeshType.FEM ? GenerateFEMMesh() : GenerateLBMMesh();
 
             Workspace.SetMesh(_currentMesh);
+            Workspace.SetOriginalMesh(_currentMesh.DeepCopy());
 
             if (_currentMesh != null)
             {
@@ -276,7 +284,10 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             _currentMesh = null;
             _customPerimeter = null;
+
             Workspace.SetMesh(null);
+            Workspace.SetOriginalMesh(null);
+
             MeshChanged?.Invoke();
         }
 
@@ -302,7 +313,10 @@ namespace ElectricalImpedanceTomography.ViewModels
             {
                 _currentMesh = null;
                 _customPerimeter = null;
+
                 Workspace.SetMesh(null);
+                Workspace.SetOriginalMesh(null);
+                
                 MeshChanged?.Invoke();
             }
             else
@@ -339,6 +353,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             _currentMesh.Metadata.Parameters["electrodeCount"] = value.ToString();
             Workspace.SetMesh(_currentMesh);
+            Workspace.SetOriginalMesh(_currentMesh.DeepCopy());
             MeshChanged?.Invoke();
         }
 
