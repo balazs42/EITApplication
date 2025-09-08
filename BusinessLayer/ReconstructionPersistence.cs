@@ -820,15 +820,15 @@ namespace BusinessLayer
             if (_differentialEquationSolver == null)
                 throw new NullReferenceException("Differential equation solver was null, check initializiation code!");
 
-            var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
+            LBMMesh deepCopy = (LBMMesh)mesh.DeepCopy();
+            var electrodes = deepCopy.GetElectrodes().Cast<LBMElectrode>().ToList();
             int electrodeCount = electrodes.Count;
 
             double[,] measurementFrames = new double[electrodeCount, electrodeCount];
 
-            for(int i = 0; i < electrodeCount; i++)
+            for (int i = 0; i < electrodeCount; i++)
             {
-                // Set the excitation electrodes
-                foreach(var el in electrodes)
+                foreach (var el in electrodes)
                 {
                     el.IsMeasuring = false;
                     el.IsGround = false;
@@ -838,18 +838,15 @@ namespace BusinessLayer
                 }
 
                 electrodes[i % electrodeCount].IsExcitation = true;
-                electrodes[i % electrodeCount].Current = 2.0;
+                electrodes[i % electrodeCount].Current = exciationAmplitude;
                 electrodes[(i + 1) % electrodeCount].IsGround = true;
-                electrodes[(i + 1) % electrodeCount].Current = 0.0;
+                electrodes[(i + 1) % electrodeCount].Current = -exciationAmplitude;
 
-                // Create boundary conditions for the solver
                 LBMBoundaryCondition boundaryCondition = new LBMBoundaryCondition(electrodes);
 
-                // Solve for the arising potentials
-                _ = _differentialEquationSolver.Solve(mesh, boundaryCondition, null);
-                
-                // Extract simulated potentials
-                double[] electrodePotentials = mesh.GetElectrodePotentials();
+                _ = _differentialEquationSolver.Solve(deepCopy, boundaryCondition, null);
+
+                double[] electrodePotentials = deepCopy.GetElectrodePotentials();
 
                 for (int j = 0; j < electrodeCount; j++)
                     measurementFrames[i, j] = electrodePotentials[j];
