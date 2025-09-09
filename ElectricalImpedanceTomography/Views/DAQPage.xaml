@@ -38,7 +38,7 @@
 
     </ContentPage.Resources>
     <Grid RowDefinitions="Auto, *, Auto">
-        <controls:NavBarControl Grid.Row="0" CurrentPageName="DAQPage"/>
+        <controls:NavBarControl x:Name="NavBar" Grid.Row="0" CurrentPageName="DAQPage"/>
 
         <CollectionView Grid.Row="1" ItemsSource="{Binding PlotModels}" SelectionMode="None">
             <CollectionView.ItemsLayout>

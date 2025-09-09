@@ -118,9 +118,10 @@ public partial class NavBarControl : ContentView
             return;
         }
 
+        var current = CurrentPageName;
+
         // Animate old/new button states
-        await AnimateButtonChangeAsync(CurrentPageName, targetPage);
-        CurrentPageName = targetPage;
+        await AnimateButtonChangeAsync(current, targetPage);
 
         try
         {
@@ -137,6 +138,49 @@ public partial class NavBarControl : ContentView
             System.Diagnostics.Debug.WriteLine(errorMessage);
             Workspace.AddErrorMessage(errorMessage);
         }
+        finally
+        {
+            // Restore the button state for this page so it remains correct when revisited
+            SetButtonStates(current);
+        }
+    }
+
+    // Performs the unstuck and stuck animations between pages
+    private async Task AnimateButtonChangeAsync(string? oldPage, string? newPage)
+    {
+        var oldBtn = GetButtonForPage(oldPage);
+        var newBtn = GetButtonForPage(newPage);
+
+        if (oldBtn != null)
+        {
+            await oldBtn.ScaleTo(1.0, 50);
+            oldBtn.BackgroundColor = Color.FromRgb(0x55, 0x55, 0x55);
+        }
+
+        if (newBtn != null)
+        {
+            await newBtn.ScaleTo(0.95, 50);
+            newBtn.BackgroundColor = Color.FromRgb(0x44, 0x44, 0x44);
+        }
+    }
+
+    // Resets the CurrentPageName to the page this control is hosted in
+    public void RefreshCurrentPage()
+    {
+        var pageName = GetParentPage()?.GetType().Name;
+        if (!string.IsNullOrEmpty(pageName))
+        {
+            CurrentPageName = pageName;
+            SetButtonStates(pageName);
+        }
+    }
+
+    private Page? GetParentPage()
+    {
+        Element? parent = Parent;
+        while (parent != null && parent is not Page)
+            parent = parent.Parent;
+        return parent as Page;
     }
 
     // Performs the unstuck and stuck animations between pages

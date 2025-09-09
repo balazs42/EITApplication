@@ -49,7 +49,7 @@
         </Style>
     </ContentPage.Resources>
     <Grid RowDefinitions="Auto, Auto">
-        <controls:NavBarControl Grid.Row="0" Grid.ColumnSpan="1" CurrentPageName="ReconstructionPage"/>
+        <controls:NavBarControl x:Name="NavBar" Grid.Row="0" Grid.ColumnSpan="1" CurrentPageName="ReconstructionPage"/>
 
         <!-- Main Grid For Page display -->
         <Grid Grid.Row="1" ColumnDefinitions="Auto, *, Auto" ColumnSpacing="10">

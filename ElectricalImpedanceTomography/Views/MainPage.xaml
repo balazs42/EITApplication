@@ -24,7 +24,7 @@
     </ContentPage.Resources>
 
     <Grid RowDefinitions="Auto, Auto">
-        <controls:NavBarControl Grid.Row="0" CurrentPageName="MainPage"/>
+        <controls:NavBarControl x:Name="NavBar" Grid.Row="0" CurrentPageName="MainPage"/>
 
         <Grid Grid.Row="1" ColumnDefinitions="400, *, *" RowSpacing="5" ColumnSpacing="5">
 
