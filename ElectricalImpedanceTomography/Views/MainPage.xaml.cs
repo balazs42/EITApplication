@@ -173,5 +173,19 @@ namespace ElectricalImpedanceTomography.Views
                 await ConsoleScroll.ScrollToAsync(0, ConsoleStack.Height, false);
             });
         }
+
+        private async void OnNavigationMenuTapped(object sender, TappedEventArgs e)
+        {
+            if (sender is VisualElement v)
+            {
+                await v.ScaleTo(0.95, 50);
+                await v.ScaleTo(1.0, 50);
+            }
+
+            if (e.Parameter is string page)
+            {
+                _viewModel.NavigateCommand.Execute(page);
+            }
+        }
     }
 }
