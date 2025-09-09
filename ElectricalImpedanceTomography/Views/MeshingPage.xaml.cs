@@ -29,8 +29,8 @@ public partial class MeshingPage : ContentPage
     private float _scale, _marginX, _marginY, _minX, _minY, _meshWidth, _meshHeight;
 
     // drawing state for custom FEM meshes
-    private readonly List<SKPoint> _outlinePoints = new();
-    private readonly HashSet<int> _selectedCells = new();
+    private readonly List<SKPoint> _outlinePoints = [];
+    private readonly HashSet<int> _selectedCells = [];
     private bool _isDrawing;
     private bool _outlineClosed;
 

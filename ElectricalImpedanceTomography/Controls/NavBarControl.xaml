@@ -48,13 +48,13 @@
         <HorizontalStackLayout Spacing="50" HorizontalOptions="Center">
 
             <Border x:Name="MainPageButton"
-                    StrokeShape="RoundRectangle 20"
+                    StrokeShape="RoundRectangle 30"
                     Stroke="Transparent"
                     BackgroundColor="#555555"
                     Margin="5"
                     Padding="5">
                 <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5">
-                    <Image Grid.Column="0" Source="icon_home.png" HeightRequest="30" Margin="3"/>
+                    <Image Grid.Column="0" Source="icon_home.png" HeightRequest="30" Margin="5,0,0,0"/>
                     <Label Grid.Column="1" 
                            Text="Home" 
                            VerticalOptions="Center" 
@@ -74,13 +74,13 @@
             </Border>
 
             <Border x:Name="DAQPageButton"
-                    StrokeShape="RoundRectangle 20"
+                    StrokeShape="RoundRectangle 30"
                     Stroke="Transparent"
                     Margin="5"
                     Padding="5"
                     BackgroundColor="#555555">
                 <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5">
-                    <Image Grid.Column="0" Source="icon_hardware.png" HeightRequest="30"/>
+                    <Image Grid.Column="0" Source="icon_hardware.png" HeightRequest="30" Margin="5,0,0,0"/>
                     <Label Grid.Column="1" 
                            Text="Hardware" 
                            VerticalOptions="Center" 
@@ -100,13 +100,13 @@
             </Border>
 
             <Border x:Name="MeshingPageButton"
-                    StrokeShape="RoundRectangle 20"
+                    StrokeShape="RoundRectangle 30"
                     Stroke="Transparent"
                     BackgroundColor="#555555"
                     Margin="5"
                     Padding="5">
                 <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5">
-                    <Image Grid.Column="0" Source="icon_mesh2.png" HeightRequest="30"/>
+                    <Image Grid.Column="0" Source="icon_mesh2.png" HeightRequest="30" Margin="5,0,0,0"/>
                     <Label Grid.Column="1" 
                            Text="Meshing" 
                            VerticalOptions="Center" 
@@ -126,13 +126,13 @@
             </Border>
 
             <Border x:Name="ReconstructionPageButton"
-                    StrokeShape="RoundRectangle 20"
+                    StrokeShape="RoundRectangle 30"
                     Stroke="Transparent"
                     BackgroundColor="#555555"
                     Margin="5"
                     Padding="5">
                 <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5">
-                    <Image Grid.Column="0" Source="icon_reconstruction3.png" HeightRequest="30"/>
+                    <Image Grid.Column="0" Source="icon_reconstruction3.png" HeightRequest="30" Margin="5,0,0,0"/>
                     <Label Grid.Column="1" 
                            Text="Reconstruction" 
                            VerticalOptions="Center" 

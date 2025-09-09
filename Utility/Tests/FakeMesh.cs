@@ -10,12 +10,12 @@ namespace Utility.Tests
         private sealed class FakeElement : DiscretizationElement { }
         private sealed class FakeElectrode : Electrode { }
 
-        private readonly List<Electrode> _electrodes = new();
-        private readonly List<FEMVertex> _vertices = new();
-        private readonly List<DiscretizationElement> _elements = new();
+        private readonly List<Electrode> _electrodes = [];
+        private readonly List<FEMVertex> _vertices = [];
+        private readonly List<DiscretizationElement> _elements = [];
 
-        private ConductivityDistribution _sigma = new(new Dictionary<int, double>());
-        private PotentialDistribution _phi = new(new Dictionary<int, double>());
+        private ConductivityDistribution _sigma = new([]);
+        private PotentialDistribution _phi = new([]);
 
         public DiscretizationMetaData Metadata { get; set; } = new();
 
