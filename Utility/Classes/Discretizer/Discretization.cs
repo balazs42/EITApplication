@@ -126,10 +126,7 @@ namespace Utility.Classes.Discretizer
 
         public void SetConductivity(int id, double value)
         {
-            var el = _elements.Find(x => x.Id == id);
-
-            if (el == null)
-                throw new ArgumentOutOfRangeException("Cannot set conductivity, id not found in elements. Check lists!");
+            var el = _elements.Find(x => x.Id == id) ?? throw new ArgumentOutOfRangeException("Cannot set conductivity, id not found in elements. Check lists!"); ;
 
             el.Conductivity = value;
             ConductivityDistribution.Conductivities[id] = value;
@@ -200,10 +197,10 @@ namespace Utility.Classes.Discretizer
         public override PotentialDistribution PotentialDistribution { get; protected set; } = new([]);
 
         /// <summary>
-        /// Refines the mesh object to a higher resolution one.
+        /// Refines the discretization object to a higher resolution one.
         /// </summary>
         /// <param name="n">Number of leves of refinement.</param>
-        /// <returns>The refined mesh object.</returns>
+        /// <returns>The refined discretization object.</returns>
         public abstract Discretization<TElement, TElectrode> RefineUniform(int n);
         
         /// <summary>
@@ -216,7 +213,7 @@ namespace Utility.Classes.Discretizer
         /// Converst a graph object to a spatial discretization of the domain.
         /// </summary>
         /// <param name="graphToConvert">The graph to convert.</param>
-        /// <returns>A mesh object that resembles the original graph.</returns>
+        /// <returns>A Discretization object that resembles the original graph.</returns>
         public abstract Discretization<TElement, TElectrode> FromGraph(Graph graphToConvert);
     }
 }
