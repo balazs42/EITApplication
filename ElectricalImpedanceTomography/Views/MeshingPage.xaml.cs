@@ -33,6 +33,7 @@ public partial class MeshingPage : ContentPage
     private readonly HashSet<int> _selectedCells = [];
     private bool _isDrawing;
     private bool _outlineClosed;
+    private const float PointEpsilon = 5f;
 
     // dragging state
     private LBMElement? _draggedLbmElectrode;
@@ -240,12 +241,12 @@ public partial class MeshingPage : ContentPage
         _viewModel.AddNoiseToMesh();
     }
 
-    private void OnMeshCanvasTouch(object sender, SKTouchEventArgs e)
+    private async void OnMeshCanvasTouch(object sender, SKTouchEventArgs e)
     {
         var mesh = _viewModel.GetCurrentMesh();
         if (mesh == null)
         {
-            HandlePolygonDrawing(e);
+            await HandlePolygonDrawingAsync(e);
             return;
         }
 
@@ -401,7 +402,7 @@ public partial class MeshingPage : ContentPage
     MeshCanvas.InvalidateSurface();
     }
 
-    private void HandlePolygonDrawing(SKTouchEventArgs e)
+    private async Task HandlePolygonDrawingAsync(SKTouchEventArgs e)
     {
         if (e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed)
         {
@@ -423,7 +424,18 @@ public partial class MeshingPage : ContentPage
                 }
                 else
                 {
-                    _outlinePoints.Add(e.Location);
+                    bool tooClose = _outlinePoints.Any(p =>
+                        (p.X - e.Location.X) * (p.X - e.Location.X) +
+                        (p.Y - e.Location.Y) * (p.Y - e.Location.Y) <= PointEpsilon * PointEpsilon);
+
+                    if (tooClose)
+                    {
+                        await DisplayAlert("Point Too Close", "Point is too close to another point.", "OK");
+                    }
+                    else
+                    {
+                        _outlinePoints.Add(e.Location);
+                    }
                 }
             }
         }
@@ -538,6 +550,12 @@ public partial class MeshingPage : ContentPage
     private async void OnGenerateClicked(object sender, EventArgs e)
     {
         if (sender is VisualElement v) await ShrinkViewAsync(v);
+        if (_outlinePoints.Count > 0 && !_outlineClosed)
+        {
+            await DisplayAlert("Perimeter Not Closed", "Close the perimeter before generating the mesh.", "OK");
+            return;
+        }
+
         if (_outlineClosed && _outlinePoints.Count > 2)
         {
             var outline = _outlinePoints.ToList();
@@ -562,6 +580,7 @@ public partial class MeshingPage : ContentPage
             _outlinePoints.Clear();
             _outlineClosed = false;
         }
+
         _viewModel.GenerateMesh();
         _viewModel.InvokeMeshChanged();
         MeshCanvas.InvalidateSurface();
