@@ -23,7 +23,7 @@ namespace Utility.Classes.Factories
         /// <returns>The homogeneous distribution.</returns>
         public static ConductivityDistribution CreateHomogeneous(IDiscretization discretization, double homogeneousValue = 1.0)
         {
-            ConductivityDistribution homogeneousDistribution = new ConductivityDistribution(discretization.GetConductivityDistribution().Conductivities);
+            ConductivityDistribution homogeneousDistribution = new(discretization.GetConductivityDistribution().Conductivities);
 
             // Reassing conductivity values
             foreach (var kvp in homogeneousDistribution.Conductivities)
@@ -44,7 +44,7 @@ namespace Utility.Classes.Factories
         {
             Random r = new();
 
-            ConductivityDistribution randomDistribution = new ConductivityDistribution(discretization.GetConductivityDistribution().Conductivities);
+            ConductivityDistribution randomDistribution = new(discretization.GetConductivityDistribution().Conductivities);
 
             // Reassing conductivity values
             foreach (var kvp in randomDistribution.Conductivities)
@@ -68,7 +68,7 @@ namespace Utility.Classes.Factories
 
             int elementCount = discretization.GetElements().Count;
 
-            ConductivityDistribution conductivityDistribution = new ConductivityDistribution(discretization.GetConductivityDistribution().Conductivities);
+            ConductivityDistribution conductivityDistribution = new(discretization.GetConductivityDistribution().Conductivities);
 
             foreach (var kvp in conductivityDistribution.Conductivities)
                     conductivityDistribution.Conductivities[kvp.Key] = conductivityDistribution.Conductivities[kvp.Key] * scaling;
@@ -90,7 +90,7 @@ namespace Utility.Classes.Factories
             if (scaling < 0.0 || scaling > 1.0)
                 scaling = 0.5;
 
-            Random r = new Random();
+            Random r = new();
 
             int elementCount = discretization.GetElements().Count;
 
@@ -99,7 +99,7 @@ namespace Utility.Classes.Factories
             if (ratio > 1.0)
                 ratio = 1.0;
 
-            ConductivityDistribution conductivityDistribution = new ConductivityDistribution(discretization.GetConductivityDistribution().Conductivities);
+            ConductivityDistribution conductivityDistribution = new(discretization.GetConductivityDistribution().Conductivities);
 
             // Set randomly elements conductivity to slightly differing values
             foreach (var kvp in conductivityDistribution.Conductivities)
@@ -118,7 +118,7 @@ namespace Utility.Classes.Factories
         /// <returns>The conductivity distribution which is exactly the same as the mesh's distribution.</returns>
         public static ConductivityDistribution FromFEMMesh(FEMMesh mesh)
         {
-            var conductivityDistribution = new Dictionary<int, double>();
+            Dictionary<int, double> conductivityDistribution = [];
 
             var elements = mesh.GetElements();
 
