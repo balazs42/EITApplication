@@ -24,7 +24,7 @@
     </ContentPage.Resources>
 
     <Grid RowDefinitions="Auto, Auto">
-        <controls:NavBarControl Grid.Row="0" CurrentPageName="MainPage"/>
+        <controls:NavBarControl x:Name="NavBar" Grid.Row="0" CurrentPageName="MainPage"/>
 
         <Grid Grid.Row="1" ColumnDefinitions="400, *, *" RowSpacing="5" ColumnSpacing="5">
 
@@ -88,7 +88,7 @@
                                 <Label Grid.Column="1" Text="Hardware" HorizontalOptions="Center" VerticalOptions="Center"/>
                             </Grid>
                             <Border.GestureRecognizers>
-                                <TapGestureRecognizer Command="{Binding NavigateCommand}" CommandParameter="DAQPage"/>
+                                <TapGestureRecognizer Tapped="OnNavigationMenuTapped" CommandParameter="DAQPage"/>
                             </Border.GestureRecognizers>
                         </Border>
 
@@ -98,7 +98,7 @@
                                 <Label Grid.Column="1" Text="Meshing" HorizontalOptions="Center" VerticalOptions="Center"/>
                             </Grid>
                             <Border.GestureRecognizers>
-                                <TapGestureRecognizer Command="{Binding NavigateCommand}" CommandParameter="MeshingPage"/>
+                                <TapGestureRecognizer Tapped="OnNavigationMenuTapped" CommandParameter="MeshingPage"/>
                             </Border.GestureRecognizers>
                         </Border>
 
@@ -108,7 +108,7 @@
                                 <Label Grid.Column="1" Text="Reconstruction" HorizontalOptions="Center" VerticalOptions="Center"/>
                             </Grid>
                             <Border.GestureRecognizers>
-                                <TapGestureRecognizer Command="{Binding NavigateCommand}" CommandParameter="ReconstructionPage"/>
+                                <TapGestureRecognizer Tapped="OnNavigationMenuTapped" CommandParameter="ReconstructionPage"/>
                             </Border.GestureRecognizers>
                         </Border>
                     </VerticalStackLayout>

@@ -7,21 +7,17 @@
     xmlns:views="clr-namespace:ElectricalImpedanceTomography.Views"
     Title="ElectricalImpedanceTomography">
 
-    <ShellContent
-        Title="Home"
-        ContentTemplate="{DataTemplate views:MainPage}"
-        Route="MainPage" />
-    <ShellContent
-        Title="DAQ"
-        ContentTemplate="{DataTemplate views:DAQPage}"
-        Route="DAQPage"/>
-    <ShellContent 
-        Title="Meshgin"
-        ContentTemplate="{DataTemplate views:MeshingPage}"
-        Route="MeshingPage"/>
-    <ShellContent 
-        Title="Reconstruction"
-        ContentTemplate="{DataTemplate views:ReconstructionPage}"
-        Route="ReconstructionPage"/>
+    <ShellContent Title="Home" Route="MainPage">
+        <views:MainPage />
+    </ShellContent>
+    <ShellContent Title="DAQ" Route="DAQPage">
+        <views:DAQPage />
+    </ShellContent>
+    <ShellContent Title="Meshgin" Route="MeshingPage">
+        <views:MeshingPage />
+    </ShellContent>
+    <ShellContent Title="Reconstruction" Route="ReconstructionPage">
+        <views:ReconstructionPage />
+    </ShellContent>
     
 </Shell>

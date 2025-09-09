@@ -1,5 +1,6 @@
 namespace ElectricalImpedanceTomography.Controls;
 
+using Color = Microsoft.Maui.Graphics.Color;
 using Workspace = Utility.Classes.Application.Workspace;
 
 public partial class NavBarControl : ContentView
@@ -23,37 +24,48 @@ public partial class NavBarControl : ContentView
     {
         InitializeComponent();
 
-        // Initial visibility setup based on default value (can be omitted if default is empty)
-        UpdateButtonVisibility(CurrentPageName);
+        // Initialize button states so that the bound page appears pressed
+        SetButtonStates(CurrentPageName);
     }
 
     // Called when the CurrentPageName property changes
     private static void OnCurrentPageNameChanged(BindableObject bindable, object oldValue, object newValue)
     {
-        if (bindable is NavBarControl control && newValue is string pageName)
-            control.UpdateButtonVisibility(pageName);
+        if (bindable is NavBarControl control)
+            control.SetButtonStates(newValue as string);
     }
 
-    // Logic to hide the button corresponding to the current page
-    private void UpdateButtonVisibility(string currentPageName)
+    // Applies the visual state to all buttons and marks the given page as active
+    private void SetButtonStates(string? currentPageName)
     {
-        // Reset all buttons to visible first
-        MainPageButton.IsVisible = true;
-        DAQPageButton.IsVisible = true;
-        MeshingPageButton.IsVisible = true;
-        ReconstructionPageButton.IsVisible = true;
+        ResetButton(MainPageButton);
+        ResetButton(DAQPageButton);
+        ResetButton(MeshingPageButton);
+        ResetButton(ReconstructionPageButton);
 
-        // Hide the button matching the current page name (case-insensitive)
-        if (string.Equals(currentPageName, "MainPage"))
-            MainPageButton.IsVisible = false;
-        else if (string.Equals(currentPageName, "DAQPage"))
-            DAQPageButton.IsVisible = false;
-        else if (string.Equals(currentPageName, "MeshingPage"))
-            MeshingPageButton.IsVisible = false;
-        else if(string.Equals(currentPageName, "ReconstructionPage"))
-            ReconstructionPageButton.IsVisible = false;
-
+        var active = GetButtonForPage(currentPageName);
+        if (active != null)
+        {
+            active.BackgroundColor = Color.FromRgb(0x44, 0x44, 0x44);
+            active.Scale = 0.95;
+        }
     }
+
+    private static void ResetButton(Border btn)
+    {
+        btn.BackgroundColor = Color.FromRgb(0x55, 0x55, 0x55);
+        btn.Scale = 1.0;
+    }
+
+    private Border? GetButtonForPage(string? pageName)
+        => pageName switch
+        {
+            "MainPage" => MainPageButton,
+            "DAQPage" => DAQPageButton,
+            "MeshingPage" => MeshingPageButton,
+            "ReconstructionPage" => ReconstructionPageButton,
+            _ => null
+        };
 
     private async void NavigateButton_Clicked(object sender, EventArgs e)
         => await HandleNavigationAsync(sender as VisualElement);
@@ -66,18 +78,28 @@ public partial class NavBarControl : ContentView
         if (element == null)
             return;
 
-        await element.ScaleTo(0.95, 50);
-        await element.ScaleTo(1.0, 50);
-
+        string targetPage = string.Empty;
         string route = string.Empty;
         if (element == MainPageButton)
+        {
+            targetPage = "MainPage";
             route = "///MainPage";
+        }
         else if (element == DAQPageButton)
+        {
+            targetPage = "DAQPage";
             route = "//DAQPage";
+        }
         else if (element == MeshingPageButton)
+        {
+            targetPage = "MeshingPage";
             route = "//MeshingPage";
+        }
         else if (element == ReconstructionPageButton)
+        {
+            targetPage = "ReconstructionPage";
             route = "//ReconstructionPage";
+        }
 
         if (string.IsNullOrEmpty(route) || Shell.Current == null)
         {
@@ -88,15 +110,18 @@ public partial class NavBarControl : ContentView
             return;
         }
 
-        var currentRoute = Shell.Current.CurrentState?.Location?.OriginalString;
-        if (currentRoute != null && new Uri(currentRoute, UriKind.Absolute).AbsolutePath == new Uri(route.TrimStart('/'), UriKind.RelativeOrAbsolute).ToString())
+        if (targetPage == CurrentPageName)
         {
             string warningMessage = $"Already on page: {route}";
-
             System.Diagnostics.Debug.WriteLine(warningMessage);
             Workspace.AddWarningMessage(warningMessage);
             return;
         }
+
+        var current = CurrentPageName;
+
+        // Animate old/new button states
+        await AnimateButtonChangeAsync(current, targetPage);
 
         try
         {
@@ -113,5 +138,48 @@ public partial class NavBarControl : ContentView
             System.Diagnostics.Debug.WriteLine(errorMessage);
             Workspace.AddErrorMessage(errorMessage);
         }
+        finally
+        {
+            // Restore the button state for this page so it remains correct when revisited
+            SetButtonStates(current);
+        }
+    }
+
+    // Performs the unstuck and stuck animations between pages
+    private async Task AnimateButtonChangeAsync(string? oldPage, string? newPage)
+    {
+        var oldBtn = GetButtonForPage(oldPage);
+        var newBtn = GetButtonForPage(newPage);
+
+        if (oldBtn != null)
+        {
+            await oldBtn.ScaleTo(1.0, 50);
+            oldBtn.BackgroundColor = Color.FromRgb(0x55, 0x55, 0x55);
+        }
+
+        if (newBtn != null)
+        {
+            await newBtn.ScaleTo(0.95, 50);
+            newBtn.BackgroundColor = Color.FromRgb(0x44, 0x44, 0x44);
+        }
+    }
+
+    // Resets the CurrentPageName to the page this control is hosted in
+    public void RefreshCurrentPage()
+    {
+        var pageName = GetParentPage()?.GetType().Name;
+        if (!string.IsNullOrEmpty(pageName))
+        {
+            CurrentPageName = pageName;
+            SetButtonStates(pageName);
+        }
+    }
+
+    private Page? GetParentPage()
+    {
+        Element? parent = Parent;
+        while (parent != null && parent is not Page)
+            parent = parent.Parent;
+        return parent as Page;
     }
 }
