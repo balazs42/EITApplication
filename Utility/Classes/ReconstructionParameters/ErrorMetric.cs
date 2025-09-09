@@ -132,8 +132,8 @@ namespace Utility.Classes.ReconstructionParameters
             else
                 throw new ArgumentException("Wasserstein-2 currently implemented for LBMGrid or FEMMesh because it needs electrode coordinates.");
 
-            var (a, aLoc, aIndexMap) = BuildDistribution(simulated, all, coord); // source: simulated
-            var (b, bLoc, _) = BuildDistribution(measured, all, coord); // target: measured
+            var (a, aLoc, aIndexMap, aNorm) = BuildDistribution(simulated, all, coord); // source: simulated
+            var (b, bLoc, _, _) = BuildDistribution(measured, all, coord); // target: measured
 
             // If nothing valid (e.g., all NaN), return zero
             if (a.Length == 0 || b.Length == 0)
@@ -187,55 +187,52 @@ namespace Utility.Classes.ReconstructionParameters
 
             double optimal = obj.Value();
 
-            // Kantorovich potential φ ≡ u on the (simulated) support; map back to all electrodes length
+            // Kantorovich potential φ ≡ u on the (simulated) support. Account for normalization a = raw / aNorm
             var phiFull = new double[all.Count]; // default 0 where simulated was NaN or not measuring
-            foreach (var (iSrc, iElectrode) in aIndexMap)
-                phiFull[iElectrode] = u[iSrc].SolutionValue();
-
+            if (aNorm > 0.0)
+            {
+                double phiDotA = 0.0;
+                for (int i = 0; i < m; i++) phiDotA += u[i].SolutionValue() * a[i];
+                foreach (var (iSrc, iElectrode) in aIndexMap)
+                    phiFull[iElectrode] = (u[iSrc].SolutionValue() - phiDotA) / aNorm;
+            }
+            
             return new OptimalTransportResult(measured, simulated, optimal, phiFull);
         }
 
-        private static (double[] mass, List<(double x, double y)> loc, List<(int srcIdx, int electrodeIdx)> indexMap)
+        private static (double[] mass, List<(double x, double y)> loc, List<(int srcIdx, int electrodeIdx)> indexMap, double norm)
             BuildDistribution(double[] raw, List<Electrode> electrodes, Func<Electrode, (double x, double y)> getCoord)
         {
             var vals = new List<double>();
             var coords = new List<(double x, double y)>();
             var map = new List<(int, int)>();
-
-            double minVal = double.PositiveInfinity;
             for (int i = 0; i < raw.Length; i++)
             {
                 var e = electrodes[i];
                 if (!e.IsMeasuring) continue;
                 double v = raw[i];
                 if (double.IsNaN(v)) continue;
-
-                minVal = Math.Min(minVal, v);
+                if (v < 0.0) v = 0.0; // clamp to nonnegative
                 vals.Add(v);
                 coords.Add(getCoord(e));
                 map.Add((vals.Count - 1, i)); // (index in 'vals', electrode index)
             }
 
-            // Shift to nonnegative, then normalize to probability
             if (vals.Count == 0)
-                return (Array.Empty<double>(), new List<(double, double)>(), new List<(int, int)>());
-
-            if (minVal < 0.0)
-                for (int k = 0; k < vals.Count; k++) vals[k] -= minVal;
+                return (Array.Empty<double>(), new List<(double, double)>(), new List<(int, int)>(), 0.0);
 
             double sum = vals.Sum();
             if (sum <= 0.0)
             {
-                // fallback: uniform over valid measuring electrodes
+                // fallback: uniform over valid measuring electrodes; no gradient w.r.t raw
                 double p = 1.0 / vals.Count;
                 for (int k = 0; k < vals.Count; k++) vals[k] = p;
-            }
-            else
-            {
-                for (int k = 0; k < vals.Count; k++) vals[k] /= sum;
+                return (vals.ToArray(), coords, map, 0.0);
             }
 
-            return (vals.ToArray(), coords, map);
+            for (int k = 0; k < vals.Count; k++) vals[k] /= sum;
+
+            return (vals.ToArray(), coords, map, sum);
         }
 
         private static (double x, double y) ToXY(LBMGrid mesh, int gridId)
