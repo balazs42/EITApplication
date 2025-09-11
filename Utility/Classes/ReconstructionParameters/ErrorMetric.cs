@@ -238,12 +238,26 @@ namespace Utility.Classes.ReconstructionParameters
             var vals = new List<double>();
             var coords = new List<(double, double)>();
             var map = new List<(int, int)>();
+
+            // Some calling code does not flag measuring electrodes.  If no
+            // electrode has IsMeasuring=true, treat every electrode as
+            // measuring to avoid returning an empty distribution, which would
+            // yield zero cost and gradient.
+            bool anyMeasuring = electrodes.Any(e => e.IsMeasuring);
+
+
+
             for (int i = 0; i < raw.Length; i++)
             {
                 var e = electrodes[i];
-                if (!e.IsMeasuring) continue;
+                
+                if (anyMeasuring && !e.IsMeasuring) 
+                    continue;
+
                 double v = raw[i];
-                if (double.IsNaN(v)) continue;
+                if (double.IsNaN(v)) 
+                    continue;
+                
                 vals.Add(v);
                 coords.Add(getCoord(e));
                 map.Add((vals.Count - 1, i));
