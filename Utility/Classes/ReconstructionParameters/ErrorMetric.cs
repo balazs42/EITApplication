@@ -1,4 +1,7 @@
-﻿using Google.OrTools.LinearSolver;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using Google.OrTools.LinearSolver;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Discretizer.FiniteElementMesh;
@@ -81,130 +84,159 @@ namespace Utility.Classes.ReconstructionParameters
     }
 
     /// <summary>
-    /// W₂²(μ,ν) via the Kantorovich dual:
-    ///   maximize  ⟨u, a⟩ + ⟨v, b⟩   subject to  u_i + v_j ≤ c_{ij}
-    /// where a,b are probability masses over simulated/measured electrodes (NaNs & non-measuring filtered),
-    /// and c_{ij} = ||x_i - y_j||² built from LBMGrid lattice coordinates.
-    /// The adjoint source equals the (discretized) Kantorovich potential φ ≡ u, mapped back to all electrodes.
+    /// Implements the Wasserstein-2 misfit using the discrete optimal transport
+    /// problem on electrode measurements.  We solve the primal LP
+    ///   min_P  Σ₍ᵢⱼ₎ Pᵢⱼ Cᵢⱼ
+    /// subject to row/column sums matching the normalized source and target
+    /// histograms.  Dual variables (φ,ψ) are automatically recovered from the LP
+    /// constraints.  The gradient of ½W₂² with respect to the source histogram is
+    /// gₘ = ½φ, shifted to have zero mean so that Σ mᵢ gₘᵢ = 0.  Because the
+    /// histograms are normalized, adding a constant to the raw data does not
+    /// affect the adjoint chain.
     /// </summary>
     public sealed class Wasserstein2ErrorMetric : IErrorMetric
     {
-        // Cache last result to reuse φ when EvaluateAdjointSource() called after Evaluate()
+        private const double Tiny = 1e-12;
+
+        // Cache last result to reuse gradient when EvaluateAdjointSource() follows Evaluate().
         private OptimalTransportResult? _last;
+
+        /// <summary>
+        /// Standalone W₂ routine used both by the error metric and unit tests.
+        /// Inputs are raw (unnormalized, possibly signed) masses and the
+        /// corresponding support coordinates.  The masses are shifted to be
+        /// nonnegative, normalized to unit sum, and the primal LP is solved.
+        /// </summary>
+        public static OTResult w2_misfit_and_grad(double[] mPred, double[] dObs,
+            (double x, double y)[] x, (double x, double y)[] y)
+        {
+            if (mPred.Length != x.Length || dObs.Length != y.Length)
+                throw new ArgumentException("Mass and coordinate arrays must align.");
+
+            // Stable nonnegativity: shift by minimum and clamp.
+            double[] a = (double[])mPred.Clone();
+            double[] b = (double[])dObs.Clone();
+
+            double minA = a.Length > 0 ? a.Min() : 0.0;
+            double minB = b.Length > 0 ? b.Min() : 0.0;
+            if (minA < 0) for (int i = 0; i < a.Length; i++) a[i] -= minA;
+            if (minB < 0) for (int j = 0; j < b.Length; j++) b[j] -= minB;
+            for (int i = 0; i < a.Length; i++) if (a[i] < 0) a[i] = 0.0;
+            for (int j = 0; j < b.Length; j++) if (b[j] < 0) b[j] = 0.0;
+
+            double sumA = a.Sum();
+            double sumB = b.Sum();
+            if (sumA <= Tiny || sumB <= Tiny)
+                throw new ArgumentException("Mass vectors must have positive total mass.");
+
+            for (int i = 0; i < a.Length; i++) a[i] /= sumA;
+            for (int j = 0; j < b.Length; j++) b[j] /= sumB;
+
+            int m = a.Length, n = b.Length;
+            var solver = Solver.CreateSolver("GLOP");
+            if (solver is null)
+                throw new InvalidOperationException("OR-Tools LP solver 'GLOP' not available.");
+
+            var plan = new Variable[m, n];
+            var row = new Constraint[m];
+            var col = new Constraint[n];
+            for (int i = 0; i < m; i++)
+                row[i] = solver.MakeConstraint(a[i], a[i], $"row[{i}]");
+            for (int j = 0; j < n; j++)
+                col[j] = solver.MakeConstraint(b[j], b[j], $"col[{j}]");
+
+            var obj = solver.Objective();
+            for (int i = 0; i < m; i++)
+                for (int j = 0; j < n; j++)
+                {
+                    plan[i, j] = solver.MakeNumVar(0.0, double.PositiveInfinity, $"P[{i},{j}]");
+                    row[i].SetCoefficient(plan[i, j], 1.0);
+                    col[j].SetCoefficient(plan[i, j], 1.0);
+                    double dx = x[i].x - y[j].x;
+                    double dy = x[i].y - y[j].y;
+                    double cij = dx * dx + dy * dy;
+                    obj.SetCoefficient(plan[i, j], cij);
+                }
+
+            obj.SetMinimization();
+            var status = solver.Solve();
+            if (status != Solver.ResultStatus.OPTIMAL)
+                throw new InvalidOperationException($"W₂ primal LP not optimal. Status={status}");
+
+            double[,] P = new double[m, n];
+            for (int i = 0; i < m; i++)
+                for (int j = 0; j < n; j++)
+                    P[i, j] = plan[i, j].SolutionValue();
+
+            double cost = 0.5 * obj.Value();
+
+            // Dual potentials from row/column constraints
+            double[] phi = new double[m];
+            double[] psi = new double[n];
+            for (int i = 0; i < m; i++) phi[i] = row[i].DualValue();
+            for (int j = 0; j < n; j++) psi[j] = col[j].DualValue();
+
+            // Gradient w.r.t normalized source histogram
+            double[] grad = new double[m];
+            for (int i = 0; i < m; i++) grad[i] = 0.5 * phi[i];
+            double mean = 0.0;
+            for (int i = 0; i < m; i++) mean += grad[i] * a[i];
+            for (int i = 0; i < m; i++) grad[i] -= mean;
+
+            // Chain rule back to raw (unnormalized) masses
+            double[] gradRaw = new double[m];
+            for (int i = 0; i < m; i++) gradRaw[i] = grad[i] / sumA;
+
+            return new OTResult(cost, gradRaw, P, phi, psi);
+        }
 
         public double Evaluate(IDiscretization discretization, double[] measured, double[] simulated)
         {
             var ot = SolveOT(discretization, measured, simulated);
             _last = ot;
-            return ot.OptimalValue;
+            return ot.Cost;
         }
 
         public double[] EvaluateAdjointSource(IDiscretization discretization, double[] measured, double[] simulated)
         {
             if (_last != null && _last.MatchesInputs(measured, simulated))
-                return _last.Phi;
-
-            // If called independently, solve once to obtain φ then return it
-            return SolveOT(discretization, measured, simulated).Phi;
+                return _last.Grad;
+            return SolveOT(discretization, measured, simulated).Grad;
         }
 
         private OptimalTransportResult SolveOT(IDiscretization discretization, double[] measured, double[] simulated)
         {
-            // (1) Gather electrodes and coordinate provider
             var all = discretization.GetElectrodes().OrderBy(e => e.Id).ToList();
             if (all.Count != measured.Length || all.Count != simulated.Length)
                 throw new ArgumentException("Electrode count must match data length.");
 
             Func<Electrode, (double x, double y)> coord;
             if (discretization is LBMGrid lbm)
-                coord = e =>
-                {
-                    var le = (LBMElectrode)e;
-                    var (x, y) = ToXY(lbm, le.GridId);
-                    return (x, y);
-                };
+                coord = e => { var le = (LBMElectrode)e; return ToXY(lbm, le.GridId); };
             else if (discretization is FEMMesh fem)
-                coord = e =>
-                {
-                    var fe = (FEMElectrode)e;
-                    return GetCoord(fem, fe);
-                };
+                coord = e => { var fe = (FEMElectrode)e; return GetCoord(fem, fe); };
             else
                 throw new ArgumentException("Wasserstein-2 currently implemented for LBMGrid or FEMMesh because it needs electrode coordinates.");
 
-            var (a, aLoc, aIndexMap, aNorm) = BuildDistribution(simulated, all, coord); // source: simulated
-            var (b, bLoc, _, _) = BuildDistribution(measured, all, coord); // target: measured
+            var (aRaw, aLoc, aMap) = BuildDistribution(simulated, all, coord);
+            var (bRaw, bLoc, _) = BuildDistribution(measured, all, coord);
 
-            // If nothing valid (e.g., all NaN), return zero
-            if (a.Length == 0 || b.Length == 0)
+            if (aRaw.Length == 0 || bRaw.Length == 0)
                 return new OptimalTransportResult(measured, simulated, 0.0, new double[all.Count]);
 
-            // (2) Cost matrix c_{ij} = squared Euclidean distance on coordinates
-            int m = a.Length, n = b.Length;
-            double[,] C = new double[m, n];
-            for (int i = 0; i < m; i++)
-            {
-                for (int j = 0; j < n; j++)
-                {
-                    double dx = aLoc[i].x - bLoc[j].x;
-                    double dy = aLoc[i].y - bLoc[j].y;
-                    C[i, j] = dx * dx + dy * dy;
-                }
-            }
+            var res = w2_misfit_and_grad(aRaw, bRaw, aLoc, bLoc);
+            var gradFull = new double[all.Count];
+            foreach (var (srcIdx, electrodeIdx) in aMap)
+                gradFull[electrodeIdx] = res.Grad[srcIdx];
 
-            // (3) Dual LP: maximize <u,a> + <v,b>  s.t. u_i + v_j ≤ C_ij
-            var solver = Solver.CreateSolver("GLOP"); // linear programming (continuous)
-            if (solver is null)
-                throw new InvalidOperationException("OR-Tools LP solver 'GLOP' not available.");
-
-            var u = new Variable[m];
-            var v = new Variable[n];
-
-            for (int i = 0; i < m; i++) u[i] = solver.MakeNumVar(double.NegativeInfinity, double.PositiveInfinity, $"u[{i}]");
-            for (int j = 0; j < n; j++) v[j] = solver.MakeNumVar(double.NegativeInfinity, double.PositiveInfinity, $"v[{j}]");
-
-            // Constraints u_i + v_j ≤ C_ij
-            for (int i = 0; i < m; i++)
-                for (int j = 0; j < n; j++)
-                {
-                    var c = solver.MakeConstraint(double.NegativeInfinity, C[i, j], $"c[{i},{j}]");
-                    c.SetCoefficient(u[i], 1.0);
-                    c.SetCoefficient(v[j], 1.0);
-                }
-
-            // Objective: maximize sum_i u_i a_i + sum_j v_j b_j
-            var obj = solver.Objective();
-            for (int i = 0; i < m; i++)
-                obj.SetCoefficient(u[i], a[i]);
-            for (int j = 0; j < n; j++) 
-                obj.SetCoefficient(v[j], b[j]);
-
-            obj.SetMaximization();
-
-            var status = solver.Solve();
-            if (status != Solver.ResultStatus.OPTIMAL)
-                throw new InvalidOperationException($"W₂ dual LP not optimal. Status={status}");
-
-            double optimal = obj.Value();
-
-            // Kantorovich potential φ ≡ u on the (simulated) support. Account for normalization a = raw / aNorm
-            var phiFull = new double[all.Count]; // default 0 where simulated was NaN or not measuring
-            if (aNorm > 0.0)
-            {
-                double phiDotA = 0.0;
-                for (int i = 0; i < m; i++) phiDotA += u[i].SolutionValue() * a[i];
-                foreach (var (iSrc, iElectrode) in aIndexMap)
-                    phiFull[iElectrode] = (u[iSrc].SolutionValue() - phiDotA) / aNorm;
-            }
-            
-            return new OptimalTransportResult(measured, simulated, optimal, phiFull);
+            return new OptimalTransportResult(measured, simulated, res.Cost, gradFull);
         }
 
-        private static (double[] mass, List<(double x, double y)> loc, List<(int srcIdx, int electrodeIdx)> indexMap, double norm)
+        private static (double[] raw, (double x, double y)[] loc, List<(int srcIdx, int electrodeIdx)> indexMap)
             BuildDistribution(double[] raw, List<Electrode> electrodes, Func<Electrode, (double x, double y)> getCoord)
         {
             var vals = new List<double>();
-            var coords = new List<(double x, double y)>();
+            var coords = new List<(double, double)>();
             var map = new List<(int, int)>();
             for (int i = 0; i < raw.Length; i++)
             {
@@ -212,32 +244,15 @@ namespace Utility.Classes.ReconstructionParameters
                 if (!e.IsMeasuring) continue;
                 double v = raw[i];
                 if (double.IsNaN(v)) continue;
-                if (v < 0.0) v = 0.0; // clamp to nonnegative
                 vals.Add(v);
                 coords.Add(getCoord(e));
-                map.Add((vals.Count - 1, i)); // (index in 'vals', electrode index)
+                map.Add((vals.Count - 1, i));
             }
-
-            if (vals.Count == 0)
-                return (Array.Empty<double>(), new List<(double, double)>(), new List<(int, int)>(), 0.0);
-
-            double sum = vals.Sum();
-            if (sum <= 0.0)
-            {
-                // fallback: uniform over valid measuring electrodes; no gradient w.r.t raw
-                double p = 1.0 / vals.Count;
-                for (int k = 0; k < vals.Count; k++) vals[k] = p;
-                return (vals.ToArray(), coords, map, 0.0);
-            }
-
-            for (int k = 0; k < vals.Count; k++) vals[k] /= sum;
-
-            return (vals.ToArray(), coords, map, sum);
+            return (vals.ToArray(), coords.ToArray(), map);
         }
 
         private static (double x, double y) ToXY(LBMGrid mesh, int gridId)
         {
-            // Prefer mesh API if public; otherwise decode (id = y*Nx + x)
             int x = gridId % mesh.Nx;
             int y = gridId / mesh.Nx;
             return (x, y);
@@ -252,24 +267,38 @@ namespace Utility.Classes.ReconstructionParameters
                 double y = verts.Average(v => v.Y);
                 return (x, y);
             }
-
             var vtx = mesh.Vertices.First(v => v.GlobalId == e.MeshId);
             return (vtx.X, vtx.Y);
         }
 
+        // Lightweight cache wrapper for Evaluate/EvaluateAdjointSource
         private sealed class OptimalTransportResult
         {
             private readonly double[] _m;
             private readonly double[] _s;
-            public double OptimalValue { get; }
-            public double[] Phi { get; }
+            public double Cost { get; }
+            public double[] Grad { get; }
 
-            public OptimalTransportResult(double[] measured, double[] simulated, double value, double[] phi)
+            public OptimalTransportResult(double[] measured, double[] simulated, double cost, double[] grad)
             {
                 _m = measured; _s = simulated;
-                OptimalValue = value; Phi = phi;
+                Cost = cost; Grad = grad;
             }
             public bool MatchesInputs(double[] measured, double[] simulated) => ReferenceEquals(_m, measured) && ReferenceEquals(_s, simulated);
+        }
+
+        /// <summary>Result record returned by w2_misfit_and_grad.</summary>
+        public sealed class OTResult
+        {
+            public double Cost { get; }
+            public double[] Grad { get; }
+            public double[,] Plan { get; }
+            public double[] Phi { get; }
+            public double[] Psi { get; }
+            public OTResult(double cost, double[] grad, double[,] plan, double[] phi, double[] psi)
+            {
+                Cost = cost; Grad = grad; Plan = plan; Phi = phi; Psi = psi;
+            }
         }
     }
 }
