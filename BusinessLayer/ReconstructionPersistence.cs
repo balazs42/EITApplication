@@ -346,12 +346,15 @@ namespace BusinessLayer
                         el.Current = 0.0;
                         el.IsExcitation = false;
                         el.IsGround = false;
+                        el.IsMeasuring = true;
                         el.Potential = 0.0;
                     }
 
                     electrodes[exc % electrodeCount].IsExcitation = true;
+                    electrodes[exc % electrodeCount].IsMeasuring = false;
                     electrodes[exc % electrodeCount].Current = 1.0;
                     electrodes[(exc + 1) % electrodeCount].IsGround = true;
+                    electrodes[(exc + 1) % electrodeCount].IsMeasuring = false;
                     electrodes[(exc + 1) % electrodeCount].Current = -1.0;
 
                     // Boundary condition reflecting the just configured
@@ -446,12 +449,15 @@ namespace BusinessLayer
                         el.Current = 0.0;
                         el.IsExcitation = false;
                         el.IsGround = false;
+                        el.IsMeasuring = true;
                         el.Potential = 0.0;
                     }
 
                     electrodes[exc % electrodeCount].IsExcitation = true;
+                    electrodes[exc % electrodeCount].IsMeasuring = false;
                     electrodes[exc % electrodeCount].Current = 1.0;
                     electrodes[(exc + 1) % electrodeCount].IsGround = true;
+                    electrodes[(exc + 1) % electrodeCount].IsMeasuring = false;
                     electrodes[(exc + 1) % electrodeCount].Current = -1.0;
 
                     var bc = new LBMBoundaryCondition(electrodes);
@@ -547,13 +553,16 @@ namespace BusinessLayer
                         el.Current = 0.0;
                         el.IsExcitation = false;
                         el.IsGround = false;
+                        el.IsMeasuring = true;
                         el.Potential = 0.0;
                     }
 
                     // Set new electrode setup
                     electrodes[exc % electrodeCount].IsExcitation = true;
+                    electrodes[exc % electrodeCount].IsMeasuring = false;
                     electrodes[exc % electrodeCount].Current = excitationAmplitude;
                     electrodes[(exc + 1) % electrodeCount].IsGround = true;
+                    electrodes[(exc + 1) % electrodeCount].IsMeasuring = false;
                     electrodes[(exc + 1) % electrodeCount].Current = -excitationAmplitude;
 
                     // Current simulated measurement extraction
@@ -664,16 +673,19 @@ namespace BusinessLayer
                     el.Current = 0.0;
                     el.IsExcitation = false;
                     el.IsGround = false;
+                    el.IsMeasuring = true;
                     el.Potential = 0.0;
                 }
 
                 // Set new electrode setup
                 electrodes[exc % electrodeCount].IsExcitation = true;
+                electrodes[exc % electrodeCount].IsMeasuring = false;
                 electrodes[exc % electrodeCount].Current = excitationAmplitude;
                 electrodes[(exc + 1) % electrodeCount].IsGround = true;
+                electrodes[(exc + 1) % electrodeCount].IsMeasuring = false;
                 electrodes[(exc + 1) % electrodeCount].Current = -excitationAmplitude;
 
-                var phiNew = _differentialEquationSolver.Solve(mesh, bc, null);
+                _ = _differentialEquationSolver.Solve(mesh, bc, null);
                 double[] dSimNew = mesh.GetElectrodePotentials();
                 double[] dObs = simulatedMeasurements[exc];
                 Jtotal += _errorMetric.Evaluate(mesh, dObs, dSimNew);
@@ -813,7 +825,7 @@ namespace BusinessLayer
             {
                 foreach (var el in electrodes)
                 {
-                    el.IsMeasuring = false;
+                    el.IsMeasuring = true;
                     el.IsGround = false;
                     el.IsExcitation = false;
                     el.Potential = 0.0;
@@ -821,8 +833,10 @@ namespace BusinessLayer
                 }
 
                 electrodes[i % electrodeCount].IsExcitation = true;
+                electrodes[i % electrodeCount].IsMeasuring = false;
                 electrodes[i % electrodeCount].Current = exciationAmplitude;
                 electrodes[(i + 1) % electrodeCount].IsGround = true;
+                electrodes[(i + 1) % electrodeCount].IsMeasuring = false;
                 electrodes[(i + 1) % electrodeCount].Current = -exciationAmplitude;
 
                 LBMBoundaryCondition boundaryCondition = new LBMBoundaryCondition(electrodes);
@@ -904,13 +918,16 @@ namespace BusinessLayer
                         el.Current = 0.0;
                         el.IsExcitation = false;
                         el.IsGround = false;
+                        el.IsMeasuring = true;
                         el.Potential = 0.0;
                     }
 
                     // Set new electrode setup
                     electrodes[exc % electrodeCount].IsExcitation = true;
+                    electrodes[exc % electrodeCount].IsMeasuring = false;
                     electrodes[exc % electrodeCount].Current = excitationAmplitude;
                     electrodes[(exc + 1) % electrodeCount].IsGround = true;
+                    electrodes[(exc + 1) % electrodeCount].IsMeasuring = false;
                     electrodes[(exc + 1) % electrodeCount].Current = -excitationAmplitude;
 
                     bc = new FEMBoundaryCondition(electrodes);
@@ -998,13 +1015,16 @@ namespace BusinessLayer
                         el.Current = 0.0;
                         el.IsExcitation = false;
                         el.IsGround = false;
+                        el.IsMeasuring = true;
                         el.Potential = 0.0;
                     }
 
                     // Set new electrode setup
                     electrodes[exc % electrodeCount].IsExcitation = true;
+                    electrodes[exc % electrodeCount].IsMeasuring = false;
                     electrodes[exc % electrodeCount].Current = excitationAmplitude;
                     electrodes[(exc + 1) % electrodeCount].IsGround = true;
+                    electrodes[(exc + 1) % electrodeCount].IsMeasuring = false;
                     electrodes[(exc + 1) % electrodeCount].Current = -excitationAmplitude;
 
                     var phiNew = _differentialEquationSolver.Solve(mesh, bc, null);
@@ -1054,13 +1074,16 @@ namespace BusinessLayer
                     el.Current = 0.0;
                     el.IsExcitation = false;
                     el.IsGround = false;
+                    el.IsMeasuring = true;
                     el.Potential = 0.0;
                 }
 
                 // Set new electrode setup
                 electrodes[i % electrodeCount].IsExcitation = true;
+                electrodes[i % electrodeCount].IsMeasuring = false;
                 electrodes[i % electrodeCount].Current = excitationAmplitude;
                 electrodes[(i + 1) % electrodeCount].IsGround = true;
+                electrodes[(i + 1) % electrodeCount].IsMeasuring = false;
                 electrodes[(i + 1) % electrodeCount].Current = -excitationAmplitude;
 
                 FEMMesh result = SolveFemForward(deepCopy);
