@@ -7,6 +7,20 @@ namespace Utility.Tests
     public class Wasserstein2Tests
     {
         [Fact]
+        public void T0_UniformMassesYieldZero()
+        {
+            // When both distributions are uniform the OT problem becomes
+            // degenerate.  The helper should simply return zero cost and
+            // gradient instead of throwing.
+            double[] m = { 5.0, 5.0, 5.0 };
+            double[] d = { 1.0, 1.0, 1.0 };
+            var coords = new (double, double)[] { (0, 0), (1, 0), (2, 0) };
+            var res = Wasserstein2ErrorMetric.w2_misfit_and_grad(m, d, coords, coords);
+            Assert.Equal(0.0, res.Cost, 12);
+            Assert.All(res.Grad, g => Assert.Equal(0.0, g, 9));
+        }
+
+        [Fact]
         public void T1_ExactMatch()
         {
             double[] m = { 1.0, 2.0, 3.0 };
