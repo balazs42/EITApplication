@@ -245,8 +245,6 @@ namespace Utility.Classes.ReconstructionParameters
             // yield zero cost and gradient.
             bool anyMeasuring = electrodes.Any(e => e.IsMeasuring);
 
-
-
             for (int i = 0; i < raw.Length; i++)
             {
                 var e = electrodes[i];

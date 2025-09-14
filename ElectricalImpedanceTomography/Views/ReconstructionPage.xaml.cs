@@ -103,7 +103,12 @@ public partial class ReconstructionPage : ContentPage
         PlayButton.IsEnabled = false;
         _isPaused = false;
 
-        await _viewModel.RunFullReconstructionCycleAsync();
+        int iterations = _viewModel.MaxIterationCount;
+        for (int i = 0; i < iterations; i++)
+        {
+            await _viewModel.RunFullReconstructionCycleAsync();
+        }
+        //await _viewModel.RunFullReconstructionCycleAsync();
 
         _isPaused = true;
         StepButton.IsEnabled = true;
