@@ -1,5 +1,7 @@
-﻿using Utility.Classes.ReconstructionParameters;
+﻿using System.Linq;
+using Utility.Classes.ReconstructionParameters;
 using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Xunit;
 
 namespace Utility.Tests
@@ -27,11 +29,33 @@ namespace Utility.Tests
 
         // Optional: W2 is an integration test because it needs LBMGrid + OR-Tools.
         // You can enable this on CI runners that have the dependency available.
-        [Fact(Skip = "Enable when OR-Tools + LBMGrid are wired; this is an integration test.")]
-        public void Wasserstein2_Evaluate_Produces_Finite_Value()
+        [Fact]
+        public void Wasserstein2_LBM_Includes_Excitation_Electrodes()
         {
-            // Arrange a tiny LBMGrid with 4 electrodes and deterministic coordinates,
-            /// TODO: validate W2
+            // Create a small grid with two electrodes.  One electrode is
+            // flagged purely as an excitation (IsMeasuring=false) but still
+            // carries a measured potential.  The W₂ metric should include this
+            // electrode in the transport problem.
+            var grid = new LBMGrid(5, 5);
+            grid.PlaceEquidistantElectrodes(2);
+
+            var els = grid.GetElectrodes().Cast<LBMElectrode>().ToList();
+            els[0].IsExcitation = true;
+            els[0].IsMeasuring = false; // active electrode with measurement
+            els[1].IsMeasuring = true;
+            grid.SetElectrodes(els);
+
+            // Distributions differing on the excitation electrode
+            double[] meas = { 1.0, 0.0 };
+            double[] sim = { 0.0, 1.0 };
+
+            IErrorMetric w2 = new Wasserstein2ErrorMetric();
+            double val = w2.Evaluate(grid, meas, sim);
+            Assert.True(val > 0.0);
+
+            var grad = w2.EvaluateAdjointSource(grid, meas, sim);
+            Assert.Equal(2, grad.Length);
+            Assert.NotEqual(0.0, grad[0], 12); // excitation electrode included
         }
 
         [Fact]

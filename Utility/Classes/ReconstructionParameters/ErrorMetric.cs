@@ -127,7 +127,20 @@ namespace Utility.Classes.ReconstructionParameters
             double sumA = a.Sum();
             double sumB = b.Sum();
             if (sumA <= Tiny || sumB <= Tiny)
-                throw new ArgumentException("Mass vectors must have positive total mass.");
+            {
+                // Degenerate case: all masses are identical (or arrays are empty),
+                // so after shifting the total mass collapses to ~0.  In this
+                // situation the Wasserstein distance is zero and the gradient
+                // should vanish.  Returning a zero-cost result avoids propagating
+                // an exception to callers which is observed in LBM based
+                // reconstructions where electrodes may carry uniform potentials.
+                int m = a.Length, n = b.Length;
+                return new OTResult(0.0,
+                    new double[m],
+                    new double[m, n],
+                    new double[m],
+                    new double[n]);
+            }
 
             for (int i = 0; i < a.Length; i++) a[i] /= sumA;
             for (int j = 0; j < b.Length; j++) b[j] /= sumB;
@@ -218,8 +231,18 @@ namespace Utility.Classes.ReconstructionParameters
             else
                 throw new ArgumentException("Wasserstein-2 currently implemented for LBMGrid or FEMMesh because it needs electrode coordinates.");
 
-            var (aRaw, aLoc, aMap) = BuildDistribution(simulated, all, coord);
-            var (bRaw, bLoc, _) = BuildDistribution(measured, all, coord);
+            // Determine which electrodes carry valid measurements.  Include
+            // an electrode if the corresponding measured value is finite,
+            // regardless of whether it is flagged as an excitation.  This
+            // allows active-electrode LBM setups where excitation electrodes
+            // also provide measurements.
+            var include = new List<int>();
+            for (int i = 0; i < measured.Length; i++)
+                if (!double.IsNaN(measured[i]))
+                    include.Add(i);
+
+            var (aRaw, aLoc, aMap) = BuildDistribution(simulated, all, coord, include);
+            var (bRaw, bLoc, _) = BuildDistribution(measured, all, coord, include);
 
             if (aRaw.Length == 0 || bRaw.Length == 0)
                 return new OptimalTransportResult(measured, simulated, 0.0, new double[all.Count]);
@@ -233,29 +256,20 @@ namespace Utility.Classes.ReconstructionParameters
         }
 
         private static (double[] raw, (double x, double y)[] loc, List<(int srcIdx, int electrodeIdx)> indexMap)
-            BuildDistribution(double[] raw, List<Electrode> electrodes, Func<Electrode, (double x, double y)> getCoord)
+            BuildDistribution(double[] raw, List<Electrode> electrodes,
+                Func<Electrode, (double x, double y)> getCoord, List<int> include)
         {
-            var vals = new List<double>();
-            var coords = new List<(double, double)>();
-            var map = new List<(int, int)>();
+            var vals = new List<double>(include.Count);
+            var coords = new List<(double, double)>(include.Count);
+            var map = new List<(int, int)>(include.Count);
 
-            // Some calling code does not flag measuring electrodes.  If no
-            // electrode has IsMeasuring=true, treat every electrode as
-            // measuring to avoid returning an empty distribution, which would
-            // yield zero cost and gradient.
-            bool anyMeasuring = electrodes.Any(e => e.IsMeasuring);
-
-            for (int i = 0; i < raw.Length; i++)
+            foreach (int i in include)
             {
-                var e = electrodes[i];
-                
-                if (anyMeasuring && !e.IsMeasuring) 
+                double v = raw[i];
+                if (double.IsNaN(v))
                     continue;
 
-                double v = raw[i];
-                if (double.IsNaN(v)) 
-                    continue;
-                
+                var e = electrodes[i];
                 vals.Add(v);
                 coords.Add(getCoord(e));
                 map.Add((vals.Count - 1, i));
