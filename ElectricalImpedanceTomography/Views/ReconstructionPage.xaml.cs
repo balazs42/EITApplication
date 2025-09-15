@@ -333,7 +333,7 @@ public partial class ReconstructionPage : ContentPage
     private void DrawFemConductivity(SKPaintSurfaceEventArgs e, FEMMesh mesh, ConductivityDistribution cd, string[]? lines, SKPoint? pt)
     {
         var canvas = e.Surface.Canvas;
-        canvas.Clear(SKColor.Parse("#1E1E1E"));
+        canvas.Clear(SKColor.Parse("#3A7CA5"));
         ComputeFemTransform(mesh, e.Info);
         using var fill = new SKPaint { Style = SKPaintStyle.Fill, IsAntialias = true };
         using var stroke = new SKPaint { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1, IsAntialias = true };
@@ -358,7 +358,7 @@ public partial class ReconstructionPage : ContentPage
     private void DrawFemPotential(SKPaintSurfaceEventArgs e, FEMMesh mesh, PotentialDistribution pd, string[]? lines, SKPoint? pt)
     {
         var canvas = e.Surface.Canvas;
-        canvas.Clear(SKColor.Parse("#1E1E1E"));
+        canvas.Clear(SKColor.Parse("#3A7CA5"));
         ComputeFemTransform(mesh, e.Info);
         using var fill = new SKPaint { Style = SKPaintStyle.Fill, IsAntialias = true };
         using var stroke = new SKPaint { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1, IsAntialias = true };
@@ -383,7 +383,7 @@ public partial class ReconstructionPage : ContentPage
     private void DrawLbmField(SKPaintSurfaceEventArgs e, LBMGrid mesh, Dictionary<int, double> values, bool isPotential, string[]? lines, SKPoint? pt)
     {
         var canvas = e.Surface.Canvas;
-        canvas.Clear(SKColor.Parse("#1E1E1E"));
+        canvas.Clear(SKColor.Parse("#3A7CA5"));
         float cw = e.Info.Width / mesh.Nx;
         float ch = e.Info.Height / mesh.Ny;
         double minVal = values.Values.Min();
@@ -407,7 +407,7 @@ public partial class ReconstructionPage : ContentPage
 
     private void DrawColorBar(SKCanvas canvas, SKImageInfo info, double min, double max, bool isPotential)
     {
-        canvas.Clear(SKColor.Parse("#1E1E1E"));
+        canvas.Clear(SKColor.Parse("#3A7CA5"));
         var rect = new SKRect(0, 0, info.Width, info.Height);
         int steps = 256;
         var colors = new SKColor[steps];
@@ -441,7 +441,7 @@ public partial class ReconstructionPage : ContentPage
     private void OnResidualTrendCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
         var canvas = e.Surface.Canvas;
-        canvas.Clear(SKColor.Parse("#1E1E1E"));
+        canvas.Clear(SKColor.Parse("#3A7CA5"));
 
         var history = _viewModel.ResidualHistory;
         if (history.Count == 0)
