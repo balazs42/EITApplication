@@ -349,18 +349,49 @@
                     </VerticalStackLayout>
                 </Border>
 
-                <Border Grid.Row="1" StrokeShape="RoundRectangle 5">
-                    <VerticalStackLayout Margin="10" Spacing="6">
-                        <Label Text="Reconstruction Statistics" HorizontalOptions="Center" FontAttributes="Italic"/>
-                        <Label Text="{Binding ElapsedTime, StringFormat='Elapsed Time: {0:hh\\:mm\\:ss}'}" FontSize="12"/>
-                        <Label Text="{Binding Residual, StringFormat='Current Residual: {0:F3}'}" FontSize="12"/>
-                        <Label Text="{Binding Correlation, StringFormat='Correlation: {0:F3}'}" FontSize="12"/>
-                        <Label Text="Residual vs. Iteration" HorizontalOptions="Center" FontSize="12"/>
-                        <Border StrokeShape="RoundRectangle 5" Padding="4" BackgroundColor="#1E1E1E">
-                            <skia:SKCanvasView x:Name="ResidualTrendCanvas"
-                                              HeightRequest="120"
-                                              PaintSurface="OnResidualTrendCanvasPaintSurface"/>
-                        </Border>
+                <Border Grid.Row="1" StrokeShape="RoundRectangle 12" StrokeThickness="1.5" Padding="0">
+                    <Border.Stroke>
+                        <SolidColorBrush Color="#3A7CA5" />
+                    </Border.Stroke>
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Color="#1E2435" Offset="0" />
+                            <GradientStop Color="#111723" Offset="1" />
+                        </LinearGradientBrush>
+                    </Border.Background>
+                    <Border.Shadow>
+                        <Shadow Brush="#883A7CA5" Offset="0,4" Radius="12" Opacity="0.6" />
+                    </Border.Shadow>
+                    <VerticalStackLayout Margin="16" Spacing="14">
+                        <Label Text="Reconstruction Statistics" HorizontalOptions="Center" FontSize="16" TextColor="#F0F4FF"/>
+                        <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="10">
+                            <Border StrokeThickness="0" BackgroundColor="#252F44" StrokeShape="RoundRectangle 10" Padding="10">
+                                <VerticalStackLayout Spacing="2">
+                                    <Label Text="Elapsed Time" FontAttributes="None" FontSize="12" TextColor="#9DAAD3"/>
+                                    <Label Text="{Binding ElapsedTime, StringFormat='{0:hh\\:mm\\:ss}'}" FontSize="18" TextColor="#F0F4FF"/>
+                                </VerticalStackLayout>
+                            </Border>
+                            <Border Grid.Column="1" StrokeThickness="0" BackgroundColor="#252F44" StrokeShape="RoundRectangle 10" Padding="10">
+                                <VerticalStackLayout Spacing="2">
+                                    <Label Text="Residual" FontAttributes="None" FontSize="12" TextColor="#9DAAD3"/>
+                                    <Label Text="{Binding Residual, StringFormat='{0:F3}'}" FontSize="18" TextColor="#F0F4FF"/>
+                                </VerticalStackLayout>
+                            </Border>
+                            <Border Grid.Row="1" Grid.ColumnSpan="2" StrokeThickness="0" BackgroundColor="#252F44" StrokeShape="RoundRectangle 10" Padding="10">
+                                <VerticalStackLayout Spacing="2">
+                                    <Label Text="Correlation" FontAttributes="None" FontSize="12" TextColor="#9DAAD3"/>
+                                    <Label Text="{Binding Correlation, StringFormat='{0:F3}'}" FontSize="18" TextColor="#F0F4FF"/>
+                                </VerticalStackLayout>
+                            </Border>
+                        </Grid>
+                        <VerticalStackLayout Spacing="6">
+                            <Label Text="Residual vs. Iteration" HorizontalOptions="Start" FontSize="13" FontAttributes="None" TextColor="#9DAAD3"/>
+                            <Border StrokeShape="RoundRectangle 10" StrokeThickness="0" Padding="8" BackgroundColor="#1A2436">
+                                <skia:SKCanvasView x:Name="ResidualTrendCanvas"
+                                                  HeightRequest="170"
+                                                  PaintSurface="OnResidualTrendCanvasPaintSurface"/>
+                            </Border>
+                        </VerticalStackLayout>
                     </VerticalStackLayout>
                 </Border>
             </Grid>
