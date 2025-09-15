@@ -14,7 +14,7 @@ namespace ElectricalImpedanceTomography.ViewModels
     {
         private readonly IReconstructionService _reconstructionService;
 
-        private IDiscretization? _discretization = Workspace.GetDiscretization();
+        private IDiscretization? _discretization = Workspace.GetOriginalDiscretization();
         private IDiscretization? _initializedDiscretization;
 
         [ObservableProperty]
@@ -53,7 +53,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         }
 
         partial void OnReconstructionSearchTextChanged(string value) => ApplyReconstructionFilter();
-        private void UpdateMesh() => _discretization = Workspace.GetDiscretization();
+        private void UpdateMesh() => _discretization = Workspace.GetOriginalDiscretization();
         private void UpdateReconstructionParameters() => ReconstructionParameters = Workspace.GetReconstructionParameters();
 
         private void InitializeReconstruction(bool force = false)
