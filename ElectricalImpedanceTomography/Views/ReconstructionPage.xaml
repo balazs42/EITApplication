@@ -8,6 +8,7 @@
              x:Class="ElectricalImpedanceTomography.Views.ReconstructionPage"
              Title="ReconstructionPage"
              Shell.NavBarIsVisible="False"
+             Background="GhostWhite"
              x:DataType="viewmodels:ReconstructionPageViewModel">
     <ContentPage.MenuBarItems>
         <MenuBarItem Text="Reconstruction">
@@ -214,47 +215,63 @@
                           RowDefinitions="Auto, Auto"
                           ColumnSpacing="15"
                           HorizontalOptions="Center"
-                          Margin="18">
-                        <Border x:Name="PlayButton" Grid.Column="0" HeightRequest="50" WidthRequest="50" Margin="5" HorizontalOptions="Center" VerticalOptions="Center">
+                          Margin="5">
+                        <Border x:Name="PlayButton" Grid.Column="0" HeightRequest="50" WidthRequest="50" Margin="5" HorizontalOptions="Center" VerticalOptions="Center" Stroke="Transparent">
                             <ImageButton Padding="3"
                                          Background="Transparent"
                                          HeightRequest="30"
                                          WidthRequest="30"
                                          Source="icon_play_green.png"
-                                         Clicked="OnPlayButtonClicked"/>
+                                         Clicked="OnPlayButtonClicked">
+                                <ImageButton.Shadow>
+                                    <Shadow Brush="Green" Opacity="1.0" Radius="2.0"/>
+                                </ImageButton.Shadow>
+                            </ImageButton>
                         </Border>
-                        <Border x:Name="PauseButton" Grid.Column="0" HeightRequest="50" WidthRequest="50" Margin="5" HorizontalOptions="Center" VerticalOptions="Center">
+                        <Border x:Name="PauseButton" Grid.Column="0" HeightRequest="50" WidthRequest="50" Margin="5" HorizontalOptions="Center" VerticalOptions="Center" Stroke="Transparent">
                             <ImageButton Padding="3"
                                          Background="Transparent"
                                          HeightRequest="30"
                                          Source="icon_pause_blue.png"
-                                         Clicked="OnPauseButtonClicked"/>
+                                         Clicked="OnPauseButtonClicked">
+                                <ImageButton.Shadow>
+                                    <Shadow Brush="Navy" Opacity="1.0" Radius="2.0"/>
+                                </ImageButton.Shadow>
+                            </ImageButton>
                         </Border>
-                        <Border Grid.Column="1" HeightRequest="50" WidthRequest="50" Margin="5">
+                        <Border Grid.Column="1" HeightRequest="50" WidthRequest="50" Margin="5" Stroke="Transparent">
                             <ImageButton x:Name="StepButton"
                                          Padding="3"
                                          Background="Transparent"
                                          HeightRequest="30"
                                          Source="icon_next_blue.png"
                                          Clicked="OnStepButtonClicked"
-                                         IsEnabled="False"/>
+                                         IsEnabled="False">
+                                <ImageButton.Shadow>
+                                    <Shadow Brush="Navy" Opacity="1.0" Radius="2.0"/>
+                                </ImageButton.Shadow>
+                            </ImageButton>
                         </Border>
-                        <Border Grid.Column="2" HeightRequest="50" WidthRequest="50" Margin="5">
+                        <Border Grid.Column="2" HeightRequest="50" WidthRequest="50" Margin="5" Stroke="Transparent">
                             <ImageButton x:Name="StopButton"
                                          Padding="3"
                                          Background="Transparent"
                                          HeightRequest="30"
                                          Source="icon_stop_red.png"
-                                         Clicked="OnStopButtonClicked"/>
+                                         Clicked="OnStopButtonClicked">
+                                <ImageButton.Shadow>
+                                    <Shadow Brush="Red" Opacity="1.0" Radius="2.0"/>
+                                </ImageButton.Shadow>
+                            </ImageButton>
                         </Border>
 
                         <Label Grid.Column="3" HorizontalOptions="Center" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding IterationCount, StringFormat='Iteration: {0}'}"/>
                         <Label Grid.Column="4" HorizontalOptions="Center" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding Residual, StringFormat='Residual: {0:F3}'}"/>
 
-                        <Border Grid.Column="5" Margin="2" Background="Transparent">
+                        <Border Grid.Column="5" Margin="2" Background="Transparent" Stroke="Transparent">
                             <Button Text="Solve Forward" Margin="10" BackgroundColor="DarkOliveGreen" TextColor="White" FontAttributes="Bold" Clicked="OnSolveForwardClicked"/>
                         </Border>
-                        <Border Grid.Column="6" Margin="2" Background="Transparent">
+                        <Border Grid.Column="6" Margin="2" Background="Transparent" Stroke="Transparent">
                             <Button Text="Solve Inverse" Margin="10" BackgroundColor="DarkRed" TextColor="White" FontAttributes="Bold" Clicked="OnSolveInverseClicked"/>
                         </Border>
                         <Picker x:Name="PotentialModePicker"
@@ -322,12 +339,12 @@
                 </Border>
 
                 <!-- Displays for reconstruction steps -->
-                <Grid Grid.Row="1" Margin="10" RowDefinitions="Auto, Auto" ColumnDefinitions="Auto" HorizontalOptions="Center" VerticalOptions="Center" RowSpacing="14">
+                <Grid Grid.Row="1" Margin="5" RowDefinitions="Auto, Auto" ColumnDefinitions="Auto" HorizontalOptions="Center" VerticalOptions="Center" RowSpacing="14">
                     <Border Grid.Row="0" Style="{StaticResource PanelBorderStyle}" Background="{StaticResource PartialResultsBrush}" Stroke="#2F4F77">
                         <Grid ColumnDefinitions="Auto,Auto,Auto" RowDefinitions="Auto, Auto" HorizontalOptions="Center" Margin="18" ColumnSpacing="18">
                             <!-- Calculated Potential -->
                             <VerticalStackLayout Grid.Row="0" Grid.Column="0" HorizontalOptions="Center" Spacing="10">
-                                <Label Text="Calculated Potential [mV]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="None"/>
+                                <Label Text="Calculated Potential [mV]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold"/>
                                 <Border Style="{StaticResource CanvasBorderStyle}" Margin="10" HorizontalOptions="Center">
                                     <Grid RowDefinitions="Auto,Auto">
                                         <skia:SKCanvasView x:Name="PotentialDistributionCanvas" PaintSurface="OnPotentialCanvasPaintSurface" EnableTouchEvents="True" Touch="OnPotentialCanvasTouch" HeightRequest="250" WidthRequest="250" Margin="10" />
@@ -337,7 +354,7 @@
                             </VerticalStackLayout>
                             <!-- Adjoint Potential -->
                             <VerticalStackLayout Grid.Row="0" Grid.Column="1" HorizontalOptions="Center" Spacing="10">
-                                <Label Text="Adjoint Potential [mV]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="None"/>
+                                <Label Text="Adjoint Potential [mV]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold"/>
                                 <Border Style="{StaticResource CanvasBorderStyle}" Margin="10" HorizontalOptions="Center">
                                     <Grid RowDefinitions="Auto,Auto">
                                         <skia:SKCanvasView x:Name="AdjointDistributionCanvas" PaintSurface="OnAdjointCanvasPaintSurface" EnableTouchEvents="True" Touch="OnAdjointCanvasTouch" HeightRequest="250" WidthRequest="250" Margin="10"/>
@@ -347,7 +364,7 @@
                             </VerticalStackLayout>
                             <!-- Gradient -->
                             <VerticalStackLayout Grid.Row="0" Grid.Column="2" HorizontalOptions="Center" Spacing="10">
-                                <Label Text="Conductivity Gradient [∂Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="None"/>
+                                <Label Text="Conductivity Gradient [∂Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold"/>
                                 <Border Style="{StaticResource CanvasBorderStyle}" Margin="10" HorizontalOptions="Center">
                                     <Grid RowDefinitions="Auto,Auto">
                                         <skia:SKCanvasView x:Name="GradientDistributionCanvas" PaintSurface="OnGradientCanvasPaintSurface" EnableTouchEvents="True" Touch="OnGradientCanvasTouch" HeightRequest="250" WidthRequest="250" Margin="10"/>
@@ -357,7 +374,7 @@
                             </VerticalStackLayout>
                             <!-- Original -->
                             <VerticalStackLayout Grid.Row="1" Grid.Column="0" HorizontalOptions="Center" Spacing="10">
-                                <Label Text="Original Distribution [Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="None"/>
+                                <Label Text="Original Distribution [Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold"/>
                                 <Border Style="{StaticResource CanvasBorderStyle}" Margin="10" HorizontalOptions="Center">
                                     <Grid RowDefinitions="Auto,Auto">
                                         <skia:SKCanvasView x:Name="OriginalDistributionCanvas" PaintSurface="OnOriginalCanvasPaintSurface" EnableTouchEvents="True" Touch="OnOriginalCanvasTouch" HeightRequest="250" WidthRequest="250" Margin="10"/>
@@ -367,7 +384,7 @@
                             </VerticalStackLayout>
                             <!-- Initial -->
                             <VerticalStackLayout Grid.Row="2" Grid.Column="1" HorizontalOptions="Center" Spacing="10">
-                                <Label Text="Initial Distribution [Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="None"/>
+                                <Label Text="Initial Distribution [Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold"/>
                                 <Border Style="{StaticResource CanvasBorderStyle}" Margin="10" HorizontalOptions="Center">
                                     <Grid RowDefinitions="Auto,Auto">
                                         <skia:SKCanvasView x:Name="InitialDistributionCanvas" PaintSurface="OnInitialCanvasPaintSurface" EnableTouchEvents="True" Touch="OnInitialCanvasTouch" HeightRequest="250" WidthRequest="250" Margin="10"/>
@@ -377,7 +394,7 @@
                             </VerticalStackLayout>
                             <!-- Reconstructed -->
                             <VerticalStackLayout Grid.Row="3" Grid.Column="2" HorizontalOptions="Center" Spacing="10">
-                                <Label Text="Reconstructed Distribution [Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="None"/>
+                                <Label Text="Reconstructed Distribution [Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold"/>
                                 <Border Style="{StaticResource CanvasBorderStyle}" Margin="10" HorizontalOptions="Center">
                                     <Grid RowDefinitions="Auto,Auto">
                                         <skia:SKCanvasView x:Name="ReconstructedDistributionCanvas" PaintSurface="OnReconstructedCanvasPaintSurface" EnableTouchEvents="True" Touch="OnReconstructedCanvasTouch" HeightRequest="250" WidthRequest="250" Margin="10"/>
@@ -430,7 +447,7 @@
                             <Border Style="{StaticResource PanelSectionBorderStyle}" BackgroundColor="#252F44">
                                 <VerticalStackLayout Spacing="2">
                                     <Label Text="Elapsed Time" FontAttributes="None" FontSize="12" TextColor="#9DAAD3"/>
-                                    <Label Text="{Binding ElapsedTime, StringFormat='{0:hh\\:mm\\:ss}'}" FontSize="18" TextColor="#F0F4FF"/>
+                                    <Label Text="{Binding ElapsedTime, StringFormat='{0:mm\\:ss}'}" FontSize="18" TextColor="#F0F4FF"/>
                                 </VerticalStackLayout>
                             </Border>
                             <Border Grid.Column="1" Style="{StaticResource PanelSectionBorderStyle}" BackgroundColor="#252F44">
@@ -446,15 +463,10 @@
                                 </VerticalStackLayout>
                             </Border>
                         </Grid>
-                        <VerticalStackLayout Spacing="6">
-                            <Label Text="Residual vs. Iteration" HorizontalOptions="Start" FontSize="13" FontAttributes="None" TextColor="#9DAAD3"/>
-                            <Border Style="{StaticResource CanvasBorderStyle}" Padding="8" BackgroundColor="#1A2436">
-                                <skia:SKCanvasView x:Name="ResidualTrendCanvas"
+                        <skia:SKCanvasView x:Name="ResidualTrendCanvas"
                                                   HeightRequest="170"
                                                   PaintSurface="OnResidualTrendCanvasPaintSurface"/>
-                            </Border>
                         </VerticalStackLayout>
-                    </VerticalStackLayout>
                 </Border>
             </Grid>
         </Grid>
