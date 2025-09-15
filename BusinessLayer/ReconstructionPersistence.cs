@@ -249,7 +249,7 @@ namespace BusinessLayer
                                     .GetVector(el.Id);
                         var gMu = FiniteElementOperators.CalculateElementWiseGradient(mesh, mu)
                                     .GetVector(el.Id);
-                        return (gMu.X * gPhi.X + gMu.Y * gPhi.Y) * el.Area;
+                        return -(gMu.X * gPhi.X + gMu.Y * gPhi.Y) * el.Area;
                     }
                 )
             );
@@ -298,7 +298,7 @@ namespace BusinessLayer
                         // compute <∇φ, ∇μ> on this element
                         var gPhi = LatticeBoltzmannOperators.CalculateGradient(mesh, phi).GetVector(el.Id);
                         var gMu = LatticeBoltzmannOperators.CalculateGradient(mesh, mu).GetVector(el.Id);
-                        return (gMu.X * gPhi.X + gMu.Y * gPhi.Y);
+                        return -(gMu.X * gPhi.X + gMu.Y * gPhi.Y);
                     }
                 )
             );
