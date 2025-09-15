@@ -400,10 +400,10 @@ public partial class ReconstructionPage : ContentPage
         var positions = new float[steps];
         for (int i = 0; i < steps; i++)
         {
-            double t = 1.0 - i / (double)(steps - 1);
+            double t = i / (double)(steps - 1);
             double val = min + (max - min) * t;
             colors[i] = isPotential ? GetPotentialColor(val, min, max) : ColorForValue(val, min, max);
-            positions[i] = i / (float)(steps - 1);
+            positions[i] = (float)t;
         }
         using var paint = new SKPaint
         {

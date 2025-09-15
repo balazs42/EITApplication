@@ -54,9 +54,10 @@ namespace Utility.Classes.ReconstructionParameters
             for (int i = 0; i < measured.Length; i++)
             {
                 // If either value is NaN, this point doesn't contribute to the error.
-                if (double.IsNaN(measured[i]) || double.IsNaN(simulated[i])) continue;
+                if (double.IsNaN(measured[i]) || double.IsNaN(simulated[i])) 
+                    continue;
                 
-                double residual = simulated[i] - measured[i];
+                double residual = measured[i] - simulated[i];
                 sumOfSquares += residual * residual;
             }
             return 0.5 * sumOfSquares;
