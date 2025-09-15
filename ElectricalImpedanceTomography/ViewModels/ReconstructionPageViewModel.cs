@@ -155,7 +155,6 @@ namespace ElectricalImpedanceTomography.ViewModels
             Correlation = 0.0;
             ElapsedTime = TimeSpan.Zero;
             _reconstructionStopwatch.Reset();
-            StopElapsedTimer();
         }
 
         private void StartElapsedTimer()
@@ -330,9 +329,12 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             InitializeReconstruction();
             BeginReconstructionMetrics();
-            return _reconstructionService.RunFullReconstructionCycleAsync(StepSize,
+            var result = _reconstructionService.RunFullReconstructionCycleAsync(StepSize,
                                                                          RegularizationWeight,
                                                                          ExcitationCurrentAmplitude);
+            StopElapsedTimer();
+
+            return result;
         }
 
         private void OnServiceReconstructionUpdated(object? sender, ReconstructionResult result)
