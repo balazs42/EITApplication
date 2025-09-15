@@ -134,21 +134,19 @@ namespace Utility.Classes.ReconstructionParameters
                 // should vanish.  Returning a zero-cost result avoids propagating
                 // an exception to callers which is observed in LBM based
                 // reconstructions where electrodes may carry uniform potentials.
-                int m = a.Length, n = b.Length;
+                int me = a.Length, ne = b.Length;
                 return new OTResult(0.0,
-                    new double[m],
-                    new double[m, n],
-                    new double[m],
-                    new double[n]);
+                    new double[me],
+                    new double[me, ne],
+                    new double[me],
+                    new double[ne]);
             }
 
             for (int i = 0; i < a.Length; i++) a[i] /= sumA;
             for (int j = 0; j < b.Length; j++) b[j] /= sumB;
 
             int m = a.Length, n = b.Length;
-            var solver = Solver.CreateSolver("GLOP");
-            if (solver is null)
-                throw new InvalidOperationException("OR-Tools LP solver 'GLOP' not available.");
+            var solver = Solver.CreateSolver("GLOP") ?? throw new InvalidOperationException("OR-Tools LP solver 'GLOP' not available.");
 
             var plan = new Variable[m, n];
             var row = new Constraint[m];
