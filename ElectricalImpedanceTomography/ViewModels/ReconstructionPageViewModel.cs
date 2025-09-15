@@ -3,13 +3,13 @@ using Microsoft.Maui.ApplicationModel;
 using ServiceLayer;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
-using System.Timers;
 using Utility.Classes;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 
 using Workspace = Utility.Classes.Application.Workspace;
+using Timer = System.Timers.Timer;
 
 namespace ElectricalImpedanceTomography.ViewModels
 {
