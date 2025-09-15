@@ -103,15 +103,29 @@
     /// </summary>
     public sealed class AdamGradientOptimizer : INumericOptimizer
     {
-        private readonly double _beta1 = 0.9;
-        private readonly double _beta2 = 0.999;
-        private readonly double _eps = 1e-8;
+        private readonly double _beta1;
+        private readonly double _beta2;
+        private readonly double _eps;
+        private readonly double _weightDecay;
+        private readonly double? _maxGradNorm;
+
         private int _t = 0;
         private Dictionary<int, double>? _m;  // 1st moment
         private Dictionary<int, double>? _v;  // 2nd moment
 
-        public AdamGradientOptimizer()
+        public AdamGradientOptimizer(
+            double beta1 = 0.9,
+            double beta2 = 0.999,
+            double epsilon = 1e-8,
+            double weightDecay = 0.0,
+            double? maxGradientNorm = null)
         {
+            _beta1 = beta1;
+            _beta2 = beta2;
+            _eps = epsilon;
+            _weightDecay = weightDecay;
+            _maxGradNorm = maxGradientNorm;
+
             _m = null;
             _v = null;
         }
@@ -126,12 +140,36 @@
             }
             _t++;
 
+            // optional gradient clipping by global norm
+            double scale = 1.0;
+            if (_maxGradNorm.HasValue)
+            {
+                double norm = Math.Sqrt(totalGradient.Conductivities.Sum(kv => kv.Value * kv.Value));
+                if (norm > _maxGradNorm.Value && norm > 0)
+                {
+                    scale = _maxGradNorm.Value / norm;
+                }
+            }
+
             var newSigma = new Dictionary<int, double>();
             foreach (var kv in currentSigma.Conductivities)
             {
                 int id = kv.Key;
                 double conductivity = kv.Value;
-                double gradient = totalGradient.GetConductivity(id);
+                double gradient = totalGradient.GetConductivity(id) * scale;
+
+                if (!double.IsFinite(gradient))
+                {
+                    // skip update on invalid gradient
+                    newSigma[id] = conductivity;
+                    continue;
+                }
+
+                // decoupled weight decay (AdamW)
+                if (_weightDecay != 0.0)
+                {
+                    conductivity -= stepSize * _weightDecay * conductivity;
+                }
 
                 // update biased moments
                 double m_prev = _m[id];
@@ -146,8 +184,15 @@
                 double m_hat = m_new / (1 - Math.Pow(_beta1, _t));
                 double v_hat = v_new / (1 - Math.Pow(_beta2, _t));
 
+                double denom = Math.Sqrt(v_hat) + _eps;
+                if (!double.IsFinite(denom) || denom == 0.0)
+                {
+                    newSigma[id] = conductivity;
+                    continue;
+                }
+
                 // update σ
-                double σn = conductivity - stepSize * m_hat / (Math.Sqrt(v_hat) + _eps);
+                double σn = conductivity - stepSize * m_hat / denom;
                 newSigma[id] = σn;
             }
             return new ConductivityDistribution(newSigma);
