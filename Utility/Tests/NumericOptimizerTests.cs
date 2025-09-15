@@ -4,6 +4,11 @@ using Xunit;
 
 namespace Utility.Tests
 {
+    internal sealed class ZeroRandom : Random
+    {
+        protected override double Sample() => 0.0;
+    }
+
     public class NumericOptimizerTests
     {
         [Fact]
@@ -34,6 +39,17 @@ namespace Utility.Tests
 
             var σ2 = opt.OptimizationStep(σ1, g, 0.1); // v2 = 0.5*(-0.1) - 0.1*1 = -0.15, σ2=0.75
             Assert.Equal(0.75, σ2.GetConductivity(0), 12);
+        }
+
+        [Fact]
+        public void PolyakHeavyBall_Clamps_Negative()
+        {
+            var opt = new PolyakHeavyBallOptimizer();
+            var σ = TestData.Sigma((0, 1.0));
+            var g = TestData.Grad((0, 5.0));
+
+            var σ1 = opt.OptimizationStep(σ, g, 1.0);
+            Assert.Equal(1e-6, σ1.GetConductivity(0), 12);
         }
 
         [Fact]
@@ -71,6 +87,17 @@ namespace Utility.Tests
         }
 
         [Fact]
+        public void Adam_Clamps_Negative()
+        {
+            var opt = new AdamGradientOptimizer();
+            var σ = TestData.Sigma((0, 1.0));
+            var g = TestData.Grad((0, 2.0));
+
+            var σ1 = opt.OptimizationStep(σ, g, 2.0);
+            Assert.Equal(1e-6, σ1.GetConductivity(0), 12);
+        }
+
+        [Fact]
         public void Nesterov_Uses_PrevSigma()
         {
             var opt = new NesterovAcceleratedGradientOptimizer(gamma: 0.9);
@@ -83,6 +110,17 @@ namespace Utility.Tests
         }
 
         [Fact]
+        public void Nesterov_Clamps_Negative()
+        {
+            var opt = new NesterovAcceleratedGradientOptimizer();
+            var σ = TestData.Sigma((0, 1.0));
+            var g = TestData.Grad((0, 5.0));
+
+            var σ1 = opt.OptimizationStep(σ, g, 1.0);
+            Assert.Equal(1e-6, σ1.GetConductivity(0), 12);
+        }
+
+        [Fact]
         public void SimulatedAnnealing_Is_Idempotent_When_Step_Is_Zero()
         {
             var opt = new SimulatedAnnealingOptimizer();
@@ -92,6 +130,17 @@ namespace Utility.Tests
             var σ1 = opt.OptimizationStep(σ0, g, 0.0);
             Assert.Equal(1.0, σ1.GetConductivity(0), 12);
             Assert.Equal(2.0, σ1.GetConductivity(1), 12);
+        }
+
+        [Fact]
+        public void SimulatedAnnealing_Clamps_Negative()
+        {
+            var opt = new SimulatedAnnealingOptimizer(new ZeroRandom());
+            var σ0 = TestData.Sigma((0, 1.0));
+            var g = TestData.Grad((0, 0.0));
+
+            var σ1 = opt.OptimizationStep(σ0, g, 2.0);
+            Assert.Equal(1e-6, σ1.GetConductivity(0), 12);
         }
     }
 }
