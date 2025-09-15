@@ -135,7 +135,7 @@ namespace Utility.Classes.Factories
             return type switch
             {
                 InitialDistributionTypes.Homogeneous => CreateHomogeneous(discretization),
-                InitialDistributionTypes.Random => CreateRandom(discretization),
+                InitialDistributionTypes.Random => CreateRandom(discretization, 1.0),
                 InitialDistributionTypes.SlightlyDiffering => CreateSlightlyDiffering(discretization, 0.95),
                 InitialDistributionTypes.RandomSlightlyDiffering =>
                     CreateRandomSlightlyDiffering(discretization, Math.Max(1, discretization.GetElements().Count / 10), 0.95),
