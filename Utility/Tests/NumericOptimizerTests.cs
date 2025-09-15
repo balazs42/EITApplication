@@ -39,12 +39,35 @@ namespace Utility.Tests
         [Fact]
         public void Adam_Moves_Against_Gradient()
         {
-            var opt = new AdamGradientOptimizer(); 
+            var opt = new AdamGradientOptimizer();
             var σ = TestData.Sigma((0, 1.0));
             var g = TestData.Grad((0, 1.0));
 
             var σ1 = opt.OptimizationStep(σ, g, 0.1);
             Assert.True(σ1.GetConductivity(0) < 1.0);
+        }
+
+        [Fact]
+        public void AdamW_Applies_Weight_Decay()
+        {
+            var opt = new AdamGradientOptimizer(weightDecay: 0.1);
+            var σ = TestData.Sigma((0, 1.0));
+            var g = TestData.Grad((0, 0.0));
+
+            var σ1 = opt.OptimizationStep(σ, g, 0.1); // only weight decay
+            Assert.Equal(0.99, σ1.GetConductivity(0), 12);
+        }
+
+        [Fact]
+        public void Adam_Clips_Gradient_By_Global_Norm()
+        {
+            var opt = new AdamGradientOptimizer(maxGradientNorm: 1.0);
+            var σ = TestData.Sigma((0, 1.0), (1, 1.0));
+            var g = TestData.Grad((0, 3.0), (1, 4.0)); // norm = 5
+
+            var σ1 = opt.OptimizationStep(σ, g, 0.1);
+            Assert.Equal(0.9, σ1.GetConductivity(0), 12);
+            Assert.Equal(0.9, σ1.GetConductivity(1), 12);
         }
 
         [Fact]
