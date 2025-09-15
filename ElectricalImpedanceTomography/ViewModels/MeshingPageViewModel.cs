@@ -142,7 +142,6 @@ namespace ElectricalImpedanceTomography.ViewModels
             _currentDiscretization = _undoStack.Pop();
 
             Workspace.SetDiscretization(_currentDiscretization);
-            Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
 
             MeshChanged?.Invoke();
         }
@@ -157,7 +156,6 @@ namespace ElectricalImpedanceTomography.ViewModels
             _currentDiscretization = _redoStack.Pop();
 
             Workspace.SetDiscretization(_currentDiscretization);
-            Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
 
             MeshChanged?.Invoke();
         }
@@ -195,7 +193,6 @@ namespace ElectricalImpedanceTomography.ViewModels
             MeshFactory.AddGaussianNoise(_currentDiscretization);
 
             Workspace.SetDiscretization(_currentDiscretization);
-            Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
         }
 
         private FEMMesh GenerateFEMMesh()
@@ -253,7 +250,6 @@ namespace ElectricalImpedanceTomography.ViewModels
             _currentDiscretization.SetConductivityDistribution(new ConductivityDistribution(dict));
 
             Workspace.SetDiscretization(_currentDiscretization);
-            Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
         }
 
         public void RefreshLbmElectrodes()
@@ -267,7 +263,6 @@ namespace ElectricalImpedanceTomography.ViewModels
             mesh.SetElectrodes(electrodes);
 
             Workspace.SetDiscretization(_currentDiscretization);
-            Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
         }
 
         public void RefreshFemElectrodes()
@@ -286,7 +281,6 @@ namespace ElectricalImpedanceTomography.ViewModels
             mesh.SetElectrodes(electrodes);
 
             Workspace.SetDiscretization(_currentDiscretization);
-            Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
         }
 
         public void Clear()
@@ -362,7 +356,6 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             _currentDiscretization.Metadata.Parameters["electrodeCount"] = value.ToString();
             Workspace.SetDiscretization(_currentDiscretization);
-            Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
             MeshChanged?.Invoke();
         }
 

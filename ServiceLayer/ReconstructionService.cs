@@ -110,7 +110,7 @@ namespace ServiceLayer
             try
             {
                 Workspace.AddLogMessage("Reconstruction Service", "Reconstruction initialization started with the specified EITReconstructionParameters object.");
-                Workspace.SetDiscretization(discretization);
+                Workspace.SetInitialDiscretization(discretization);
                 _discretization = discretization;
                 _simulatedMeasurements.Clear();
                 _simMeasurementIndex = 0;
@@ -120,7 +120,7 @@ namespace ServiceLayer
 
                 Workspace.SetReconstructionResults(new List<ReconstructionResult>());
 
-                _originalSigma = Workspace.GetOriginalDiscretization()?.GetConductivityDistribution()
+                _originalSigma = Workspace.GetDiscretization()?.GetConductivityDistribution()
                                  ?? discretization.DeepCopy().GetConductivityDistribution();
                 _initialSigma = Workspace.GetInitialDiscretization()?.GetConductivityDistribution() ?? ConductivityDistributionFactory.CreateInitialDistribution(discretization, parameters.InitialDistributionType);
                 discretization.SetConductivityDistribution(_initialSigma);
