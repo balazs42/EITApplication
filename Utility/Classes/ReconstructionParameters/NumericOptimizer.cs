@@ -24,6 +24,37 @@
         ConductivityDistribution OptimizationStep(ConductivityDistribution currentSigma, ConductivityDistribution totalGradient, double stepSize);
     }
 
+    internal static class NumericOptimizerGuards
+    {
+        private const double GrowthLimit = 1_000.0;
+        private const double BaselineEpsilon = 1e-12;
+
+        public static double ClipExcessiveGrowth(double original, double candidate)
+        {
+            if (double.IsNaN(original) || double.IsInfinity(original))
+            {
+                return candidate;
+            }
+
+            double baseline = Math.Max(Math.Abs(original), BaselineEpsilon);
+            double maxMagnitude = baseline * GrowthLimit;
+
+            if (double.IsNaN(candidate))
+            {
+                return candidate;
+            }
+
+            double magnitude = Math.Abs(candidate);
+            if (double.IsInfinity(magnitude) || magnitude > maxMagnitude)
+            {
+                double sign = candidate < 0 ? -1.0 : 1.0;
+                return sign * maxMagnitude;
+            }
+
+            return candidate;
+        }
+    }
+
     /// <summary>
     /// Simple gradient descent: σ←σ−α∇J, clamped to physical bounds.
     /// </summary>
@@ -43,9 +74,10 @@
                 double conductivity = kv.Value;
                 double gradient = totalGradient.GetConductivity(id);
                 double nextValue = conductivity - stepSize * gradient;          // standard GD step
-                
+
+                nextValue = NumericOptimizerGuards.ClipExcessiveGrowth(conductivity, nextValue);
                 nextValue = Math.Max(_min, Math.Min(_max, nextValue));          // clamp
-                
+
                 next[id] = nextValue;
             }
             return new ConductivityDistribution(next);
@@ -87,10 +119,12 @@
                 // v_new = β v_prev − α g
                 double v_new = _beta * v_prev - stepSize * gradient;
                 // σ_new = σ + v_new
-                double nextValue = conductivity + v_new;
+                double candidate = conductivity + v_new;
+                double clipped = NumericOptimizerGuards.ClipExcessiveGrowth(conductivity, candidate);
+                double appliedVelocity = clipped - conductivity;
 
-                nextVel[id] = v_new;
-                nextSigma[id] = nextValue;
+                nextVel[id] = appliedVelocity;
+                nextSigma[id] = clipped;
             }
             _velocity = nextVel;
             return new ConductivityDistribution(nextSigma);
@@ -156,6 +190,7 @@
             {
                 int id = kv.Key;
                 double conductivity = kv.Value;
+                double original = conductivity;
                 double gradient = totalGradient.GetConductivity(id) * scale;
 
                 if (!double.IsFinite(gradient))
@@ -193,6 +228,7 @@
 
                 // update σ
                 double σn = conductivity - stepSize * m_hat / denom;
+                σn = NumericOptimizerGuards.ClipExcessiveGrowth(original, σn);
                 newSigma[id] = σn;
             }
             return new ConductivityDistribution(newSigma);
@@ -238,7 +274,8 @@
                 double yv = kv.Value;
                 double gradient = totalGradient.GetConductivity(id);
                 double nextValue = yv - stepSize * gradient;
-                nextSigma[id] = nextValue;
+                double original = currentSigma.GetConductivity(id);
+                nextSigma[id] = NumericOptimizerGuards.ClipExcessiveGrowth(original, nextValue);
             }
 
             // push currentSigma to prev
@@ -380,7 +417,10 @@
             // propose Δσ uniform in [-stepSize,stepSize]
             var σp = new Dictionary<int, double>();
             foreach (var kv in sigmaK.Conductivities)
-                σp[kv.Key] = kv.Value + (2 * _rnd.NextDouble() - 1) * stepSize;
+            {
+                double proposal = kv.Value + (2 * _rnd.NextDouble() - 1) * stepSize;
+                σp[kv.Key] = NumericOptimizerGuards.ClipExcessiveGrowth(kv.Value, proposal);
+            }
 
             // approximate ΔJ = ∑g_i Δσ_i
             double dJ = 0;
