@@ -81,17 +81,50 @@ namespace BusinessLayer
 
         public ReconstructionFrame Step(double[] measurement, BoundaryCondition boundaryCondition, double gradientStepSize, double redularizationStepSize)
         {
+            _regularizationWeight = redularizationStepSize;
+
+            if (_numericOptimizer == null)
+                throw new NullReferenceException("Numeric optimizer is null, check calling code!");
+
             if (_discretization is FEMMesh femMesh)
             {
                 FEMBoundaryCondition bc = boundaryCondition as FEMBoundaryCondition ?? throw new ArgumentException("Cannot convert boundary condition to FEM boundary condition, check calling code!");
 
-                return InverseSolveStepFem(femMesh, bc, measurement, gradientStepSize);
+                var frame = InverseSolveStepFem(femMesh, bc, measurement, gradientStepSize);
+
+                var totalGradDict = frame.ConductivityGradient.Conductivities.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value + redularizationStepSize * frame.CalculatedRegularization.GetConductivity(kvp.Key));
+                var totalGrad = new ConductivityDistribution(totalGradDict);
+
+                var sigma = femMesh.GetConductivityDistribution();
+                var updated = _numericOptimizer.OptimizationStep(sigma, totalGrad, gradientStepSize);
+                femMesh.SetConductivityDistribution(updated);
+
+                return new ReconstructionFrame(totalGrad,
+                                              frame.CalculatedPotentialDistribution,
+                                              frame.CalculatedAdjointDistribution,
+                                              frame.CalculatedRegularization);
             }
             else if (_discretization is LBMGrid lbmGrid)
             {
                 LBMBoundaryCondition bc = boundaryCondition as LBMBoundaryCondition ?? throw new ArgumentException("Cannot convert boundary condition to LBM boundary condition, check calling code!");
 
-                return InverseSolveStepLbm(lbmGrid, bc, measurement);
+                var frame = InverseSolveStepLbm(lbmGrid, bc, measurement);
+
+                var totalGradDict = frame.ConductivityGradient.Conductivities.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value + redularizationStepSize * frame.CalculatedRegularization.GetConductivity(kvp.Key));
+                var totalGrad = new ConductivityDistribution(totalGradDict);
+
+                var sigma = lbmGrid.GetConductivityDistribution();
+                var updated = _numericOptimizer.OptimizationStep(sigma, totalGrad, gradientStepSize);
+                lbmGrid.SetConductivityDistribution(updated);
+
+                return new ReconstructionFrame(totalGrad,
+                                              frame.CalculatedPotentialDistribution,
+                                              frame.CalculatedAdjointDistribution,
+                                              frame.CalculatedRegularization);
             }
             else throw new ArgumentOutOfRangeException();
         }
@@ -176,7 +209,7 @@ namespace BusinessLayer
             return _differentialEquationSolver.Solve(lbmGrid, boundaryConditions, null);
         }
 
-        public ReconstructionFrame InverseSolveStepFem(FEMMesh mesh, FEMBoundaryCondition bc, double[] currentMeasurement, double gradientStepSize)
+        public ReconstructionFrame InverseSolveStepFem(FEMMesh mesh, FEMBoundaryCondition bc, double[] currentMeasurement, double _)
         {
             if (_differentialEquationSolver == null)
                 throw new NullReferenceException("Differential equation solver is null, check calling code!");
@@ -194,9 +227,6 @@ namespace BusinessLayer
 
             // Extract simulated potentials
             double[] simulatedPotentials = mesh.GetElectrodePotentials();
-
-            // Calculate current error
-            double currentError = _errorMetric.Evaluate(mesh, currentMeasurement, simulatedPotentials);
 
             // Error metric based gradeint expression for the adjoint equation
             var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, currentMeasurement, simulatedPotentials);
@@ -224,15 +254,11 @@ namespace BusinessLayer
                 )
             );
 
-            // Apply gradient step size
-            foreach (var kvp in dataGrad.Conductivities)
-                dataGrad.Conductivities[kvp.Key] = kvp.Value * gradientStepSize;
-
             ConductivityDistribution sigma = mesh.GetConductivityDistribution();
 
             // Calculate the regularization field
             double regTerm = _regularizer.EvaluateTerm(mesh, sigma);
-            ConductivityDistribution regularization = _regularizer.EvaluateGradient(mesh, sigma);            
+            ConductivityDistribution regularization = _regularizer.EvaluateGradient(mesh, sigma);
 
             // Returning the partial results from the inverse calculations
             return new ReconstructionFrame(dataGrad, phi, mu, regularization);
@@ -1143,87 +1169,6 @@ namespace BusinessLayer
 
             throw new NotImplementedException();
             //return new ReconstructionResult(mesh, phi, mu, original, original, sigma);
-        }
-
-        public ReconstructionFrame InverseSolveStepFem(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double stepSize)
-        {
-            FEMMesh deepCopy = (FEMMesh)mesh.DeepCopy();
-            ConductivityDistribution originalConductivityDistribution = deepCopy.ConductivityDistribution;
-
-            // Initialize inverse solver
-            _differentialEquationSolver = DifferentialEquationSolverFactory.Create(mesh, DifferentialEquationSolver.FiniteElementMethod, NumericSolverFactory.Create(NumericSolver.SVD));
-            _errorMetric = ErrorMetricFactory.Create(ErrorMetric.L2);
-            _regularizer = RegularisationFactory.Create(RegularizationTechnique.ZeroOrderTikhonov, mesh.DeepCopy(), 0.0);
-            _numericOptimizer = NumericOptimizerFactory.Create(NumericOptimizer.GradientBased, ConductivityDistributionFactory.CreateRandom(mesh));
-
-            // Initialize conductivity (σ^{(0)}) based on user selection
-            ConductivityDistribution sigma0 = ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType);
-            mesh.SetConductivityDistribution(sigma0);
-
-            // Create new boundary conditions that will be fed to the Finite Element Solver
-            List<FEMElectrode> electrodes = [.. mesh.GetElectrodes().Cast<FEMElectrode>()];
-            var bc = new FEMBoundaryCondition(electrodes);
-            var electrodeCount = electrodes.Count;
-
-            // Forward solve  (thesis Eq. 1.1.16)
-            PotentialDistribution phi = _differentialEquationSolver.Solve(mesh, bc, null);
-            Debug.WriteLine("Forward φ computed.");
-
-            // Extract simulated boundary data d_sim
-            double[] dSim = mesh.GetElectrodePotentials();
-            double[] dObs = measurement;
-
-            // Build adjoint source s = EvaluateAdjointSource (L2: residual; W2: Kantorovich φ) 
-            var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, dObs, dSim);
-
-            Complex[] adjointSource = new Complex[adjSrc.Length];
-            for (int i = 0; i < adjSrc.Length; i++)
-                adjointSource[i] = adjSrc[i];
-
-            // wrap into a PotentialDistribution on electrodes
-            var srcDist = new PotentialDistribution(Enumerable.Range(0, adjSrc.Length).ToDictionary(i => electrodes[i].Id, i => adjSrc[i]));
-
-            // 4f) Adjoint solve μ: same forward‐solver but feed in adjSrc as boundary currents
-            PotentialDistribution mu = _differentialEquationSolver.Solve(mesh, new FEMBoundaryCondition(electrodes, srcDist), adjointSource);
-            Debug.WriteLine("Adjoint μ computed.");
-
-            // 4g) Compute gradient ∇J_data = ∇μ·∇φ elementwise  (thesis Eq. 2.1.20)
-            var dataGrad = new ConductivityDistribution(
-                mesh.GetElements().Cast<FEMElement>().ToDictionary(
-                    el => el.Id,
-                    el => {
-                        // compute ∇φ, ∇μ on this element
-                        var gPhi = FiniteElementOperators.CalculateElementWiseGradient(mesh, phi).GetVector(el.Id);
-                        var gMu = FiniteElementOperators.CalculateElementWiseGradient(mesh, mu).GetVector(el.Id);
-                        return (gMu.X * gPhi.X + gMu.Y * gPhi.Y) * el.Area;
-                    }
-                )
-            );
-
-            int elementCount = mesh.GetElements().Count();
-            Dictionary<int, double> totalGrad = [];
-            for (int i = 0; i < elementCount; i++)
-                totalGrad.Add(i, 0.0);
-
-            foreach (var kvp in dataGrad.Conductivities)
-                totalGrad[kvp.Key] += kvp.Value;            
-
-            // 4d) Regularization term J_reg and grad ∇J_reg (Eq. 2.1.27/2.1.28)
-            double regTerm = _regularizer.EvaluateTerm(mesh, sigma0);
-            ConductivityDistribution regGrad = _regularizer.EvaluateGradient(mesh, sigma0);
-            Debug.WriteLine($"Regularization R = {regTerm:0.#####}");
-
-            // 4h) Total gradient ∇J = ∇J_data + ∇R  (Eq. 2.1.31)
-            var totalGradDict = totalGrad.ToDictionary(kvp => kvp.Key, kvp => kvp.Value + regGrad.GetConductivity(kvp.Key));
-
-            ConductivityDistribution grad = new(totalGradDict);
-
-            Debug.WriteLine("Gradient ∇J computed.");
-
-            // 4i) Apply optimization step
-            mesh.SetConductivityDistribution(_numericOptimizer.OptimizationStep(mesh.ConductivityDistribution, grad, stepSize));
-
-            return new ReconstructionFrame(grad, phi, mu, regGrad);
         }
 
         // --- Persistence ---
