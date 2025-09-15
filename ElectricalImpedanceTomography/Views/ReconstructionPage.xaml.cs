@@ -1,8 +1,10 @@
 using CommunityToolkit.Maui.Views;
 using ElectricalImpedanceTomography.ViewModels;
+using Microsoft.Maui.ApplicationModel;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
 using SkiaSharp.Views.Maui.Controls;
+using System.Collections.Specialized;
 using Utility.Classes;
 using Utility.Classes.Measurement;
 using Utility.Classes.Discretizer;
@@ -55,6 +57,7 @@ public partial class ReconstructionPage : ContentPage
 
         _viewModel.ReconstructionUpdated += OnReconstructionUpdated;
         _viewModel.ReconstructionFrameUpdated += OnReconstructionFrameUpdated;
+        _viewModel.ResidualHistory.CollectionChanged += OnResidualHistoryChanged;
 
         StepButton.IsEnabled = false;
         PlayButton.IsVisible = true;
@@ -103,18 +106,26 @@ public partial class ReconstructionPage : ContentPage
         PlayButton.IsEnabled = false;
         _isPaused = false;
 
-        int iterations = _viewModel.MaxIterationCount;
-        for (int i = 0; i < iterations; i++)
-        {
-            await _viewModel.RunFullReconstructionCycleAsync();
-        }
-        //await _viewModel.RunFullReconstructionCycleAsync();
+        _viewModel.PrepareForNewReconstruction();
+        _viewModel.BeginReconstructionMetrics();
 
-        _isPaused = true;
-        StepButton.IsEnabled = true;
-        PlayerBackButton.IsEnabled = true;
-        PlayerForwardButton.IsEnabled = true;
-        PlayButton.IsEnabled = true;
+        int iterations = _viewModel.MaxIterationCount;
+        try
+        {
+            for (int i = 0; i < iterations; i++)
+            {
+                await _viewModel.RunFullReconstructionCycleAsync();
+            }
+        }
+        finally
+        {
+            _viewModel.PauseReconstructionMetrics();
+            _isPaused = true;
+            StepButton.IsEnabled = true;
+            PlayerBackButton.IsEnabled = true;
+            PlayerForwardButton.IsEnabled = true;
+            PlayButton.IsEnabled = true;
+        }
     }
 
     private async void OnPauseButtonClicked(object sender, EventArgs e)
@@ -218,6 +229,9 @@ public partial class ReconstructionPage : ContentPage
             UpdatePlaybackLabel();
         });
     }
+
+    private void OnResidualHistoryChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        => MainThread.BeginInvokeOnMainThread(() => ResidualTrendCanvas.InvalidateSurface());
 
     #region Drawing helpers
     private void ComputeFemTransform(FEMMesh mesh, SKImageInfo info)
@@ -424,6 +438,90 @@ public partial class ReconstructionPage : ContentPage
     #endregion
 
     #region Canvas paint
+    private void OnResidualTrendCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
+    {
+        var canvas = e.Surface.Canvas;
+        canvas.Clear(SKColor.Parse("#1E1E1E"));
+
+        var history = _viewModel.ResidualHistory;
+        if (history.Count == 0)
+        {
+            using var emptyPaint = new SKPaint { Color = SKColors.Gray, TextSize = 14, IsAntialias = true };
+            const string message = "No residual data";
+            float textWidth = emptyPaint.MeasureText(message);
+            canvas.DrawText(message,
+                            (e.Info.Width - textWidth) / 2f,
+                            e.Info.Height / 2f,
+                            emptyPaint);
+            return;
+        }
+
+        double minResidual = double.MaxValue;
+        double maxResidual = double.MinValue;
+        foreach (double value in history)
+        {
+            if (value < minResidual) minResidual = value;
+            if (value > maxResidual) maxResidual = value;
+        }
+
+        if (Math.Abs(maxResidual - minResidual) < 1e-12)
+            maxResidual = minResidual + 1e-12;
+
+        const float leftPadding = 40f;
+        const float rightPadding = 10f;
+        const float topPadding = 10f;
+        const float bottomPadding = 25f;
+
+        float chartWidth = e.Info.Width - leftPadding - rightPadding;
+        float chartHeight = e.Info.Height - topPadding - bottomPadding;
+        if (chartWidth <= 0 || chartHeight <= 0)
+            return;
+
+        using var axisPaint = new SKPaint { Color = SKColors.Gray, StrokeWidth = 1, IsAntialias = true };
+        using var textPaint = new SKPaint { Color = SKColors.White, TextSize = 12, IsAntialias = true, TextAlign = SKTextAlign.Right };
+        using var linePaint = new SKPaint { Color = SKColors.DeepSkyBlue, StrokeWidth = 2, IsAntialias = true, Style = SKPaintStyle.Stroke };
+        using var pointPaint = new SKPaint { Color = SKColors.CornflowerBlue, IsAntialias = true };
+
+        var origin = new SKPoint(leftPadding, topPadding + chartHeight);
+        var xAxisEnd = new SKPoint(leftPadding + chartWidth, origin.Y);
+        var yAxisEnd = new SKPoint(leftPadding, topPadding);
+        canvas.DrawLine(origin, xAxisEnd, axisPaint);
+        canvas.DrawLine(origin, yAxisEnd, axisPaint);
+
+        textPaint.TextAlign = SKTextAlign.Right;
+        canvas.DrawText(maxResidual.ToString("F3"), leftPadding - 4, topPadding + textPaint.TextSize / 2f, textPaint);
+        canvas.DrawText(minResidual.ToString("F3"), leftPadding - 4, origin.Y, textPaint);
+
+        int count = history.Count;
+        float step = count > 1 ? chartWidth / (count - 1) : 0f;
+        var path = new SKPath();
+        for (int i = 0; i < count; i++)
+        {
+            double residual = history[i];
+            float x = leftPadding + (count > 1 ? step * i : chartWidth / 2f);
+            double normalized = (residual - minResidual) / (maxResidual - minResidual);
+            float y = topPadding + chartHeight * (float)(1 - normalized);
+
+            if (i == 0)
+                path.MoveTo(x, y);
+            else
+                path.LineTo(x, y);
+
+            canvas.DrawCircle(x, y, 3f, pointPaint);
+        }
+
+        canvas.DrawPath(path, linePaint);
+
+        textPaint.TextAlign = SKTextAlign.Center;
+        float labelY = origin.Y + textPaint.TextSize + 4f;
+        canvas.DrawText("1", leftPadding, labelY, textPaint);
+        canvas.DrawText(count.ToString(), leftPadding + chartWidth, labelY, textPaint);
+        canvas.DrawText("Iteration", leftPadding + chartWidth / 2f, e.Info.Height - 4f, textPaint);
+
+        textPaint.TextAlign = SKTextAlign.Right;
+        canvas.DrawText("Residual", leftPadding - 6f, topPadding - 2f, textPaint);
+    }
+
     private void OnOriginalCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
         _currentResult ??= Workspace.GetReconstructionResults().LastOrDefault();
