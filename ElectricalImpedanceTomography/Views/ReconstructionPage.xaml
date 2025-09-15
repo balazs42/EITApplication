@@ -321,32 +321,49 @@
                     </Grid>
                 </Grid>
             </Grid>
-            <Border Grid.Column="2" StrokeShape="RoundRectangle 5" Margin="5" WidthRequest="250" HorizontalOptions="End">
-                <VerticalStackLayout Margin="2" Spacing="10">
-                    <Label Text="Past Reconstructions" HorizontalOptions="Center"/>
-                    <SearchBar Placeholder="Search" Text="{Binding ReconstructionSearchText}" Margin="5"/>
-                    <Border StrokeShape="RoundRectangle 10">
-                        <ScrollView>
-                            <VerticalStackLayout Spacing="2" BindableLayout.ItemsSource="{Binding FilteredReconstructions}">
-                                <BindableLayout.ItemTemplate>
-                                    <DataTemplate x:DataType="models:ReconstructionInfo">
-                                        <Border StrokeShape="RoundRectangle 5" Padding="4" Stroke="Transparent">
-                                            <Grid ColumnDefinitions="Auto, *" RowDefinitions="Auto, Auto, Auto" ColumnSpacing="5">
-                                                <Label Grid.Column="0" Grid.Row="0" Text="{Binding Name}" FontAttributes="Bold" FontSize="Small"/>
-                                                <Label Grid.Column="0" Grid.Row="1" Text="{Binding Metadata.CreatedOn, StringFormat='Saved: {0:G}'}" FontSize="10"/>
-                                                <Label Grid.Column="0" Grid.Row="2" Text="{Binding ParameterSummary}" FontSize="10"/>
-                                            </Grid>
-                                            <Border.GestureRecognizers>
-                                                <TapGestureRecognizer Tapped="OnReconstructionSelected"/>
-                                            </Border.GestureRecognizers>
-                                        </Border>
-                                    </DataTemplate>
-                                </BindableLayout.ItemTemplate>
-                            </VerticalStackLayout>
-                        </ScrollView>
-                    </Border>
-                </VerticalStackLayout>
-            </Border>
+            <Grid Grid.Column="2" RowDefinitions="*, Auto" RowSpacing="10" Margin="5" WidthRequest="250" HorizontalOptions="End">
+                <Border Grid.Row="0" StrokeShape="RoundRectangle 5">
+                    <VerticalStackLayout Margin="2" Spacing="10">
+                        <Label Text="Past Reconstructions" HorizontalOptions="Center"/>
+                        <SearchBar Placeholder="Search" Text="{Binding ReconstructionSearchText}" Margin="5"/>
+                        <Border StrokeShape="RoundRectangle 10">
+                            <ScrollView>
+                                <VerticalStackLayout Spacing="2" BindableLayout.ItemsSource="{Binding FilteredReconstructions}">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate x:DataType="models:ReconstructionInfo">
+                                            <Border StrokeShape="RoundRectangle 5" Padding="4" Stroke="Transparent">
+                                                <Grid ColumnDefinitions="Auto, *" RowDefinitions="Auto, Auto, Auto" ColumnSpacing="5">
+                                                    <Label Grid.Column="0" Grid.Row="0" Text="{Binding Name}" FontAttributes="Bold" FontSize="Small"/>
+                                                    <Label Grid.Column="0" Grid.Row="1" Text="{Binding Metadata.CreatedOn, StringFormat='Saved: {0:G}'}" FontSize="10"/>
+                                                    <Label Grid.Column="0" Grid.Row="2" Text="{Binding ParameterSummary}" FontSize="10"/>
+                                                </Grid>
+                                                <Border.GestureRecognizers>
+                                                    <TapGestureRecognizer Tapped="OnReconstructionSelected"/>
+                                                </Border.GestureRecognizers>
+                                            </Border>
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </VerticalStackLayout>
+                            </ScrollView>
+                        </Border>
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Grid.Row="1" StrokeShape="RoundRectangle 5">
+                    <VerticalStackLayout Margin="10" Spacing="6">
+                        <Label Text="Reconstruction Statistics" HorizontalOptions="Center" FontAttributes="Italic"/>
+                        <Label Text="{Binding ElapsedTime, StringFormat='Elapsed Time: {0:hh\\:mm\\:ss}'}" FontSize="12"/>
+                        <Label Text="{Binding Residual, StringFormat='Current Residual: {0:F3}'}" FontSize="12"/>
+                        <Label Text="{Binding Correlation, StringFormat='Correlation: {0:F3}'}" FontSize="12"/>
+                        <Label Text="Residual vs. Iteration" HorizontalOptions="Center" FontSize="12"/>
+                        <Border StrokeShape="RoundRectangle 5" Padding="4" BackgroundColor="#1E1E1E">
+                            <skia:SKCanvasView x:Name="ResidualTrendCanvas"
+                                              HeightRequest="120"
+                                              PaintSurface="OnResidualTrendCanvasPaintSurface"/>
+                        </Border>
+                    </VerticalStackLayout>
+                </Border>
+            </Grid>
         </Grid>
     </Grid>
 </ContentPage>
