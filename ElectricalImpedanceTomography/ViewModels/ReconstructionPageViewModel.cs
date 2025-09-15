@@ -24,6 +24,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         private IDiscretization? _discretization = Workspace.GetDiscretization();
         private IDiscretization? _initializedDiscretization;
         private ReconstructionRunSignature? _lastRunSignature;
+        private bool _resetMetricsOnStart = true;
 
         [ObservableProperty]
         private int iterationCount = 0;
@@ -105,23 +106,25 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
 
             if (!isSameRun)
-                ResetReconstructionMetrics();
+                _resetMetricsOnStart = true;
 
             _lastRunSignature = signature;
         }
 
         public void ResetReconstructionMetrics()
         {
-            ResidualHistory.Clear();
-            Residual = 0.0;
-            Correlation = 0.0;
-            ElapsedTime = TimeSpan.Zero;
-            _reconstructionStopwatch.Reset();
-            StopElapsedTimer();
+            ResetMetricsCore();
+            _resetMetricsOnStart = false;
         }
 
         public void BeginReconstructionMetrics()
         {
+            if (_resetMetricsOnStart)
+            {
+                ResetMetricsCore();
+                _resetMetricsOnStart = false;
+            }
+
             if (!_reconstructionStopwatch.IsRunning)
                 _reconstructionStopwatch.Start();
 
@@ -139,7 +142,21 @@ namespace ElectricalImpedanceTomography.ViewModels
             StopElapsedTimer();
         }
 
-        public void StopReconstructionMetrics() => PauseReconstructionMetrics();
+        public void StopReconstructionMetrics()
+        {
+            ResetMetricsCore();
+            _resetMetricsOnStart = true;
+        }
+
+        private void ResetMetricsCore()
+        {
+            ResidualHistory.Clear();
+            Residual = 0.0;
+            Correlation = 0.0;
+            ElapsedTime = TimeSpan.Zero;
+            _reconstructionStopwatch.Reset();
+            StopElapsedTimer();
+        }
 
         private void StartElapsedTimer()
         {
