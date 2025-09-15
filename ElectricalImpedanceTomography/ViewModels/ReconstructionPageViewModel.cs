@@ -7,6 +7,7 @@ using Utility.Classes;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
+using Utility.Classes.ReconstructionParameters;
 
 using Workspace = Utility.Classes.Application.Workspace;
 using Timer = System.Timers.Timer;
@@ -22,6 +23,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         private IDiscretization? _discretization = Workspace.GetDiscretization();
         private IDiscretization? _initializedDiscretization;
+        private ReconstructionRunSignature? _lastRunSignature;
 
         [ObservableProperty]
         private int iterationCount = 0;
@@ -81,8 +83,31 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public void PrepareForNewReconstruction()
         {
-            InitializeReconstruction(force: true);
-            ResetReconstructionMetrics();
+            UpdateMesh();
+            UpdateReconstructionParameters();
+
+            var mesh = _discretization ?? throw new NullReferenceException("Mesh was null during reconstruction initialization, check calling code!");
+
+            var signature = CreateCurrentRunSignature(mesh);
+            bool isSameRun = _lastRunSignature?.Equals(signature) ?? false;
+
+            if (_initializedDiscretization != mesh)
+            {
+                isSameRun = false;
+                _reconstructionService.InitializeReconstruction(mesh, ReconstructionParameters, true);
+                _initializedDiscretization = mesh;
+                IterationCount = 0;
+            }
+            else if (!isSameRun)
+            {
+                _reconstructionService.InitializeReconstruction(mesh, ReconstructionParameters, true);
+                IterationCount = 0;
+            }
+
+            if (!isSameRun)
+                ResetReconstructionMetrics();
+
+            _lastRunSignature = signature;
         }
 
         public void ResetReconstructionMetrics()
@@ -245,8 +270,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public void StartBackgroundReconstruction()
         {
-            InitializeReconstruction(force: true);
-            ResetReconstructionMetrics();
+            PrepareForNewReconstruction();
             BeginReconstructionMetrics();
             _reconstructionService.StartBackgroundReconstruction(MaxIterationCount, StepSize, RegularizationWeight, ExcitationCurrentAmplitude);
         }
@@ -268,6 +292,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             _reconstructionService.StopBackgroundReconstruction();
             StopReconstructionMetrics();
             _initializedDiscretization = null;
+            _lastRunSignature = null;
         }
 
         public async Task<ReconstructionFrame?> StepReconstructionAsync()
@@ -343,5 +368,45 @@ namespace ElectricalImpedanceTomography.ViewModels
                          r.Name.Contains(ReconstructionSearchText, StringComparison.OrdinalIgnoreCase)))
                 FilteredReconstructions.Add(r);
         }
+
+        private ReconstructionRunSignature CreateCurrentRunSignature(IDiscretization mesh)
+        {
+            var parameters = ReconstructionParameters;
+            var snapshot = new ReconstructionParametersSnapshot(
+                parameters.DifferentialEquationSolver,
+                parameters.RegularizationTechnique,
+                parameters.ErrorMetric,
+                parameters.NumericSolver,
+                parameters.NumericOptimizer,
+                parameters.InitialDistributionType,
+                StepSize,
+                RegularizationWeight,
+                MaxIterationCount,
+                ExcitationCurrentAmplitude,
+                ExcitationElectrodeId,
+                GroundElectrodeId,
+                AdjecentDrivePattern,
+                OppositeDrivePattern);
+
+            return new ReconstructionRunSignature(mesh, snapshot);
+        }
+
+        private readonly record struct ReconstructionParametersSnapshot(
+            DifferentialEquationSolver DifferentialEquationSolver,
+            RegularizationTechnique RegularizationTechnique,
+            ErrorMetric ErrorMetric,
+            NumericSolver NumericSolver,
+            NumericOptimizer NumericOptimizer,
+            InitialDistributionTypes InitialDistributionType,
+            double StepSize,
+            double RegularizationWeight,
+            int MaxIterationCount,
+            double ExcitationCurrentAmplitude,
+            int ExcitationElectrodeId,
+            int GroundElectrodeId,
+            bool AdjecentDrivePattern,
+            bool OppositeDrivePattern);
+
+        private record ReconstructionRunSignature(IDiscretization Mesh, ReconstructionParametersSnapshot Parameters);
     }
 }

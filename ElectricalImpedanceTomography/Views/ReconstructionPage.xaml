@@ -36,10 +36,6 @@
     </ContentPage.MenuBarItems>
 
     <ContentPage.Resources>
-        <Style TargetType="Border">
-            <Setter Property="BackgroundColor" Value="#1A1A1A"/>
-            <Setter Property="StrokeShape" Value="RoundRectangle 3"/>
-        </Style>
         <Style TargetType="Label">
             <Setter Property="FontFamily" Value="SF Pro Text"/>
             <Setter Property="FontAttributes" Value="Bold"/>
@@ -47,6 +43,61 @@
         <Style TargetType="skia:SKCanvasView">
             <Setter Property="Margin" Value="5"/>
         </Style>
+
+        <Style x:Key="PanelBorderStyle" TargetType="Border">
+            <Setter Property="StrokeShape" Value="RoundRectangle 12"/>
+            <Setter Property="StrokeThickness" Value="1.5"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Stroke">
+                <Setter.Value>
+                    <SolidColorBrush Color="#3A7CA5" />
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Shadow">
+                <Setter.Value>
+                    <Shadow Brush="#883A7CA5" Offset="0,4" Radius="12" Opacity="0.45" />
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PanelSectionBorderStyle" TargetType="Border">
+            <Setter Property="StrokeShape" Value="RoundRectangle 10"/>
+            <Setter Property="StrokeThickness" Value="0"/>
+            <Setter Property="Padding" Value="12"/>
+            <Setter Property="BackgroundColor" Value="#242F47"/>
+        </Style>
+
+        <Style x:Key="CanvasBorderStyle" TargetType="Border">
+            <Setter Property="StrokeShape" Value="RoundRectangle 12"/>
+            <Setter Property="StrokeThickness" Value="1"/>
+            <Setter Property="Padding" Value="10"/>
+            <Setter Property="BackgroundColor" Value="#1A2436"/>
+        </Style>
+
+        <LinearGradientBrush x:Key="ConfigurationPanelBrush" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#232E45" Offset="0" />
+            <GradientStop Color="#161D2C" Offset="1" />
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="ControlPanelBrush" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#1E273B" Offset="0" />
+            <GradientStop Color="#101624" Offset="1" />
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="PartialResultsBrush" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#202A3F" Offset="0" />
+            <GradientStop Color="#121923" Offset="1" />
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="FullResultsBrush" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#1C2638" Offset="0" />
+            <GradientStop Color="#0F151F" Offset="1" />
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="HistoryPanelBrush" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#222E45" Offset="0" />
+            <GradientStop Color="#141B28" Offset="1" />
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="StatisticsPanelBrush" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#1E2435" Offset="0" />
+            <GradientStop Color="#111723" Offset="1" />
+        </LinearGradientBrush>
     </ContentPage.Resources>
     <Grid RowDefinitions="Auto, Auto">
         <controls:NavBarControl x:Name="NavBar" Grid.Row="0" Grid.ColumnSpan="1" CurrentPageName="ReconstructionPage"/>
@@ -54,96 +105,115 @@
         <!-- Main Grid For Page display -->
         <Grid Grid.Row="1" ColumnDefinitions="Auto, *, Auto" ColumnSpacing="0">
             <!-- Left hand Side controls-->
-            <Border BackgroundColor="Transparent" Stroke="Gray" Margin="5" Padding="10">
-                <Grid RowDefinitions="Auto, Auto, Auto, Auto" RowSpacing="10">
-                    <Grid Grid.Row="0" ColumnDefinitions="Auto, *" ColumnSpacing="5">
+            <Border Style="{StaticResource PanelBorderStyle}"
+                    Margin="5">
+                <Border.Background>
+                    <StaticResource ResourceKey="ConfigurationPanelBrush" />
+                </Border.Background>
+                <Border.Stroke>
+                    <SolidColorBrush Color="#4D6FA3" />
+                </Border.Stroke>
+                <VerticalStackLayout Margin="18" Spacing="16">
+                    <Grid ColumnDefinitions="Auto, *" ColumnSpacing="8">
                         <Image Grid.Column="0" Source="icon_configuration.png" HeightRequest="35"/>
                         <Label Grid.Column="1" Text="Configuration" FontAttributes="Italic" FontSize="Large"/>
                     </Grid>
-                    <Grid Grid.Row="1" ColumnDefinitions="Auto, Auto" ColumnSpacing="5">
+                    <Grid ColumnDefinitions="*, *" ColumnSpacing="14" RowSpacing="0">
                         <!-- Method Selection -->
-                        <Border Grid.Column="0" Padding="5" Background="Transparent" Stroke="Gray">
-                            <Grid  RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="5" >
-                                <Label Grid.Row="0" Text="Methods" FontAttributes="Bold" FontSize="Medium" Margin="0, 0, 0, 10"/>
-                                <Label Grid.Row="1" HorizontalOptions="Start" Text="DE Solver" FontFamily="SF Pro Text" Margin="5,0,0,0"/>
+                        <Border Grid.Column="0"
+                                Style="{StaticResource PanelSectionBorderStyle}"
+                                BackgroundColor="#27344D">
+                            <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
+                                <Label Grid.Row="0" Text="Methods" FontSize="Medium" FontAttributes="Bold" Margin="0,0,0,12"/>
+                                <Label Grid.Row="1" HorizontalOptions="Start" Text="DE Solver" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Picker Grid.Row="2" ItemsSource="{Binding DifferentialEquationSolverOptions}" SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}"/>
-                                <Label Grid.Row="3" HorizontalOptions="Center" Text="Error Metric" FontFamily="SF Pro Text" Margin="5,0,0,0"/>
+                                <Label Grid.Row="3" HorizontalOptions="Start" Text="Error Metric" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Picker Grid.Row="4" ItemsSource="{Binding ErrorMetricOptions}" SelectedItem="{Binding ReconstructionParameters.ErrorMetric}"/>
-                                <Label Grid.Row="5" HorizontalOptions="Center" Text="Regulization" FontFamily="SF Pro Text" Margin="5,0,0,0"/>
+                                <Label Grid.Row="5" HorizontalOptions="Start" Text="Regularization" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Picker Grid.Row="6" ItemsSource="{Binding RegularizationTechniqueOptions}" SelectedItem="{Binding ReconstructionParameters.RegularizationTechnique}"/>
-                                <Label Grid.Row="7" HorizontalOptions="Center" Text="Linear Solver" FontFamily="SF Pro Text" Margin="5,0,0,0"/>
+                                <Label Grid.Row="7" HorizontalOptions="Start" Text="Linear Solver" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Picker Grid.Row="8" ItemsSource="{Binding NumericSolverOptions}" SelectedItem="{Binding ReconstructionParameters.NumericSolver}"/>
-                                <Label Grid.Row="9" HorizontalOptions="Center" Text="Optimizer" FontFamily="SF Pro Text" Margin="5,0,0,0"/>
+                                <Label Grid.Row="9" HorizontalOptions="Start" Text="Optimizer" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Picker Grid.Row="10" ItemsSource="{Binding NumericOptimizerOptions}" SelectedItem="{Binding ReconstructionParameters.NumericOptimizer}"/>
                             </Grid>
                         </Border>
-                    
                         <!-- Parameter Configuration -->
-                        <Border Grid.Column="1" Padding="5" Background="Transparent" Stroke="Gray">
-                            <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="5">
-                                <Label Grid.Row="0" Text="Parameters" FontAttributes="Bold" FontSize="Medium" Margin="0, 0, 0, 10"/>
-                                <Label Grid.Row="1" HorizontalOptions="Center" Text="Regularization Weight (θ)" FontFamily="SF Pro Text"/>
+                        <Border Grid.Column="1"
+                                Style="{StaticResource PanelSectionBorderStyle}"
+                                BackgroundColor="#25324A">
+                            <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
+                                <Label Grid.Row="0" Text="Parameters" FontSize="Medium" FontAttributes="Bold" Margin="0,0,0,12"/>
+                                <Label Grid.Row="1" HorizontalOptions="Start" Text="Regularization Weight (θ)" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Entry Grid.Row="2" Text="{Binding RegularizationWeight}"/>
-                                <Label Grid.Row="3" HorizontalOptions="Center" Text="Gradient Step Size (β)" FontFamily="SF Pro Text"/>
+                                <Label Grid.Row="3" HorizontalOptions="Start" Text="Gradient Step Size (β)" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Entry Grid.Row="4" Text="{Binding StepSize}"/>
-                                <Label Grid.Row="5" HorizontalOptions="Center" Text="Max Iteration Count" FontFamily="SF Pro Text"/>
+                                <Label Grid.Row="5" HorizontalOptions="Start" Text="Max Iteration Count" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Entry Grid.Row="6" Text="{Binding MaxIterationCount}"/>
-                                <Label Grid.Row="7" HorizontalOptions="Center" Text="Initial Distribution" FontFamily="SF Pro Text"/>
+                                <Label Grid.Row="7" HorizontalOptions="Start" Text="Initial Distribution" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Picker Grid.Row="8" ItemsSource="{Binding InitialDistributionOptions}" SelectedItem="{Binding ReconstructionParameters.InitialDistributionType}"/>
-
                             </Grid>
                         </Border>
                     </Grid>
 
-                    <Border Grid.Row="2" Padding="10" Background="Transparent" Stroke="Gray">
-                        <Grid  RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="5" >
-                            <Grid Grid.Row="0" ColumnDefinitions="Auto, *" ColumnSpacing="5">
+                    <Border Style="{StaticResource PanelSectionBorderStyle}"
+                            BackgroundColor="#253049">
+                        <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
+                            <Grid Grid.Row="0" ColumnDefinitions="Auto, *" ColumnSpacing="8">
                                 <Image Grid.Column="0" Source="icon_boundary.png" HeightRequest="25"/>
                                 <Label Grid.Column="1" Text="Boundary Conditions" FontAttributes="Italic" FontSize="Medium"/>
                             </Grid>
-                            <Label Grid.Row="1" Text="Starting Excitation Electrode" />
+                            <Label Grid.Row="1" Text="Starting Excitation Electrode" FontAttributes="None"/>
                             <Entry Grid.Row="2" Text="{Binding ExcitationElectrodeId}"/>
-                            <Label Grid.Row="3" Text="Starting Ground Electrode" />
+                            <Label Grid.Row="3" Text="Starting Ground Electrode" FontAttributes="None"/>
                             <Entry Grid.Row="4" Text="{Binding GroundElectrodeId}"/>
-                            <Label Grid.Row="5" Text="Drive Pattern:" />
-                            <Grid Grid.Row="6" ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto" HorizontalOptions="Center" ColumnSpacing="20">
-                                <CheckBox Grid.Column="0" 
-                                          HorizontalOptions="Center" 
-                                          VerticalOptions="Center" 
+                            <Label Grid.Row="5" Text="Drive Pattern:" FontAttributes="None"/>
+                            <Grid Grid.Row="6" ColumnDefinitions="Auto, Auto, Auto, Auto" ColumnSpacing="20" HorizontalOptions="Center">
+                                <CheckBox Grid.Column="0"
+                                          HorizontalOptions="Center"
+                                          VerticalOptions="Center"
                                           IsChecked="{Binding AdjecentDrivePattern}"
                                           CheckedChanged="OnAdjecentDrivePatternChecked"/>
-                                <Label Grid.Column="1" Text="Adjecent" VerticalOptions="Center" HorizontalOptions="Start"/>
+                                <Label Grid.Column="1" Text="Adjecent" VerticalOptions="Center" HorizontalOptions="Start" FontAttributes="None"/>
                                 <CheckBox Grid.Column="2"
-                                          HorizontalOptions="Center" 
-                                          VerticalOptions="Center" 
+                                          HorizontalOptions="Center"
+                                          VerticalOptions="Center"
                                           IsChecked="{Binding OppositeDrivePattern}"
                                           CheckedChanged="OnOppositeDrivePatternChecked"/>
-                                <Label Grid.Column="3" Text="Opposite" HorizontalOptions="Start" VerticalOptions="Center"/>
+                                <Label Grid.Column="3" Text="Opposite" HorizontalOptions="Start" VerticalOptions="Center" FontAttributes="None"/>
                             </Grid>
-                            <Button Grid.Row="7" Text="Edit Boundary Conditions" Background="PaleTurquoise" FontAttributes="Bold" Clicked="OnEditBoundaryConditionsClicked"/>
+                            <Button Grid.Row="7" Text="Edit Boundary Conditions" Background="#2F9E9C" TextColor="White" FontAttributes="Bold" Clicked="OnEditBoundaryConditionsClicked"/>
                         </Grid>
                     </Border>
 
-                    <VerticalStackLayout Grid.Row="3" Spacing="5">
-                        <Entry Text="{Binding Name}" Placeholder="Name"/>
-                        <Grid ColumnDefinitions="*, *">
-                            <Button Grid.Column="0" Text="Save" Margin="5" BackgroundColor="LightGreen" FontFamily="SF Pro Text" FontAttributes="Bold" Clicked="OnSaveClicked"/>
-                            <Button Grid.Column="1" Text="Load" Margin="5" BackgroundColor="LightBlue" FontFamily="SF Pro Text" FontAttributes="Bold" Clicked="OnLoadClicked"/>
-                        </Grid>
-                    </VerticalStackLayout>
-                    
-                </Grid>
+                    <Border Style="{StaticResource PanelSectionBorderStyle}"
+                            BackgroundColor="#22304A">
+                        <VerticalStackLayout Spacing="12">
+                            <Entry Text="{Binding Name}" Placeholder="Name"/>
+                            <Grid ColumnDefinitions="*, *" ColumnSpacing="12">
+                                <Button Grid.Column="0" Text="Save" BackgroundColor="#2E8B57" TextColor="White" FontFamily="SF Pro Text" FontAttributes="Bold" Clicked="OnSaveClicked"/>
+                                <Button Grid.Column="1" Text="Load" BackgroundColor="#3A7CA5" TextColor="White" FontFamily="SF Pro Text" FontAttributes="Bold" Clicked="OnLoadClicked"/>
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Border>
+                </VerticalStackLayout>
             </Border>
-                
+
         <!-- Center Content -->
             <Grid Grid.Column="1" RowDefinitions="Auto, Auto" HorizontalOptions="Center">
 
                 <!-- Control Panel to control reconstruction -->
-                <Border Background="Transparent" Stroke="Gray">
+                <Border Style="{StaticResource PanelBorderStyle}">
+                    <Border.Background>
+                        <StaticResource ResourceKey="ControlPanelBrush" />
+                    </Border.Background>
+                    <Border.Stroke>
+                        <SolidColorBrush Color="#3A5F8A" />
+                    </Border.Stroke>
                     <Grid ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto"
                           RowDefinitions="Auto, Auto"
                           ColumnSpacing="15"
-                          HorizontalOptions="Center">
+                          HorizontalOptions="Center"
+                          Margin="18">
                         <Border x:Name="PlayButton" Grid.Column="0" HeightRequest="50" WidthRequest="50" Margin="5" HorizontalOptions="Center" VerticalOptions="Center">
                             <ImageButton Padding="3"
                                          Background="Transparent"
@@ -251,91 +321,110 @@
                 </Border>
 
                 <!-- Displays for reconstruction steps -->
-                <Grid Grid.Row="1" Margin="3" RowDefinitions="Auto, Auto" ColumnDefinitions="Auto" HorizontalOptions="Center" VerticalOptions="Center">
-                    <!-- Partial results -->
-                    <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,Auto" HorizontalOptions="Center">
-                        <!-- Calculated Potential -->
-                        <VerticalStackLayout Grid.Column="0" HorizontalOptions="Center">
-                            <Label Text="Calculated Potential [mV]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small"/>
-                            <Border Stroke="Transparent" StrokeThickness="2" Margin="10" HorizontalOptions="Center">
-                                <Grid RowDefinitions="Auto,Auto">
-                                    <skia:SKCanvasView x:Name="PotentialDistributionCanvas" PaintSurface="OnPotentialCanvasPaintSurface" EnableTouchEvents="True" Touch="OnPotentialCanvasTouch" HeightRequest="275" WidthRequest="275" Margin="10"/>
-                                    <skia:SKCanvasView Grid.Row="1" x:Name="PotentialColorbarCanvas" PaintSurface="OnPotentialColorbarPaintSurface" HeightRequest="20" WidthRequest="275"/>
-                                </Grid>
-                            </Border>
-                        </VerticalStackLayout>
-                        <!-- Adjoint Potential -->
-                        <VerticalStackLayout Grid.Column="1" HorizontalOptions="Center">
-                            <Label Text="Adjoint Potential [mV]" HorizontalOptions="Center" FontFamily="SF Pro Text"  FontSize="Small"/>
-                            <Border Stroke="Transparent" StrokeThickness="2" Margin="10" HorizontalOptions="Center">
-                                <Grid RowDefinitions="Auto,Auto">
-                                    <skia:SKCanvasView x:Name="AdjointDistributionCanvas" PaintSurface="OnAdjointCanvasPaintSurface" EnableTouchEvents="True" Touch="OnAdjointCanvasTouch" HeightRequest="275" WidthRequest="275" Margin="10"/>
-                                    <skia:SKCanvasView Grid.Row="1" x:Name="AdjointColorbarCanvas" PaintSurface="OnAdjointColorbarPaintSurface" HeightRequest="20" WidthRequest="275"/>
-                                </Grid>
-                            </Border>
-                        </VerticalStackLayout>
-                        <!-- Gradient -->
-                        <VerticalStackLayout Grid.Column="2" HorizontalOptions="Center">
-                            <Label Text="Conductivity Gradient [∂Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text"  FontSize="Small"/>
-                            <Border Stroke="Transparent" StrokeThickness="2" Margin="10" HorizontalOptions="Center">
-                                <Grid RowDefinitions="Auto,Auto">
-                                    <skia:SKCanvasView x:Name="GradientDistributionCanvas" PaintSurface="OnGradientCanvasPaintSurface" EnableTouchEvents="True" Touch="OnGradientCanvasTouch" HeightRequest="275" WidthRequest="275" Margin="10"/>
-                                    <skia:SKCanvasView Grid.Row="1" x:Name="GradientColorbarCanvas" PaintSurface="OnGradientColorbarPaintSurface" HeightRequest="20" WidthRequest="275"/>
-                                </Grid>
-                            </Border>
-                        </VerticalStackLayout>
-                    </Grid>
-
-                    <!-- Full results -->
-                    <Grid Grid.Row="1" ColumnDefinitions="Auto,Auto,Auto" HorizontalOptions="Center">
-                        <!-- Original -->
-                        <VerticalStackLayout Grid.Column="0" HorizontalOptions="Center">
-                            <Label Text="Original Distribution [Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text"  FontSize="Small"/>
-                            <Border Stroke="Transparent" StrokeThickness="2" Margin="10" HorizontalOptions="Center">
-                                <Grid RowDefinitions="Auto,Auto">
-                                    <skia:SKCanvasView x:Name="OriginalDistributionCanvas" PaintSurface="OnOriginalCanvasPaintSurface" EnableTouchEvents="True" Touch="OnOriginalCanvasTouch" HeightRequest="275" WidthRequest="275" Margin="10"/>
-                                    <skia:SKCanvasView Grid.Row="1" x:Name="OriginalColorbarCanvas" PaintSurface="OnOriginalColorbarPaintSurface" HeightRequest="20" WidthRequest="275"/>
-                                </Grid>
-                            </Border>
-                        </VerticalStackLayout>
-                        <!-- Initial -->
-                        <VerticalStackLayout Grid.Column="1" HorizontalOptions="Center">
-                            <Label Text="Initial Distribution [Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text"  FontSize="Small"/>
-                            <Border Stroke="Transparent" StrokeThickness="2" Margin="10" HorizontalOptions="Center">
-                                <Grid RowDefinitions="Auto,Auto">
-                                    <skia:SKCanvasView x:Name="InitialDistributionCanvas" PaintSurface="OnInitialCanvasPaintSurface" EnableTouchEvents="True" Touch="OnInitialCanvasTouch" HeightRequest="275" WidthRequest="275" Margin="10"/>
-                                    <skia:SKCanvasView Grid.Row="1" x:Name="InitialColorbarCanvas" PaintSurface="OnInitialColorbarPaintSurface" HeightRequest="20" WidthRequest="275"/>
-                                </Grid>
-                            </Border>
-                        </VerticalStackLayout>
-                        <!-- Reconstructed -->
-                        <VerticalStackLayout Grid.Column="2" HorizontalOptions="Center">
-                            <Label Text="Reconstructed Distribution [Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text"  FontSize="Small"/>
-                            <Border Stroke="Transparent" StrokeThickness="2" Margin="10" HorizontalOptions="Center">
-                                <Grid RowDefinitions="Auto,Auto">
-                                    <skia:SKCanvasView x:Name="ReconstructedDistributionCanvas" PaintSurface="OnReconstructedCanvasPaintSurface" EnableTouchEvents="True" Touch="OnReconstructedCanvasTouch" HeightRequest="275" WidthRequest="275" Margin="10"/>
-                                    <skia:SKCanvasView Grid.Row="1" x:Name="ReconstructedColorbarCanvas" PaintSurface="OnReconstructedColorbarPaintSurface" HeightRequest="20" WidthRequest="275"/>
-                                </Grid>
-                            </Border>
-                        </VerticalStackLayout>
-                    </Grid>
+                <Grid Grid.Row="1" Margin="10" RowDefinitions="Auto, Auto" ColumnDefinitions="Auto" HorizontalOptions="Center" VerticalOptions="Center" RowSpacing="14">
+                    <Border Grid.Row="0" Style="{StaticResource PanelBorderStyle}">
+                        <Border.Background>
+                            <StaticResource ResourceKey="PartialResultsBrush" />
+                        </Border.Background>
+                        <Border.Stroke>
+                            <SolidColorBrush Color="#2F4F77" />
+                        </Border.Stroke>
+                        <Grid ColumnDefinitions="Auto,Auto,Auto" HorizontalOptions="Center" Margin="18" ColumnSpacing="18">
+                            <!-- Calculated Potential -->
+                            <VerticalStackLayout Grid.Column="0" HorizontalOptions="Center" Spacing="10">
+                                <Label Text="Calculated Potential [mV]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="None"/>
+                                <Border Style="{StaticResource CanvasBorderStyle}" Margin="10" HorizontalOptions="Center">
+                                    <Grid RowDefinitions="Auto,Auto">
+                                        <skia:SKCanvasView x:Name="PotentialDistributionCanvas" PaintSurface="OnPotentialCanvasPaintSurface" EnableTouchEvents="True" Touch="OnPotentialCanvasTouch" HeightRequest="275" WidthRequest="275" Margin="10"/>
+                                        <skia:SKCanvasView Grid.Row="1" x:Name="PotentialColorbarCanvas" PaintSurface="OnPotentialColorbarPaintSurface" HeightRequest="20" WidthRequest="275"/>
+                                    </Grid>
+                                </Border>
+                            </VerticalStackLayout>
+                            <!-- Adjoint Potential -->
+                            <VerticalStackLayout Grid.Column="1" HorizontalOptions="Center" Spacing="10">
+                                <Label Text="Adjoint Potential [mV]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="None"/>
+                                <Border Style="{StaticResource CanvasBorderStyle}" Margin="10" HorizontalOptions="Center">
+                                    <Grid RowDefinitions="Auto,Auto">
+                                        <skia:SKCanvasView x:Name="AdjointDistributionCanvas" PaintSurface="OnAdjointCanvasPaintSurface" EnableTouchEvents="True" Touch="OnAdjointCanvasTouch" HeightRequest="275" WidthRequest="275" Margin="10"/>
+                                        <skia:SKCanvasView Grid.Row="1" x:Name="AdjointColorbarCanvas" PaintSurface="OnAdjointColorbarPaintSurface" HeightRequest="20" WidthRequest="275"/>
+                                    </Grid>
+                                </Border>
+                            </VerticalStackLayout>
+                            <!-- Gradient -->
+                            <VerticalStackLayout Grid.Column="2" HorizontalOptions="Center" Spacing="10">
+                                <Label Text="Conductivity Gradient [∂Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="None"/>
+                                <Border Style="{StaticResource CanvasBorderStyle}" Margin="10" HorizontalOptions="Center">
+                                    <Grid RowDefinitions="Auto,Auto">
+                                        <skia:SKCanvasView x:Name="GradientDistributionCanvas" PaintSurface="OnGradientCanvasPaintSurface" EnableTouchEvents="True" Touch="OnGradientCanvasTouch" HeightRequest="275" WidthRequest="275" Margin="10"/>
+                                        <skia:SKCanvasView Grid.Row="1" x:Name="GradientColorbarCanvas" PaintSurface="OnGradientColorbarPaintSurface" HeightRequest="20" WidthRequest="275"/>
+                                    </Grid>
+                                </Border>
+                            </VerticalStackLayout>
+                        </Grid>
+                    </Border>
+                    <Border Grid.Row="1" Style="{StaticResource PanelBorderStyle}">
+                        <Border.Background>
+                            <StaticResource ResourceKey="FullResultsBrush" />
+                        </Border.Background>
+                        <Border.Stroke>
+                            <SolidColorBrush Color="#274261" />
+                        </Border.Stroke>
+                        <Grid ColumnDefinitions="Auto,Auto,Auto" HorizontalOptions="Center" Margin="18" ColumnSpacing="18">
+                            <!-- Original -->
+                            <VerticalStackLayout Grid.Column="0" HorizontalOptions="Center" Spacing="10">
+                                <Label Text="Original Distribution [Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="None"/>
+                                <Border Style="{StaticResource CanvasBorderStyle}" Margin="10" HorizontalOptions="Center">
+                                    <Grid RowDefinitions="Auto,Auto">
+                                        <skia:SKCanvasView x:Name="OriginalDistributionCanvas" PaintSurface="OnOriginalCanvasPaintSurface" EnableTouchEvents="True" Touch="OnOriginalCanvasTouch" HeightRequest="275" WidthRequest="275" Margin="10"/>
+                                        <skia:SKCanvasView Grid.Row="1" x:Name="OriginalColorbarCanvas" PaintSurface="OnOriginalColorbarPaintSurface" HeightRequest="20" WidthRequest="275"/>
+                                    </Grid>
+                                </Border>
+                            </VerticalStackLayout>
+                            <!-- Initial -->
+                            <VerticalStackLayout Grid.Column="1" HorizontalOptions="Center" Spacing="10">
+                                <Label Text="Initial Distribution [Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="None"/>
+                                <Border Style="{StaticResource CanvasBorderStyle}" Margin="10" HorizontalOptions="Center">
+                                    <Grid RowDefinitions="Auto,Auto">
+                                        <skia:SKCanvasView x:Name="InitialDistributionCanvas" PaintSurface="OnInitialCanvasPaintSurface" EnableTouchEvents="True" Touch="OnInitialCanvasTouch" HeightRequest="275" WidthRequest="275" Margin="10"/>
+                                        <skia:SKCanvasView Grid.Row="1" x:Name="InitialColorbarCanvas" PaintSurface="OnInitialColorbarPaintSurface" HeightRequest="20" WidthRequest="275"/>
+                                    </Grid>
+                                </Border>
+                            </VerticalStackLayout>
+                            <!-- Reconstructed -->
+                            <VerticalStackLayout Grid.Column="2" HorizontalOptions="Center" Spacing="10">
+                                <Label Text="Reconstructed Distribution [Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="None"/>
+                                <Border Style="{StaticResource CanvasBorderStyle}" Margin="10" HorizontalOptions="Center">
+                                    <Grid RowDefinitions="Auto,Auto">
+                                        <skia:SKCanvasView x:Name="ReconstructedDistributionCanvas" PaintSurface="OnReconstructedCanvasPaintSurface" EnableTouchEvents="True" Touch="OnReconstructedCanvasTouch" HeightRequest="275" WidthRequest="275" Margin="10"/>
+                                        <skia:SKCanvasView Grid.Row="1" x:Name="ReconstructedColorbarCanvas" PaintSurface="OnReconstructedColorbarPaintSurface" HeightRequest="20" WidthRequest="275"/>
+                                    </Grid>
+                                </Border>
+                            </VerticalStackLayout>
+                        </Grid>
+                    </Border>
                 </Grid>
-            </Grid>
+
             <Grid Grid.Column="2" RowDefinitions="*, Auto" RowSpacing="10" Margin="5" WidthRequest="250" HorizontalOptions="End">
-                <Border Grid.Row="0" StrokeShape="RoundRectangle 5">
-                    <VerticalStackLayout Margin="2" Spacing="10">
-                        <Label Text="Past Reconstructions" HorizontalOptions="Center"/>
-                        <SearchBar Placeholder="Search" Text="{Binding ReconstructionSearchText}" Margin="5"/>
-                        <Border StrokeShape="RoundRectangle 10">
+                <Border Grid.Row="0" Style="{StaticResource PanelBorderStyle}">
+                    <Border.Background>
+                        <StaticResource ResourceKey="HistoryPanelBrush" />
+                    </Border.Background>
+                    <Border.Stroke>
+                        <SolidColorBrush Color="#3D5D8C" />
+                    </Border.Stroke>
+                    <VerticalStackLayout Margin="16" Spacing="12">
+                        <Label Text="Past Reconstructions" HorizontalOptions="Center" FontSize="16"/>
+                        <SearchBar Placeholder="Search" Text="{Binding ReconstructionSearchText}" Margin="0"/>
+                        <Border Style="{StaticResource PanelSectionBorderStyle}" BackgroundColor="#25334A">
                             <ScrollView>
-                                <VerticalStackLayout Spacing="2" BindableLayout.ItemsSource="{Binding FilteredReconstructions}">
+                                <VerticalStackLayout Spacing="6" Padding="4" BindableLayout.ItemsSource="{Binding FilteredReconstructions}">
                                     <BindableLayout.ItemTemplate>
                                         <DataTemplate x:DataType="models:ReconstructionInfo">
-                                            <Border StrokeShape="RoundRectangle 5" Padding="4" Stroke="Transparent">
-                                                <Grid ColumnDefinitions="Auto, *" RowDefinitions="Auto, Auto, Auto" ColumnSpacing="5">
-                                                    <Label Grid.Column="0" Grid.Row="0" Text="{Binding Name}" FontAttributes="Bold" FontSize="Small"/>
-                                                    <Label Grid.Column="0" Grid.Row="1" Text="{Binding Metadata.CreatedOn, StringFormat='Saved: {0:G}'}" FontSize="10"/>
-                                                    <Label Grid.Column="0" Grid.Row="2" Text="{Binding ParameterSummary}" FontSize="10"/>
+                                            <Border Style="{StaticResource CanvasBorderStyle}" Padding="8" BackgroundColor="#1B2334" Margin="0,0,0,6">
+                                                <Grid RowDefinitions="Auto, Auto, Auto" ColumnSpacing="0">
+                                                    <Label Grid.Row="0" Text="{Binding Name}" FontAttributes="Bold" FontSize="Small"/>
+                                                    <Label Grid.Row="1" Text="{Binding Metadata.CreatedOn, StringFormat='Saved: {0:G}'}" FontSize="10" FontAttributes="None"/>
+                                                    <Label Grid.Row="2" Text="{Binding ParameterSummary}" FontSize="10" FontAttributes="None"/>
                                                 </Grid>
                                                 <Border.GestureRecognizers>
                                                     <TapGestureRecognizer Tapped="OnReconstructionSelected"/>
@@ -349,35 +438,29 @@
                     </VerticalStackLayout>
                 </Border>
 
-                <Border Grid.Row="1" StrokeShape="RoundRectangle 12" StrokeThickness="1.5" Padding="0">
+                <Border Grid.Row="1" Style="{StaticResource PanelBorderStyle}">
+                    <Border.Background>
+                        <StaticResource ResourceKey="StatisticsPanelBrush" />
+                    </Border.Background>
                     <Border.Stroke>
                         <SolidColorBrush Color="#3A7CA5" />
                     </Border.Stroke>
-                    <Border.Background>
-                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                            <GradientStop Color="#1E2435" Offset="0" />
-                            <GradientStop Color="#111723" Offset="1" />
-                        </LinearGradientBrush>
-                    </Border.Background>
-                    <Border.Shadow>
-                        <Shadow Brush="#883A7CA5" Offset="0,4" Radius="12" Opacity="0.6" />
-                    </Border.Shadow>
-                    <VerticalStackLayout Margin="16" Spacing="14">
+                    <VerticalStackLayout Margin="16" Spacing="16">
                         <Label Text="Reconstruction Statistics" HorizontalOptions="Center" FontSize="16" TextColor="#F0F4FF"/>
-                        <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="10">
-                            <Border StrokeThickness="0" BackgroundColor="#252F44" StrokeShape="RoundRectangle 10" Padding="10">
+                        <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="12">
+                            <Border Style="{StaticResource PanelSectionBorderStyle}" BackgroundColor="#252F44">
                                 <VerticalStackLayout Spacing="2">
                                     <Label Text="Elapsed Time" FontAttributes="None" FontSize="12" TextColor="#9DAAD3"/>
                                     <Label Text="{Binding ElapsedTime, StringFormat='{0:hh\\:mm\\:ss}'}" FontSize="18" TextColor="#F0F4FF"/>
                                 </VerticalStackLayout>
                             </Border>
-                            <Border Grid.Column="1" StrokeThickness="0" BackgroundColor="#252F44" StrokeShape="RoundRectangle 10" Padding="10">
+                            <Border Grid.Column="1" Style="{StaticResource PanelSectionBorderStyle}" BackgroundColor="#252F44">
                                 <VerticalStackLayout Spacing="2">
                                     <Label Text="Residual" FontAttributes="None" FontSize="12" TextColor="#9DAAD3"/>
                                     <Label Text="{Binding Residual, StringFormat='{0:F3}'}" FontSize="18" TextColor="#F0F4FF"/>
                                 </VerticalStackLayout>
                             </Border>
-                            <Border Grid.Row="1" Grid.ColumnSpan="2" StrokeThickness="0" BackgroundColor="#252F44" StrokeShape="RoundRectangle 10" Padding="10">
+                            <Border Grid.Row="1" Grid.ColumnSpan="2" Style="{StaticResource PanelSectionBorderStyle}" BackgroundColor="#252F44">
                                 <VerticalStackLayout Spacing="2">
                                     <Label Text="Correlation" FontAttributes="None" FontSize="12" TextColor="#9DAAD3"/>
                                     <Label Text="{Binding Correlation, StringFormat='{0:F3}'}" FontSize="18" TextColor="#F0F4FF"/>
@@ -386,7 +469,7 @@
                         </Grid>
                         <VerticalStackLayout Spacing="6">
                             <Label Text="Residual vs. Iteration" HorizontalOptions="Start" FontSize="13" FontAttributes="None" TextColor="#9DAAD3"/>
-                            <Border StrokeShape="RoundRectangle 10" StrokeThickness="0" Padding="8" BackgroundColor="#1A2436">
+                            <Border Style="{StaticResource CanvasBorderStyle}" Padding="8" BackgroundColor="#1A2436">
                                 <skia:SKCanvasView x:Name="ResidualTrendCanvas"
                                                   HeightRequest="170"
                                                   PaintSurface="OnResidualTrendCanvasPaintSurface"/>
