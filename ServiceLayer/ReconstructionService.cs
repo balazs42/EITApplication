@@ -192,7 +192,9 @@ namespace ServiceLayer
                 var femBc = boundaryCondition as FEMBoundaryCondition
                              ?? throw new ArgumentException("Boundary condition must be FEMBoundaryCondition", nameof(boundaryCondition));
 
-                ReconstructionFrame frame = _reconstructionPersistence.InverseSolveStepFem(mesh, femBc, measurement, stepSize);
+                // Delegate the inverse step to the persistence layer which
+                // also updates the conductivity distribution internally.
+                var frame = _reconstructionPersistence.Step(measurement, femBc, stepSize, _regularizationWeight);
 
                 Workspace.AddReconstructionFrameToWorkspace(frame);
 
@@ -414,9 +416,10 @@ namespace ServiceLayer
                 if (_discretization is FEMMesh femMesh)
                 {
                     EnsureSimulatedMeasurements();
-
                     var electrodes = femMesh.GetElectrodes().Cast<FEMElectrode>().ToList();
                     int electrodeCount = electrodes.Count;
+
+                    var prevSigma = _discretization!.GetConductivityDistribution();
 
                     for (int i = 0; i < _simulatedMeasurements.Count; i++)
                     {
@@ -442,32 +445,14 @@ namespace ServiceLayer
                         ReconstructionFrameUpdated?.Invoke(this, frame);
                     }
 
-                    // accumulate gradient and update conductivity distribution
-                    var frameCount = _currentCycleFrames.Count;
-                    var prevSigma = _discretization!.GetConductivityDistribution();
-                    var accumGrad = new Dictionary<int, double>();
-                    foreach (var frame in _currentCycleFrames)
-                        foreach (var kvp in frame.ConductivityGradient.Conductivities)
-                            accumGrad[kvp.Key] = accumGrad.TryGetValue(kvp.Key, out var g) ? g + kvp.Value : kvp.Value;
-
-                    var newSigmaDict = prevSigma.Conductivities.ToDictionary(
-                        kvp => kvp.Key,
-                        kvp => kvp.Value + (accumGrad.TryGetValue(kvp.Key, out var g) ? g / frameCount : 0.0));
-
-                    // Clip conductivity values that would fall below 0.0
-                    foreach (var kvp in newSigmaDict)
-                        if (kvp.Value < 0.0)
-                            newSigmaDict[kvp.Key] = 0.0;
-
-                    var newSigma = new ConductivityDistribution(newSigmaDict);
-                    _discretization.SetConductivityDistribution(newSigma);
+                    var newSigma = _discretization.GetConductivityDistribution();
                     _initialSigma = newSigma;
                     _reconstructionPersistence.SetConductivityDistributions(_originalSigma!, _initialSigma!);
 
-                    var result = new ReconstructionResult(_discretization!.GetDiscretization(),
+                    var result = new ReconstructionResult(_discretization.GetDiscretization(),
                                                           _originalSigma!,
-                                                          prevSigma, 
-                                                          newSigma, 
+                                                          prevSigma,
+                                                          newSigma,
                                                           [.. _currentCycleFrames]);
                     Workspace.AddReconstructionResultToWorkspace(result);
                     ReconstructionUpdated?.Invoke(this, result);
@@ -477,6 +462,7 @@ namespace ServiceLayer
                 else if (_discretization is LBMGrid lbmGrid)
                 {
                     EnsureSimulatedMeasurements();
+                    var prevSigma = _discretization!.GetConductivityDistribution();
 
                     foreach (var measurement in _simulatedMeasurements)
                     {
@@ -492,25 +478,14 @@ namespace ServiceLayer
                         lbmGrid.ShiftExcitationElectrodes(DrivePattern.Adjecent);
                     }
 
-                    var frameCount = _currentCycleFrames.Count;
-                    var prevSigma = _discretization!.GetConductivityDistribution();
-                    var accumGrad = new Dictionary<int, double>();
-                    foreach (var frame in _currentCycleFrames)
-                        foreach (var kvp in frame.ConductivityGradient.Conductivities)
-                            accumGrad[kvp.Key] = accumGrad.TryGetValue(kvp.Key, out var g) ? g + kvp.Value : kvp.Value;
-
-                    var newSigmaDict = prevSigma.Conductivities.ToDictionary(
-                        kvp => kvp.Key,
-                        kvp => kvp.Value + (accumGrad.TryGetValue(kvp.Key, out var g) ? g / frameCount : 0.0));
-                    var newSigma = new ConductivityDistribution(newSigmaDict);
-                    _discretization.SetConductivityDistribution(newSigma);
+                    var newSigma = _discretization.GetConductivityDistribution();
                     _initialSigma = newSigma;
                     _reconstructionPersistence.SetConductivityDistributions(_originalSigma!, _initialSigma!);
 
-                    var result = new ReconstructionResult(_discretization!.GetDiscretization(), 
+                    var result = new ReconstructionResult(_discretization.GetDiscretization(),
                                                           _originalSigma!,
-                                                          prevSigma, 
-                                                          newSigma, 
+                                                          prevSigma,
+                                                          newSigma,
                                                           [.. _currentCycleFrames]);
                     Workspace.AddReconstructionResultToWorkspace(result);
                     ReconstructionUpdated?.Invoke(this, result);
