@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<?xaml-comp compile="true" ?>
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+
+    <Color x:Key="PageBackgroundColor">GhostWhite</Color>
+
+    <LinearGradientBrush x:Key="ConfigurationPanelBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#232E45" Offset="0" />
+        <GradientStop Color="#161D2C" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="ControlPanelBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#1E273B" Offset="0" />
+        <GradientStop Color="#101624" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="PartialResultsBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#202A3F" Offset="0" />
+        <GradientStop Color="#121923" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="FullResultsBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#1C2638" Offset="0" />
+        <GradientStop Color="#0F151F" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="HistoryPanelBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#222E45" Offset="0" />
+        <GradientStop Color="#141B28" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="StatisticsPanelBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#1E2435" Offset="0" />
+        <GradientStop Color="#111723" Offset="1" />
+    </LinearGradientBrush>
+
+    <Style x:Key="PanelBorderStyle" TargetType="Border">
+        <Setter Property="StrokeShape" Value="RoundRectangle 12" />
+        <Setter Property="StrokeThickness" Value="1.5" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Stroke">
+            <Setter.Value>
+                <SolidColorBrush Color="#3A7CA5" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#883A7CA5" Offset="0,4" Radius="12" Opacity="0.45" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="PanelSectionBorderStyle" TargetType="Border">
+        <Setter Property="StrokeShape" Value="RoundRectangle 10" />
+        <Setter Property="StrokeThickness" Value="0" />
+        <Setter Property="Padding" Value="12" />
+        <Setter Property="BackgroundColor" Value="#242F47" />
+    </Style>
+
+    <Style x:Key="CanvasBorderStyle" TargetType="Border">
+        <Setter Property="StrokeShape" Value="RoundRectangle 12" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="Stroke" Value="Transparent" />
+        <Setter Property="Padding" Value="10" />
+        <Setter Property="BackgroundColor" Value="#1A2436" />
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="#663A7CA5" Offset="0,6" Radius="14" Opacity="0.5" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

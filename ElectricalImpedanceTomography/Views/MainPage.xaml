@@ -9,37 +9,82 @@
              xmlns:skia="clr-namespace:SkiaSharp.Views.Maui.Controls;assembly=SkiaSharp.Views.Maui.Controls"
              x:DataType="viewmodels:MainPageViewModel"
              Shell.NavBarIsVisible="False"
-             Title="MainPage">
+             Title="MainPage"
+             BackgroundColor="{StaticResource PageBackgroundColor}">
     <ContentPage.Resources>
         <Style TargetType="Label">
             <Setter Property="FontFamily" Value="SF Pro Text"/>
+            <Setter Property="FontAttributes" Value="Bold"/>
+            <Setter Property="TextColor" Value="#F0F4FF"/>
         </Style>
         <Style TargetType="Picker">
             <Setter Property="FontFamily" Value="SF Pro Text"/>
+            <Setter Property="TextColor" Value="#F0F4FF"/>
+            <Setter Property="TitleColor" Value="#9DAAD3"/>
+            <Setter Property="BackgroundColor" Value="Transparent"/>
         </Style>
         <Style TargetType="Button">
             <Setter Property="FontFamily" Value="SF Pro Text"/>
+            <Setter Property="FontAttributes" Value="Bold"/>
+            <Setter Property="TextColor" Value="#F7FBFF"/>
+            <Setter Property="BackgroundColor" Value="#3A7CA5"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="14,8"/>
+        </Style>
+        <Style TargetType="Entry">
+            <Setter Property="FontFamily" Value="SF Pro Text"/>
+            <Setter Property="TextColor" Value="#F0F4FF"/>
+            <Setter Property="PlaceholderColor" Value="#6F84AE"/>
+            <Setter Property="BackgroundColor" Value="Transparent"/>
+        </Style>
+        <Style TargetType="ImageButton">
+            <Setter Property="BackgroundColor" Value="Transparent"/>
+            <Setter Property="BorderColor" Value="Transparent"/>
         </Style>
         <converters:MessageTypeToColorConverter x:Key="MessageTypeToColorConverter"/>
     </ContentPage.Resources>
 
-    <Grid RowDefinitions="Auto, Auto">
-        <controls:NavBarControl x:Name="NavBar" Grid.Row="0" CurrentPageName="MainPage"/>
+    <Grid RowDefinitions="Auto, *">
+        <controls:NavBarControl x:Name="NavBar"
+                                Grid.Row="0"
+                                CurrentPageName="MainPage"/>
 
-        <Grid Grid.Row="1" ColumnDefinitions="400, *, *" RowSpacing="5" ColumnSpacing="5">
+        <Grid Grid.Row="1"
+              Margin="24,12,24,24"
+              ColumnDefinitions="360, *, 420"
+              ColumnSpacing="24"
+              RowSpacing="0">
 
-            <VerticalStackLayout Grid.Column="0" Spacing="10" Padding="10">
-                <Border StrokeShape="RoundRectangle 3">
-                    <VerticalStackLayout Spacing="3">
-                        <Grid ColumnDefinitions="Auto, *" ColumnSpacing="5" Margin="5">
-                            <Image Grid.Column="0" Source="icon_hardware4.png" HeightRequest="20"/>
-                            <Label Grid.Column="1" Text="Hardware Info" FontAttributes="Italic" FontSize="Medium" />
+            <!-- Left column with hardware, navigation and quick actions -->
+            <VerticalStackLayout Grid.Column="0"
+                                  Spacing="20">
+                <Border Style="{StaticResource PanelBorderStyle}"
+                        Background="{StaticResource ConfigurationPanelBrush}">
+                    <VerticalStackLayout Margin="20"
+                                          Spacing="12">
+                        <Grid ColumnDefinitions="Auto, *"
+                              ColumnSpacing="12">
+                            <Image Grid.Column="0"
+                                   Source="icon_hardware4.png"
+                                   HeightRequest="30"/>
+                            <Label Grid.Column="1"
+                                   Text="Hardware Info"
+                                   FontAttributes="Italic"
+                                   FontSize="Medium"
+                                   TextColor="#F7FBFF"/>
                         </Grid>
-                        <Label Margin="5" Text="{Binding CurrentAmplitude, StringFormat='Current amplitude: {0:F2} mA'}"/>
-                        <Label Margin="5" Text="{Binding ExcitationFrequency, StringFormat='Excitation frequency: {0:F0} kHz'}"/>
-                        <Grid ColumnDefinitions="Auto, Auto, Auto" ColumnSpacing="5" Margin="5">
-                            <Label Text="Connection Status: "/>
-                            <Image Grid.Column="1" HeightRequest="15">
+                        <Label Text="{Binding CurrentAmplitude, StringFormat='Current amplitude: {0:F2} mA'}"
+                               TextColor="#C9D7F2"/>
+                        <Label Text="{Binding ExcitationFrequency, StringFormat='Excitation frequency: {0:F0} kHz'}"
+                               TextColor="#C9D7F2"/>
+                        <Grid ColumnDefinitions="Auto, Auto, *"
+                              ColumnSpacing="8"
+                              VerticalOptions="Center">
+                            <Label Text="Connection Status: "
+                                   TextColor="#9DAAD3"
+                                   FontAttributes="None"/>
+                            <Image Grid.Column="1"
+                                   HeightRequest="16">
                                 <Image.Triggers>
                                     <DataTrigger TargetType="Image"
                                                  Binding="{Binding HardwareStatusColor}"
@@ -53,184 +98,308 @@
                                     </DataTrigger>
                                 </Image.Triggers>
                             </Image>
-                            <Label Grid.Column="2" Text="{Binding HardwareConnectionText}" TextColor="{Binding HardwareStatusColor}"/>
+                            <Label Grid.Column="2"
+                                   Text="{Binding HardwareConnectionText}"
+                                   TextColor="{Binding HardwareStatusColor}"
+                                   FontAttributes="None"/>
                         </Grid>
-                        <Button Clicked="OnConnectButtonClicked" Margin="10" BorderColor="Transparent">
+                        <Button Clicked="OnConnectButtonClicked"
+                                Margin="0,6,0,0"
+                                BorderColor="Transparent">
                             <Button.Triggers>
                                 <DataTrigger TargetType="Button"
                                              Binding="{Binding HardwareConnected}"
                                              Value="True">
                                     <Setter Property="Text" Value="Disconnect"/>
-                                    <Setter Property="BackgroundColor" Value="Red"/>
+                                    <Setter Property="BackgroundColor" Value="#C23C3C"/>
                                 </DataTrigger>
                                 <DataTrigger TargetType="Button"
                                              Binding="{Binding HardwareConnected}"
                                              Value="False">
                                     <Setter Property="Text" Value="Connect"/>
-                                    <Setter Property="BackgroundColor" Value="#00A000"/>
+                                    <Setter Property="BackgroundColor" Value="#2F9E9C"/>
                                 </DataTrigger>
                             </Button.Triggers>
                         </Button>
                     </VerticalStackLayout>
                 </Border>
 
-                <!-- Navigation Menu-->
-                <Border Stroke="Gray" StrokeThickness="1" Padding="10" StrokeShape="RoundRectangle 3">
-                    <VerticalStackLayout Spacing="8">
-                        <Grid ColumnDefinitions="Auto, *" ColumnSpacing="5">
-                            <Image Grid.Column="0" Source="icon_navigation.png" HeightRequest="20"/>
-                            <Label Grid.Column="1" Text="Navigation" FontAttributes="Italic" FontSize="Medium"/>
+                <!-- Navigation Menu -->
+                <Border Style="{StaticResource PanelBorderStyle}"
+                        Background="{StaticResource ControlPanelBrush}">
+                    <VerticalStackLayout Spacing="16"
+                                          Margin="20">
+                        <Grid ColumnDefinitions="Auto, *"
+                              ColumnSpacing="12">
+                            <Image Grid.Column="0"
+                                   Source="icon_navigation.png"
+                                   HeightRequest="26"/>
+                            <Label Grid.Column="1"
+                                   Text="Navigation"
+                                   FontAttributes="Italic"
+                                   FontSize="Medium"
+                                   TextColor="#F7FBFF"/>
                         </Grid>
 
-                        <Border StrokeShape="RoundRectangle 5" Background="#1A1A1A" Padding="3">
-                            <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5" HorizontalOptions="Center">
-                                <Image Grid.Column="0" Source="icon_hardware.png" BackgroundColor="Transparent" HeightRequest="30" WidthRequest="30"/>
-                                <Label Grid.Column="1" Text="Hardware" HorizontalOptions="Center" VerticalOptions="Center"/>
+                        <Border Style="{StaticResource PanelSectionBorderStyle}"
+                                Padding="10"
+                                BackgroundColor="#293756">
+                            <Grid ColumnDefinitions="Auto, *"
+                                  ColumnSpacing="10"
+                                  HorizontalOptions="Center"
+                                  VerticalOptions="Center">
+                                <Image Grid.Column="0"
+                                       Source="icon_hardware.png"
+                                       HeightRequest="32"
+                                       WidthRequest="32"/>
+                                <Label Grid.Column="1"
+                                       Text="Hardware"
+                                       HorizontalOptions="Center"
+                                       VerticalOptions="Center"
+                                       FontAttributes="None"/>
                             </Grid>
                             <Border.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnNavigationMenuTapped" CommandParameter="DAQPage"/>
+                                <TapGestureRecognizer Tapped="OnNavigationMenuTapped"
+                                                       CommandParameter="DAQPage"/>
                             </Border.GestureRecognizers>
                         </Border>
 
-                        <Border StrokeShape="RoundRectangle 5" Background="#1A1A1A" Padding="3">
-                            <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5" HorizontalOptions="Center">
-                                <Image Grid.Column="0" Source="icon_mesh2.png" BackgroundColor="Transparent" HeightRequest="30" WidthRequest="30"/>
-                                <Label Grid.Column="1" Text="Meshing" HorizontalOptions="Center" VerticalOptions="Center"/>
+                        <Border Style="{StaticResource PanelSectionBorderStyle}"
+                                Padding="10"
+                                BackgroundColor="#25324A">
+                            <Grid ColumnDefinitions="Auto, *"
+                                  ColumnSpacing="10"
+                                  HorizontalOptions="Center"
+                                  VerticalOptions="Center">
+                                <Image Grid.Column="0"
+                                       Source="icon_mesh2.png"
+                                       HeightRequest="32"
+                                       WidthRequest="32"/>
+                                <Label Grid.Column="1"
+                                       Text="Meshing"
+                                       HorizontalOptions="Center"
+                                       VerticalOptions="Center"
+                                       FontAttributes="None"/>
                             </Grid>
                             <Border.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnNavigationMenuTapped" CommandParameter="MeshingPage"/>
+                                <TapGestureRecognizer Tapped="OnNavigationMenuTapped"
+                                                       CommandParameter="MeshingPage"/>
                             </Border.GestureRecognizers>
                         </Border>
 
-                        <Border StrokeShape="RoundRectangle 5" Background="#1A1A1A" Padding="3">
-                            <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5" HorizontalOptions="Center">
-                                <Image Grid.Column="0" Source="icon_reconstruction3.png" BackgroundColor="Transparent" HeightRequest="28" WidthRequest="28"/>
-                                <Label Grid.Column="1" Text="Reconstruction" HorizontalOptions="Center" VerticalOptions="Center"/>
+                        <Border Style="{StaticResource PanelSectionBorderStyle}"
+                                Padding="10"
+                                BackgroundColor="#22304A">
+                            <Grid ColumnDefinitions="Auto, *"
+                                  ColumnSpacing="10"
+                                  HorizontalOptions="Center"
+                                  VerticalOptions="Center">
+                                <Image Grid.Column="0"
+                                       Source="icon_reconstruction3.png"
+                                       HeightRequest="30"
+                                       WidthRequest="30"/>
+                                <Label Grid.Column="1"
+                                       Text="Reconstruction"
+                                       HorizontalOptions="Center"
+                                       VerticalOptions="Center"
+                                       FontAttributes="None"/>
                             </Grid>
                             <Border.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnNavigationMenuTapped" CommandParameter="ReconstructionPage"/>
+                                <TapGestureRecognizer Tapped="OnNavigationMenuTapped"
+                                                       CommandParameter="ReconstructionPage"/>
                             </Border.GestureRecognizers>
                         </Border>
                     </VerticalStackLayout>
                 </Border>
 
-                <Border Stroke="LightGray" StrokeThickness="1" Padding="10" StrokeShape="RoundRectangle 3">
-                    <VerticalStackLayout Spacing="6">
-                        <Grid ColumnDefinitions="Auto, *" ColumnSpacing="5">
-                            <Image Grid.Column="0" Source="icon_configuration.png" HeightRequest="20" />
-                            <Label Grid.Column="1" Text="Configuration" FontAttributes="Italic" FontSize="Medium"/>
+                <Border Style="{StaticResource PanelBorderStyle}"
+                        Background="{StaticResource PartialResultsBrush}">
+                    <VerticalStackLayout Margin="20"
+                                          Spacing="14">
+                        <Grid ColumnDefinitions="Auto, *"
+                              ColumnSpacing="12">
+                            <Image Grid.Column="0"
+                                   Source="icon_configuration.png"
+                                   HeightRequest="28"/>
+                            <Label Grid.Column="1"
+                                   Text="Configuration"
+                                   FontAttributes="Italic"
+                                   FontSize="Medium"
+                                   TextColor="#F7FBFF"/>
                         </Grid>
-                        <Picker Title="Solver" ItemsSource="{Binding Solvers}" SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}"/>
-                        <Picker Title="Regularization" ItemsSource="{Binding Regularizations}" SelectedItem="{Binding ReconstructionParameters.RegularizationTechnique}"/>
-                        <Picker Title="Error Metric" ItemsSource="{Binding ErrorMetrics}" SelectedItem="{Binding ReconstructionParameters.ErrorMetric}"/>
-                        <Picker Title="Numeric Optimizer" ItemsSource="{Binding NumericOptimizers}" SelectedItem="{Binding ReconstructionParameters.NumericOptimizer}"/>
-                        <Picker Title="Numeric Solver" ItemsSource="{Binding NumericSolvers}" SelectedItem="{Binding ReconstructionParameters.NumericSolver}"/>
+                        <Picker Title="Solver"
+                                ItemsSource="{Binding Solvers}"
+                                SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}"/>
+                        <Picker Title="Regularization"
+                                ItemsSource="{Binding Regularizations}"
+                                SelectedItem="{Binding ReconstructionParameters.RegularizationTechnique}"/>
+                        <Picker Title="Error Metric"
+                                ItemsSource="{Binding ErrorMetrics}"
+                                SelectedItem="{Binding ReconstructionParameters.ErrorMetric}"/>
+                        <Picker Title="Numeric Optimizer"
+                                ItemsSource="{Binding NumericOptimizers}"
+                                SelectedItem="{Binding ReconstructionParameters.NumericOptimizer}"/>
+                        <Picker Title="Numeric Solver"
+                                ItemsSource="{Binding NumericSolvers}"
+                                SelectedItem="{Binding ReconstructionParameters.NumericSolver}"/>
                     </VerticalStackLayout>
                 </Border>
-                <Border Stroke="LightGray" StrokeThickness="1" Padding="10" StrokeShape="RoundRectangle 3">
-                    <VerticalStackLayout Spacing="6">
-                        <Grid ColumnDefinitions="Auto, *" ColumnSpacing="5">
-                            <Image Grid.Column="0" Source="icon_loading.png" HeightRequest="20"/>
-                            <Label Grid.Column="1" Text="Toolbox" FontAttributes="Italic" FontSize="Medium"/>
+
+                <Border Style="{StaticResource PanelBorderStyle}"
+                        Background="{StaticResource HistoryPanelBrush}">
+                    <VerticalStackLayout Margin="20"
+                                          Spacing="14">
+                        <Grid ColumnDefinitions="Auto, *"
+                              ColumnSpacing="12">
+                            <Image Grid.Column="0"
+                                   Source="icon_loading.png"
+                                   HeightRequest="26"/>
+                            <Label Grid.Column="1"
+                                   Text="Toolbox"
+                                   FontAttributes="Italic"
+                                   FontSize="Medium"
+                                   TextColor="#F7FBFF"/>
                         </Grid>
-                        <Button Text="Load Measurement" Clicked="OnLoadMeasurementClicked"/>
-                        <Button Text="Load Mesh" Clicked="OnLoadMeshClicked"/>
+                        <Button Text="Load Measurement"
+                                Clicked="OnLoadMeasurementClicked"
+                                BackgroundColor="#2F9E9C"/>
+                        <Button Text="Load Mesh"
+                                Clicked="OnLoadMeshClicked"
+                                BackgroundColor="#3A7CA5"/>
                     </VerticalStackLayout>
                 </Border>
             </VerticalStackLayout>
 
-            <!-- Middle Panel -->
-            <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto" RowSpacing="10">
-                <Border Grid.Row="0" Margin="5" StrokeShape="RoundRectangle 5" Stroke="Transparent">
-                    <VerticalStackLayout Spacing="5">
-                        <Label Text="{Binding User.Name, StringFormat='Welcome {0}!'}" FontSize="Large" FontAttributes="Bold" FontFamily="SF Pro Display" VerticalOptions="Center" HorizontalOptions="Center"/>
+            <!-- Middle column with welcome, orb and console -->
+            <Grid Grid.Column="1"
+                  RowDefinitions="Auto, Auto, *"
+                  RowSpacing="20">
+                <Border Grid.Row="0"
+                        Style="{StaticResource PanelBorderStyle}"
+                        Background="{StaticResource ControlPanelBrush}">
+                    <VerticalStackLayout Margin="20"
+                                          Spacing="6"
+                                          HorizontalOptions="Center">
+                        <Label Text="{Binding User.Name, StringFormat='Welcome {0}!'}"
+                               FontSize="Large"
+                               TextColor="#F7FBFF"
+                               FontFamily="SF Pro Display"/>
+                        <Label Text="Manage your workflow from the panels below"
+                               FontSize="Small"
+                               FontAttributes="None"
+                               TextColor="#9DAAD3"/>
                     </VerticalStackLayout>
-                    <Border.Shadow>
-                        <Shadow Brush="Gray" Opacity="0.5" Radius="3.0"/>
-                    </Border.Shadow>
                 </Border>
 
-                <controls:ImpedanceOrbView Grid.Row="1"
-                                           Margin="10"
-                                           Model="{Binding CurrentImpedanceModel}"
-                                           HeightRequest="175"
-                                           WidthRequest="175"
-                                           HorizontalOptions="Center"
-                                           VerticalOptions="Center"/>
+                <Border Grid.Row="1"
+                        Style="{StaticResource PanelBorderStyle}"
+                        Background="{StaticResource HistoryPanelBrush}">
+                    <controls:ImpedanceOrbView Margin="30"
+                                               Model="{Binding CurrentImpedanceModel}"
+                                               HeightRequest="175"
+                                               WidthRequest="175"
+                                               HorizontalOptions="Center"
+                                               VerticalOptions="Center"/>
+                </Border>
 
-                <Border Grid.Row="2" Stroke="LightGray" StrokeThickness="1" Padding="10" StrokeShape="RoundRectangle 3" HeightRequest="400" VerticalOptions="Start" BackgroundColor="{AppThemeBinding Light=White, Dark=#1F1F1F}">
-                    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="2">
-                        <Grid Grid.Row="0" ColumnDefinitions="Auto, Auto" ColumnSpacing="5">
-                            <Image Grid.Column="0" Source="icon_terminal2.png" HeightRequest="20" BackgroundColor="Transparent"/>
-                            <Label Grid.Column="1" Text="Console" FontAttributes="Italic" FontSize="Medium"/>
+                <Border Grid.Row="2"
+                        Style="{StaticResource PanelBorderStyle}"
+                        Background="{StaticResource FullResultsBrush}">
+                    <Grid RowDefinitions="Auto,*,Auto"
+                          RowSpacing="12"
+                          Margin="20">
+                        <Grid Grid.Row="0"
+                              ColumnDefinitions="Auto, Auto"
+                              ColumnSpacing="10">
+                            <Image Grid.Column="0"
+                                   Source="icon_terminal2.png"
+                                   HeightRequest="26"/>
+                            <Label Grid.Column="1"
+                                   Text="Console"
+                                   FontAttributes="Italic"
+                                   FontSize="Medium"
+                                   TextColor="#F7FBFF"/>
                         </Grid>
-                        <ScrollView x:Name="ConsoleScroll" Grid.Row="1">
-                            <VerticalStackLayout x:Name="ConsoleStack" Spacing="2"
+                        <ScrollView x:Name="ConsoleScroll"
+                                    Grid.Row="1"
+                                    Padding="0">
+                            <VerticalStackLayout x:Name="ConsoleStack"
+                                                 Spacing="8"
                                                  BindableLayout.ItemsSource="{Binding DebugLog}">
                                 <BindableLayout.ItemTemplate>
                                     <DataTemplate x:DataType="messages:WorkspaceMessage">
-                                        <Border StrokeShape="RoundRectangle 5" Padding="4" Stroke="Transparent">
-                                            <Grid ColumnDefinitions="Auto, *" ColumnSpacing="5">
-                                                <Label Grid.Column="0" 
+                                        <Border Style="{StaticResource PanelSectionBorderStyle}"
+                                                BackgroundColor="#1E293D"
+                                                Padding="10">
+                                            <Grid ColumnDefinitions="Auto, *"
+                                                  ColumnSpacing="10">
+                                                <Label Grid.Column="0"
                                                        Text="{Binding Time, StringFormat='[{0:HH:mm:ss}] >>'}"
-                                                       FontFamily="Consolas" 
-                                                       TextColor="{AppThemeBinding Light=Black, Dark=White}"/>
-                                                <Label Grid.Column="1" 
+                                                       FontFamily="Consolas"
+                                                       FontAttributes="None"
+                                                       TextColor="#9DAAD3"/>
+                                                <Label Grid.Column="1"
                                                        Text="{Binding Message}"
                                                        FontFamily="Consolas"
                                                        LineBreakMode="WordWrap"
-                                                       TextColor="{Binding Type,
-                                                       Converter={StaticResource MessageTypeToColorConverter},
-                                                       ConverterParameter={AppThemeBinding Light=White, Dark=#1A1A1A}}"/>
+                                                       TextColor="{Binding Type, Converter={StaticResource MessageTypeToColorConverter}}"/>
                                             </Grid>
                                         </Border>
                                     </DataTemplate>
                                 </BindableLayout.ItemTemplate>
                             </VerticalStackLayout>
                         </ScrollView>
-                        <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="5" Margin="5">
+                        <Grid Grid.Row="2"
+                              ColumnDefinitions="*,Auto"
+                              ColumnSpacing="12">
                             <Entry Grid.Column="0"
                                    Text="{Binding ConsoleInput}"
                                    FontFamily="Consolas"
-                                   Completed="OnConsoleEntryCompleted"/>
-                            <ImageButton Grid.Column="1"                                         
-                                         HeightRequest="20"
+                                   Placeholder="Enter command"
+                                   Completed="OnConsoleEntryCompleted"
+                                   BackgroundColor="#1B2335"/>
+                            <ImageButton Grid.Column="1"
+                                         HeightRequest="28"
+                                         WidthRequest="28"
                                          Source="icon_next_blue.png"
-                                         BackgroundColor="Transparent"
                                          Command="{Binding SendConsoleMessageCommand}"/>
                         </Grid>
                     </Grid>
                 </Border>
             </Grid>
 
-            <!-- Mesh Visualizer -->
-            <Grid Grid.Column="2" RowDefinitions="Auto, Auto" HorizontalOptions="Center" VerticalOptions="Center" RowSpacing="5">
-                <Label Grid.Row="0" 
-                       Text="Mesh Preview" 
-                       HorizontalOptions="Center" 
-                       FontAttributes="Italic" 
-                       FontSize="Medium" 
-                       VerticalOptions="End"/>
-                <Border Grid.Row="1"
-                        Margin="10"
-                        HeightRequest="400"
-                        WidthRequest="400"
-                        StrokeThickness="2"
-                        StrokeShape="RoundRectangle 10"
-                        HorizontalOptions="Center"
-                        VerticalOptions="Center">
-
-                    <skia:SKCanvasView x:Name="MeshCanvasView"
-                                       BackgroundColor="Transparent"
-                                       Margin="10"
-                                       PaintSurface="OnCanvasViewPaintSurface"
-                                       HeightRequest="370"
-                                       WidthRequest="370"/>
-                    <Border.Shadow>
-                        <Shadow Brush="White" Opacity="0.5" Radius="3.0"/>
-                    </Border.Shadow>
-                </Border>
-            </Grid>
+            <!-- Right column with mesh preview -->
+            <Border Grid.Column="2"
+                    Style="{StaticResource PanelBorderStyle}"
+                    Background="{StaticResource StatisticsPanelBrush}">
+                <VerticalStackLayout Margin="20"
+                                      Spacing="16"
+                                      HorizontalOptions="Center">
+                    <Grid ColumnDefinitions="Auto, *"
+                          ColumnSpacing="12"
+                          HorizontalOptions="Center">
+                        <Image Grid.Column="0"
+                               Source="icon_mesh2.png"
+                               HeightRequest="28"/>
+                        <Label Grid.Column="1"
+                               Text="Mesh Preview"
+                               FontAttributes="Italic"
+                               FontSize="Medium"
+                               TextColor="#F7FBFF"/>
+                    </Grid>
+                    <Border Style="{StaticResource CanvasBorderStyle}"
+                            HeightRequest="400"
+                            WidthRequest="400"
+                            HorizontalOptions="Center"
+                            VerticalOptions="Center">
+                        <skia:SKCanvasView x:Name="MeshCanvasView"
+                                           BackgroundColor="Transparent"
+                                           PaintSurface="OnCanvasViewPaintSurface"
+                                           HeightRequest="360"
+                                           WidthRequest="360"/>
+                    </Border>
+                </VerticalStackLayout>
+            </Border>
         </Grid>
     </Grid>
 </ContentPage>

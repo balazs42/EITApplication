@@ -9,94 +9,96 @@
              xmlns:controls="clr-namespace:ElectricalImpedanceTomography.Controls"
              x:DataType="viewmodels:DAQPageViewModel"
              Shell.NavBarIsVisible="False"
-             Title="DAQPage">
+             Title="DAQPage"
+             BackgroundColor="{StaticResource PageBackgroundColor}">
     <ContentPage.Resources>
-        <Style x:Key="CardFrameStyle" TargetType="Border">
-            <Setter Property="Padding" Value="10"/>
-            <Setter Property="BackgroundColor" Value="White"/>
-            <Setter Property="Margin" Value="5"/>
-        </Style>
-
-        <Style x:Key="CardTitleStyle" TargetType="Label">
-            <Setter Property="FontSize" Value="Medium"/>
+        <Style TargetType="Label">
             <Setter Property="FontFamily" Value="SF Pro Text"/>
             <Setter Property="FontAttributes" Value="Bold"/>
-            <Setter Property="HorizontalOptions" Value="Center"/>
-            <Setter Property="TextColor" Value="Black"/>
+            <Setter Property="TextColor" Value="#F0F4FF"/>
         </Style>
-
-        <Style x:Key="ControlButtonStyle" TargetType="Button">
-            <Setter Property="FontSize" Value="20"/>
+        <Style TargetType="Button">
+            <Setter Property="FontSize" Value="18"/>
             <Setter Property="FontFamily" Value="SF Pro Text"/>
             <Setter Property="FontAttributes" Value="Bold"/>
-            <Setter Property="HorizontalOptions" Value="Center"/>
-            <Setter Property="VerticalOptions" Value="Center"/>
-            <Setter Property="CornerRadius" Value="5"/>
-            <Setter Property="IsEnabled" Value="True"/>
-            <Setter Property="MinimumWidthRequest" Value="100"/>
+            <Setter Property="TextColor" Value="#F7FBFF"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Padding" Value="18,12"/>
+            <Setter Property="BackgroundColor" Value="#3A7CA5"/>
         </Style>
-
     </ContentPage.Resources>
-    <Grid RowDefinitions="Auto, *, Auto">
-        <controls:NavBarControl x:Name="NavBar" Grid.Row="0" CurrentPageName="DAQPage"/>
 
-        <CollectionView Grid.Row="1" ItemsSource="{Binding PlotModels}" SelectionMode="None">
-            <CollectionView.ItemsLayout>
-                <GridItemsLayout Orientation="Vertical" Span="4"
-                              VerticalItemSpacing="10"
-                              HorizontalItemSpacing="10"/>
-            </CollectionView.ItemsLayout>
-            <CollectionView.ItemTemplate>
-                <DataTemplate x:DataType="oxyplot:PlotModel">
-                    <VerticalStackLayout Spacing="2" Padding="5" BackgroundColor="Transparent">
-                        <Border Style="{StaticResource CardFrameStyle}">
+    <Grid RowDefinitions="Auto, *, Auto">
+        <controls:NavBarControl x:Name="NavBar"
+                                Grid.Row="0"
+                                CurrentPageName="DAQPage"/>
+
+        <Border Grid.Row="1"
+                Style="{StaticResource PanelBorderStyle}"
+                Margin="24,12,24,12"
+                Background="{StaticResource PartialResultsBrush}">
+            <CollectionView ItemsSource="{Binding PlotModels}" SelectionMode="None"
+                            Margin="16">
+                <CollectionView.Header>
+                    <Label Text="Channel Monitoring"
+                           FontSize="Large"
+                           HorizontalOptions="Center"
+                           Margin="0,0,0,16"
+                           TextColor="#F7FBFF"/>
+                </CollectionView.Header>
+                <CollectionView.ItemsLayout>
+                    <GridItemsLayout Orientation="Vertical"
+                                  Span="4"
+                                  VerticalItemSpacing="14"
+                                  HorizontalItemSpacing="14"/>
+                </CollectionView.ItemsLayout>
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="oxyplot:PlotModel">
+                        <Border Style="{StaticResource PanelSectionBorderStyle}"
+                                Padding="16"
+                                BackgroundColor="#1F2B44">
                             <oxy:PlotView Model="{Binding .}"
-                                          HeightRequest="150"
-                                          MinimumWidthRequest="100">
+                                          HeightRequest="160"
+                                          MinimumWidthRequest="120">
                                 <oxy:PlotView.GestureRecognizers>
-                                    <TapGestureRecognizer
-                                        NumberOfTapsRequired="1"
-                                        Buttons="Secondary"
-                                        Command="{Binding Source={x:Reference Page}, Path=BindingContext.ConfigureChannelCommand}"
-                                        CommandParameter="{Binding .}" />
+                                    <TapGestureRecognizer NumberOfTapsRequired="1"
+                                                          Buttons="Secondary"
+                                                          Command="{Binding Source={x:Reference Page}, Path=BindingContext.ConfigureChannelCommand}"
+                                                          CommandParameter="{Binding .}" />
                                 </oxy:PlotView.GestureRecognizers>
                             </oxy:PlotView>
-                            <Border.Shadow>
-                                <Shadow Brush="Gray" Opacity="1.0" Radius="1.0" Offset="1.0, 1.0"/>
-                            </Border.Shadow>
                         </Border>
-                    </VerticalStackLayout>
-                </DataTemplate>
-            </CollectionView.ItemTemplate>
-            <CollectionView.Margin>10</CollectionView.Margin>
-        </CollectionView>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </Border>
 
-        <Grid Grid.Row="2"
-              ColumnDefinitions="Auto, Auto"
-              HorizontalOptions="Center"
-              VerticalOptions="Center"
-              ColumnSpacing="10"
-              Padding="10">
-            <Button Grid.Column="0" 
-                    Style="{StaticResource ControlButtonStyle}"
-                    Text="Stop" 
-                    Clicked="OnStopButtonPressed" 
-                    BackgroundColor="PaleVioletRed"
-                    BorderColor="Transparent">
-                <Button.Shadow>
-                    <Shadow Brush="PaleVioletRed" Opacity="1.0" Radius="2.0" />
-                </Button.Shadow>
-            </Button>
-            <Button Grid.Column="1" 
-                    Style="{StaticResource ControlButtonStyle}"
-                    Text="Start" 
-                    Clicked="OnStartButtonPressed" 
-                    Background="LightGreen"
-                    BorderColor="Transparent">
-                <Button.Shadow>
-                    <Shadow Brush="LightGreen" Opacity="1.0" Radius="2.0"/>
-                </Button.Shadow>
-            </Button>
-        </Grid>
+        <Border Grid.Row="2"
+                Style="{StaticResource PanelBorderStyle}"
+                Margin="24,0,24,24"
+                Background="{StaticResource ControlPanelBrush}">
+            <Grid ColumnDefinitions="Auto, Auto"
+                  HorizontalOptions="Center"
+                  VerticalOptions="Center"
+                  ColumnSpacing="20"
+                  Padding="20">
+                <Button Grid.Column="0"
+                        Text="Stop"
+                        Clicked="OnStopButtonPressed"
+                        BackgroundColor="#C23C3C">
+                    <Button.Shadow>
+                        <Shadow Brush="#C23C3C" Opacity="0.75" Radius="12" />
+                    </Button.Shadow>
+                </Button>
+                <Button Grid.Column="1"
+                        Text="Start"
+                        Clicked="OnStartButtonPressed"
+                        BackgroundColor="#2F9E9C">
+                    <Button.Shadow>
+                        <Shadow Brush="#2F9E9C" Opacity="0.75" Radius="12"/>
+                    </Button.Shadow>
+                </Button>
+            </Grid>
+        </Border>
     </Grid>
 </ContentPage>
