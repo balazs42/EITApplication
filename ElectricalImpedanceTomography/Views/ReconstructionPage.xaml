@@ -72,7 +72,7 @@
             <Setter Property="StrokeThickness" Value="1"/>
             <Setter Property="Stroke" Value="Transparent"/>
             <Setter Property="Padding" Value="10"/>
-            <Setter Property="BackgroundColor" Value="Transparent"/>
+            <Setter Property="BackgroundColor" Value="#1A2436"/>
         </Style>
 
         <LinearGradientBrush x:Key="ConfigurationPanelBrush" StartPoint="0,0" EndPoint="0,1">

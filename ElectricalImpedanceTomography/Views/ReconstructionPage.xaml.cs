@@ -40,6 +40,18 @@ public partial class ReconstructionPage : ContentPage
     private bool _isPaused = false;
     private bool _sliderChanging = false;
 
+    private static readonly SKColor DistributionCanvasBackgroundColor = SKColor.Parse("#1A2436");
+    private static readonly SKColor ChartGradientTopColor = SKColor.Parse("#23354D");
+    private static readonly SKColor ChartGradientBottomColor = SKColor.Parse("#151E2D");
+    private static readonly SKColor ChartLineColor = SKColor.Parse("#3A9CED");
+    private static readonly SKColor ChartAreaFillColor = new SKColor(58, 156, 237, 90);
+    private static readonly SKColor ChartAxisColor = SKColor.Parse("#5B6F94");
+    private static readonly SKColor ChartGridColor = new SKColor(255, 255, 255, 50);
+    private static readonly SKColor ChartPointColor = SKColor.Parse("#A7D2FF");
+    private static readonly SKColor ChartPointOutlineColor = SKColor.Parse("#0B1C2F");
+    private static readonly SKColor ChartPrimaryTextColor = new SKColor(198, 212, 245);
+    private static readonly SKColor ChartSecondaryTextColor = new SKColor(157, 170, 211);
+
     public ReconstructionPage()
     {
         InitializeComponent();
@@ -333,7 +345,7 @@ public partial class ReconstructionPage : ContentPage
     private void DrawFemConductivity(SKPaintSurfaceEventArgs e, FEMMesh mesh, ConductivityDistribution cd, string[]? lines, SKPoint? pt)
     {
         var canvas = e.Surface.Canvas;
-        canvas.Clear(SKColor.Parse("#3A7CA5"));
+        canvas.Clear(DistributionCanvasBackgroundColor);
         ComputeFemTransform(mesh, e.Info);
         using var fill = new SKPaint { Style = SKPaintStyle.Fill, IsAntialias = true };
         using var stroke = new SKPaint { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1, IsAntialias = true };
@@ -358,7 +370,7 @@ public partial class ReconstructionPage : ContentPage
     private void DrawFemPotential(SKPaintSurfaceEventArgs e, FEMMesh mesh, PotentialDistribution pd, string[]? lines, SKPoint? pt)
     {
         var canvas = e.Surface.Canvas;
-        canvas.Clear(SKColor.Parse("#3A7CA5"));
+        canvas.Clear(DistributionCanvasBackgroundColor);
         ComputeFemTransform(mesh, e.Info);
         using var fill = new SKPaint { Style = SKPaintStyle.Fill, IsAntialias = true };
         using var stroke = new SKPaint { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1, IsAntialias = true };
@@ -383,7 +395,7 @@ public partial class ReconstructionPage : ContentPage
     private void DrawLbmField(SKPaintSurfaceEventArgs e, LBMGrid mesh, Dictionary<int, double> values, bool isPotential, string[]? lines, SKPoint? pt)
     {
         var canvas = e.Surface.Canvas;
-        canvas.Clear(SKColor.Parse("#3A7CA5"));
+        canvas.Clear(DistributionCanvasBackgroundColor);
         float cw = e.Info.Width / mesh.Nx;
         float ch = e.Info.Height / mesh.Ny;
         double minVal = values.Values.Min();
@@ -407,7 +419,7 @@ public partial class ReconstructionPage : ContentPage
 
     private void DrawColorBar(SKCanvas canvas, SKImageInfo info, double min, double max, bool isPotential)
     {
-        canvas.Clear(SKColor.Parse("#3A7CA5"));
+        canvas.Clear(DistributionCanvasBackgroundColor);
         var rect = new SKRect(0, 0, info.Width, info.Height);
         int steps = 256;
         var colors = new SKColor[steps];
@@ -441,18 +453,19 @@ public partial class ReconstructionPage : ContentPage
     private void OnResidualTrendCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
         var canvas = e.Surface.Canvas;
-        canvas.Clear(SKColor.Parse("#3A7CA5"));
+        canvas.Clear(DistributionCanvasBackgroundColor);
 
         var history = _viewModel.ResidualHistory;
         if (history.Count == 0)
         {
-            using var emptyPaint = new SKPaint { Color = SKColors.Gray, TextSize = 14, IsAntialias = true };
-            const string message = "No residual data";
-            float textWidth = emptyPaint.MeasureText(message);
-            canvas.DrawText(message,
-                            (e.Info.Width - textWidth) / 2f,
-                            e.Info.Height / 2f,
-                            emptyPaint);
+            using var emptyPaint = new SKPaint
+            {
+                Color = ChartSecondaryTextColor,
+                TextSize = 14,
+                IsAntialias = true,
+                TextAlign = SKTextAlign.Center
+            };
+            canvas.DrawText("No residual data", e.Info.Width / 2f, e.Info.Height / 2f, emptyPaint);
             return;
         }
 
@@ -467,59 +480,218 @@ public partial class ReconstructionPage : ContentPage
         if (Math.Abs(maxResidual - minResidual) < 1e-12)
             maxResidual = minResidual + 1e-12;
 
-        const float leftPadding = 40f;
-        const float rightPadding = 10f;
-        const float topPadding = 10f;
-        const float bottomPadding = 25f;
+        const float leftPadding = 64f;
+        const float rightPadding = 28f;
+        const float topPadding = 24f;
+        const float bottomPadding = 64f;
 
         float chartWidth = e.Info.Width - leftPadding - rightPadding;
         float chartHeight = e.Info.Height - topPadding - bottomPadding;
         if (chartWidth <= 0 || chartHeight <= 0)
             return;
 
-        using var axisPaint = new SKPaint { Color = SKColors.Gray, StrokeWidth = 1, IsAntialias = true };
-        using var textPaint = new SKPaint { Color = SKColors.White, TextSize = 12, IsAntialias = true, TextAlign = SKTextAlign.Right };
-        using var linePaint = new SKPaint { Color = SKColors.DeepSkyBlue, StrokeWidth = 2, IsAntialias = true, Style = SKPaintStyle.Stroke };
-        using var pointPaint = new SKPaint { Color = SKColors.CornflowerBlue, IsAntialias = true };
+        var chartRect = SKRect.Create(leftPadding, topPadding, chartWidth, chartHeight);
 
-        var origin = new SKPoint(leftPadding, topPadding + chartHeight);
-        var xAxisEnd = new SKPoint(leftPadding + chartWidth, origin.Y);
-        var yAxisEnd = new SKPoint(leftPadding, topPadding);
-        canvas.DrawLine(origin, xAxisEnd, axisPaint);
-        canvas.DrawLine(origin, yAxisEnd, axisPaint);
+        using var chartBackgroundPaint = new SKPaint
+        {
+            Shader = SKShader.CreateLinearGradient(new SKPoint(chartRect.Left, chartRect.Top),
+                                                   new SKPoint(chartRect.Left, chartRect.Bottom),
+                                                   new[] { ChartGradientTopColor, ChartGradientBottomColor },
+                                                   null,
+                                                   SKShaderTileMode.Clamp)
+        };
+        canvas.DrawRoundRect(chartRect, 10f, 10f, chartBackgroundPaint);
 
-        textPaint.TextAlign = SKTextAlign.Right;
-        canvas.DrawText(maxResidual.ToString("F3"), leftPadding - 4, topPadding + textPaint.TextSize / 2f, textPaint);
-        canvas.DrawText(minResidual.ToString("F3"), leftPadding - 4, origin.Y, textPaint);
+        using var gridPaint = new SKPaint
+        {
+            Color = ChartGridColor,
+            StrokeWidth = 1,
+            IsAntialias = true,
+            Style = SKPaintStyle.Stroke,
+            PathEffect = SKPathEffect.CreateDash(new float[] { 6, 6 }, 0)
+        };
+
+        using var axisPaint = new SKPaint
+        {
+            Color = ChartAxisColor,
+            StrokeWidth = 2,
+            IsAntialias = true,
+            Style = SKPaintStyle.Stroke
+        };
+
+        using var tickPaint = new SKPaint
+        {
+            Color = ChartAxisColor,
+            StrokeWidth = 1.5f,
+            IsAntialias = true
+        };
+
+        using var valuePaint = new SKPaint
+        {
+            Color = ChartSecondaryTextColor,
+            TextSize = 12,
+            IsAntialias = true,
+            TextAlign = SKTextAlign.Right
+        };
+
+        using var bottomLabelPaint = new SKPaint
+        {
+            Color = ChartSecondaryTextColor,
+            TextSize = 12,
+            IsAntialias = true,
+            TextAlign = SKTextAlign.Center
+        };
+
+        using var axisLabelPaint = new SKPaint
+        {
+            Color = ChartPrimaryTextColor,
+            TextSize = 14,
+            IsAntialias = true,
+            TextAlign = SKTextAlign.Center
+        };
+
+        int horizontalLines = 4;
+        for (int i = 0; i <= horizontalLines; i++)
+        {
+            float t = i / (float)horizontalLines;
+            float y = chartRect.Top + chartRect.Height * t;
+            canvas.DrawLine(chartRect.Left, y, chartRect.Right, y, gridPaint);
+
+            double value = maxResidual - (maxResidual - minResidual) * t;
+            canvas.DrawText(value.ToString("F3"), chartRect.Left - 10f, y + valuePaint.TextSize / 3f, valuePaint);
+        }
 
         int count = history.Count;
-        float step = count > 1 ? chartWidth / (count - 1) : 0f;
-        var path = new SKPath();
+        int verticalLines = Math.Min(count - 1, 5);
+        if (verticalLines > 0)
+        {
+            for (int i = 0; i <= verticalLines; i++)
+            {
+                float t = i / (float)verticalLines;
+                float x = chartRect.Left + chartRect.Width * t;
+                canvas.DrawLine(x, chartRect.Top, x, chartRect.Bottom, gridPaint);
+                canvas.DrawLine(x, chartRect.Bottom, x, chartRect.Bottom + 6f, tickPaint);
+
+                int iteration = (int)Math.Round(1 + t * (count - 1));
+                canvas.DrawText(iteration.ToString(), x, chartRect.Bottom + bottomLabelPaint.TextSize + 14f, bottomLabelPaint);
+            }
+        }
+        else
+        {
+            canvas.DrawLine(chartRect.Left, chartRect.Top, chartRect.Left, chartRect.Bottom, gridPaint);
+            canvas.DrawLine(chartRect.Left, chartRect.Bottom, chartRect.Left, chartRect.Bottom + 6f, tickPaint);
+            canvas.DrawText("1", chartRect.Left, chartRect.Bottom + bottomLabelPaint.TextSize + 14f, bottomLabelPaint);
+        }
+
+        var origin = new SKPoint(chartRect.Left, chartRect.Bottom);
+        canvas.DrawLine(origin, new SKPoint(chartRect.Right, chartRect.Bottom), axisPaint);
+        canvas.DrawLine(origin, new SKPoint(chartRect.Left, chartRect.Top), axisPaint);
+
+        using var linePaint = new SKPaint
+        {
+            Color = ChartLineColor,
+            StrokeWidth = 3,
+            IsAntialias = true,
+            Style = SKPaintStyle.Stroke,
+            StrokeCap = SKStrokeCap.Round,
+            StrokeJoin = SKStrokeJoin.Round
+        };
+
+        using var areaPaint = new SKPaint
+        {
+            Color = ChartAreaFillColor,
+            Style = SKPaintStyle.Fill,
+            IsAntialias = true
+        };
+
+        using var pointPaint = new SKPaint
+        {
+            Color = ChartPointColor,
+            Style = SKPaintStyle.Fill,
+            IsAntialias = true
+        };
+
+        using var pointOutlinePaint = new SKPaint
+        {
+            Color = ChartPointOutlineColor,
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = 1.5f,
+            IsAntialias = true
+        };
+
+        var linePath = new SKPath();
+        var areaPath = new SKPath();
+        areaPath.MoveTo(origin);
+
+        float step = count > 1 ? chartRect.Width / (count - 1) : 0f;
+        SKPoint lastPoint = origin;
+
         for (int i = 0; i < count; i++)
         {
             double residual = history[i];
-            float x = leftPadding + (count > 1 ? step * i : chartWidth / 2f);
+            float x = chartRect.Left + (count > 1 ? step * i : chartRect.Width / 2f);
             double normalized = (residual - minResidual) / (maxResidual - minResidual);
-            float y = topPadding + chartHeight * (float)(1 - normalized);
+            float y = chartRect.Top + chartRect.Height * (float)(1 - normalized);
 
             if (i == 0)
-                path.MoveTo(x, y);
+                linePath.MoveTo(x, y);
             else
-                path.LineTo(x, y);
+                linePath.LineTo(x, y);
 
-            canvas.DrawCircle(x, y, 3f, pointPaint);
+            areaPath.LineTo(x, y);
+
+            canvas.DrawCircle(x, y, 4f, pointPaint);
+            canvas.DrawCircle(x, y, 4f, pointOutlinePaint);
+
+            lastPoint = new SKPoint(x, y);
         }
 
-        canvas.DrawPath(path, linePaint);
+        areaPath.LineTo(lastPoint.X, origin.Y);
+        areaPath.Close();
 
-        textPaint.TextAlign = SKTextAlign.Center;
-        float labelY = origin.Y + textPaint.TextSize + 4f;
-        canvas.DrawText("1", leftPadding, labelY, textPaint);
-        canvas.DrawText(count.ToString(), leftPadding + chartWidth, labelY, textPaint);
-        canvas.DrawText("Iteration", leftPadding + chartWidth / 2f, e.Info.Height - 4f, textPaint);
+        canvas.DrawPath(areaPath, areaPaint);
+        canvas.DrawPath(linePath, linePaint);
 
-        textPaint.TextAlign = SKTextAlign.Right;
-        canvas.DrawText("Residual", leftPadding - 6f, topPadding - 2f, textPaint);
+        canvas.DrawText("Iteration", chartRect.MidX, origin.Y + axisLabelPaint.TextSize + 26f, axisLabelPaint);
+
+        canvas.Save();
+        canvas.Translate(chartRect.Left - 44f, chartRect.MidY);
+        canvas.RotateDegrees(-90);
+        canvas.DrawText("Residual", 0, 0, axisLabelPaint);
+        canvas.Restore();
+
+        using var annotationPaint = new SKPaint
+        {
+            Color = ChartPrimaryTextColor,
+            TextSize = 11,
+            IsAntialias = true
+        };
+        using var annotationBackgroundPaint = new SKPaint
+        {
+            Color = new SKColor(20, 30, 46, 220),
+            IsAntialias = true
+        };
+        using var annotationBorderPaint = new SKPaint
+        {
+            Color = ChartLineColor,
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = 1.2f,
+            IsAntialias = true
+        };
+
+        string lastLabel = $"Iter {count}: {history[count - 1]:F3}";
+        float labelWidth = annotationPaint.MeasureText(lastLabel);
+        float labelX = Math.Min(chartRect.Right - labelWidth - 20f, lastPoint.X + 12f);
+        labelX = Math.Max(chartRect.Left + 10f, labelX);
+        float baseLine = Math.Max(chartRect.Top + annotationPaint.TextSize + 14f, lastPoint.Y - 10f);
+        var bubbleRect = new SKRect(labelX - 10f,
+                                    baseLine - annotationPaint.TextSize - 12f,
+                                    labelX + labelWidth + 10f,
+                                    baseLine + 8f);
+
+        canvas.DrawRoundRect(bubbleRect, 8f, 8f, annotationBackgroundPaint);
+        canvas.DrawRoundRect(bubbleRect, 8f, 8f, annotationBorderPaint);
+        canvas.DrawText(lastLabel, bubbleRect.Left + 10f, bubbleRect.Bottom - 10f, annotationPaint);
     }
 
     private void OnOriginalCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
