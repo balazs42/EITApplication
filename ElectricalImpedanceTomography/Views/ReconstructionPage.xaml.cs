@@ -33,6 +33,7 @@ public partial class ReconstructionPage : ContentPage
     private string[]? _hoverAdjointLines; private SKPoint? _hoverAdjointPt;
     private string[]? _hoverInitialLines; private SKPoint? _hoverInitialPt;
     private string[]? _hoverGradientLines; private SKPoint? _hoverGradientPt;
+    private int _lastResidualRenderCount;
 
     private enum PotentialDisplayMode { Default, Grayscale, Inverted, Heatmap, Rainbow }
     private PotentialDisplayMode _potMode = PotentialDisplayMode.Default;
@@ -243,7 +244,43 @@ public partial class ReconstructionPage : ContentPage
     }
 
     private void OnResidualHistoryChanged(object? sender, NotifyCollectionChangedEventArgs e)
-        => MainThread.BeginInvokeOnMainThread(() => ResidualTrendCanvas.InvalidateSurface());
+    {
+        bool shouldInvalidate = false;
+
+        switch (e.Action)
+        {
+            case NotifyCollectionChangedAction.Reset:
+                _lastResidualRenderCount = 0;
+                shouldInvalidate = true;
+                break;
+
+            case NotifyCollectionChangedAction.Add:
+                int count = _viewModel.ResidualHistory.Count;
+                if (count == 0)
+                {
+                    _lastResidualRenderCount = 0;
+                    shouldInvalidate = true;
+                }
+                else if (count % 10 == 0 && count != _lastResidualRenderCount)
+                {
+                    _lastResidualRenderCount = count;
+                    shouldInvalidate = true;
+                }
+                break;
+
+            case NotifyCollectionChangedAction.Remove:
+            case NotifyCollectionChangedAction.Replace:
+            case NotifyCollectionChangedAction.Move:
+                _lastResidualRenderCount = _viewModel.ResidualHistory.Count;
+                shouldInvalidate = true;
+                break;
+        }
+
+        if (shouldInvalidate)
+        {
+            MainThread.BeginInvokeOnMainThread(() => ResidualTrendCanvas.InvalidateSurface());
+        }
+    }
 
     #region Drawing helpers
     private void ComputeFemTransform(FEMMesh mesh, SKImageInfo info)
@@ -681,17 +718,25 @@ public partial class ReconstructionPage : ContentPage
 
         string lastLabel = $"Iter {count}: {history[count - 1]:F3}";
         float labelWidth = annotationPaint.MeasureText(lastLabel);
-        float labelX = Math.Min(chartRect.Right - labelWidth - 20f, lastPoint.X + 12f);
-        labelX = Math.Max(chartRect.Left + 10f, labelX);
-        float baseLine = Math.Max(chartRect.Top + annotationPaint.TextSize + 14f, lastPoint.Y - 10f);
-        var bubbleRect = new SKRect(labelX - 10f,
-                                    baseLine - annotationPaint.TextSize - 12f,
-                                    labelX + labelWidth + 10f,
-                                    baseLine + 8f);
+        const float annotationMargin = 16f;
+        const float annotationPaddingX = 10f;
+        const float annotationPaddingY = 8f;
+        float bubbleWidth = labelWidth + annotationPaddingX * 2f;
+        float bubbleHeight = annotationPaint.TextSize + annotationPaddingY * 2f;
+        float preferredLeft = chartRect.Right - bubbleWidth - annotationMargin;
+        float minLeft = chartRect.Left + annotationMargin;
+        float bubbleLeft = Math.Max(minLeft, preferredLeft);
+        float bubbleTop = chartRect.Top + annotationMargin;
+        var bubbleRect = new SKRect(bubbleLeft,
+                                    bubbleTop,
+                                    bubbleLeft + bubbleWidth,
+                                    bubbleTop + bubbleHeight);
 
         canvas.DrawRoundRect(bubbleRect, 8f, 8f, annotationBackgroundPaint);
         canvas.DrawRoundRect(bubbleRect, 8f, 8f, annotationBorderPaint);
-        canvas.DrawText(lastLabel, bubbleRect.Left + 10f, bubbleRect.Bottom - 10f, annotationPaint);
+        float textX = bubbleRect.Left + annotationPaddingX;
+        float textY = bubbleRect.Top + annotationPaddingY + annotationPaint.TextSize;
+        canvas.DrawText(lastLabel, textX, textY, annotationPaint);
     }
 
     private void OnOriginalCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
