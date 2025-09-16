@@ -4,7 +4,7 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
 
-    <Color x:Key="PageBackgroundColor">GhostWhite</Color>
+    <Color x:Key="PageBackgroundColor">#CCCCCC</Color>
 
     <LinearGradientBrush x:Key="ConfigurationPanelBrush" StartPoint="0,0" EndPoint="0,1">
         <GradientStop Color="#232E45" Offset="0" />
@@ -50,7 +50,6 @@
     <Style x:Key="PanelSectionBorderStyle" TargetType="Border">
         <Setter Property="StrokeShape" Value="RoundRectangle 10" />
         <Setter Property="StrokeThickness" Value="0" />
-        <Setter Property="Padding" Value="12" />
         <Setter Property="BackgroundColor" Value="#242F47" />
     </Style>
 

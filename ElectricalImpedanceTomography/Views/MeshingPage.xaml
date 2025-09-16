@@ -81,24 +81,28 @@
                                 CurrentPageName="MeshingPage"/>
 
         <Grid Grid.Row="1"
-              Margin="24,12,24,24"
-              ColumnDefinitions="320, *, 260"
-              ColumnSpacing="24">
+              Margin="5"
+              ColumnDefinitions="Auto, *, Auto"
+              ColumnSpacing="5">
 
             <!-- Left control panels for FEM and LBM -->
             <Border Grid.Column="0"
+                    WidthRequest="250"
+                    Padding="10"
                     Style="{StaticResource PanelBorderStyle}"
                     Background="{StaticResource ConfigurationPanelBrush}"
                     IsVisible="{Binding IsFEM}">
                 <VerticalStackLayout Spacing="16"
-                                      Margin="20">
-                    <Grid ColumnDefinitions="Auto, *"
+                                     Margin="5">
+                    <Grid ColumnDefinitions="Auto, Auto"
                           ColumnSpacing="12">
                         <Label Grid.Column="0"
                                Text="Mesh Type:"
+                               VerticalOptions="Center"
                                FontAttributes="None"
                                TextColor="#9DAAD3"/>
                         <Picker Grid.Column="1"
+                                Margin="5"
                                 ItemsSource="{Binding MeshTypes}"
                                 SelectedItem="{Binding SelectedMeshType}"/>
                     </Grid>
@@ -126,6 +130,7 @@
                     <Grid ColumnDefinitions="Auto, *"
                           ColumnSpacing="12">
                         <Label Grid.Column="0"
+                               VerticalOptions="Center"
                                Text="Geometry"
                                FontAttributes="None"
                                TextColor="#9DAAD3"/>
@@ -264,192 +269,204 @@
 
             <!-- Center content with controls and canvas -->
             <Grid Grid.Column="1"
-                  RowDefinitions="Auto,Auto,*"
-                  RowSpacing="20">
+                  RowDefinitions="Auto,*"
+                  RowSpacing="10">
                 <Border Grid.Row="0"
                         Style="{StaticResource PanelBorderStyle}"
                         Background="{StaticResource ControlPanelBrush}">
-                    <VerticalStackLayout Margin="20"
-                                          Spacing="16">
-                        <Label Text="Controls"
-                               HorizontalOptions="Center"
-                               FontSize="Medium"
-                               TextColor="#F7FBFF"/>
-                        <HorizontalStackLayout Spacing="14"
-                                                HorizontalOptions="Center">
-                            <Border Style="{StaticResource PanelSectionBorderStyle}"
-                                    Padding="10"
-                                    BackgroundColor="#27344D">
-                                <Grid ColumnDefinitions="Auto, *"
-                                      ColumnSpacing="10"
-                                      VerticalOptions="Center">
-                                    <Image Grid.Column="0"
-                                           Source="icon_save.png"
-                                           HeightRequest="30"/>
-                                    <Label Grid.Column="1"
-                                           Text="Save"
-                                           FontAttributes="None"
-                                           FontSize="Medium"/>
-                                </Grid>
-                                <Border.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnSaveClicked" />
-                                </Border.GestureRecognizers>
-                            </Border>
+                    <VerticalStackLayout Margin="5"
+                                         Spacing="10">
+                        <Grid ColumnDefinitions="Auto, Auto"
+                               HorizontalOptions="Center">
+                            <Border Grid.Column="0" Stroke="Transparent">
+                                <VerticalStackLayout
+                                     HorizontalOptions="Center"
+                                    VerticalOptions="Center">
+                                    <Label Text="Controls"
+                                           Margin="0,0,0,5"
+                                           VerticalOptions="Center"
+                                           HorizontalOptions="Center"
+                                           FontSize="Medium"
+                                           TextColor="#F7FBFF"/>
+                                    <HorizontalStackLayout Spacing="14"
+                                                        HorizontalOptions="Center">
+                                        <Border Style="{StaticResource PanelSectionBorderStyle}"
+                                            Padding="10"
+                                            BackgroundColor="#27344D">
+                                            <Grid ColumnDefinitions="Auto, *"
+                                              ColumnSpacing="10"
+                                              VerticalOptions="Center">
+                                                <Image Grid.Column="0"
+                                                   Source="icon_save.png"
+                                                   HeightRequest="30"/>
+                                                <Label Grid.Column="1"
+                                                   Text="Save"
+                                                   FontAttributes="None"
+                                                   FontSize="Medium"/>
+                                            </Grid>
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnSaveClicked" />
+                                            </Border.GestureRecognizers>
+                                        </Border>
+                                        <Border Style="{StaticResource PanelSectionBorderStyle}"
+                                                Padding="10"
+                                                BackgroundColor="#233149">
+                                            <Grid ColumnDefinitions="Auto, *"
+                                                  ColumnSpacing="10"
+                                                  VerticalOptions="Center">
+                                                <Image Grid.Column="0"
+                                                       Source="icon_load2.png"
+                                                       HeightRequest="30"/>
+                                                <Label Grid.Column="1"
+                                                       Text="Load"
+                                                       FontAttributes="None"
+                                                       FontSize="Medium"/>
+                                            </Grid>
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnLoadClicked" />
+                                            </Border.GestureRecognizers>
+                                        </Border>
 
-                            <Border Style="{StaticResource PanelSectionBorderStyle}"
-                                    Padding="10"
-                                    BackgroundColor="#233149">
-                                <Grid ColumnDefinitions="Auto, *"
-                                      ColumnSpacing="10"
-                                      VerticalOptions="Center">
-                                    <Image Grid.Column="0"
-                                           Source="icon_load2.png"
-                                           HeightRequest="30"/>
-                                    <Label Grid.Column="1"
-                                           Text="Load"
-                                           FontAttributes="None"
-                                           FontSize="Medium"/>
-                                </Grid>
-                                <Border.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnLoadClicked" />
-                                </Border.GestureRecognizers>
-                            </Border>
+                                        <Border Style="{StaticResource PanelSectionBorderStyle}"
+                                                Padding="10"
+                                                BackgroundColor="#22304A">
+                                            <Grid ColumnDefinitions="Auto, *"
+                                                  ColumnSpacing="10"
+                                                  VerticalOptions="Center">
+                                                <Image Grid.Column="0"
+                                                       Source="icon_generate.png"
+                                                       HeightRequest="30"/>
+                                                <Label Grid.Column="1"
+                                                       Text="Generate"
+                                                       FontAttributes="None"
+                                                       FontSize="Medium"/>
+                                            </Grid>
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnGenerateClicked" />
+                                            </Border.GestureRecognizers>
+                                        </Border>
 
-                            <Border Style="{StaticResource PanelSectionBorderStyle}"
-                                    Padding="10"
-                                    BackgroundColor="#22304A">
-                                <Grid ColumnDefinitions="Auto, *"
-                                      ColumnSpacing="10"
-                                      VerticalOptions="Center">
-                                    <Image Grid.Column="0"
-                                           Source="icon_generate.png"
-                                           HeightRequest="30"/>
-                                    <Label Grid.Column="1"
-                                           Text="Generate"
-                                           FontAttributes="None"
-                                           FontSize="Medium"/>
-                                </Grid>
-                                <Border.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnGenerateClicked" />
-                                </Border.GestureRecognizers>
+                                        <Border Style="{StaticResource PanelSectionBorderStyle}"
+                                                Padding="10"
+                                                BackgroundColor="#1F2B44">
+                                            <Grid ColumnDefinitions="Auto, *"
+                                                  ColumnSpacing="10"
+                                                  VerticalOptions="Center">
+                                                <Image Grid.Column="0"
+                                                       Source="icon_delete.png"
+                                                       HeightRequest="30"/>
+                                                <Label Grid.Column="1"
+                                                       Text="Clear"
+                                                       FontAttributes="None"
+                                                       FontSize="Medium"/>
+                                            </Grid>
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnClearClicked" />
+                                            </Border.GestureRecognizers>
+                                        </Border>
+                                    </HorizontalStackLayout>
+                                </VerticalStackLayout>
                             </Border>
+                            <Border Grid.Column="1" Stroke="Transparent" Margin="5">
+                                <VerticalStackLayout
+                                    HorizontalOptions="Center"
+                                    VerticalOptions="Center">
+                                    <Label Text="Editor"                                           
+                                           Margin="0,0,0,5"
+                                           HorizontalOptions="Center"
+                                           FontSize="Medium"
+                                           TextColor="#F7FBFF"/>
+                                    <HorizontalStackLayout Spacing="14"
+                                                           VerticalOptions="Center"
+                                                           HorizontalOptions="Center">
+                                        <Border Style="{StaticResource PanelSectionBorderStyle}"
+                                                Padding="10"
+                                                BackgroundColor="#233149">
+                                            <Grid ColumnDefinitions="Auto, *"
+                                                    ColumnSpacing="10">
+                                                <Image Grid.Column="0"
+                                                       Source="icon_noise.png"
+                                                       HeightRequest="30"/>
+                                                <Label Grid.Column="1"
+                                                       VerticalOptions="Center"
+                                                       Text="Add Noise"
+                                                       FontAttributes="None"
+                                                       FontSize="Medium"/>
+                                            </Grid>
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnAddNoiseTapped" />
+                                            </Border.GestureRecognizers>
+                                        </Border>
 
-                            <Border Style="{StaticResource PanelSectionBorderStyle}"
-                                    Padding="10"
-                                    BackgroundColor="#1F2B44">
-                                <Grid ColumnDefinitions="Auto, *"
-                                      ColumnSpacing="10"
-                                      VerticalOptions="Center">
-                                    <Image Grid.Column="0"
-                                           Source="icon_delete.png"
-                                           HeightRequest="30"/>
-                                    <Label Grid.Column="1"
-                                           Text="Clear"
-                                           FontAttributes="None"
-                                           FontSize="Medium"/>
-                                </Grid>
-                                <Border.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnClearClicked" />
-                                </Border.GestureRecognizers>
+                                        <Border Style="{StaticResource PanelSectionBorderStyle}"
+                                                BackgroundColor="#22304A">
+                                            <Grid ColumnDefinitions="Auto, *"
+                                                    ColumnSpacing="10">
+                                                <Image Grid.Column="0"
+                                                       Source="icon_back2.png"
+                                                       HeightRequest="30"/>
+                                                <Label Grid.Column="1"
+                                                       VerticalOptions="Center"
+                                                       Text="Undo"
+                                                       FontAttributes="None"
+                                                       FontSize="Medium"/>
+                                            </Grid>
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnUndoClicked" />
+                                            </Border.GestureRecognizers>
+                                        </Border>
+
+                                        <Border Style="{StaticResource PanelSectionBorderStyle}" Padding="10"
+                                                BackgroundColor="#1F2B44">
+                                            <Grid ColumnDefinitions="Auto, *"
+                                                  ColumnSpacing="10">
+                                                <Image Grid.Column="0"
+                                                       Source="icon_redo2.png"
+                                                       HeightRequest="30"/>
+                                                <Label Grid.Column="1"
+                                                       Text="Redo"
+                                                       VerticalOptions="Center"
+                                                       FontAttributes="None"
+                                                       FontSize="Medium"/>
+                                            </Grid>
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnRedoClicked" />
+                                            </Border.GestureRecognizers>
+                                        </Border>
+
+                                        <Border Style="{StaticResource PanelSectionBorderStyle}"                                     
+                                                BackgroundColor="#27344D"
+                                                Padding="10"
+                                                WidthRequest="130">
+                                            <Grid ColumnDefinitions="Auto, Auto, Auto"
+                                                    ColumnSpacing="5">
+                                                <Image Grid.Column="0"
+                                                       Source="icon_edit2.png"
+                                                       HeightRequest="25"
+                                                       WidthRequest="25"/>
+                                                <Label Grid.Column="1"
+                                                       VerticalOptions="Center"
+                                                       Text="Edit"
+                                                       FontAttributes="None"
+                                                       FontSize="Medium"/>
+                                                <CheckBox x:Name="EditingCheckbox"
+                                                          WidthRequest="25"
+                                                          HeightRequest="25"
+                                                          Grid.Column="2"
+                                                          IsChecked="{Binding InhomogenityEditing}"/>
+                                            </Grid>
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnEditClicked" />
+                                            </Border.GestureRecognizers>
+                                        </Border>
+                                    </HorizontalStackLayout>
+                                </VerticalStackLayout>
                             </Border>
-                        </HorizontalStackLayout>
+                        </Grid>
                     </VerticalStackLayout>
                 </Border>
 
                 <Border Grid.Row="1"
-                        Style="{StaticResource PanelBorderStyle}"
-                        Background="{StaticResource PartialResultsBrush}">
-                    <VerticalStackLayout Margin="20"
-                                          Spacing="16">
-                        <Label Text="Editing"
-                               HorizontalOptions="Center"
-                               FontSize="Medium"
-                               TextColor="#F7FBFF"/>
-                        <HorizontalStackLayout HorizontalOptions="Center"
-                                                Spacing="14">
-                            <Border Style="{StaticResource PanelSectionBorderStyle}"
-                                    Padding="10"
-                                    BackgroundColor="#27344D">
-                                <Grid ColumnDefinitions="Auto, *, Auto"
-                                      ColumnSpacing="10">
-                                    <Image Grid.Column="0"
-                                           Source="icon_edit2.png"
-                                           HeightRequest="25"/>
-                                    <Label Grid.Column="1"
-                                           Text="Edit"
-                                           FontAttributes="None"
-                                           FontSize="Medium"/>
-                                    <CheckBox Grid.Column="2"
-                                              IsChecked="{Binding InhomogenityEditing}"/>
-                                </Grid>
-                                <Border.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnEditClicked" />
-                                </Border.GestureRecognizers>
-                            </Border>
-
-                            <Border Style="{StaticResource PanelSectionBorderStyle}"
-                                    Padding="10"
-                                    BackgroundColor="#233149">
-                                <Grid ColumnDefinitions="Auto, *"
-                                      ColumnSpacing="10">
-                                    <Image Grid.Column="0"
-                                           Source="icon_noise.png"
-                                           HeightRequest="40"/>
-                                    <Label Grid.Column="1"
-                                           Text="Add Noise"
-                                           FontAttributes="None"
-                                           FontSize="Medium"/>
-                                </Grid>
-                                <Border.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnAddNoiseTapped" />
-                                </Border.GestureRecognizers>
-                            </Border>
-
-                            <Border Style="{StaticResource PanelSectionBorderStyle}"
-                                    Padding="10"
-                                    BackgroundColor="#22304A">
-                                <Grid ColumnDefinitions="Auto, *"
-                                      ColumnSpacing="10">
-                                    <Image Grid.Column="0"
-                                           Source="icon_back2.png"
-                                           HeightRequest="30"/>
-                                    <Label Grid.Column="1"
-                                           Text="Undo"
-                                           FontAttributes="None"
-                                           FontSize="Medium"/>
-                                </Grid>
-                                <Border.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnUndoClicked" />
-                                </Border.GestureRecognizers>
-                            </Border>
-
-                            <Border Style="{StaticResource PanelSectionBorderStyle}"
-                                    Padding="10"
-                                    BackgroundColor="#1F2B44">
-                                <Grid ColumnDefinitions="Auto, *"
-                                      ColumnSpacing="10">
-                                    <Image Grid.Column="0"
-                                           Source="icon_redo2.png"
-                                           HeightRequest="30"/>
-                                    <Label Grid.Column="1"
-                                           Text="Redo"
-                                           FontAttributes="None"
-                                           FontSize="Medium"/>
-                                </Grid>
-                                <Border.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnRedoClicked" />
-                                </Border.GestureRecognizers>
-                            </Border>
-                        </HorizontalStackLayout>
-                        <Label Text="{Binding HoveredElementInfo, StringFormat='Element Info: {0}'}"
-                               HorizontalOptions="Center"
-                               FontSize="Small"
-                               FontAttributes="None"
-                               TextColor="#9DAAD3"/>
-                    </VerticalStackLayout>
-                </Border>
-
-                <Border Grid.Row="2"
                         Style="{StaticResource PanelBorderStyle}"
                         Background="{StaticResource FullResultsBrush}">
                     <Border Style="{StaticResource CanvasBorderStyle}"

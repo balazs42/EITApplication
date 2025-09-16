@@ -8,7 +8,7 @@
              x:Class="ElectricalImpedanceTomography.Views.ReconstructionPage"
              Title="ReconstructionPage"
              Shell.NavBarIsVisible="False"
-             Background="GhostWhite"
+             BackgroundColor="{StaticResource PageBackgroundColor}"
              x:DataType="viewmodels:ReconstructionPageViewModel">
     <ContentPage.MenuBarItems>
         <MenuBarItem Text="Reconstruction">
@@ -212,57 +212,37 @@
                         <SolidColorBrush Color="#3A5F8A" />
                     </Border.Stroke>
                     <Grid ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto"
-                          RowDefinitions="Auto, Auto"
+                          RowDefinitions="*, Auto"
                           ColumnSpacing="15"
                           HorizontalOptions="Center"
                           Margin="5">
-                        <Border x:Name="PlayButton" Grid.Column="0" HeightRequest="50" WidthRequest="50" Margin="5" HorizontalOptions="Center" VerticalOptions="Center" Stroke="Transparent">
-                            <ImageButton Padding="3"
-                                         Background="Transparent"
-                                         HeightRequest="30"
-                                         WidthRequest="30"
-                                         Source="icon_play_green.png"
-                                         Clicked="OnPlayButtonClicked">
-                                <ImageButton.Shadow>
-                                    <Shadow Brush="Green" Opacity="1.0" Radius="2.0"/>
-                                </ImageButton.Shadow>
-                            </ImageButton>
+                        <Border x:Name="PlayButton" Grid.Column="0" HeightRequest="60" WidthRequest="60" Margin="5" HorizontalOptions="Center" VerticalOptions="Center" Stroke="Transparent">
+                            <Image Source="icon_play_green.png" WidthRequest="40">
+                                <Image.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnPlayButtonClicked"/>
+                                </Image.GestureRecognizers>
+                            </Image>
                         </Border>
                         <Border x:Name="PauseButton" Grid.Column="0" HeightRequest="50" WidthRequest="50" Margin="5" HorizontalOptions="Center" VerticalOptions="Center" Stroke="Transparent">
-                            <ImageButton Padding="3"
-                                         Background="Transparent"
-                                         HeightRequest="30"
-                                         Source="icon_pause_blue.png"
-                                         Clicked="OnPauseButtonClicked">
-                                <ImageButton.Shadow>
-                                    <Shadow Brush="Navy" Opacity="1.0" Radius="2.0"/>
-                                </ImageButton.Shadow>
-                            </ImageButton>
+                            <Image Source="icon_pause_blue.png" WidthRequest="40">
+                                <Image.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnPauseButtonClicked"/>
+                                </Image.GestureRecognizers>
+                            </Image>
                         </Border>
                         <Border Grid.Column="1" HeightRequest="50" WidthRequest="50" Margin="5" Stroke="Transparent">
-                            <ImageButton x:Name="StepButton"
-                                         Padding="3"
-                                         Background="Transparent"
-                                         HeightRequest="30"
-                                         Source="icon_next_blue.png"
-                                         Clicked="OnStepButtonClicked"
-                                         IsEnabled="False">
-                                <ImageButton.Shadow>
-                                    <Shadow Brush="Navy" Opacity="1.0" Radius="2.0"/>
-                                </ImageButton.Shadow>
-                            </ImageButton>
+                            <Image Source="icon_next_blue.png" WidthRequest="40">
+                                <Image.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnStepButtonClicked"/>
+                                </Image.GestureRecognizers>
+                            </Image>
                         </Border>
                         <Border Grid.Column="2" HeightRequest="50" WidthRequest="50" Margin="5" Stroke="Transparent">
-                            <ImageButton x:Name="StopButton"
-                                         Padding="3"
-                                         Background="Transparent"
-                                         HeightRequest="30"
-                                         Source="icon_stop_red.png"
-                                         Clicked="OnStopButtonClicked">
-                                <ImageButton.Shadow>
-                                    <Shadow Brush="Red" Opacity="1.0" Radius="2.0"/>
-                                </ImageButton.Shadow>
-                            </ImageButton>
+                            <Image Source="icon_stop_red.png" WidthRequest="40">
+                                <Image.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnStopButtonClicked"/>
+                                </Image.GestureRecognizers>
+                            </Image>
                         </Border>
 
                         <Label Grid.Column="3" HorizontalOptions="Center" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding IterationCount, StringFormat='Iteration: {0}'}"/>
