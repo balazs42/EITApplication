@@ -50,18 +50,20 @@
                                 CurrentPageName="MainPage"/>
 
         <Grid Grid.Row="1"
-              Margin="24,12,24,24"
-              ColumnDefinitions="360, *, 420"
-              ColumnSpacing="24"
+              Margin="5"
+              ColumnDefinitions="450, Auto, *"
+              ColumnSpacing="5"
               RowSpacing="0">
 
             <!-- Left column with hardware, navigation and quick actions -->
             <VerticalStackLayout Grid.Column="0"
-                                  Spacing="20">
+                                 Spacing="1">
                 <Border Style="{StaticResource PanelBorderStyle}"
+                        Margin="5"
+                        Padding="10"
                         Background="{StaticResource ConfigurationPanelBrush}">
-                    <VerticalStackLayout Margin="20"
-                                          Spacing="12">
+                    <VerticalStackLayout Margin="5"
+                                          Spacing="5">
                         <Grid ColumnDefinitions="Auto, *"
                               ColumnSpacing="12">
                             <Image Grid.Column="0"
@@ -126,9 +128,11 @@
 
                 <!-- Navigation Menu -->
                 <Border Style="{StaticResource PanelBorderStyle}"
+                        Margin="5"
+                        Padding="10"
                         Background="{StaticResource ControlPanelBrush}">
-                    <VerticalStackLayout Spacing="16"
-                                          Margin="20">
+                    <VerticalStackLayout Spacing="5"
+                                         Margin="5">
                         <Grid ColumnDefinitions="Auto, *"
                               ColumnSpacing="12">
                             <Image Grid.Column="0"
@@ -142,7 +146,6 @@
                         </Grid>
 
                         <Border Style="{StaticResource PanelSectionBorderStyle}"
-                                Padding="10"
                                 BackgroundColor="#293756">
                             <Grid ColumnDefinitions="Auto, *"
                                   ColumnSpacing="10"
@@ -165,7 +168,6 @@
                         </Border>
 
                         <Border Style="{StaticResource PanelSectionBorderStyle}"
-                                Padding="10"
                                 BackgroundColor="#25324A">
                             <Grid ColumnDefinitions="Auto, *"
                                   ColumnSpacing="10"
@@ -188,7 +190,6 @@
                         </Border>
 
                         <Border Style="{StaticResource PanelSectionBorderStyle}"
-                                Padding="10"
                                 BackgroundColor="#22304A">
                             <Grid ColumnDefinitions="Auto, *"
                                   ColumnSpacing="10"
@@ -213,9 +214,10 @@
                 </Border>
 
                 <Border Style="{StaticResource PanelBorderStyle}"
+                        Margin="5"
                         Background="{StaticResource PartialResultsBrush}">
                     <VerticalStackLayout Margin="20"
-                                          Spacing="14">
+                                          Spacing="5">
                         <Grid ColumnDefinitions="Auto, *"
                               ColumnSpacing="12">
                             <Image Grid.Column="0"
@@ -247,8 +249,9 @@
 
                 <Border Style="{StaticResource PanelBorderStyle}"
                         Background="{StaticResource HistoryPanelBrush}">
-                    <VerticalStackLayout Margin="20"
-                                          Spacing="14">
+                    <VerticalStackLayout Margin="5"
+                                         Padding="10"
+                                          Spacing="5">
                         <Grid ColumnDefinitions="Auto, *"
                               ColumnSpacing="12">
                             <Image Grid.Column="0"
@@ -273,7 +276,7 @@
             <!-- Middle column with welcome, orb and console -->
             <Grid Grid.Column="1"
                   RowDefinitions="Auto, Auto, *"
-                  RowSpacing="20">
+                  RowSpacing="5">
                 <Border Grid.Row="0"
                         Style="{StaticResource PanelBorderStyle}"
                         Background="{StaticResource ControlPanelBrush}">
@@ -291,16 +294,13 @@
                     </VerticalStackLayout>
                 </Border>
 
-                <Border Grid.Row="1"
-                        Style="{StaticResource PanelBorderStyle}"
-                        Background="{StaticResource HistoryPanelBrush}">
-                    <controls:ImpedanceOrbView Margin="30"
+                    <controls:ImpedanceOrbView Grid.Row="1"
+                                               Margin="30"
                                                Model="{Binding CurrentImpedanceModel}"
                                                HeightRequest="175"
                                                WidthRequest="175"
                                                HorizontalOptions="Center"
                                                VerticalOptions="Center"/>
-                </Border>
 
                 <Border Grid.Row="2"
                         Style="{StaticResource PanelBorderStyle}"
@@ -371,9 +371,11 @@
             <!-- Right column with mesh preview -->
             <Border Grid.Column="2"
                     Style="{StaticResource PanelBorderStyle}"
-                    Background="{StaticResource StatisticsPanelBrush}">
-                <VerticalStackLayout Margin="20"
-                                      Spacing="16"
+                    Background="{StaticResource StatisticsPanelBrush}"
+                    VerticalOptions="Center"
+                    HorizontalOptions="Center">
+                <VerticalStackLayout Margin="5"
+                                      Spacing="10"
                                       HorizontalOptions="Center">
                     <Grid ColumnDefinitions="Auto, *"
                           ColumnSpacing="12"
@@ -396,6 +398,8 @@
                                            BackgroundColor="Transparent"
                                            PaintSurface="OnCanvasViewPaintSurface"
                                            HeightRequest="360"
+                                           VerticalOptions="Center"
+                                           HorizontalOptions="Center"
                                            WidthRequest="360"/>
                     </Border>
                 </VerticalStackLayout>

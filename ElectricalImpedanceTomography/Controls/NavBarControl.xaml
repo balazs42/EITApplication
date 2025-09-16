@@ -40,7 +40,10 @@
         
     </ContentView.Resources>
 
-    <Border Padding="10,5" BackgroundColor="#333333">
+    <Border Padding="10,5" 
+            BackgroundColor="{StaticResource PageBackgroundColor}"
+            Background="{StaticResource PageBackgroundColor}"
+            Stroke="{StaticResource PageBackgroundColor}">
         <Border.StrokeShape>
             <RoundRectangle CornerRadius="0"/>
         </Border.StrokeShape>
@@ -49,8 +52,9 @@
 
             <Border x:Name="MainPageButton"
                     StrokeShape="RoundRectangle 30"
-                    Stroke="Transparent"
-                    BackgroundColor="#555555"
+                    Stroke="#3A7CA5"
+                    Background="#3A7CA5"
+                    BackgroundColor="#3A7CA5"
                     Margin="5"
                     Padding="5">
                 <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5">
@@ -66,7 +70,7 @@
                            Margin="5"/>
                 </Grid>
                 <Border.Shadow>
-                    <Shadow Brush="#111111" Opacity="1.0" Radius="4.0"/>
+                    <Shadow Brush="SkyBlue" Opacity="1.0" Radius="4.0"/>
                 </Border.Shadow>
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Tapped="NavigateButton_Tapped"/>
@@ -75,10 +79,11 @@
 
             <Border x:Name="DAQPageButton"
                     StrokeShape="RoundRectangle 30"
-                    Stroke="Transparent"
+                    Stroke="#3A7CA5"
                     Margin="5"
                     Padding="5"
-                    BackgroundColor="#555555">
+                    Background="#3A7CA5"
+                    BackgroundColor="#3A7CA5">
                 <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5">
                     <Image Grid.Column="0" Source="icon_hardware.png" HeightRequest="30" Margin="5,0,0,0"/>
                     <Label Grid.Column="1" 
@@ -92,7 +97,7 @@
                            Margin="5"/>
                 </Grid>
                 <Border.Shadow>
-                    <Shadow Brush="#111111" Opacity="1.0" Radius="4.0"/>
+                    <Shadow Brush="SkyBlue" Opacity="1.0" Radius="4.0"/>
                 </Border.Shadow>
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Tapped="NavigateButton_Tapped"/>
@@ -101,8 +106,9 @@
 
             <Border x:Name="MeshingPageButton"
                     StrokeShape="RoundRectangle 30"
-                    Stroke="Transparent"
-                    BackgroundColor="#555555"
+                    Stroke="#3A7CA5"
+                    Background="#3A7CA5"                    
+                    BackgroundColor="#3A7CA5"
                     Margin="5"
                     Padding="5">
                 <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5">
@@ -118,7 +124,7 @@
                            Margin="5"/>
                 </Grid>
                 <Border.Shadow>
-                    <Shadow Brush="#111111" Opacity="1.0" Radius="4.0"/>
+                    <Shadow Brush="SkyBlue" Opacity="1.0" Radius="4.0"/>
                 </Border.Shadow>
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Tapped="NavigateButton_Tapped"/>
@@ -127,8 +133,9 @@
 
             <Border x:Name="ReconstructionPageButton"
                     StrokeShape="RoundRectangle 30"
-                    Stroke="Transparent"
-                    BackgroundColor="#555555"
+                    Stroke="#3A7CA5"
+                    Background="#3A7CA5"                   
+                    BackgroundColor="#3A7CA5"
                     Margin="5"
                     Padding="5">
                 <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5">
@@ -144,7 +151,7 @@
                            Margin="5"/>
                 </Grid>
                 <Border.Shadow>
-                    <Shadow Brush="#111111" Opacity="1.0" Radius="4.0"/>
+                    <Shadow Brush="SkyBlue" Opacity="1.0" Radius="4.0"/>
                 </Border.Shadow>
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Tapped="NavigateButton_Tapped"/>
