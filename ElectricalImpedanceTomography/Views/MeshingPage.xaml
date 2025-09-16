@@ -87,8 +87,9 @@
 
             <!-- Left control panels for FEM and LBM -->
             <Border Grid.Column="0"
+                    Margin="-20,0,0,-20"
                     WidthRequest="250"
-                    Padding="10"
+                    Padding="20"
                     Style="{StaticResource PanelBorderStyle}"
                     Background="{StaticResource ConfigurationPanelBrush}"
                     IsVisible="{Binding IsFEM}">
@@ -467,6 +468,7 @@
                 </Border>
 
                 <Border Grid.Row="1"
+                        Margin="0, 0, 0, -20"
                         Style="{StaticResource PanelBorderStyle}"
                         Background="{StaticResource FullResultsBrush}">
                     <Border Style="{StaticResource CanvasBorderStyle}"
@@ -484,6 +486,8 @@
 
             <!-- Right panel with saved meshes -->
             <Border Grid.Column="2"
+                    Padding="10"
+                    Margin="0, 0, -20, -20"
                     Style="{StaticResource PanelBorderStyle}"
                     Background="{StaticResource StatisticsPanelBrush}">
                 <VerticalStackLayout Margin="20"
