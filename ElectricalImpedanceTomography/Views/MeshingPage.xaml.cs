@@ -78,7 +78,7 @@ public partial class MeshingPage : ContentPage
     private void OnMeshCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
         var canvas = e.Surface.Canvas;
-        canvas.Clear(SKColor.Parse("#1E1E1E"));
+        canvas.Clear(SKColor.Parse("#1C2638"));
         var mesh = _viewModel.GetCurrentMesh();
         if (mesh is null)
         {

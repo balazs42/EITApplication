@@ -340,9 +340,9 @@ namespace ElectricalImpedanceTomography.ViewModels
         private void OnServiceReconstructionUpdated(object? sender, ReconstructionResult result)
         {
             Residual = CalculateResidual(result.ReconstructedConductivityDistribution,
-                                                result.OriginalConductivityDistribution);
+                                         result.OriginalConductivityDistribution);
             Correlation = CalculateCorrelation(result.ReconstructedConductivityDistribution,
-                                                      result.OriginalConductivityDistribution);
+                                               result.OriginalConductivityDistribution);
             ElapsedTime = _reconstructionStopwatch.Elapsed;
             IterationCount++;
             ResidualHistory.Add(Residual);
@@ -400,9 +400,9 @@ namespace ElectricalImpedanceTomography.ViewModels
                 parameters.NumericSolver,
                 parameters.NumericOptimizer,
                 parameters.InitialDistributionType,
-                StepSize,
+                //StepSize,
                 RegularizationWeight,
-                MaxIterationCount,
+                //MaxIterationCount,
                 ExcitationCurrentAmplitude,
                 ExcitationElectrodeId,
                 GroundElectrodeId,
@@ -419,9 +419,9 @@ namespace ElectricalImpedanceTomography.ViewModels
             NumericSolver NumericSolver,
             NumericOptimizer NumericOptimizer,
             InitialDistributionTypes InitialDistributionType,
-            double StepSize,
+            //double StepSize,
             double RegularizationWeight,
-            int MaxIterationCount,
+            //int MaxIterationCount,
             double ExcitationCurrentAmplitude,
             int ExcitationElectrodeId,
             int GroundElectrodeId,

@@ -59,7 +59,7 @@ namespace ElectricalImpedanceTomography.Views
         {
             var canvas = e.Surface.Canvas;
             var info = e.Info;
-            canvas.Clear(SKColor.Parse("#1E1E1E"));
+            canvas.Clear(SKColor.Parse("#1C2638"));
 
             var discretization = Workspace.GetDiscretization();
             if (discretization is LBMGrid lbm)
