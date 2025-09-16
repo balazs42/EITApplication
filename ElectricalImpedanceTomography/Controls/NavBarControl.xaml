@@ -53,7 +53,7 @@
             <Border x:Name="MainPageButton"
                     StrokeShape="RoundRectangle 30"
                     Stroke="#3A7CA5"
-                    Background="#3A7CA5"
+                    Background="#3A5F8A"
                     BackgroundColor="#3A7CA5"
                     Margin="5"
                     Padding="5">
@@ -82,7 +82,7 @@
                     Stroke="#3A7CA5"
                     Margin="5"
                     Padding="5"
-                    Background="#3A7CA5"
+                    Background="#3A5F8A"
                     BackgroundColor="#3A7CA5">
                 <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5">
                     <Image Grid.Column="0" Source="icon_hardware.png" HeightRequest="30" Margin="5,0,0,0"/>
@@ -107,7 +107,7 @@
             <Border x:Name="MeshingPageButton"
                     StrokeShape="RoundRectangle 30"
                     Stroke="#3A7CA5"
-                    Background="#3A7CA5"                    
+                    Background="#3A5F8A"                    
                     BackgroundColor="#3A7CA5"
                     Margin="5"
                     Padding="5">
@@ -134,7 +134,7 @@
             <Border x:Name="ReconstructionPageButton"
                     StrokeShape="RoundRectangle 30"
                     Stroke="#3A7CA5"
-                    Background="#3A7CA5"                   
+                    Background="#3A5F8A"                   
                     BackgroundColor="#3A7CA5"
                     Margin="5"
                     Padding="5">

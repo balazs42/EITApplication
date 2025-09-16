@@ -154,12 +154,15 @@
                           ColumnSpacing="12"
                           IsVisible="{Binding InhomogenityEditing}">
                         <Label Grid.Column="0"
+                               VerticalOptions="Center"
                                Text="Inhomogenity Value"
                                FontAttributes="None"
                                TextColor="#9DAAD3"/>
                         <Entry Grid.Column="1"
+                               HorizontalOptions="End"
+                               HorizontalTextAlignment="End"
                                Text="{Binding InhomogenityValue}"
-                               WidthRequest="100"
+                               WidthRequest="40"
                                Keyboard="Numeric"/>
                     </Grid>
 

@@ -51,7 +51,7 @@
 
         <Grid Grid.Row="1"
               Margin="5"
-              ColumnDefinitions="450, Auto, *"
+              ColumnDefinitions="450, *, *"
               ColumnSpacing="5"
               RowSpacing="0">
 
@@ -281,10 +281,11 @@
                         Style="{StaticResource PanelBorderStyle}"
                         Background="{StaticResource ControlPanelBrush}">
                     <VerticalStackLayout Margin="20"
-                                          Spacing="6"
-                                          HorizontalOptions="Center">
+                                         Spacing="6">
                         <Label Text="{Binding User.Name, StringFormat='Welcome {0}!'}"
                                FontSize="Large"
+                               HorizontalOptions="Start"
+                               VerticalOptions="Start"
                                TextColor="#F7FBFF"
                                FontFamily="SF Pro Display"/>
                         <Label Text="Manage your workflow from the panels below"
@@ -370,13 +371,15 @@
 
             <!-- Right column with mesh preview -->
             <Border Grid.Column="2"
+                    Padding="10"
                     Style="{StaticResource PanelBorderStyle}"
                     Background="{StaticResource StatisticsPanelBrush}"
                     VerticalOptions="Center"
                     HorizontalOptions="Center">
                 <VerticalStackLayout Margin="5"
-                                      Spacing="10"
-                                      HorizontalOptions="Center">
+                                     Spacing="10"
+                                     VerticalOptions="Center"
+                                     HorizontalOptions="Center">
                     <Grid ColumnDefinitions="Auto, *"
                           ColumnSpacing="12"
                           HorizontalOptions="Center">
