@@ -105,10 +105,11 @@
         <controls:NavBarControl x:Name="NavBar" Grid.Row="0" Grid.ColumnSpan="1" CurrentPageName="ReconstructionPage"/>
 
         <!-- Main Grid For Page display -->
-        <Grid Grid.Row="1" ColumnDefinitions="Auto, Auto, Auto">
+        <Grid Grid.Row="1" ColumnDefinitions="Auto, *, Auto">
             <!-- Left hand Side controls-->
             <Border Style="{StaticResource PanelBorderStyle}"
-                    Margin="2"
+                    Margin="-20, 0, 0, 0"
+                    Padding="10, 0, 0, 0"
                     Grid.Column="0"
                     Background="{StaticResource ConfigurationPanelBrush}">
                 <Border.Stroke>
@@ -185,17 +186,6 @@
                             <Button Grid.Row="7" Text="Edit Boundary Conditions" Background="#2F9E9C" TextColor="White" FontAttributes="Bold" Clicked="OnEditBoundaryConditionsClicked"/>
                         </Grid>
                     </Border>
-
-                    <Border Style="{StaticResource PanelSectionBorderStyle}"
-                            BackgroundColor="#22304A">
-                        <VerticalStackLayout Spacing="12">
-                            <Entry Text="{Binding Name}" Placeholder="Name"/>
-                            <Grid ColumnDefinitions="*, *" ColumnSpacing="12">
-                                <Button Grid.Column="0" Text="Save" BackgroundColor="#2E8B57" TextColor="White" FontFamily="SF Pro Text" FontAttributes="Bold" Clicked="OnSaveClicked"/>
-                                <Button Grid.Column="1" Text="Load" BackgroundColor="#3A7CA5" TextColor="White" FontFamily="SF Pro Text" FontAttributes="Bold" Clicked="OnLoadClicked"/>
-                            </Grid>
-                        </VerticalStackLayout>
-                    </Border>
                 </VerticalStackLayout>
             </Border>
 
@@ -214,8 +204,7 @@
                     <Grid ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto"
                           RowDefinitions="*, Auto"
                           ColumnSpacing="15"
-                          HorizontalOptions="Center"
-                          Margin="5">
+                          HorizontalOptions="Center">
                         <Border x:Name="PlayButton" Grid.Column="0" HeightRequest="60" WidthRequest="60" Margin="5" HorizontalOptions="Center" VerticalOptions="Center" Stroke="Transparent">
                             <Image Source="icon_play_green.png" WidthRequest="40">
                                 <Image.GestureRecognizers>
@@ -230,14 +219,14 @@
                                 </Image.GestureRecognizers>
                             </Image>
                         </Border>
-                        <Border Grid.Column="1" HeightRequest="50" WidthRequest="50" Margin="5" Stroke="Transparent">
+                        <Border x:Name="StepButton" Grid.Column="1" HeightRequest="50" WidthRequest="50" Margin="5" Stroke="Transparent">
                             <Image Source="icon_next_blue.png" WidthRequest="40">
                                 <Image.GestureRecognizers>
                                     <TapGestureRecognizer Tapped="OnStepButtonClicked"/>
                                 </Image.GestureRecognizers>
                             </Image>
                         </Border>
-                        <Border Grid.Column="2" HeightRequest="50" WidthRequest="50" Margin="5" Stroke="Transparent">
+                        <Border x:Name="StopButton" Grid.Column="2" HeightRequest="50" WidthRequest="50" Margin="5" Stroke="Transparent">
                             <Image Source="icon_stop_red.png" WidthRequest="40">
                                 <Image.GestureRecognizers>
                                     <TapGestureRecognizer Tapped="OnStopButtonClicked"/>
@@ -319,8 +308,8 @@
                 </Border>
 
                 <!-- Displays for reconstruction steps -->
-                <Grid Grid.Row="1" Margin="5" RowDefinitions="Auto, Auto" ColumnDefinitions="Auto" HorizontalOptions="Center" VerticalOptions="Center" RowSpacing="14">
-                    <Border Grid.Row="0" Style="{StaticResource PanelBorderStyle}" Background="{StaticResource PartialResultsBrush}" Stroke="#2F4F77">
+                <Grid Grid.Row="1" Margin="0,5,0,0" RowDefinitions="Auto, Auto" ColumnDefinitions="Auto" HorizontalOptions="Center" VerticalOptions="Center" RowSpacing="14">
+                    <Border Grid.Row="0" Margin="0, 0, 0, -20" Style="{StaticResource PanelBorderStyle}" Background="{StaticResource PartialResultsBrush}" Stroke="#2F4F77">
                         <Grid ColumnDefinitions="Auto,Auto,Auto" RowDefinitions="Auto, Auto" HorizontalOptions="Center" Margin="18" ColumnSpacing="18">
                             <!-- Calculated Potential -->
                             <VerticalStackLayout Grid.Row="0" Grid.Column="0" HorizontalOptions="Center" Spacing="10">
@@ -386,7 +375,13 @@
                     </Border>
                 </Grid>
             </Grid>
-            <Grid Grid.Column="2" RowDefinitions="Auto, Auto" RowSpacing="10" Margin="5" WidthRequest="250" HorizontalOptions="End">
+            <Grid Grid.Column="2" 
+                  RowDefinitions="Auto, Auto, Auto" 
+                  RowSpacing="10" 
+                  Margin="0,0,-30,0"
+                  Padding="0, 0, 20, 0"
+                  WidthRequest="250" 
+                  HorizontalOptions="End">
                 <Border Grid.Row="0" Style="{StaticResource PanelBorderStyle}" Background="{StaticResource HistoryPanelBrush}">
                     <Border.Stroke>
                         <SolidColorBrush Color="#3D5D8C" />
@@ -416,8 +411,20 @@
                         </Border>
                     </VerticalStackLayout>
                 </Border>
+                                
+                <Border Style="{StaticResource PanelSectionBorderStyle}"
+                         BackgroundColor="#22304A"
+                         Grid.Row="1">
+                    <VerticalStackLayout Spacing="12">
+                        <Entry Text="{Binding Name}" Placeholder="Name"/>
+                        <Grid ColumnDefinitions="*, *" ColumnSpacing="12">
+                            <Button Grid.Column="0" Text="Save" BackgroundColor="#2E8B57" TextColor="White" FontFamily="SF Pro Text" FontAttributes="Bold" Clicked="OnSaveClicked"/>
+                            <Button Grid.Column="1" Text="Load" BackgroundColor="#3A7CA5" TextColor="White" FontFamily="SF Pro Text" FontAttributes="Bold" Clicked="OnLoadClicked"/>
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
 
-                <Border Grid.Row="1" Style="{StaticResource PanelBorderStyle}" Background="{StaticResource StatisticsPanelBrush}">
+                <Border Grid.Row="2" Style="{StaticResource PanelBorderStyle}" Background="{StaticResource StatisticsPanelBrush}">
                     <Border.Stroke>
                         <SolidColorBrush Color="#3A7CA5" />
                     </Border.Stroke>
@@ -446,7 +453,7 @@
                         <skia:SKCanvasView x:Name="ResidualTrendCanvas"
                                                   HeightRequest="170"
                                                   PaintSurface="OnResidualTrendCanvasPaintSurface"/>
-                        </VerticalStackLayout>
+                    </VerticalStackLayout>
                 </Border>
             </Grid>
         </Grid>
