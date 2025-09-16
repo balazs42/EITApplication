@@ -8,27 +8,27 @@
 
     <LinearGradientBrush x:Key="ConfigurationPanelBrush" StartPoint="0,0" EndPoint="0,1">
         <GradientStop Color="#232E45" Offset="0" />
-        <GradientStop Color="#161D2C" Offset="1" />
+        <GradientStop Color="#222A22" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="ControlPanelBrush" StartPoint="0,0" EndPoint="0,1">
         <GradientStop Color="#1E273B" Offset="0" />
-        <GradientStop Color="#101624" Offset="1" />
+        <GradientStop Color="#222A22" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="PartialResultsBrush" StartPoint="0,0" EndPoint="0,1">
         <GradientStop Color="#202A3F" Offset="0" />
-        <GradientStop Color="#121923" Offset="1" />
+        <GradientStop Color="#222A22" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="FullResultsBrush" StartPoint="0,0" EndPoint="0,1">
         <GradientStop Color="#1C2638" Offset="0" />
-        <GradientStop Color="#0F151F" Offset="1" />
+        <GradientStop Color="#222A22" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="HistoryPanelBrush" StartPoint="0,0" EndPoint="0,1">
         <GradientStop Color="#222E45" Offset="0" />
-        <GradientStop Color="#141B28" Offset="1" />
+        <GradientStop Color="#222A22" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="StatisticsPanelBrush" StartPoint="0,0" EndPoint="0,1">
         <GradientStop Color="#1E2435" Offset="0" />
-        <GradientStop Color="#111723" Offset="1" />
+        <GradientStop Color="#222A22" Offset="1" />
     </LinearGradientBrush>
 
     <Style x:Key="PanelBorderStyle" TargetType="Border">

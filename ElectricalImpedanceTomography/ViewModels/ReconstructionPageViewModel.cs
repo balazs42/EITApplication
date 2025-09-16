@@ -339,23 +339,21 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         private void OnServiceReconstructionUpdated(object? sender, ReconstructionResult result)
         {
-            double residual = CalculateResidual(result.ReconstructedConductivityDistribution,
+            Residual = CalculateResidual(result.ReconstructedConductivityDistribution,
                                                 result.OriginalConductivityDistribution);
-            double correlation = CalculateCorrelation(result.ReconstructedConductivityDistribution,
+            Correlation = CalculateCorrelation(result.ReconstructedConductivityDistribution,
                                                       result.OriginalConductivityDistribution);
-            var elapsed = _reconstructionStopwatch.Elapsed;
+            ElapsedTime = _reconstructionStopwatch.Elapsed;
+            IterationCount++;
+            ResidualHistory.Add(Residual);
 
-            MainThread.BeginInvokeOnMainThread(() =>
+            if(IterationCount % 10 == 0)
             {
-                IterationCount++;
-                Residual = residual;
-                Correlation = correlation;
-
-                ResidualHistory.Add(residual);
-                ElapsedTime = elapsed;
-
-                ReconstructionUpdated?.Invoke(this, result);
-            });
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    ReconstructionUpdated?.Invoke(this, result);
+                });
+            }
         }
 
         private void OnServiceFrameUpdated(object? sender, ReconstructionFrame frame)
