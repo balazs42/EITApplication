@@ -10,7 +10,7 @@
              x:DataType="viewmodels:MainPageViewModel"
              Shell.NavBarIsVisible="False"
              Title="MainPage"
-             BackgroundColor="{AppThemeBinding Dark=#121212, Light=#CCCCCC}">
+             BackgroundColor="{AppThemeBinding Dark=#101B2B, Light=#D7E4F8}">
     <ContentPage.Resources>
         <Style TargetType="Label">
             <Setter Property="FontFamily" Value="SF Pro Text"/>

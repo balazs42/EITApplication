@@ -1,9 +1,11 @@
+using ElectricalImpedanceTomography.Extensions;
 using ElectricalImpedanceTomography.ViewModels;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Discretizer;
+using Microsoft.Maui.Graphics;
 
 namespace ElectricalImpedanceTomography.Views;
 
@@ -56,11 +58,27 @@ public partial class MeshingPage : ContentPage
     protected override void OnAppearing()
     {
         base.OnAppearing();
+        var (startColor, endColor) = GetBackgroundPulseColors();
+        this.StartBackgroundPulse(startColor, endColor);
         _viewModel.LoadAvailableMeshes();
         _viewModel.LoadMeshFromWorkspace();
         if (_viewModel.GetCurrentMesh() == null)
             _viewModel.GenerateMesh();
         _viewModel.InvokeMeshChanged();
+    }
+
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+        this.StopBackgroundPulse();
+    }
+
+    private static (Color Start, Color End) GetBackgroundPulseColors()
+    {
+        var theme = Application.Current?.RequestedTheme ?? AppTheme.Light;
+        return theme == AppTheme.Dark
+            ? (Color.FromArgb("#102024"), Color.FromArgb("#1C3737"))
+            : (Color.FromArgb("#D4EFE7"), Color.FromArgb("#C2E3DA"));
     }
 
     private SKColor ColorForValue(double val, double max)

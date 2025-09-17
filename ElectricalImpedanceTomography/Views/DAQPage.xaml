@@ -10,7 +10,7 @@
              x:DataType="viewmodels:DAQPageViewModel"
              Shell.NavBarIsVisible="False"
              Title="DAQPage"
-             BackgroundColor="{AppThemeBinding Dark=#121212, Light=#CCCCCC}">
+             BackgroundColor="{AppThemeBinding Dark=#1A1426, Light=#EADFFB}">
     <ContentPage.Resources>
         <Style TargetType="Label">
             <Setter Property="FontFamily" Value="SF Pro Text"/>
