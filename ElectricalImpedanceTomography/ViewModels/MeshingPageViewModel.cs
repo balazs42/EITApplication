@@ -310,8 +310,8 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             var reconstructionParameters = Workspace.GetReconstructionParameters();
 
-            if (IsFEM) reconstructionParameters.DifferentialEquationSolver = Utility.Classes.ReconstructionParameters.DifferentialEquationSolver.FiniteElementMethod;
-            else if (IsLBM) reconstructionParameters.DifferentialEquationSolver = Utility.Classes.ReconstructionParameters.DifferentialEquationSolver.LatticeBoltzmannMethod;
+            if (IsFEM) reconstructionParameters.DifferentialEquationSolver = Utility.Classes.ReconstructionParameters.DifferentialEquationSolver.FEM;
+            else if (IsLBM) reconstructionParameters.DifferentialEquationSolver = Utility.Classes.ReconstructionParameters.DifferentialEquationSolver.LBM;
 
             AutoGenerateMesh();
         }

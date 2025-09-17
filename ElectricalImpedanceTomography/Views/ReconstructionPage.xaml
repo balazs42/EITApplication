@@ -94,7 +94,7 @@
         </Style>
 
         <LinearGradientBrush x:Key="ConfigurationPanelBrush" StartPoint="0,0" EndPoint="0,1">
-            <GradientStop Color="{AppThemeBinding Light=#232E45, Dark=#C5CEDA}" Offset="0" />
+            <GradientStop Color="{AppThemeBinding Light=#232E45, Dark=#C0C0D0}" Offset="0" />
             <GradientStop Color="{AppThemeBinding Light=#161D2C, Dark=#343C49}" Offset="1" />
         </LinearGradientBrush>
         <LinearGradientBrush x:Key="ControlPanelBrush" StartPoint="0,0" EndPoint="0,1">
@@ -124,18 +124,19 @@
         <controls:NavBarControl x:Name="NavBar" Grid.Row="0" Grid.ColumnSpan="1" CurrentPageName="ReconstructionPage"/>
 
         <!-- Main Grid For Page display -->
-        <Grid Grid.Row="1" ColumnDefinitions="Auto, *, Auto">
+        <Grid Grid.Row="1" ColumnDefinitions="Auto, Auto, *" Margin="5">
             <!-- Left hand Side controls-->
             <Border Style="{StaticResource PanelBorderStyle}"
                     Grid.Column="0"
+                    Margin="5"
                     Background="{StaticResource ConfigurationPanelBrush}">
                 <Border.Stroke>
                     <SolidColorBrush Color="{AppThemeBinding Light=#4D6FA3, Dark=#C0CAD8}" />
                 </Border.Stroke>
-                <VerticalStackLayout Margin="18" Spacing="16">
+                <VerticalStackLayout Margin="5" Spacing="16">
                     <Grid ColumnDefinitions="Auto, *" ColumnSpacing="8">
                         <Image Grid.Column="0" Source="icon_configuration.png" HeightRequest="35"/>
-                        <Label Grid.Column="1" Text="Configuration" FontAttributes="Italic" FontSize="Large" TextColor="{AppThemeBinding Light=White, Dark=Black}"/>
+                        <Label Grid.Column="1" Text="Configuration" FontAttributes="Italic" FontSize="Large" TextColor="{AppThemeBinding Light=White, Dark=#262E38}"/>
                     </Grid>
                     <Grid ColumnDefinitions="*, *" ColumnSpacing="14" RowSpacing="0">
                         <!-- Method Selection -->
@@ -208,13 +209,14 @@
 
             <!-- Center Content -->
             <Grid Grid.Column="1" 
+                  Margin="5"
                   RowDefinitions="Auto, Auto" 
                   HorizontalOptions="Center">
 
                 <!-- Control Panel to control reconstruction -->
-                    <Border Style="{StaticResource PanelBorderStyle}"
-                        Grid.Row="0"
-                        Background="{StaticResource ConfigurationPanelBrush}">
+                    <Border Style="{StaticResource PanelBorderStyle}"                           
+                            Grid.Row="0"
+                            Background="{StaticResource ConfigurationPanelBrush}">
                     <Border.Stroke>
                         <SolidColorBrush Color="{AppThemeBinding Light=#3A5F8A, Dark=#C0CAD8}" />
                     </Border.Stroke>
@@ -254,8 +256,8 @@
                             </Image>
                         </Border>
 
-                        <Label Grid.Column="3" HorizontalOptions="Center" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding IterationCount, StringFormat='Iteration: {0}'}" TextColor="{AppThemeBinding Light=#F0F4FF, Dark=Black}"/>
-                        <Label Grid.Column="4" HorizontalOptions="Center" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding Residual, StringFormat='Residual: {0:F3}'}" TextColor="{AppThemeBinding Light=#F0F4FF, Dark=Black}"/>
+                        <Label Grid.Column="3" HorizontalOptions="Center" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding IterationCount, StringFormat='Iteration: {0}'}" TextColor="{AppThemeBinding Light=#F0F4FF, Dark=#262E38}"/>
+                        <Label Grid.Column="4" HorizontalOptions="Center" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding Residual, StringFormat='Residual: {0:F3}'}" TextColor="{AppThemeBinding Light=#F0F4FF, Dark=#262E38}"/>
 
                         <Border Grid.Column="5" Margin="2" Background="Transparent" Stroke="Transparent">
                             <Button Text="Solve Forward" Margin="10" BackgroundColor="DarkOliveGreen" TextColor="White" FontAttributes="Bold" Clicked="OnSolveForwardClicked"/>
@@ -266,8 +268,8 @@
                         <Picker x:Name="PotentialModePicker"
                                 Margin="5"
                                 Grid.Column="7"
-                                TitleColor="{AppThemeBinding Light=Gray, Dark=Black}"
-                                TextColor="{AppThemeBinding Light=Gray, Dark=Black}"
+                                TitleColor="{AppThemeBinding Light=Gray, Dark=#262E38}"
+                                TextColor="{AppThemeBinding Light=Gray, Dark=#262E38}"
                                 HorizontalOptions="Center"
                                 VerticalOptions="Center"
                                 SelectedItem="Default"
@@ -331,11 +333,11 @@
 
                 <!-- Displays for reconstruction steps -->
                 <Grid Grid.Row="1" Margin="0,5,0,0" RowDefinitions="Auto, Auto" ColumnDefinitions="Auto" HorizontalOptions="Center" VerticalOptions="Center" RowSpacing="14">
-                    <Border Grid.Row="0" Margin="0, 0, 0, -20" Style="{StaticResource PanelBorderStyle}" Background="{StaticResource PartialResultsBrush}" Stroke="{AppThemeBinding Light=#2F4F77, Dark=#B5C0D0}">
+                    <Border Grid.Row="0" Margin="0, 0, 0, -10" Style="{StaticResource PanelBorderStyle}" Background="{StaticResource PartialResultsBrush}" Stroke="{AppThemeBinding Light=#2F4F77, Dark=#B5C0D0}">
                         <Grid ColumnDefinitions="Auto,Auto,Auto" RowDefinitions="Auto, Auto" HorizontalOptions="Center" Margin="18" ColumnSpacing="18">
                             <!-- Calculated Potential -->
                             <VerticalStackLayout Grid.Row="0" Grid.Column="0" HorizontalOptions="Center" Spacing="10">
-                                <Label Text="Calculated Potential [mV]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="{AppThemeBinding Light=#F0F4FF, Dark=Black}"/>
+                                <Label Text="Calculated Potential [mV]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="{AppThemeBinding Light=#F0F4FF, Dark=#262E38}"/>
                                 <Border Style="{StaticResource CanvasBorderStyle}" Margin="10" HorizontalOptions="Center">
                                     <Grid RowDefinitions="Auto,Auto">
                                         <skia:SKCanvasView x:Name="PotentialDistributionCanvas" PaintSurface="OnPotentialCanvasPaintSurface" EnableTouchEvents="True" Touch="OnPotentialCanvasTouch" HeightRequest="250" WidthRequest="250" Margin="10" />
@@ -345,7 +347,7 @@
                             </VerticalStackLayout>
                             <!-- Adjoint Potential -->
                             <VerticalStackLayout Grid.Row="0" Grid.Column="1" HorizontalOptions="Center" Spacing="10">
-                                <Label Text="Adjoint Potential [mV]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="{AppThemeBinding Light=#F0F4FF, Dark=Black}"/>
+                                <Label Text="Adjoint Potential [mV]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="{AppThemeBinding Light=#F0F4FF, Dark=#262E38}"/>
                                 <Border Style="{StaticResource CanvasBorderStyle}" Margin="10" HorizontalOptions="Center">
                                     <Grid RowDefinitions="Auto,Auto">
                                         <skia:SKCanvasView x:Name="AdjointDistributionCanvas" PaintSurface="OnAdjointCanvasPaintSurface" EnableTouchEvents="True" Touch="OnAdjointCanvasTouch" HeightRequest="250" WidthRequest="250" Margin="10"/>
@@ -355,7 +357,7 @@
                             </VerticalStackLayout>
                             <!-- Gradient -->
                             <VerticalStackLayout Grid.Row="0" Grid.Column="2" HorizontalOptions="Center" Spacing="10">
-                                <Label Text="Conductivity Gradient [∂Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="{AppThemeBinding Light=#F0F4FF, Dark=Black}"/>
+                                <Label Text="Conductivity Gradient [∂Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="{AppThemeBinding Light=#F0F4FF, Dark=#262E38}"/>
                                 <Border Style="{StaticResource CanvasBorderStyle}" Margin="10" HorizontalOptions="Center">
                                     <Grid RowDefinitions="Auto,Auto">
                                         <skia:SKCanvasView x:Name="GradientDistributionCanvas" PaintSurface="OnGradientCanvasPaintSurface" EnableTouchEvents="True" Touch="OnGradientCanvasTouch" HeightRequest="250" WidthRequest="250" Margin="10"/>
@@ -365,7 +367,7 @@
                             </VerticalStackLayout>
                             <!-- Original -->
                             <VerticalStackLayout Grid.Row="1" Grid.Column="0" HorizontalOptions="Center" Spacing="10">
-                                <Label Text="Original Distribution [Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="{AppThemeBinding Light=#F0F4FF, Dark=Black}"/>
+                                <Label Text="Original Distribution [Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="{AppThemeBinding Light=#F0F4FF, Dark=#262E38}"/>
                                 <Border Style="{StaticResource CanvasBorderStyle}" Margin="10" HorizontalOptions="Center">
                                     <Grid RowDefinitions="Auto,Auto">
                                         <skia:SKCanvasView x:Name="OriginalDistributionCanvas" PaintSurface="OnOriginalCanvasPaintSurface" EnableTouchEvents="True" Touch="OnOriginalCanvasTouch" HeightRequest="250" WidthRequest="250" Margin="10"/>
@@ -375,7 +377,7 @@
                             </VerticalStackLayout>
                             <!-- Initial -->
                             <VerticalStackLayout Grid.Row="2" Grid.Column="1" HorizontalOptions="Center" Spacing="10">
-                                <Label Text="Initial Distribution [Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="{AppThemeBinding Light=#F0F4FF, Dark=Black}"/>
+                                <Label Text="Initial Distribution [Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="{AppThemeBinding Light=#F0F4FF, Dark=#262E38}"/>
                                 <Border Style="{StaticResource CanvasBorderStyle}" Margin="10" HorizontalOptions="Center">
                                     <Grid RowDefinitions="Auto,Auto">
                                         <skia:SKCanvasView x:Name="InitialDistributionCanvas" PaintSurface="OnInitialCanvasPaintSurface" EnableTouchEvents="True" Touch="OnInitialCanvasTouch" HeightRequest="250" WidthRequest="250" Margin="10"/>
@@ -385,7 +387,7 @@
                             </VerticalStackLayout>
                             <!-- Reconstructed -->
                             <VerticalStackLayout Grid.Row="3" Grid.Column="2" HorizontalOptions="Center" Spacing="10">
-                                <Label Text="Reconstructed Distribution [Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="{AppThemeBinding Light=#F0F4FF, Dark=Black}"/>
+                                <Label Text="Reconstructed Distribution [Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="{AppThemeBinding Light=#F0F4FF, Dark=#262E38}"/>
                                 <Border Style="{StaticResource CanvasBorderStyle}" Margin="10" HorizontalOptions="Center">
                                     <Grid RowDefinitions="Auto,Auto">
                                         <skia:SKCanvasView x:Name="ReconstructedDistributionCanvas" PaintSurface="OnReconstructedCanvasPaintSurface" EnableTouchEvents="True" Touch="OnReconstructedCanvasTouch" HeightRequest="250" WidthRequest="250" Margin="10"/>
@@ -400,14 +402,14 @@
             <Grid Grid.Column="2" 
                   RowDefinitions="Auto, Auto, Auto" 
                   RowSpacing="10" 
-                  WidthRequest="250" 
+                  Margin="5"
                   HorizontalOptions="End">
-                <Border Grid.Row="0" Style="{StaticResource PanelBorderStyle}" Background="{StaticResource HistoryPanelBrush}">
+                <Border Grid.Row="1" Style="{StaticResource PanelBorderStyle}" Background="{StaticResource HistoryPanelBrush}">
                     <Border.Stroke>
                         <SolidColorBrush Color="{AppThemeBinding Light=#3D5D8C, Dark=#C0CAD8}" />
                     </Border.Stroke>
                     <VerticalStackLayout Margin="16" Spacing="12">
-                        <Label Text="Past Reconstructions" HorizontalOptions="Center" FontSize="16"  TextColor="{AppThemeBinding Light=White, Dark=Black}"/>
+                        <Label Text="Past Reconstructions" HorizontalOptions="Center" FontSize="16"  TextColor="{AppThemeBinding Light=White, Dark=#262E38}"/>
                         <SearchBar Placeholder="Search" Text="{Binding ReconstructionSearchText}" Margin="0"/>
                         <Border Style="{StaticResource PanelSectionBorderStyle}" BackgroundColor="{AppThemeBinding Light=#25334A, Dark=#343C48}">
                             <ScrollView>
@@ -434,9 +436,9 @@
                                 
                 <Border Style="{StaticResource PanelSectionBorderStyle}"
                          BackgroundColor="{AppThemeBinding Light=#22304A, Dark=#36404C}"
-                         Grid.Row="1">
+                         Grid.Row="2">
                     <VerticalStackLayout Spacing="12">
-                        <Entry Text="{Binding Name}" Placeholder="Name" TextColor="{AppThemeBinding Light=White, Dark=Black}"/>
+                        <Entry Text="{Binding Name}" Placeholder="Name" TextColor="{AppThemeBinding Light=White, Dark=#262E38}"/>
                         <Grid ColumnDefinitions="*, *" ColumnSpacing="12">
                             <Button Grid.Column="0" Text="Save" BackgroundColor="#2E8B57" TextColor="White" FontFamily="SF Pro Text" FontAttributes="Bold" Clicked="OnSaveClicked"/>
                             <Button Grid.Column="1" Text="Load" BackgroundColor="#3A7CA5" TextColor="White" FontFamily="SF Pro Text" FontAttributes="Bold" Clicked="OnLoadClicked"/>
@@ -444,12 +446,12 @@
                     </VerticalStackLayout>
                 </Border>
 
-                <Border Grid.Row="2" Style="{StaticResource PanelBorderStyle}" Background="{StaticResource StatisticsPanelBrush}">
+                <Border Grid.Row="0" Style="{StaticResource PanelBorderStyle}" Background="{StaticResource StatisticsPanelBrush}">
                     <Border.Stroke>
                         <SolidColorBrush Color="{AppThemeBinding Light=#3A7CA5, Dark=#C0CAD8}" />
                     </Border.Stroke>
                     <VerticalStackLayout Margin="16" Spacing="16">
-                        <Label Text="Reconstruction Statistics" HorizontalOptions="Center" FontSize="16"  TextColor="{AppThemeBinding Light=#F0F4FF, Dark=Black}"/>
+                        <Label Text="Reconstruction Statistics" HorizontalOptions="Center" FontSize="16"  TextColor="{AppThemeBinding Light=#F0F4FF, Dark=#262E38}"/>
                         <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="12">
                             <Border Style="{StaticResource PanelSectionBorderStyle}" BackgroundColor="{AppThemeBinding Light=#252F44, Dark=#353F4C}">
                                 <VerticalStackLayout Spacing="2">

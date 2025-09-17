@@ -87,7 +87,7 @@
 
             <!-- Left control panels for FEM and LBM -->
             <Border Grid.Column="0"
-                    Margin="-20,0,0,-20"
+                    Margin="-20,5,5,5"
                     WidthRequest="250"
                     Padding="20"
                     Style="{StaticResource PanelBorderStyle}"
@@ -101,16 +101,16 @@
                                Text="Mesh Type:"
                                VerticalOptions="Center"
                                FontAttributes="Bold"
-                               TextColor="{AppThemeBinding Light=#9DAAD3, Dark=Black}"/>
+                               TextColor="{AppThemeBinding Light=#9DAAD3, Dark=#262E38}"/>
                         <Picker Grid.Column="1"
                                 Margin="5"
-                                TextColor="{AppThemeBinding Light=White, Dark=Black}"
+                                TextColor="{AppThemeBinding Light=White, Dark=#262E38}"
                                 ItemsSource="{Binding MeshTypes}"
                                 SelectedItem="{Binding SelectedMeshType}"/>
                     </Grid>
 
                     <BoxView HeightRequest="1"
-                             BackgroundColor="{AppThemeBinding Light=#3A7CA5, Dark=Black}"/>
+                             BackgroundColor="{AppThemeBinding Light=#3A7CA5, Dark=#262E38}"/>
 
                     <controls:PlusMinusEntryControl Margin="0"
                                                     LabelText="Layers"
@@ -127,7 +127,7 @@
                                                     Max="100"/>
 
                     <BoxView HeightRequest="1"
-                             BackgroundColor="{AppThemeBinding Light=#3A7CA5, Dark=Black}"/>
+                             BackgroundColor="{AppThemeBinding Light=#3A7CA5, Dark=#262E38}"/>
                     
                     <Grid ColumnDefinitions="Auto, *"
                           ColumnSpacing="12">
@@ -135,17 +135,17 @@
                                VerticalOptions="Center"
                                Text="Geometry"
                                FontAttributes="None"
-                               TextColor="{AppThemeBinding Light=#9DAAD3, Dark=Black}"/>
+                               TextColor="{AppThemeBinding Light=#9DAAD3, Dark=#262E38}"/>
                         <Picker Grid.Column="1"
                                 HorizontalTextAlignment="End"
                                 WidthRequest="100"
-                                TextColor="{AppThemeBinding Light=#9DAAD3, Dark=Black}"
+                                TextColor="{AppThemeBinding Light=#9DAAD3, Dark=#262E38}"
                                 ItemsSource="{Binding GeometryTypes}"
                                 SelectedItem="{Binding SelectedGeometry}"/>
                     </Grid>
 
                     <BoxView HeightRequest="1"
-                             BackgroundColor="{AppThemeBinding Light=#3A7CA5, Dark=Black}"/>
+                             BackgroundColor="{AppThemeBinding Light=#3A7CA5, Dark=#262E38}"/>
                     
                     <controls:PlusMinusEntryControl Margin="0"
                                                     LabelText="Electrodes"
@@ -277,6 +277,7 @@
 
             <!-- Center content with controls and canvas -->
             <Grid Grid.Column="1"
+                  Margin="5"
                   RowDefinitions="Auto,*"
                   RowSpacing="10">
                 <Border Grid.Row="0"
@@ -295,7 +296,7 @@
                                            VerticalOptions="Center"
                                            HorizontalOptions="Center"
                                            FontSize="Medium"
-                                           TextColor="#F7FBFF"/>
+                                           TextColor="{AppThemeBinding Light=#F7FBFF, Dark=#262E38}"/>
                                     <HorizontalStackLayout Spacing="14"
                                                            HorizontalOptions="Center">
                                         <Border Style="{StaticResource PanelSectionBorderStyle}"
@@ -352,8 +353,7 @@
                                         </Border>
 
                                         <Border Style="{StaticResource PanelSectionBorderStyle}"
-                                                Padding="10"
-                                                BackgroundColor="#1F2B44">
+                                                Padding="10">
                                             <Grid ColumnDefinitions="Auto, *"
                                                   ColumnSpacing="10"
                                                   VerticalOptions="Center">
@@ -380,13 +380,12 @@
                                            Margin="0,0,0,5"
                                            HorizontalOptions="Center"
                                            FontSize="Medium"
-                                           TextColor="#F7FBFF"/>
+                                           TextColor="{AppThemeBinding Light=#F7FBFF, Dark=#262E38}"/>
                                     <HorizontalStackLayout Spacing="14"
                                                            VerticalOptions="Center"
                                                            HorizontalOptions="Center">
                                         <Border Style="{StaticResource PanelSectionBorderStyle}"
-                                                Padding="10"
-                                                BackgroundColor="#233149">
+                                                Padding="10">
                                             <Grid ColumnDefinitions="Auto, *"
                                                     ColumnSpacing="10">
                                                 <Image Grid.Column="0"
@@ -404,7 +403,7 @@
                                         </Border>
 
                                         <Border Style="{StaticResource PanelSectionBorderStyle}"
-                                                BackgroundColor="#22304A">
+                                                Padding="10">
                                             <Grid ColumnDefinitions="Auto, *"
                                                     ColumnSpacing="10">
                                                 <Image Grid.Column="0"
@@ -421,8 +420,7 @@
                                             </Border.GestureRecognizers>
                                         </Border>
 
-                                        <Border Style="{StaticResource PanelSectionBorderStyle}" Padding="10"
-                                                BackgroundColor="#1F2B44">
+                                        <Border Style="{StaticResource PanelSectionBorderStyle}" Padding="10">
                                             <Grid ColumnDefinitions="Auto, *"
                                                   ColumnSpacing="10">
                                                 <Image Grid.Column="0"
@@ -439,8 +437,7 @@
                                             </Border.GestureRecognizers>
                                         </Border>
 
-                                        <Border Style="{StaticResource PanelSectionBorderStyle}"                                     
-                                                BackgroundColor="#27344D"
+                                        <Border Style="{StaticResource PanelSectionBorderStyle}"   
                                                 Padding="10"
                                                 WidthRequest="130">
                                             <Grid ColumnDefinitions="Auto, Auto, Auto"
@@ -472,7 +469,7 @@
                 </Border>
 
                 <Border Grid.Row="1"
-                        Margin="0, 0, 0, -20"
+                        Margin="5, 5, 5, 5"
                         Style="{StaticResource PanelBorderStyle}"
                         Background="{StaticResource FullResultsBrush}">
                     <Border Style="{StaticResource CanvasBorderStyle}"
@@ -491,7 +488,7 @@
             <!-- Right panel with saved meshes -->
             <Border Grid.Column="2"
                     Padding="10"
-                    Margin="0, 0, -20, -20"
+                    Margin="5, 5, 5, 5"
                     Style="{StaticResource PanelBorderStyle}"
                     Background="{StaticResource StatisticsPanelBrush}">
                 <VerticalStackLayout Margin="20"
@@ -499,7 +496,7 @@
                     <Label Text="Saved Meshes"
                            FontSize="Medium"
                            HorizontalOptions="Center"
-                           TextColor="#F7FBFF"/>
+                           TextColor="{AppThemeBinding Light=#F7FBFF, Dark=#262E38}"/>
                     <SearchBar Placeholder="Search"
                                Text="{Binding MeshSearchText}"/>
                     <Border Style="{StaticResource PanelSectionBorderStyle}"

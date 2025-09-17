@@ -7,29 +7,29 @@ namespace Utility.Classes.ReconstructionParameters
     public partial class EITReconstructionParameters : ObservableObject
     {
         [ObservableProperty]
-        private DifferentialEquationSolver differentialEquationSolver = DifferentialEquationSolver.FiniteElementMethod;
+        private DifferentialEquationSolver differentialEquationSolver = DifferentialEquationSolver.FEM;
         [ObservableProperty]
         private RegularizationTechnique regularizationTechnique = RegularizationTechnique.None;
         [ObservableProperty]
-        private ErrorMetric errorMetric = ErrorMetric.L2;
+        private ErrorMetric errorMetric = ErrorMetric.Wasserstein2;
         [ObservableProperty]
-        private NumericSolver numericSolver = NumericSolver.LUDecomposition;
+        private NumericSolver numericSolver = NumericSolver.SVD;
         [ObservableProperty]
-        private NumericOptimizer numericOptimizer = NumericOptimizer.GradientBased;
+        private NumericOptimizer numericOptimizer = NumericOptimizer.ADAM;
 
         [ObservableProperty]
-        private InitialDistributionTypes initialDistributionType = InitialDistributionTypes.SlightlyDiffering;
+        private InitialDistributionTypes initialDistributionType = InitialDistributionTypes.Homogeneous;
 
         public DiscretizationType Mesh = DiscretizationType.FEM;
 
         public EITReconstructionParameters()
         {
-            DifferentialEquationSolver = DifferentialEquationSolver.FiniteElementMethod;
+            DifferentialEquationSolver = DifferentialEquationSolver.FEM;
             RegularizationTechnique = RegularizationTechnique.None;
-            ErrorMetric = ErrorMetric.L2;
-            NumericSolver = NumericSolver.LUDecomposition;
-            NumericOptimizer = NumericOptimizer.GradientBased;
-            InitialDistributionType = InitialDistributionTypes.SlightlyDiffering;
+            ErrorMetric = ErrorMetric.Wasserstein2;
+            NumericSolver = NumericSolver.SVD;
+            NumericOptimizer = NumericOptimizer.ADAM;
+            InitialDistributionType = InitialDistributionTypes.Homogeneous;
             Mesh = DiscretizationType.FEM;
         }
 
@@ -47,7 +47,7 @@ namespace Utility.Classes.ReconstructionParameters
             NumericOptimizer = numericOptimizer;
             InitialDistributionType = initialDistributionType;
 
-            Mesh = (differentialEquationSolver == DifferentialEquationSolver.FiniteElementMethod) ? DiscretizationType.FEM : DiscretizationType.LBM;
+            Mesh = (differentialEquationSolver == DifferentialEquationSolver.FEM) ? DiscretizationType.FEM : DiscretizationType.LBM;
         }
     }
 }

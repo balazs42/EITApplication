@@ -14,9 +14,9 @@ namespace Utility.Classes.Factories
     {
         public static IDifferentialEquationSolver Create(IDiscretization discretization, DifferentialEquationSolver des, INumericSolver numericSolver) => des switch
         {
-            DifferentialEquationSolver.FiniteElementMethod => CreateFiniteElementSolver((FEMMesh)discretization, numericSolver),
-            DifferentialEquationSolver.LatticeBoltzmannMethod => CreateLatticeBoltzmannSolver(),
-            DifferentialEquationSolver.GraphBased => CreateGraphBasedSolver((FEMMesh)discretization, numericSolver),
+            DifferentialEquationSolver.FEM => CreateFiniteElementSolver((FEMMesh)discretization, numericSolver),
+            DifferentialEquationSolver.LBM => CreateLatticeBoltzmannSolver(),
+            DifferentialEquationSolver.Graph => CreateGraphBasedSolver((FEMMesh)discretization, numericSolver),
             _ => throw new NotSupportedException()
         };
 

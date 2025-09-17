@@ -9,7 +9,7 @@ namespace Utility.Tests
         [Fact]
         public void LU_Solves_2x2()
         {
-            INumericSolver s = NumericSolverFactory.Create(NumericSolver.LUDecomposition);
+            INumericSolver s = NumericSolverFactory.Create(NumericSolver.LU);
             double[,] A = { { 3, 2 }, { 1, 2 } };
             double[] b = { 5, 5 };
 
