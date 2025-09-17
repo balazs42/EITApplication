@@ -5,6 +5,7 @@
              xmlns:controls="clr-namespace:ElectricalImpedanceTomography.Controls"
              xmlns:skia="clr-namespace:SkiaSharp.Views.Maui.Controls;assembly=SkiaSharp.Views.Maui.Controls"
              xmlns:models="clr-namespace:Utility.Classes;assembly=Utility"
+             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
              x:Class="ElectricalImpedanceTomography.Views.ReconstructionPage"
              Title="ReconstructionPage"
              Shell.NavBarIsVisible="False"
@@ -143,51 +144,63 @@
                         <Border Grid.Column="0"
                                 Style="{StaticResource PanelSectionBorderStyle}"
                                 BackgroundColor="{AppThemeBinding Light=#27344D, Dark=#3B4452}">
-                            <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
+                            <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
                                 <Label Grid.Row="0" Text="Methods" FontSize="Medium" FontAttributes="Bold" Margin="0,0,0,12"/>
                                 <Label Grid.Row="1" HorizontalOptions="Start" Text="DE Solver" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="2" ItemsSource="{Binding DifferentialEquationSolverOptions}" SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}"/>
-                                <Label Grid.Row="3" HorizontalOptions="Start" Text="Error Metric" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="4" ItemsSource="{Binding ErrorMetricOptions}" SelectedItem="{Binding ReconstructionParameters.ErrorMetric}"/>
-                                <Label Grid.Row="5" HorizontalOptions="Start" Text="Regularization" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="6" ItemsSource="{Binding RegularizationTechniqueOptions}" SelectedItem="{Binding ReconstructionParameters.RegularizationTechnique}"/>
-                                <Label Grid.Row="7" HorizontalOptions="Start" Text="Linear Solver" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="8" ItemsSource="{Binding NumericSolverOptions}" SelectedItem="{Binding ReconstructionParameters.NumericSolver}"/>
-                                <Label Grid.Row="9" HorizontalOptions="Start" Text="Optimizer" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="10" ItemsSource="{Binding NumericOptimizerOptions}" SelectedItem="{Binding ReconstructionParameters.NumericOptimizer}"/>
+                                <Label Grid.Row="2" Text="Selects the PDE integrator for the forward model." FontAttributes="None" FontSize="11" TextColor="#9DAAD3"/>
+                                <Picker Grid.Row="3" ItemsSource="{Binding DifferentialEquationSolverOptions}" SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}"/>
+                                <Label Grid.Row="4" HorizontalOptions="Start" Text="Error Metric" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Label Grid.Row="5" Text="Defines how measurement mismatch is scored." FontAttributes="None" FontSize="11" TextColor="#9DAAD3"/>
+                                <Picker Grid.Row="6" ItemsSource="{Binding ErrorMetricOptions}" SelectedItem="{Binding ReconstructionParameters.ErrorMetric}"/>
+                                <Label Grid.Row="7" HorizontalOptions="Start" Text="Regularization" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Label Grid.Row="8" Text="Sets the stabilizer applied to conductivity updates." FontAttributes="None" FontSize="11" TextColor="#9DAAD3"/>
+                                <Picker Grid.Row="9" ItemsSource="{Binding RegularizationTechniqueOptions}" SelectedItem="{Binding ReconstructionParameters.RegularizationTechnique}"/>
+                                <Label Grid.Row="10" HorizontalOptions="Start" Text="Linear Solver" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Label Grid.Row="11" Text="Chooses the system solver used each iteration." FontAttributes="None" FontSize="11" TextColor="#9DAAD3"/>
+                                <Picker Grid.Row="12" ItemsSource="{Binding NumericSolverOptions}" SelectedItem="{Binding ReconstructionParameters.NumericSolver}"/>
+                                <Label Grid.Row="13" HorizontalOptions="Start" Text="Optimizer" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Label Grid.Row="14" Text="Controls the high-level update strategy." FontAttributes="None" FontSize="11" TextColor="#9DAAD3"/>
+                                <Picker Grid.Row="15" ItemsSource="{Binding NumericOptimizerOptions}" SelectedItem="{Binding ReconstructionParameters.NumericOptimizer}"/>
                             </Grid>
                         </Border>
                         <!-- Parameter Configuration -->
                         <Border Grid.Column="1"
                                 Style="{StaticResource PanelSectionBorderStyle}"
                                 BackgroundColor="{AppThemeBinding Light=#25324A, Dark=#353F4B}">
-                            <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
+                            <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
                                 <Label Grid.Row="0" Text="Parameters" FontSize="Medium" FontAttributes="Bold" Margin="0,0,0,12"/>
                                 <Label Grid.Row="1" HorizontalOptions="Start" Text="Regularization Weight (θ)" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Entry Grid.Row="2" Text="{Binding RegularizationWeight}"/>
-                                <Label Grid.Row="3" HorizontalOptions="Start" Text="Gradient Step Size (β)" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Entry Grid.Row="4" Text="{Binding StepSize}"/>
-                                <Label Grid.Row="5" HorizontalOptions="Start" Text="Max Iteration Count" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Entry Grid.Row="6" Text="{Binding MaxIterationCount}"/>
-                                <Label Grid.Row="7" HorizontalOptions="Start" Text="Initial Distribution" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="8" ItemsSource="{Binding InitialDistributionOptions}" SelectedItem="{Binding ReconstructionParameters.InitialDistributionType}"/>
+                                <Label Grid.Row="2" Text="Balances fidelity against smoothing constraints." FontAttributes="None" FontSize="11" TextColor="#9DAAD3"/>
+                                <Entry Grid.Row="3" Text="{Binding RegularizationWeight}"/>
+                                <Label Grid.Row="4" HorizontalOptions="Start" Text="Gradient Step Size (β)" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Label Grid.Row="5" Text="Scales how strongly each iteration updates conductivity." FontAttributes="None" FontSize="11" TextColor="#9DAAD3"/>
+                                <Entry Grid.Row="6" Text="{Binding StepSize}"/>
+                                <Label Grid.Row="7" HorizontalOptions="Start" Text="Max Iteration Count" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Label Grid.Row="8" Text="Caps how long the optimization may refine the model." FontAttributes="None" FontSize="11" TextColor="#9DAAD3"/>
+                                <Entry Grid.Row="9" Text="{Binding MaxIterationCount}"/>
+                                <Label Grid.Row="10" HorizontalOptions="Start" Text="Initial Distribution" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Label Grid.Row="11" Text="Starting conductivity map used as the baseline." FontAttributes="None" FontSize="11" TextColor="#9DAAD3"/>
+                                <Picker Grid.Row="12" ItemsSource="{Binding InitialDistributionOptions}" SelectedItem="{Binding ReconstructionParameters.InitialDistributionType}"/>
                             </Grid>
                         </Border>
                     </Grid>
 
                     <Border Style="{StaticResource PanelSectionBorderStyle}"
                             BackgroundColor="{AppThemeBinding Light=#253049, Dark=#3F4856}">
-                        <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
+                        <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
                             <Grid Grid.Row="0" ColumnDefinitions="Auto, *" ColumnSpacing="8">
                                 <Image Grid.Column="0" Source="icon_boundary.png" HeightRequest="25"/>
                                 <Label Grid.Column="1" Text="Boundary Conditions" FontAttributes="Italic" FontSize="Medium"/>
                             </Grid>
                             <Label Grid.Row="1" Text="Starting Excitation Electrode" FontAttributes="None"/>
-                            <Entry Grid.Row="2" Text="{Binding ExcitationElectrodeId}"/>
-                            <Label Grid.Row="3" Text="Starting Ground Electrode" FontAttributes="None"/>
-                            <Entry Grid.Row="4" Text="{Binding GroundElectrodeId}"/>
-                            <Label Grid.Row="5" Text="Drive Pattern:" FontAttributes="None"/>
-                            <Grid Grid.Row="6" ColumnDefinitions="Auto, Auto, Auto, Auto" ColumnSpacing="20" HorizontalOptions="Center">
+                            <Label Grid.Row="2" Text="Electrode index delivering the injected current." FontAttributes="None" FontSize="11" TextColor="#9DAAD3"/>
+                            <Entry Grid.Row="3" Text="{Binding ExcitationElectrodeId}"/>
+                            <Label Grid.Row="4" Text="Starting Ground Electrode" FontAttributes="None"/>
+                            <Label Grid.Row="5" Text="Electrode providing the return path reference." FontAttributes="None" FontSize="11" TextColor="#9DAAD3"/>
+                            <Entry Grid.Row="6" Text="{Binding GroundElectrodeId}"/>
+                            <Label Grid.Row="7" Text="Drive Pattern:" FontAttributes="None"/>
+                            <Label Grid.Row="8" Text="Selects how excitation pairs move around the array." FontAttributes="None" FontSize="11" TextColor="#9DAAD3"/>
+                            <Grid Grid.Row="9" ColumnDefinitions="Auto, Auto, Auto, Auto" ColumnSpacing="20" HorizontalOptions="Center">
                                 <CheckBox Grid.Column="0"
                                           HorizontalOptions="Center"
                                           VerticalOptions="Center"
@@ -201,7 +214,7 @@
                                           CheckedChanged="OnOppositeDrivePatternChecked"/>
                                 <Label Grid.Column="3" Text="Opposite" HorizontalOptions="Start" VerticalOptions="Center" FontAttributes="None"/>
                             </Grid>
-                            <Button Grid.Row="7" Text="Edit Boundary Conditions" Background="#2F9E9C" TextColor="White" FontAttributes="Bold" Clicked="OnEditBoundaryConditionsClicked"/>
+                            <Button Grid.Row="10" Text="Edit Boundary Conditions" Background="#2F9E9C" TextColor="White" FontAttributes="Bold" Clicked="OnEditBoundaryConditionsClicked"/>
                         </Grid>
                     </Border>
                 </VerticalStackLayout>
@@ -454,18 +467,27 @@
                         <Label Text="Reconstruction Statistics" HorizontalOptions="Center" FontSize="16"  TextColor="{AppThemeBinding Light=#F0F4FF, Dark=#262E38}"/>
                         <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="12">
                             <Border Style="{StaticResource PanelSectionBorderStyle}" BackgroundColor="{AppThemeBinding Light=#252F44, Dark=#353F4C}">
+                                <Border.Behaviors>
+                                    <toolkit:TooltipBehavior Text="Time spent solving the current reconstruction." />
+                                </Border.Behaviors>
                                 <VerticalStackLayout Spacing="2">
                                     <Label Text="Elapsed Time" FontAttributes="None" FontSize="12" TextColor="#9DAAD3"/>
                                     <Label Text="{Binding ElapsedTime, StringFormat='{0:mm\\:ss}'}" FontSize="18" TextColor="#F0F4FF"/>
                                 </VerticalStackLayout>
                             </Border>
                             <Border Grid.Column="1" Style="{StaticResource PanelSectionBorderStyle}" BackgroundColor="{AppThemeBinding Light=#252F44, Dark=#3A4452}">
+                                <Border.Behaviors>
+                                    <toolkit:TooltipBehavior Text="Residual is the RMSE between measured and simulated voltages." />
+                                </Border.Behaviors>
                                 <VerticalStackLayout Spacing="2">
                                     <Label Text="Residual" FontAttributes="None" FontSize="12" TextColor="#9DAAD3"/>
                                     <Label Text="{Binding Residual, StringFormat='{0:F3}'}" FontSize="18" TextColor="#F0F4FF"/>
                                 </VerticalStackLayout>
                             </Border>
                             <Border Grid.Row="1" Grid.ColumnSpan="2" Style="{StaticResource PanelSectionBorderStyle}" BackgroundColor="{AppThemeBinding Light=#252F44, Dark=#353F4C}">
+                                <Border.Behaviors>
+                                    <toolkit:TooltipBehavior Text="Correlation compares reconstructed and reference maps via normalized dot product." />
+                                </Border.Behaviors>
                                 <VerticalStackLayout Spacing="2">
                                     <Label Text="Correlation" FontAttributes="None" FontSize="12" TextColor="#9DAAD3"/>
                                     <Label Text="{Binding Correlation, StringFormat='{0:F3}'}" FontSize="18" TextColor="#F0F4FF"/>
