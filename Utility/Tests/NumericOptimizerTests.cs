@@ -37,6 +37,23 @@ namespace Utility.Tests
         }
 
         [Fact]
+        public void PolyakHeavyBall_LineSearch_Does_Not_Corrupt_State()
+        {
+            var opt = new PolyakHeavyBallOptimizer(beta: 0.5);
+            var σ0 = TestData.Sigma((0, 1.0));
+            var g = TestData.Grad((0, 1.0));
+
+            _ = opt.OptimizationStep(σ0, g, 0.2); // trial step rejected by line search
+            _ = opt.OptimizationStep(σ0, g, 0.1); // smaller trial step
+
+            var accepted = opt.OptimizationStep(σ0, g, 0.1); // actual step applied after search
+            Assert.Equal(0.9, accepted.GetConductivity(0), 12);
+
+            var next = opt.OptimizationStep(accepted, g, 0.1);
+            Assert.Equal(0.75, next.GetConductivity(0), 12);
+        }
+
+        [Fact]
         public void Adam_Moves_Against_Gradient()
         {
             var opt = new AdamGradientOptimizer();
@@ -80,6 +97,23 @@ namespace Utility.Tests
             var σ1 = opt.OptimizationStep(σ0, g, 0.1);
             var σ2 = opt.OptimizationStep(σ1, g, 0.1);
             Assert.True(σ2.GetConductivity(0) < σ1.GetConductivity(0));
+        }
+
+        [Fact]
+        public void Nesterov_LineSearch_Preserves_History()
+        {
+            var opt = new NesterovAcceleratedGradientOptimizer(gamma: 0.5);
+            var σ0 = TestData.Sigma((0, 1.0));
+            var g = TestData.Grad((0, 1.0));
+
+            _ = opt.OptimizationStep(σ0, g, 0.2);
+            _ = opt.OptimizationStep(σ0, g, 0.1);
+
+            var accepted = opt.OptimizationStep(σ0, g, 0.1);
+            Assert.Equal(0.9, accepted.GetConductivity(0), 12);
+
+            var σ2 = opt.OptimizationStep(accepted, g, 0.1);
+            Assert.Equal(0.75, σ2.GetConductivity(0), 12);
         }
 
         [Fact]

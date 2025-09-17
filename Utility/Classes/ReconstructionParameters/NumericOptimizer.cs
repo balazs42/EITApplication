@@ -53,6 +53,40 @@
 
             return candidate;
         }
+
+        public static Dictionary<int, double> Clone(Dictionary<int, double> source)
+            => source.ToDictionary(kv => kv.Key, kv => kv.Value);
+
+        public static bool ApproximatelyEqual(
+            Dictionary<int, double> first,
+            Dictionary<int, double> second,
+            double tolerance = 1e-12)
+        {
+            if (ReferenceEquals(first, second))
+            {
+                return true;
+            }
+
+            if (first.Count != second.Count)
+            {
+                return false;
+            }
+
+            foreach (var kvp in first)
+            {
+                if (!second.TryGetValue(kvp.Key, out double value))
+                {
+                    return false;
+                }
+
+                if (Math.Abs(kvp.Value - value) > tolerance)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
     }
 
     /// <summary>
@@ -90,44 +124,70 @@
     /// </summary>
     public sealed class PolyakHeavyBallOptimizer : INumericOptimizer
     {
+        private const double _minConductivity = 1e-6;
+        private const double _maxConductivity = 10.0;
+
         private readonly double _beta;
-        // store velocity per element
         private Dictionary<int, double>? _velocity;
+        private Dictionary<int, double>? _pendingVelocity;
+        private Dictionary<int, double>? _pendingSigma;
 
         public PolyakHeavyBallOptimizer(double beta = 0.8)
         {
             _beta = beta;
-            _velocity = null; // lazy init
+            _velocity = null;
         }
 
         public ConductivityDistribution OptimizationStep(ConductivityDistribution currentSigma, ConductivityDistribution totalGradient, double stepSize)
         {
-            // initialize velocity storage
-            if (_velocity == null)
-                _velocity = currentSigma.Conductivities.ToDictionary(kv => kv.Key, kv => 0.0);
+            CommitPendingStateIfAccepted(currentSigma);
 
-            var nextVel = new Dictionary<int, double>();
-            var nextSigma = new Dictionary<int, double>();
+            _velocity ??= currentSigma.Conductivities.ToDictionary(kv => kv.Key, _ => 0.0);
+
+            var nextVel = new Dictionary<int, double>(currentSigma.Conductivities.Count);
+            var nextSigma = new Dictionary<int, double>(currentSigma.Conductivities.Count);
 
             foreach (var kv in currentSigma.Conductivities)
             {
                 int id = kv.Key;
                 double conductivity = kv.Value;
                 double gradient = totalGradient.GetConductivity(id);
-                double v_prev = _velocity[id];
+                double v_prev = _velocity.TryGetValue(id, out double existingVelocity) ? existingVelocity : 0.0;
 
-                // v_new = β v_prev − α g
                 double v_new = _beta * v_prev - stepSize * gradient;
-                // σ_new = σ + v_new
                 double candidate = conductivity + v_new;
                 double clipped = NumericOptimizerGuards.ClipExcessiveGrowth(conductivity, candidate);
+                clipped = Math.Max(_minConductivity, Math.Min(_maxConductivity, clipped));
                 double appliedVelocity = clipped - conductivity;
 
                 nextVel[id] = appliedVelocity;
                 nextSigma[id] = clipped;
             }
-            _velocity = nextVel;
+
+            _pendingVelocity = NumericOptimizerGuards.Clone(nextVel);
+            _pendingSigma = NumericOptimizerGuards.Clone(nextSigma);
+
             return new ConductivityDistribution(nextSigma);
+        }
+
+        private void CommitPendingStateIfAccepted(ConductivityDistribution currentSigma)
+        {
+            if (_pendingSigma == null)
+            {
+                return;
+            }
+
+            if (!NumericOptimizerGuards.ApproximatelyEqual(currentSigma.Conductivities, _pendingSigma))
+            {
+                return;
+            }
+
+            _velocity = _pendingVelocity != null
+                ? NumericOptimizerGuards.Clone(_pendingVelocity)
+                : currentSigma.Conductivities.ToDictionary(kv => kv.Key, _ => 0.0);
+
+            _pendingSigma = null;
+            _pendingVelocity = null;
         }
     }
 
@@ -241,33 +301,36 @@
     /// </summary>
     public sealed class NesterovAcceleratedGradientOptimizer : INumericOptimizer
     {
+        private const double _minConductivity = 1e-6;
+        private const double _maxConductivity = 10.0;
+
         private readonly double _gamma;
         private Dictionary<int, double>? _prevSigma;
+        private Dictionary<int, double>? _pendingSigma;
+        private Dictionary<int, double>? _pendingPrevSigma;
 
         public NesterovAcceleratedGradientOptimizer(double gamma = 0.9)
         {
             _gamma = gamma;
-            _prevSigma = null;
         }
 
         public ConductivityDistribution OptimizationStep(ConductivityDistribution currentSigma, ConductivityDistribution totalGradient, double stepSize)
         {
-            // lazy init
-            if (_prevSigma == null)
-                _prevSigma = currentSigma.Conductivities.ToDictionary(kv => kv.Key, kv => kv.Value);
+            CommitPendingStateIfAccepted(currentSigma);
 
-            // compute y_k = σ_k + γ(σ_k - σ_{k-1})
-            var y = new Dictionary<int, double>();
+            _prevSigma ??= NumericOptimizerGuards.Clone(currentSigma.Conductivities);
+
+            var y = new Dictionary<int, double>(currentSigma.Conductivities.Count);
             foreach (var kv in currentSigma.Conductivities)
             {
                 int id = kv.Key;
                 double conductivityK = kv.Value;
-                double conductivityM = _prevSigma[id];
-                y[id] = conductivityK + _gamma * (conductivityK - conductivityM);
+                double conductivityM = _prevSigma.TryGetValue(id, out double prevValue) ? prevValue : conductivityK;
+                double extrapolated = conductivityK + _gamma * (conductivityK - conductivityM);
+                y[id] = NumericOptimizerGuards.ClipExcessiveGrowth(conductivityK, extrapolated);
             }
-            // gradient at y -- approximate by using totalGradient at σ_k
-            // for full NAG, you'd recompute gradient at y; here we reuse for simplicity
-            var nextSigma = new Dictionary<int, double>();
+
+            var nextSigma = new Dictionary<int, double>(y.Count);
             foreach (var kv in y)
             {
                 int id = kv.Key;
@@ -275,13 +338,35 @@
                 double gradient = totalGradient.GetConductivity(id);
                 double nextValue = yv - stepSize * gradient;
                 double original = currentSigma.GetConductivity(id);
-                nextSigma[id] = NumericOptimizerGuards.ClipExcessiveGrowth(original, nextValue);
+                double clipped = NumericOptimizerGuards.ClipExcessiveGrowth(original, nextValue);
+                clipped = Math.Max(_minConductivity, Math.Min(_maxConductivity, clipped));
+                nextSigma[id] = clipped;
             }
 
-            // push currentSigma to prev
-            _prevSigma = currentSigma.Conductivities.ToDictionary(kv => kv.Key, kv => kv.Value);
+            _pendingPrevSigma = NumericOptimizerGuards.Clone(currentSigma.Conductivities);
+            _pendingSigma = NumericOptimizerGuards.Clone(nextSigma);
 
             return new ConductivityDistribution(nextSigma);
+        }
+
+        private void CommitPendingStateIfAccepted(ConductivityDistribution currentSigma)
+        {
+            if (_pendingSigma == null)
+            {
+                return;
+            }
+
+            if (!NumericOptimizerGuards.ApproximatelyEqual(currentSigma.Conductivities, _pendingSigma))
+            {
+                return;
+            }
+
+            _prevSigma = _pendingPrevSigma != null
+                ? NumericOptimizerGuards.Clone(_pendingPrevSigma)
+                : NumericOptimizerGuards.Clone(currentSigma.Conductivities);
+
+            _pendingPrevSigma = null;
+            _pendingSigma = null;
         }
     }
 
