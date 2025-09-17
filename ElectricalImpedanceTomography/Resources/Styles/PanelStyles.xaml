@@ -4,31 +4,30 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
 
-    <AppThemeColor x:Key="PageBackgroundColor" Light="#CCCCCC" Dark="#1F1F1F" />
 
     <LinearGradientBrush x:Key="ConfigurationPanelBrush" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Color="#232E45" Offset="0" />
-        <GradientStop Color="#222A22" Offset="1" />
+        <GradientStop Color="{AppThemeBinding Light=#232E45, Dark=#C2410C}" Offset="0" />
+        <GradientStop Color="{AppThemeBinding Light=#161D2C, Dark=#7C2D12}" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="ControlPanelBrush" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Color="#1E273B" Offset="0" />
-        <GradientStop Color="#222A22" Offset="1" />
+        <GradientStop Color="{AppThemeBinding Light=#1E273B, Dark=#EA580C}" Offset="0" />
+        <GradientStop Color="{AppThemeBinding Light=#101624, Dark=#9A3412}" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="PartialResultsBrush" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Color="#202A3F" Offset="0" />
-        <GradientStop Color="#222A22" Offset="1" />
+        <GradientStop Color="{AppThemeBinding Light=#202A3F, Dark=#B45309}" Offset="0" />
+        <GradientStop Color="{AppThemeBinding Light=#121923, Dark=#7C2D12}" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="FullResultsBrush" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Color="#1C2638" Offset="0" />
-        <GradientStop Color="#222A22" Offset="1" />
+        <GradientStop Color="{AppThemeBinding Light=#1C2638, Dark=#9A3412}" Offset="0" />
+        <GradientStop Color="{AppThemeBinding Light=#0F151F, Dark=#7C2D12}" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="HistoryPanelBrush" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Color="#222E45" Offset="0" />
-        <GradientStop Color="#222A22" Offset="1" />
+        <GradientStop Color="{AppThemeBinding Light=#222E45, Dark=#C2410C}" Offset="0" />
+        <GradientStop Color="{AppThemeBinding Light=#141B28, Dark=#8A2C0D}" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="StatisticsPanelBrush" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Color="#1E2435" Offset="0" />
-        <GradientStop Color="#222A22" Offset="1" />
+        <GradientStop Color="{AppThemeBinding Light=#1E2435, Dark=#EA580C}" Offset="0" />
+        <GradientStop Color="{AppThemeBinding Light=#111723, Dark=#9A3412}" Offset="1" />
     </LinearGradientBrush>
 
     <Style x:Key="PanelBorderStyle" TargetType="Border">
@@ -37,12 +36,12 @@
         <Setter Property="Padding" Value="0" />
         <Setter Property="Stroke">
             <Setter.Value>
-                <SolidColorBrush Color="#3A7CA5" />
+                <SolidColorBrush Color="{AppThemeBinding Light=#3A7CA5, Dark=#EA580C}" />
             </Setter.Value>
         </Setter>
         <Setter Property="Shadow">
             <Setter.Value>
-                <Shadow Brush="#883A7CA5" Offset="0,4" Radius="12" Opacity="0.45" />
+                <Shadow Brush="{AppThemeBinding Light=#883A7CA5, Dark=#88EA580C}" Offset="0,4" Radius="12" Opacity="0.45" />
             </Setter.Value>
         </Setter>
     </Style>
@@ -50,7 +49,7 @@
     <Style x:Key="PanelSectionBorderStyle" TargetType="Border">
         <Setter Property="StrokeShape" Value="RoundRectangle 10" />
         <Setter Property="StrokeThickness" Value="0" />
-        <Setter Property="BackgroundColor" Value="#242F47" />
+        <Setter Property="BackgroundColor" Value="{AppThemeBinding Light=#242F47, Dark=#8B3D0A}" />
     </Style>
 
     <Style x:Key="CanvasBorderStyle" TargetType="Border">
@@ -58,10 +57,10 @@
         <Setter Property="StrokeThickness" Value="1" />
         <Setter Property="Stroke" Value="Transparent" />
         <Setter Property="Padding" Value="10" />
-        <Setter Property="BackgroundColor" Value="#1A2436" />
+        <Setter Property="BackgroundColor" Value="{AppThemeBinding Light=#1A2436, Dark=#2B1608}"/>
         <Setter Property="Shadow">
             <Setter.Value>
-                <Shadow Brush="#663A7CA5" Offset="0,6" Radius="14" Opacity="0.5" />
+                <Shadow Brush="{AppThemeBinding Light=#663A7CA5, Dark=#66EA580C}" Offset="0,6" Radius="14" Opacity="0.5" />
             </Setter.Value>
         </Setter>
     </Style>

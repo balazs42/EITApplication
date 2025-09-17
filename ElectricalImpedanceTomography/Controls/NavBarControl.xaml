@@ -37,13 +37,12 @@
                 </VisualStateGroupList>
             </Setter>
         </Style>
-        
     </ContentView.Resources>
 
     <Border Padding="10,5" 
-            BackgroundColor="{StaticResource PageBackgroundColor}"
-            Background="{StaticResource PageBackgroundColor}"
-            Stroke="{StaticResource PageBackgroundColor}">
+            BackgroundColor="{AppThemeBinding Dark=#121212, Light=#CCCCCC}"
+            Background="{AppThemeBinding Dark=#121212, Light=#CCCCCC}"
+            Stroke="{AppThemeBinding Dark=#121212, Light=#CCCCCC}">
         <Border.StrokeShape>
             <RoundRectangle CornerRadius="0"/>
         </Border.StrokeShape>
@@ -52,8 +51,8 @@
 
             <Border x:Name="MainPageButton"
                     StrokeShape="RoundRectangle 30"
-                    Stroke="#3A7CA5"
-                    Background="#3A5F8A"
+                    Stroke="{AppThemeBinding Light=#3A5F8A, Dark=#232323}"
+                    Background="{AppThemeBinding Light=#3A5F8A, Dark=#232323}"
                     BackgroundColor="#3A7CA5"
                     Margin="5"
                     Padding="5">
@@ -70,7 +69,7 @@
                            Margin="5"/>
                 </Grid>
                 <Border.Shadow>
-                    <Shadow Brush="SkyBlue" Opacity="1.0" Radius="4.0"/>
+                    <Shadow Brush="{AppThemeBinding Light=Skyblue, Dark=White}" Opacity="1.0" Radius="4.0"/>
                 </Border.Shadow>
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Tapped="NavigateButton_Tapped"/>
@@ -79,10 +78,10 @@
 
             <Border x:Name="DAQPageButton"
                     StrokeShape="RoundRectangle 30"
-                    Stroke="#3A7CA5"
+                    Stroke="{AppThemeBinding Light=#3A5F8A, Dark=#232323}"
                     Margin="5"
                     Padding="5"
-                    Background="#3A5F8A"
+                    Background="{AppThemeBinding Light=#3A5F8A, Dark=#232323}"
                     BackgroundColor="#3A7CA5">
                 <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5">
                     <Image Grid.Column="0" Source="icon_hardware.png" HeightRequest="30" Margin="5,0,0,0"/>
@@ -97,7 +96,7 @@
                            Margin="5"/>
                 </Grid>
                 <Border.Shadow>
-                    <Shadow Brush="SkyBlue" Opacity="1.0" Radius="4.0"/>
+                    <Shadow Brush="{AppThemeBinding Light=Skyblue, Dark=White}" Opacity="1.0" Radius="4.0"/>
                 </Border.Shadow>
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Tapped="NavigateButton_Tapped"/>
@@ -106,8 +105,8 @@
 
             <Border x:Name="MeshingPageButton"
                     StrokeShape="RoundRectangle 30"
-                    Stroke="#3A7CA5"
-                    Background="#3A5F8A"                    
+                    Stroke="{AppThemeBinding Light=#3A5F8A, Dark=#232323}"
+                    Background="{AppThemeBinding Light=#3A5F8A, Dark=#232323}"                    
                     BackgroundColor="#3A7CA5"
                     Margin="5"
                     Padding="5">
@@ -124,7 +123,7 @@
                            Margin="5"/>
                 </Grid>
                 <Border.Shadow>
-                    <Shadow Brush="SkyBlue" Opacity="1.0" Radius="4.0"/>
+                    <Shadow Brush="{AppThemeBinding Light=Skyblue, Dark=White}" Opacity="1.0" Radius="4.0"/>
                 </Border.Shadow>
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Tapped="NavigateButton_Tapped"/>
@@ -134,7 +133,7 @@
             <Border x:Name="ReconstructionPageButton"
                     StrokeShape="RoundRectangle 30"
                     Stroke="#3A7CA5"
-                    Background="#3A5F8A"                   
+                    Background="{AppThemeBinding Light=#3A5F8A, Dark=#232323}"                   
                     BackgroundColor="#3A7CA5"
                     Margin="5"
                     Padding="5">
@@ -151,7 +150,7 @@
                            Margin="5"/>
                 </Grid>
                 <Border.Shadow>
-                    <Shadow Brush="SkyBlue" Opacity="1.0" Radius="4.0"/>
+                    <Shadow Brush="{AppThemeBinding Light=Skyblue, Dark=White}" Opacity="1.0" Radius="4.0"/>
                 </Border.Shadow>
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Tapped="NavigateButton_Tapped"/>
