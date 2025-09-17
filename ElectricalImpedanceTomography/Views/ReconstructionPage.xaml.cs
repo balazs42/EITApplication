@@ -117,6 +117,9 @@ public partial class ReconstructionPage : ContentPage
         PlayerBackButton.IsEnabled = false;
         PlayerForwardButton.IsEnabled = false;
         PlayButton.IsEnabled = false;
+        PlayButton.IsVisible = false;
+        PauseButton.IsVisible = true;
+        PauseButton.IsEnabled = true;
         _isPaused = false;
 
         _viewModel.PrepareForNewReconstruction();
@@ -138,6 +141,8 @@ public partial class ReconstructionPage : ContentPage
             PlayerBackButton.IsEnabled = true;
             PlayerForwardButton.IsEnabled = true;
             PlayButton.IsEnabled = true;
+            PlayButton.IsVisible = true;
+            PauseButton.IsVisible = false;
         }
     }
 
@@ -171,6 +176,8 @@ public partial class ReconstructionPage : ContentPage
         PlayerBackButton.IsEnabled = false;
         PlayerForwardButton.IsEnabled = false;
         PlayButton.IsEnabled = true;
+        PlayButton.IsVisible = true;
+        PauseButton.IsVisible = false;
     }
     #endregion
 
