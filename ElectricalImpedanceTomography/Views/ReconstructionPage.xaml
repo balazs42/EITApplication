@@ -51,12 +51,12 @@
             <Setter Property="Padding" Value="0"/>
             <Setter Property="Stroke">
                 <Setter.Value>
-                    <SolidColorBrush Color="{AppThemeBinding Light=#3A7CA5, Dark=#EA580C}" />
+                    <SolidColorBrush Color="{AppThemeBinding Light=#3A7CA5, Dark=#C0CAD8}" />
                 </Setter.Value>
             </Setter>
             <Setter Property="Shadow">
                 <Setter.Value>
-                    <Shadow Brush="{AppThemeBinding Light=#883A7CA5, Dark=#88EA580C}" Offset="0,4" Radius="12" Opacity="0.45" />
+                    <Shadow Brush="{AppThemeBinding Light=#883A7CA5, Dark=#66FFFFFF}" Offset="0,4" Radius="12" Opacity="0.45" />
                 </Setter.Value>
             </Setter>
         </Style>
@@ -65,7 +65,7 @@
             <Setter Property="StrokeShape" Value="RoundRectangle 10"/>
             <Setter Property="StrokeThickness" Value="0"/>
             <Setter Property="Padding" Value="12"/>
-            <Setter Property="BackgroundColor" Value="{AppThemeBinding Light=#242F47, Dark=#8B3D0A}"/>
+            <Setter Property="BackgroundColor" Value="{AppThemeBinding Light=#242F47, Dark=#323B47}"/>
         </Style>
 
         <Style x:Key="CanvasBorderStyle" TargetType="Border">
@@ -73,37 +73,37 @@
             <Setter Property="StrokeThickness" Value="1"/>
             <Setter Property="Stroke" Value="Transparent"/>
             <Setter Property="Padding" Value="10"/>
-            <Setter Property="BackgroundColor" Value="{AppThemeBinding Light=#1A2436, Dark=#2B1608}"/>
+            <Setter Property="BackgroundColor" Value="{AppThemeBinding Light=#1A2436, Dark=#1F2733}"/>
             <Setter Property="Shadow">
                 <Setter.Value>
-                    <Shadow Brush="{AppThemeBinding Light=#663A7CA5, Dark=#66EA580C}" Offset="0,6" Radius="14" Opacity="0.5" />
+                    <Shadow Brush="{AppThemeBinding Light=#663A7CA5, Dark=#66B3C2D6}" Offset="0,6" Radius="14" Opacity="0.5" />
                 </Setter.Value>
             </Setter>
         </Style>
 
         <LinearGradientBrush x:Key="ConfigurationPanelBrush" StartPoint="0,0" EndPoint="0,1">
-            <GradientStop Color="{AppThemeBinding Light=#232E45, Dark=#C2410C}" Offset="0" />
-            <GradientStop Color="{AppThemeBinding Light=#161D2C, Dark=#7C2D12}" Offset="1" />
+            <GradientStop Color="{AppThemeBinding Light=#232E45, Dark=#C5CEDA}" Offset="0" />
+            <GradientStop Color="{AppThemeBinding Light=#161D2C, Dark=#343C49}" Offset="1" />
         </LinearGradientBrush>
         <LinearGradientBrush x:Key="ControlPanelBrush" StartPoint="0,0" EndPoint="0,1">
-            <GradientStop Color="{AppThemeBinding Light=#1E273B, Dark=#EA580C}" Offset="0" />
-            <GradientStop Color="{AppThemeBinding Light=#101624, Dark=#9A3412}" Offset="1" />
+            <GradientStop Color="{AppThemeBinding Light=#1E273B, Dark=#B9C3D3}" Offset="0" />
+            <GradientStop Color="{AppThemeBinding Light=#101624, Dark=#2C3440}" Offset="1" />
         </LinearGradientBrush>
         <LinearGradientBrush x:Key="PartialResultsBrush" StartPoint="0,0" EndPoint="0,1">
-            <GradientStop Color="{AppThemeBinding Light=#202A3F, Dark=#B45309}" Offset="0" />
-            <GradientStop Color="{AppThemeBinding Light=#121923, Dark=#7C2D12}" Offset="1" />
+            <GradientStop Color="{AppThemeBinding Light=#202A3F, Dark=#B0BACB}" Offset="0" />
+            <GradientStop Color="{AppThemeBinding Light=#121923, Dark=#28303C}" Offset="1" />
         </LinearGradientBrush>
         <LinearGradientBrush x:Key="FullResultsBrush" StartPoint="0,0" EndPoint="0,1">
-            <GradientStop Color="{AppThemeBinding Light=#1C2638, Dark=#9A3412}" Offset="0" />
-            <GradientStop Color="{AppThemeBinding Light=#0F151F, Dark=#7C2D12}" Offset="1" />
+            <GradientStop Color="{AppThemeBinding Light=#1C2638, Dark=#AAB5C6}" Offset="0" />
+            <GradientStop Color="{AppThemeBinding Light=#0F151F, Dark=#252D38}" Offset="1" />
         </LinearGradientBrush>
         <LinearGradientBrush x:Key="HistoryPanelBrush" StartPoint="0,0" EndPoint="0,1">
-            <GradientStop Color="{AppThemeBinding Light=#222E45, Dark=#C2410C}" Offset="0" />
-            <GradientStop Color="{AppThemeBinding Light=#141B28, Dark=#8A2C0D}" Offset="1" />
+            <GradientStop Color="{AppThemeBinding Light=#222E45, Dark=#C8D1E0}" Offset="0" />
+            <GradientStop Color="{AppThemeBinding Light=#141B28, Dark=#343C48}" Offset="1" />
         </LinearGradientBrush>
         <LinearGradientBrush x:Key="StatisticsPanelBrush" StartPoint="0,0" EndPoint="0,1">
-            <GradientStop Color="{AppThemeBinding Light=#1E2435, Dark=#EA580C}" Offset="0" />
-            <GradientStop Color="{AppThemeBinding Light=#111723, Dark=#9A3412}" Offset="1" />
+            <GradientStop Color="{AppThemeBinding Light=#1E2435, Dark=#C0CADD}" Offset="0" />
+            <GradientStop Color="{AppThemeBinding Light=#111723, Dark=#2A323E}" Offset="1" />
         </LinearGradientBrush>
     </ContentPage.Resources>
     <Grid RowDefinitions="Auto, Auto">
@@ -116,7 +116,7 @@
                     Grid.Column="0"
                     Background="{StaticResource ConfigurationPanelBrush}">
                 <Border.Stroke>
-                    <SolidColorBrush Color="{AppThemeBinding Light=#4D6FA3, Dark=#EA580C}" />
+                    <SolidColorBrush Color="{AppThemeBinding Light=#4D6FA3, Dark=#C0CAD8}" />
                 </Border.Stroke>
                 <VerticalStackLayout Margin="18" Spacing="16">
                     <Grid ColumnDefinitions="Auto, *" ColumnSpacing="8">
@@ -127,7 +127,7 @@
                         <!-- Method Selection -->
                         <Border Grid.Column="0"
                                 Style="{StaticResource PanelSectionBorderStyle}"
-                                BackgroundColor="{AppThemeBinding Light=#27344D, Dark=#9A3412}">
+                                BackgroundColor="{AppThemeBinding Light=#27344D, Dark=#3B4452}">
                             <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
                                 <Label Grid.Row="0" Text="Methods" FontSize="Medium" FontAttributes="Bold" Margin="0,0,0,12"/>
                                 <Label Grid.Row="1" HorizontalOptions="Start" Text="DE Solver" FontFamily="SF Pro Text" FontAttributes="None"/>
@@ -145,7 +145,7 @@
                         <!-- Parameter Configuration -->
                         <Border Grid.Column="1"
                                 Style="{StaticResource PanelSectionBorderStyle}"
-                                BackgroundColor="{AppThemeBinding Light=#25324A, Dark=#B45309}">
+                                BackgroundColor="{AppThemeBinding Light=#25324A, Dark=#353F4B}">
                             <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
                                 <Label Grid.Row="0" Text="Parameters" FontSize="Medium" FontAttributes="Bold" Margin="0,0,0,12"/>
                                 <Label Grid.Row="1" HorizontalOptions="Start" Text="Regularization Weight (θ)" FontFamily="SF Pro Text" FontAttributes="None"/>
@@ -161,7 +161,7 @@
                     </Grid>
 
                     <Border Style="{StaticResource PanelSectionBorderStyle}"
-                            BackgroundColor="{AppThemeBinding Light=#253049, Dark=#C2410C}">
+                            BackgroundColor="{AppThemeBinding Light=#253049, Dark=#3F4856}">
                         <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
                             <Grid Grid.Row="0" ColumnDefinitions="Auto, *" ColumnSpacing="8">
                                 <Image Grid.Column="0" Source="icon_boundary.png" HeightRequest="25"/>
@@ -198,11 +198,11 @@
                   HorizontalOptions="Center">
 
                 <!-- Control Panel to control reconstruction -->
-                <Border Style="{StaticResource PanelBorderStyle}"
+                    <Border Style="{StaticResource PanelBorderStyle}"
                         Grid.Row="0"
                         Background="{StaticResource ConfigurationPanelBrush}">
                     <Border.Stroke>
-                        <SolidColorBrush Color="{AppThemeBinding Light=#3A5F8A, Dark=#EA580C}" />
+                        <SolidColorBrush Color="{AppThemeBinding Light=#3A5F8A, Dark=#C0CAD8}" />
                     </Border.Stroke>
                     <Grid ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto"
                           RowDefinitions="*, Auto"
@@ -315,7 +315,7 @@
 
                 <!-- Displays for reconstruction steps -->
                 <Grid Grid.Row="1" Margin="0,5,0,0" RowDefinitions="Auto, Auto" ColumnDefinitions="Auto" HorizontalOptions="Center" VerticalOptions="Center" RowSpacing="14">
-                    <Border Grid.Row="0" Margin="0, 0, 0, -20" Style="{StaticResource PanelBorderStyle}" Background="{StaticResource PartialResultsBrush}" Stroke="{AppThemeBinding Light=#2F4F77, Dark=#EA580C}">
+                    <Border Grid.Row="0" Margin="0, 0, 0, -20" Style="{StaticResource PanelBorderStyle}" Background="{StaticResource PartialResultsBrush}" Stroke="{AppThemeBinding Light=#2F4F77, Dark=#B5C0D0}">
                         <Grid ColumnDefinitions="Auto,Auto,Auto" RowDefinitions="Auto, Auto" HorizontalOptions="Center" Margin="18" ColumnSpacing="18">
                             <!-- Calculated Potential -->
                             <VerticalStackLayout Grid.Row="0" Grid.Column="0" HorizontalOptions="Center" Spacing="10">
@@ -388,17 +388,17 @@
                   HorizontalOptions="End">
                 <Border Grid.Row="0" Style="{StaticResource PanelBorderStyle}" Background="{StaticResource HistoryPanelBrush}">
                     <Border.Stroke>
-                        <SolidColorBrush Color="{AppThemeBinding Light=#3D5D8C, Dark=#EA580C}" />
+                        <SolidColorBrush Color="{AppThemeBinding Light=#3D5D8C, Dark=#C0CAD8}" />
                     </Border.Stroke>
                     <VerticalStackLayout Margin="16" Spacing="12">
                         <Label Text="Past Reconstructions" HorizontalOptions="Center" FontSize="16"/>
                         <SearchBar Placeholder="Search" Text="{Binding ReconstructionSearchText}" Margin="0"/>
-                        <Border Style="{StaticResource PanelSectionBorderStyle}" BackgroundColor="{AppThemeBinding Light=#25334A, Dark=#9A3412}">
+                        <Border Style="{StaticResource PanelSectionBorderStyle}" BackgroundColor="{AppThemeBinding Light=#25334A, Dark=#343C48}">
                             <ScrollView>
                                 <VerticalStackLayout Spacing="6" Padding="4" BindableLayout.ItemsSource="{Binding FilteredReconstructions}">
                                     <BindableLayout.ItemTemplate>
                                         <DataTemplate x:DataType="models:ReconstructionInfo">
-                                            <Border Style="{StaticResource CanvasBorderStyle}" Padding="8" BackgroundColor="{AppThemeBinding Light=#1B2334, Dark=#3B1C0A}" Margin="0,0,0,6">
+                                            <Border Style="{StaticResource CanvasBorderStyle}" Padding="8" BackgroundColor="{AppThemeBinding Light=#1B2334, Dark=#262E38}" Margin="0,0,0,6">
                                                 <Grid RowDefinitions="Auto, Auto, Auto" ColumnSpacing="0">
                                                     <Label Grid.Row="0" Text="{Binding Name}" FontAttributes="Bold" FontSize="Small"/>
                                                     <Label Grid.Row="1" Text="{Binding Metadata.CreatedOn, StringFormat='Saved: {0:G}'}" FontSize="10" FontAttributes="None"/>
@@ -417,7 +417,7 @@
                 </Border>
                                 
                 <Border Style="{StaticResource PanelSectionBorderStyle}"
-                         BackgroundColor="{AppThemeBinding Light=#22304A, Dark=#A3410A}"
+                         BackgroundColor="{AppThemeBinding Light=#22304A, Dark=#36404C}"
                          Grid.Row="1">
                     <VerticalStackLayout Spacing="12">
                         <Entry Text="{Binding Name}" Placeholder="Name"/>
@@ -430,24 +430,24 @@
 
                 <Border Grid.Row="2" Style="{StaticResource PanelBorderStyle}" Background="{StaticResource StatisticsPanelBrush}">
                     <Border.Stroke>
-                        <SolidColorBrush Color="{AppThemeBinding Light=#3A7CA5, Dark=#EA580C}" />
+                        <SolidColorBrush Color="{AppThemeBinding Light=#3A7CA5, Dark=#C0CAD8}" />
                     </Border.Stroke>
                     <VerticalStackLayout Margin="16" Spacing="16">
                         <Label Text="Reconstruction Statistics" HorizontalOptions="Center" FontSize="16" TextColor="#F0F4FF"/>
                         <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="12">
-                            <Border Style="{StaticResource PanelSectionBorderStyle}" BackgroundColor="{AppThemeBinding Light=#252F44, Dark=#9A3412}">
+                            <Border Style="{StaticResource PanelSectionBorderStyle}" BackgroundColor="{AppThemeBinding Light=#252F44, Dark=#353F4C}">
                                 <VerticalStackLayout Spacing="2">
                                     <Label Text="Elapsed Time" FontAttributes="None" FontSize="12" TextColor="#9DAAD3"/>
                                     <Label Text="{Binding ElapsedTime, StringFormat='{0:mm\\:ss}'}" FontSize="18" TextColor="#F0F4FF"/>
                                 </VerticalStackLayout>
                             </Border>
-                            <Border Grid.Column="1" Style="{StaticResource PanelSectionBorderStyle}" BackgroundColor="{AppThemeBinding Light=#252F44, Dark=#B45309}">
+                            <Border Grid.Column="1" Style="{StaticResource PanelSectionBorderStyle}" BackgroundColor="{AppThemeBinding Light=#252F44, Dark=#3A4452}">
                                 <VerticalStackLayout Spacing="2">
                                     <Label Text="Residual" FontAttributes="None" FontSize="12" TextColor="#9DAAD3"/>
                                     <Label Text="{Binding Residual, StringFormat='{0:F3}'}" FontSize="18" TextColor="#F0F4FF"/>
                                 </VerticalStackLayout>
                             </Border>
-                            <Border Grid.Row="1" Grid.ColumnSpan="2" Style="{StaticResource PanelSectionBorderStyle}" BackgroundColor="{AppThemeBinding Light=#252F44, Dark=#9A3412}">
+                            <Border Grid.Row="1" Grid.ColumnSpan="2" Style="{StaticResource PanelSectionBorderStyle}" BackgroundColor="{AppThemeBinding Light=#252F44, Dark=#353F4C}">
                                 <VerticalStackLayout Spacing="2">
                                     <Label Text="Correlation" FontAttributes="None" FontSize="12" TextColor="#9DAAD3"/>
                                     <Label Text="{Binding Correlation, StringFormat='{0:F3}'}" FontSize="18" TextColor="#F0F4FF"/>
