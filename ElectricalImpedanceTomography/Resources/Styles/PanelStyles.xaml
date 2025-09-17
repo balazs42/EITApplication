@@ -49,7 +49,7 @@
     <Style x:Key="PanelSectionBorderStyle" TargetType="Border">
         <Setter Property="StrokeShape" Value="RoundRectangle 10" />
         <Setter Property="StrokeThickness" Value="0" />
-        <Setter Property="BackgroundColor" Value="{AppThemeBinding Light=#242F47, Dark=#802C343D}" />
+        <Setter Property="BackgroundColor" Value="{AppThemeBinding Light=#27344D, Dark=#802C343D}" />
     </Style>
 
     <Style x:Key="CanvasBorderStyle" TargetType="Border">
