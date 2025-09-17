@@ -12,7 +12,7 @@ namespace Utility.Classes.Factories
     {
         public static INumericSolver Create(NumericSolver ns) => ns switch
         {
-            NumericSolver.LUDecomposition => CreateLUDecompositionSolver(),
+            NumericSolver.LU => CreateLUDecompositionSolver(),
             NumericSolver.SVD => CreateSVDSolver(),
             NumericSolver.tSVD => CreatetSVDSolver(),
             NumericSolver.GMRES => CreateGMRESSolver(),

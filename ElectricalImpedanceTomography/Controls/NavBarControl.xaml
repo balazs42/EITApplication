@@ -39,21 +39,17 @@
         </Style>
     </ContentView.Resources>
 
-    <Border Padding="10,5" 
-            BackgroundColor="{AppThemeBinding Dark=#121212, Light=#CCCCCC}"
-            Background="{AppThemeBinding Dark=#121212, Light=#CCCCCC}"
-            Stroke="{AppThemeBinding Dark=#121212, Light=#CCCCCC}">
-        <Border.StrokeShape>
-            <RoundRectangle CornerRadius="0"/>
-        </Border.StrokeShape>
-
+    <Border Padding="10" 
+            Margin="0, -40, 0, 0"
+            StrokeShape="RoundRectangle 0,0,5,5"
+            Style="{StaticResource PanelBorderStyle}"
+            Background="{StaticResource PartialResultsBrush}">
+       
         <HorizontalStackLayout Spacing="50" HorizontalOptions="Center">
 
             <Border x:Name="MainPageButton"
                     StrokeShape="RoundRectangle 30"
-                    Stroke="{AppThemeBinding Light=#3A5F8A, Dark=#232323}"
                     Background="{AppThemeBinding Light=#3A5F8A, Dark=#232323}"
-                    BackgroundColor="#3A7CA5"
                     Margin="5"
                     Padding="5">
                 <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="5">

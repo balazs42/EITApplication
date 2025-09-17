@@ -11,9 +11,9 @@ namespace Utility.Classes.ReconstructionParameters
 {
     public enum DifferentialEquationSolver
     {
-        FiniteElementMethod = 1,
-        LatticeBoltzmannMethod = 2,
-        GraphBased = 3
+        FEM = 1,
+        LBM = 2,
+        Graph = 3
     };
 
     public interface IDifferentialEquationSolver

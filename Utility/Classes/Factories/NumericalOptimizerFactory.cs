@@ -14,10 +14,10 @@ namespace Utility.Classes.Factories
         public static INumericOptimizer Create(NumericOptimizer no, ConductivityDistribution? sigmaPrior) => no switch
         {
             NumericOptimizer.GradientBased => CreateGradientBasedOptimizer(),
-            NumericOptimizer.PolyakHeavyBall => CreatePolyakHeavyBallOptimizer(),
+            NumericOptimizer.Polyak => CreatePolyakHeavyBallOptimizer(),
             NumericOptimizer.ADAM => CreateAdamGradientOptimizer(),
-            NumericOptimizer.NesterovAcceleratedGradient => CreateNesterovAcceleratedGradientOptimizer(),
-            NumericOptimizer.GlobalTunnelingDescent => CreateGlobalTunnelingDescentOptimizer(),
+            NumericOptimizer.Nesterov => CreateNesterovAcceleratedGradientOptimizer(),
+            NumericOptimizer.GlobalTunneling => CreateGlobalTunnelingDescentOptimizer(),
             NumericOptimizer.HomotopyContinuation => CreateHomotopyContinuationOptimizer(sigmaPrior ?? throw new NullReferenceException()),
             NumericOptimizer.SimulatedAnnealing => CreateSimulatedAnnealingOptimizer(),
             NumericOptimizer.ParticleSwarm => CreateParticleSwarmOptimizer(),

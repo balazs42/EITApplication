@@ -3,10 +3,10 @@
     public enum NumericOptimizer
     {
         GradientBased = 1,
-        PolyakHeavyBall = 2,
+        Polyak = 2,
         ADAM = 3,
-        NesterovAcceleratedGradient = 4,
-        GlobalTunnelingDescent = 5,
+        Nesterov = 4,
+        GlobalTunneling = 5,
         HomotopyContinuation = 6,
         SimulatedAnnealing = 7,
         ParticleSwarm = 8

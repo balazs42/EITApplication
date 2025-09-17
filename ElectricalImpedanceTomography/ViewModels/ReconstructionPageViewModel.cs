@@ -196,10 +196,10 @@ namespace ElectricalImpedanceTomography.ViewModels
         public bool CheckReconstructionMethodAgainstMesh()
         {
             if(_discretization is FEMMesh)
-                if (ReconstructionParameters.DifferentialEquationSolver != Utility.Classes.ReconstructionParameters.DifferentialEquationSolver.FiniteElementMethod)
+                if (ReconstructionParameters.DifferentialEquationSolver != Utility.Classes.ReconstructionParameters.DifferentialEquationSolver.FEM)
                     return false;
             else if(_discretization is LBMGrid)
-                if (ReconstructionParameters.DifferentialEquationSolver != Utility.Classes.ReconstructionParameters.DifferentialEquationSolver.LatticeBoltzmannMethod)
+                if (ReconstructionParameters.DifferentialEquationSolver != Utility.Classes.ReconstructionParameters.DifferentialEquationSolver.LBM)
                     return false;
 
             return true;
