@@ -4,7 +4,7 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
 
-    <Color x:Key="PageBackgroundColor">#CCCCCC</Color>
+    <AppThemeColor x:Key="PageBackgroundColor" Light="#CCCCCC" Dark="#1F1F1F" />
 
     <LinearGradientBrush x:Key="ConfigurationPanelBrush" StartPoint="0,0" EndPoint="0,1">
         <GradientStop Color="#232E45" Offset="0" />
