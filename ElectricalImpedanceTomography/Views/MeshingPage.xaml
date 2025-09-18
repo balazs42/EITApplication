@@ -530,7 +530,10 @@
                                                        TextColor="#9DAAD3"/>
                                             </Grid>
                                             <Border.GestureRecognizers>
-                                                <TapGestureRecognizer Tapped="OnMeshSelected"/>
+                                                <TapGestureRecognizer Buttons="Primary"
+                                                                      Tapped="OnMeshSelected"/>
+                                                <TapGestureRecognizer Buttons="Secondary"
+                                                                      Tapped="OnMeshRightTapped"/>
                                             </Border.GestureRecognizers>
                                         </Border>
                                     </DataTemplate>

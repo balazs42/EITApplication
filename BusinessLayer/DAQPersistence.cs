@@ -27,13 +27,14 @@ namespace BusinessLayer
         public EITMeasurement LoadEITMeasurement(string name, DateTime savedAt) => _daqRepository.LoadEITMeasurement(name, savedAt);        
         public void DeleteEITMeasurement(string name, DateTime savedAt) => _daqRepository.DeleteEITMeasurement(name, savedAt);        
         public void SaveFEMMesh(FEMMesh mesh, string name) => _meshRepository.SaveFEMMesh(mesh, name);        
-        public void SaveLBMGrid(LBMGrid grid, string name) => _meshRepository.SaveLBMGrid(grid, name);        
-        public FEMMesh LoadFEMMesh(string filePath) => _meshRepository.LoadFEMMesh(filePath);        
-        public LBMGrid LoadLBMGrid(string filePath) => _meshRepository.LoadLBMGrid(filePath);        
-        public IEnumerable<DiscretizationInfo> GetDiscretizationInfos() => _meshRepository.GetDiscretizationInfos();        
-        public bool ConnectHardware() => _daqRepository.Connect();        
-        public bool DisconnectHardware() => _daqRepository.Disconnect();        
-        public bool ChangeHardwarePort(string portName) => _daqRepository.ChangePort(portName);        
+        public void SaveLBMGrid(LBMGrid grid, string name) => _meshRepository.SaveLBMGrid(grid, name);
+        public FEMMesh LoadFEMMesh(string filePath) => _meshRepository.LoadFEMMesh(filePath);
+        public LBMGrid LoadLBMGrid(string filePath) => _meshRepository.LoadLBMGrid(filePath);
+        public IEnumerable<DiscretizationInfo> GetDiscretizationInfos() => _meshRepository.GetDiscretizationInfos();
+        public void DeleteMesh(string filePath) => _meshRepository.DeleteMesh(filePath);
+        public bool ConnectHardware() => _daqRepository.Connect();
+        public bool DisconnectHardware() => _daqRepository.Disconnect();
+        public bool ChangeHardwarePort(string portName) => _daqRepository.ChangePort(portName);
         public void SetFrequency(double frequency) => _daqRepository.SetExcitationFrequency(frequency);
     }
 }

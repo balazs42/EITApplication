@@ -11,5 +11,6 @@ namespace DataAccessLayer
         FEMMesh LoadFEMMesh(string filePath);
         LBMGrid LoadLBMGrid(string filePath);
         IEnumerable<DiscretizationInfo> GetDiscretizationInfos();
+        void DeleteMesh(string filePath);
     }
 }
