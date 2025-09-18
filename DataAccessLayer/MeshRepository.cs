@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Xml.Linq;
 using Utility.Classes;
 using Utility.Classes.Discretizer;
@@ -11,14 +12,26 @@ namespace DataAccessLayer
     {
         private static string MeshDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                                                        "EITApplication", "Meshes");
+        private const double StlMergeTolerance = 1e-9;
 
         public void SaveFEMMesh(FEMMesh mesh, string name)
         {
             if (mesh == null) throw new ArgumentNullException(nameof(mesh));
             if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Name required.", nameof(name));
 
+            // We capture the timestamp once so that the .eitmesh and .stl exports end up next to each
+            // other with matching file names. This makes it obvious to the user that both files
+            // represent the same logical mesh snapshot.
+            var timestamp = DateTime.UtcNow;
+
             var doc = BuildFemDocument(mesh, name);
-            SaveDocument(doc, name, "fem");
+            SaveDocument(doc, name, "fem", timestamp);
+
+            // Additionally persist the mesh as an ASCII STL file so it can be exchanged with other
+            // tools that understand the standard triangulated-surface format.  The helper builds
+            // a conventional STL file where every FEM element becomes a triangular facet lying in the
+            // XY plane.
+            SaveFemMeshAsStl(mesh, name, "fem", timestamp);
         }
 
         public void SaveLBMGrid(LBMGrid grid, string name)
@@ -26,8 +39,9 @@ namespace DataAccessLayer
             if (grid == null) throw new ArgumentNullException(nameof(grid));
             if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Name required.", nameof(name));
 
+            var timestamp = DateTime.UtcNow;
             var doc = BuildLbmDocument(grid, name);
-            SaveDocument(doc, name, "lbm");
+            SaveDocument(doc, name, "lbm", timestamp);
         }
 
         public IEnumerable<DiscretizationInfo> GetDiscretizationInfos()
@@ -55,12 +69,27 @@ namespace DataAccessLayer
                     yield return info;
                 }
             }
+
+            foreach (var file in Directory.GetFiles(MeshDir, "*.stl"))
+            {
+                var info = TryBuildStlDiscretizationInfo(file);
+                if (info != null)
+                    yield return info;
+            }
         }
 
         public FEMMesh LoadFEMMesh(string filePath)
         {
             if (!File.Exists(filePath))
                 throw new FileNotFoundException($"Mesh file not found: {filePath}");
+
+            // Support loading meshes from the standard STL format as well as from the application's
+            // native XML container.  The file extension is the most reliable discriminator between
+            // the two encodings.
+            if (string.Equals(Path.GetExtension(filePath), ".stl", StringComparison.OrdinalIgnoreCase))
+            {
+                return LoadFemMeshFromStl(filePath);
+            }
 
             var doc = XDocument.Load(filePath);
             var root = doc.Root ?? throw new InvalidOperationException("Invalid mesh file.");
@@ -212,12 +241,74 @@ namespace DataAccessLayer
             return grid;
         }
 
-        private static void SaveDocument(XDocument doc, string name, string suffix)
+        private static void SaveDocument(XDocument doc, string name, string suffix, DateTime timestamp, string extension = "eitmesh")
         {
             Directory.CreateDirectory(MeshDir);
             string safeName = string.Join("_", name.Split(Path.GetInvalidFileNameChars()));
-            string file = Path.Combine(MeshDir, $"{safeName}_{DateTime.UtcNow:yyyyMMdd_HHmmss}_{suffix}.eitmesh");
+            string file = Path.Combine(MeshDir, $"{safeName}_{timestamp:yyyyMMdd_HHmmss}_{suffix}.{extension}");
             doc.Save(file);
+        }
+
+        private static void SaveFemMeshAsStl(FEMMesh mesh, string name, string suffix, DateTime timestamp)
+        {
+            Directory.CreateDirectory(MeshDir);
+            string safeName = string.Join("_", name.Split(Path.GetInvalidFileNameChars()));
+            string file = Path.Combine(MeshDir, $"{safeName}_{timestamp:yyyyMMdd_HHmmss}_{suffix}.stl");
+
+            // STL is defined for 3D surfaces. Our FEM mesh is planar, therefore we embed it in the
+            // XY plane (all vertices have Z = 0).  Each triangular FEM element is written as one
+            // STL facet.  The ASCII flavour is deliberately chosen because it is human readable and
+            // many downstream tools (for example meshing utilities) accept it directly.
+            using var writer = new StreamWriter(file, false, new System.Text.UTF8Encoding(false));
+
+            writer.WriteLine($"solid {safeName}");
+
+            foreach (var element in mesh.ElementsTyped)
+            {
+                var a = element.Vertices[0];
+                var b = element.Vertices[1];
+                var c = element.Vertices[2];
+
+                var normal = CalculateFacetNormal(a, b, c);
+                writer.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "  facet normal {0:G17} {1:G17} {2:G17}", normal.X, normal.Y, normal.Z));
+                writer.WriteLine("    outer loop");
+                WriteVertex(writer, a);
+                WriteVertex(writer, b);
+                WriteVertex(writer, c);
+                writer.WriteLine("    endloop");
+                writer.WriteLine("  endfacet");
+            }
+
+            writer.WriteLine("endsolid");
+
+            static (double X, double Y, double Z) CalculateFacetNormal(FEMVertex a, FEMVertex b, FEMVertex c)
+            {
+                // Build two edge vectors in 3D (with Z = 0) and compute their cross product.  The
+                // resulting vector is perpendicular to the facet; we normalise it so the STL file
+                // contains unit-length normals.  Degenerate (zero-area) triangles fallback to the
+                // default +Z normal so the STL viewer can still display them.
+                double ux = b.X - a.X;
+                double uy = b.Y - a.Y;
+                double vx = c.X - a.X;
+                double vy = c.Y - a.Y;
+
+                double nx = 0.0;
+                double ny = 0.0;
+                double nz = ux * vy - uy * vx;
+
+                double length = Math.Sqrt(nx * nx + ny * ny + nz * nz);
+                if (length < 1e-12)
+                    return (0.0, 0.0, 1.0);
+
+                return (nx / length, ny / length, nz / length);
+            }
+
+            static void WriteVertex(StreamWriter writer, FEMVertex vertex)
+            {
+                writer.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                    "      vertex {0:G17} {1:G17} 0", vertex.X, vertex.Y));
+            }
         }
 
         private static XDocument BuildFemDocument(FEMMesh mesh, string name)
@@ -424,6 +515,312 @@ namespace DataAccessLayer
             }
             return new FEMMesh();
         }
+
+        private static DiscretizationInfo? TryBuildStlDiscretizationInfo(string filePath)
+        {
+            try
+            {
+                bool isAscii;
+                using (var stream = File.OpenRead(filePath))
+                {
+                    isAscii = IsAsciiStl(stream);
+                }
+
+                int triangleCount = CountTrianglesInStl(filePath, isAscii);
+
+                var metadata = new DiscretizationMetaData
+                {
+                    CreatedOn = File.GetCreationTimeUtc(filePath),
+                    Generator = isAscii ? "STL (ASCII)" : "STL (Binary)",
+                    ElementCount = triangleCount,
+                    Parameters = new Dictionary<string, string>
+                    {
+                        ["format"] = isAscii ? "ascii" : "binary",
+                        ["source"] = Path.GetFileName(filePath)
+                    }
+                };
+
+                // Append an explicit suffix so the UI distinguishes STL snapshots from the native
+                // .eitmesh saves that may share the same base filename.
+                string displayName = Path.GetFileNameWithoutExtension(filePath) + " [STL]";
+                return new DiscretizationInfo(displayName, filePath, metadata);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static FEMMesh LoadFemMeshFromStl(string filePath)
+        {
+            bool isAscii;
+            using (var stream = File.OpenRead(filePath))
+            {
+                isAscii = IsAsciiStl(stream);
+            }
+
+            FEMMesh mesh = isAscii
+                ? LoadFemMeshFromAsciiStl(filePath)
+                : LoadFemMeshFromBinaryStl(filePath);
+
+            mesh.Metadata = new DiscretizationMetaData
+            {
+                CreatedOn = File.GetCreationTimeUtc(filePath),
+                Generator = isAscii ? "STL (ASCII)" : "STL (Binary)",
+                ElementCount = mesh.ElementsTyped.Count,
+                Parameters = new Dictionary<string, string>
+                {
+                    ["format"] = isAscii ? "ascii" : "binary",
+                    ["source"] = Path.GetFileName(filePath)
+                }
+            };
+
+            // STL files do not carry electrode definitions; ensure the mesh exposes an empty list so
+            // higher layers do not accidentally work with stale data.
+            mesh.SetElectrodes(new List<FEMElectrode>());
+
+            // Rebuild the distributions so that subsequent processing steps can access them without
+            // having to special-case imported meshes.
+            var conductivity = mesh.ElementsTyped.ToDictionary(e => e.Id, e => e.Conductivity);
+            mesh.SetConductivityDistribution(new ConductivityDistribution(conductivity));
+
+            var potentials = mesh.Vertices.ToDictionary(v => v.GlobalId, v => v.Potential);
+            mesh.SetPotentialDistribution(new PotentialDistribution(potentials));
+
+            return mesh;
+        }
+
+        private static FEMMesh LoadFemMeshFromAsciiStl(string filePath)
+        {
+            var vertices = new List<(double X, double Y, double Z)>();
+            var vertexLookup = new Dictionary<VertexKey, int>();
+            var triangles = new List<(int A, int B, int C)>();
+
+            using var reader = new StreamReader(filePath);
+            var currentTriangle = new List<int>(3);
+            string? line;
+            while ((line = reader.ReadLine()) != null)
+            {
+                line = line.Trim();
+                if (line.Length == 0)
+                    continue;
+
+                if (line.StartsWith("vertex", StringComparison.OrdinalIgnoreCase))
+                {
+                    var parts = line.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length < 4)
+                        throw new InvalidDataException($"Invalid STL vertex definition: '{line}'.");
+
+                    double x = double.Parse(parts[1], CultureInfo.InvariantCulture);
+                    double y = double.Parse(parts[2], CultureInfo.InvariantCulture);
+                    double z = double.Parse(parts[3], CultureInfo.InvariantCulture);
+
+                    int index = GetOrAddVertex(vertexLookup, vertices, x, y, z);
+                    currentTriangle.Add(index);
+
+                    // Each facet contributes exactly three vertex lines. Once collected, we store the
+                    // triangle and start with a fresh accumulator.
+                    if (currentTriangle.Count == 3)
+                    {
+                        triangles.Add((currentTriangle[0], currentTriangle[1], currentTriangle[2]));
+                        currentTriangle.Clear();
+                    }
+                }
+            }
+
+            if (triangles.Count == 0)
+                throw new InvalidDataException("The STL file does not contain any facets.");
+
+            return CreateMeshFromTriangleSoup(vertices, triangles);
+        }
+
+        private static FEMMesh LoadFemMeshFromBinaryStl(string filePath)
+        {
+            var vertices = new List<(double X, double Y, double Z)>();
+            var vertexLookup = new Dictionary<VertexKey, int>();
+            var triangles = new List<(int A, int B, int C)>();
+
+            using var stream = File.OpenRead(filePath);
+            using var reader = new BinaryReader(stream);
+
+            // Binary STL layout: 80 byte header, 4 byte triangle count, followed by triangle records.
+            if (reader.BaseStream.Length < 84)
+                throw new InvalidDataException("Binary STL file is too small to contain header information.");
+
+            reader.ReadBytes(80); // header (ignored)
+            uint triCount = reader.ReadUInt32();
+
+            for (uint i = 0; i < triCount; i++)
+            {
+                if (reader.BaseStream.Position + 50 > reader.BaseStream.Length)
+                    throw new InvalidDataException("Binary STL file is truncated while reading facets.");
+
+                // Normal vector (3 floats) – we do not use it for FEM reconstruction but have to
+                // advance the stream position.
+                reader.ReadSingle();
+                reader.ReadSingle();
+                reader.ReadSingle();
+
+                int[] indices = new int[3];
+                for (int v = 0; v < 3; v++)
+                {
+                    double x = reader.ReadSingle();
+                    double y = reader.ReadSingle();
+                    double z = reader.ReadSingle();
+                    indices[v] = GetOrAddVertex(vertexLookup, vertices, x, y, z);
+                }
+
+                triangles.Add((indices[0], indices[1], indices[2]));
+
+                // Attribute byte count – typically zero, but the specification reserves two bytes.
+                reader.ReadUInt16();
+            }
+
+            if (triangles.Count == 0)
+                throw new InvalidDataException("The STL file does not contain any facets.");
+
+            return CreateMeshFromTriangleSoup(vertices, triangles);
+        }
+
+        private static FEMMesh CreateMeshFromTriangleSoup(List<(double X, double Y, double Z)> vertexPositions,
+                                                          List<(int A, int B, int C)> triangles)
+        {
+            if (vertexPositions.Count == 0)
+                throw new InvalidDataException("STL file does not define any vertices.");
+
+            var femVertices = new List<FEMVertex>(vertexPositions.Count);
+            for (int i = 0; i < vertexPositions.Count; i++)
+            {
+                var (x, y, _) = vertexPositions[i];
+                femVertices.Add(new FEMVertex
+                {
+                    GlobalId = i,
+                    X = x,
+                    Y = y,
+                    BoundaryId = -1,
+                    ElectrodeId = -1,
+                    IsBoundary = false,
+                    IsElectrode = false,
+                    Potential = 0.0
+                });
+            }
+
+            var femElements = new List<FEMElement>(triangles.Count);
+            for (int i = 0; i < triangles.Count; i++)
+            {
+                var (a, b, c) = triangles[i];
+                if (a >= femVertices.Count || b >= femVertices.Count || c >= femVertices.Count)
+                    throw new InvalidDataException("STL facet references an undefined vertex index.");
+
+                var element = new FEMElement(i, femVertices[a], femVertices[b], femVertices[c])
+                {
+                    Conductivity = 1.0
+                };
+                femElements.Add(element);
+            }
+
+            var mesh = new FEMMesh(femVertices, femElements);
+            return mesh;
+        }
+
+        private static bool IsAsciiStl(Stream stream)
+        {
+            if (!stream.CanSeek)
+                throw new ArgumentException("Stream must support seeking for STL detection.", nameof(stream));
+
+            long originalPosition = stream.Position;
+            int headerLength = (int)Math.Min(1024, stream.Length - originalPosition);
+            byte[] buffer = new byte[headerLength];
+            stream.Read(buffer, 0, headerLength);
+            stream.Position = originalPosition;
+
+            string header = System.Text.Encoding.ASCII.GetString(buffer);
+
+            if (!header.StartsWith("solid", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            if (header.IndexOf('\0') >= 0)
+                return false;
+
+            if (header.IndexOf("facet", StringComparison.OrdinalIgnoreCase) >= 0)
+                return true;
+
+            if (header.IndexOf("endsolid", StringComparison.OrdinalIgnoreCase) >= 0)
+                return true;
+
+            // Fall back to a size-based heuristic: if the file length matches the binary STL layout,
+            // treat it as binary even though the header starts with "solid".
+            if (stream.Length >= 84)
+            {
+                stream.Seek(80, SeekOrigin.Begin);
+                Span<byte> countBytes = stackalloc byte[4];
+                if (stream.Read(countBytes) == 4)
+                {
+                    uint triCount = BitConverter.ToUInt32(countBytes);
+                    long expectedSize = 84 + 50L * triCount;
+                    stream.Position = originalPosition;
+                    if (expectedSize == stream.Length)
+                        return false;
+                }
+                stream.Position = originalPosition;
+            }
+
+            return true;
+        }
+
+        private static int CountTrianglesInStl(string filePath, bool isAscii)
+        {
+            if (isAscii)
+            {
+                int count = 0;
+                using var reader = new StreamReader(filePath);
+                string? line;
+                while ((line = reader.ReadLine()) != null)
+                {
+                    if (line.TrimStart().StartsWith("facet", StringComparison.OrdinalIgnoreCase))
+                        count++;
+                }
+                return count;
+            }
+            else
+            {
+                using var stream = File.OpenRead(filePath);
+                if (stream.Length < 84)
+                    return 0;
+
+                stream.Seek(80, SeekOrigin.Begin);
+                Span<byte> countBytes = stackalloc byte[4];
+                if (stream.Read(countBytes) != 4)
+                    return 0;
+
+                uint triCount = BitConverter.ToUInt32(countBytes);
+                return triCount > int.MaxValue ? int.MaxValue : (int)triCount;
+            }
+        }
+
+        private static int GetOrAddVertex(Dictionary<VertexKey, int> lookup,
+                                           List<(double X, double Y, double Z)> vertices,
+                                           double x, double y, double z)
+        {
+            var key = CreateVertexKey(x, y, z);
+            if (lookup.TryGetValue(key, out int index))
+                return index;
+
+            index = vertices.Count;
+            lookup[key] = index;
+            vertices.Add((x, y, z));
+            return index;
+        }
+
+        private static VertexKey CreateVertexKey(double x, double y, double z)
+        {
+            double qx = Math.Round(x / StlMergeTolerance) * StlMergeTolerance;
+            double qy = Math.Round(y / StlMergeTolerance) * StlMergeTolerance;
+            double qz = Math.Round(z / StlMergeTolerance) * StlMergeTolerance;
+            return new VertexKey(qx, qy, qz);
+        }
+
+        private readonly record struct VertexKey(double X, double Y, double Z);
 
         private static LBMGrid CreateLbmFromMetadata(DiscretizationMetaData md)
         {
