@@ -21,6 +21,7 @@ namespace BusinessLayer
         FEMMesh LoadFEMMesh(string filePath);
         LBMGrid LoadLBMGrid(string filePath);
         IEnumerable<DiscretizationInfo> GetDiscretizationInfos();
+        void DeleteMesh(string filePath);
         bool ConnectHardware();
         bool DisconnectHardware();
         bool ChangeHardwarePort(string portName);

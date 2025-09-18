@@ -532,6 +532,13 @@
                                             <Border.GestureRecognizers>
                                                 <TapGestureRecognizer Tapped="OnMeshSelected"/>
                                             </Border.GestureRecognizers>
+                                            <Border.ContextFlyout>
+                                                <MenuFlyout>
+                                                    <MenuFlyoutItem Text="Delete"
+                                                                    Clicked="OnDeleteMeshClicked"
+                                                                    CommandParameter="{Binding .}"/>
+                                                </MenuFlyout>
+                                            </Border.ContextFlyout>
                                         </Border>
                                     </DataTemplate>
                                 </BindableLayout.ItemTemplate>

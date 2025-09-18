@@ -215,6 +215,21 @@ namespace ServiceLayer
             }
         }
 
+        public void DeleteMesh(string filePath)
+        {
+            try
+            {
+                _daqPersistence.DeleteMesh(filePath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                Debug.WriteLine(ex.Message);
+                Console.WriteLine(ex.Message);
+                throw;
+            }
+        }
+
         public bool ConnectHardware()
         {
             try

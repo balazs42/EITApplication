@@ -78,6 +78,24 @@ namespace DataAccessLayer
             }
         }
 
+        public void DeleteMesh(string filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath))
+                throw new ArgumentException("File path required.", nameof(filePath));
+
+            if (!File.Exists(filePath))
+                return;
+
+            File.Delete(filePath);
+
+            if (string.Equals(Path.GetExtension(filePath), ".eitmesh", StringComparison.OrdinalIgnoreCase))
+            {
+                var stlFile = Path.ChangeExtension(filePath, ".stl");
+                if (!string.IsNullOrEmpty(stlFile) && File.Exists(stlFile))
+                    File.Delete(stlFile);
+            }
+        }
+
         public FEMMesh LoadFEMMesh(string filePath)
         {
             if (!File.Exists(filePath))
