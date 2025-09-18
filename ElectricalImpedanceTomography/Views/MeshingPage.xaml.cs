@@ -5,6 +5,7 @@ using SkiaSharp.Views.Maui;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Discretizer;
+using Microsoft.Maui.Controls;
 using Microsoft.Maui.Graphics;
 
 namespace ElectricalImpedanceTomography.Views;
@@ -493,6 +494,25 @@ public partial class MeshingPage : ContentPage
                 MeshCanvas.InvalidateSurface();
             }
         }
+    }
+
+    private async void OnDeleteMeshClicked(object sender, EventArgs e)
+    {
+        if (sender is not MenuFlyoutItem item)
+            return;
+
+        if (item.CommandParameter is not DiscretizationInfo info)
+            return;
+
+        bool confirm = await DisplayAlert("Delete Mesh",
+            $"Are you sure you want to delete \"{info.Name}\"?",
+            "OK",
+            "Cancel");
+
+        if (!confirm)
+            return;
+
+        _viewModel.DeleteMesh(info);
     }
 
     private bool PointInTriangle(SKPoint p, SKPoint a, SKPoint b, SKPoint c)
