@@ -530,15 +530,11 @@
                                                        TextColor="#9DAAD3"/>
                                             </Grid>
                                             <Border.GestureRecognizers>
-                                                <TapGestureRecognizer Tapped="OnMeshSelected"/>
+                                                <TapGestureRecognizer Buttons="Primary"
+                                                                      Tapped="OnMeshSelected"/>
+                                                <TapGestureRecognizer Buttons="Secondary"
+                                                                      Tapped="OnMeshRightTapped"/>
                                             </Border.GestureRecognizers>
-                                            <Border.ContextFlyout>
-                                                <MenuFlyout>
-                                                    <MenuFlyoutItem Text="Delete"
-                                                                    Clicked="OnDeleteMeshClicked"
-                                                                    CommandParameter="{Binding .}"/>
-                                                </MenuFlyout>
-                                            </Border.ContextFlyout>
                                         </Border>
                                     </DataTemplate>
                                 </BindableLayout.ItemTemplate>

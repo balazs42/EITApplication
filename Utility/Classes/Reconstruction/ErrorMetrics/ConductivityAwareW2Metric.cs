@@ -1,12 +1,8 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using Google.OrTools.LinearSolver;
-using MathNet.Numerics.LinearAlgebra;
-using Utility.Classes;
+using MathNet.Numerics.LinearAlgebra.Double;
+using MathNet.Numerics.LinearAlgebra.Factorization;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
-using Utility.Classes.Discretizer.GraphMesh;
 using Utility.Classes.ReconstructionParameters;
 
 namespace Utility.Classes.Reconstruction.ErrorMetrics
@@ -391,7 +387,9 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 return x;
             if (x < -50)
                 return Math.Exp(x);
-            return Math.Log1p(Math.Exp(x));
+
+            // TODO: Is LOG10 good?
+            return Math.Log10(Math.Exp(x));
         }
 
         private static double Sigmoid(double x)
