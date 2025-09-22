@@ -11,7 +11,8 @@ namespace Utility.Classes.ReconstructionParameters
     public enum ErrorMetric
     {
         L2 = 1,
-        Wasserstein2 = 2
+        Wasserstein2 = 2,
+        ConductivityAwareW2 = 3
     }
 
     /// <summary>

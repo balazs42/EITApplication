@@ -1,4 +1,6 @@
 ﻿using System.Linq;
+using Utility.Classes.Factories;
+using Utility.Classes.Reconstruction.ErrorMetrics;
 using Utility.Classes.ReconstructionParameters;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
@@ -73,6 +75,14 @@ namespace Utility.Tests
 
             var phi = w2.EvaluateAdjointSource(mesh, meas, sim);
             Assert.Equal(meas.Length, phi.Length);
+        }
+
+        [Fact]
+        public void ErrorMetricFactory_Returns_ConductivityAwareW2Metric()
+        {
+            var metric = ErrorMetricFactory.Create(ErrorMetric.ConductivityAwareW2);
+
+            Assert.IsType<ConductivityAwareW2Metric>(metric);
         }
 
         private static FEMMesh TinyFEM()
