@@ -7,11 +7,13 @@ using Utility.Classes;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.GraphMesh;
+
 using Utility.Classes.ReconstructionParameters;
 
 namespace Utility.Classes.Reconstruction.ErrorMetrics
 {
     /// <summary>
+
     /// Implements the conductivity-aware Wasserstein-2 error metric described in the
     /// user specification.  The class follows the existing <see cref="IErrorMetric"/>
     /// contract, while internally computing the optimal transport objective,
@@ -126,10 +128,12 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             public required double[] AdjointElectrodeSource;
             public Dictionary<int, double>? GradientAdjointTerm;
             public required Dictionary<int, double> GradientCostTerm;
+
             public ConductivityDistribution? Gradient;
         }
 
         private readonly Config _config;
+
         private EvaluationCache? _last;
 
         /// <summary>
@@ -139,7 +143,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         public ConductivityAwareW2Metric(Config? config = null)
         {
             _config = config ?? new Config();
-        }
+       }
 
         /// <summary>
         /// Gets the last computed total gradient with respect to σ, if available.
@@ -217,10 +221,8 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
 
             // R^T g_μ for the adjoint RHS (Eq. (1) VJP).
             var adjointSource = ApplyNormalizationVjp(simNorm, gMu);
-
             // OT physics-cost correction (Eq. (5)-(7)).
             var costTerm = ComputeCostGradient(fem, geodesics, otPhysics.Plan);
-
             _last = new EvaluationCache
             {
                 Mu = mu,
@@ -447,12 +449,11 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             var dual = SolveOptimalTransportDual(cost, mu, nu);
             return new OptimalTransportResult(plan, dual.alpha, dual.beta);
         }
-
+        
         private static Variable MakeNonNegativeVariable(Solver solver, string name)
         {
             return solver.MakeNumVar(0.0, double.PositiveInfinity, name);
         }
-
         /// <summary>
         /// (3) Primal LP: min_Γ Σ Cᵢⱼ Γᵢⱼ subject to row/column marginals.
         /// </summary>
@@ -938,6 +939,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         }
 
         internal static Dictionary<int, double> LiftElectrodeSourceToNodes(FEMMesh mesh, double[] electrodeSource)
+
         {
             var map = new Dictionary<int, double>();
             var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
