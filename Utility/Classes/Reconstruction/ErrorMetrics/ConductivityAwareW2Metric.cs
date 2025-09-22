@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using Google.OrTools.LinearSolver;
 using MathNet.Numerics.LinearAlgebra;
+using MathNet.Numerics.LinearAlgebra.Double;
+using MathNet.Numerics.LinearAlgebra.Factorization;
 using Utility.Classes;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
@@ -386,14 +388,21 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
 
             return result;
         }
-
         private static double Softplus(double x)
         {
             if (x > 50) // avoid overflow
                 return x;
             if (x < -50)
                 return Math.Exp(x);
-            return Math.Log1p(Math.Exp(x));
+            return Log1p(Math.Exp(x));
+        }
+
+        private static double Log1p(double x)
+        {
+            // For very small x, use series expansion to avoid loss of precision
+            if (Math.Abs(x) < 1e-4)
+                return x - x * x / 2.0 + x * x * x / 3.0;
+            return Math.Log(1.0 + x);
         }
 
         private static double Sigmoid(double x)

@@ -496,6 +496,11 @@ public partial class MeshingPage : ContentPage
         }
     }
 
+    private void OnMeshRightTapped(object sender, TappedEventArgs e)
+    {
+        // TODO: implement deleteion logic (right click shows delete popup)
+    }
+
     private async void OnDeleteMeshClicked(object sender, EventArgs e)
     {
         if (sender is not MenuFlyoutItem item)
