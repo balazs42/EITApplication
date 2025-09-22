@@ -133,7 +133,7 @@
                 <Border.Stroke>
                     <SolidColorBrush Color="{AppThemeBinding Light=#4D6FA3, Dark=#C0CAD8}" />
                 </Border.Stroke>
-                <VerticalStackLayout Margin="5" Spacing="16">
+                <VerticalStackLayout Margin="5" Spacing="20">
                     <Grid ColumnDefinitions="Auto, *" ColumnSpacing="8">
                         <Image Grid.Column="0" Source="icon_configuration.png" HeightRequest="35"/>
                         <Label Grid.Column="1" Text="Configuration" FontAttributes="Italic" FontSize="Large" TextColor="{AppThemeBinding Light=White, Dark=#262E38}"/>
@@ -148,7 +148,7 @@
                                 <Label Grid.Row="1" HorizontalOptions="Start" Text="DE Solver" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Picker Grid.Row="2" ItemsSource="{Binding DifferentialEquationSolverOptions}" SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}"/>
                                 <Label Grid.Row="3" HorizontalOptions="Start" Text="Error Metric" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="4" ItemsSource="{Binding ErrorMetricOptions}" SelectedItem="{Binding ReconstructionParameters.ErrorMetric}"/>
+                                <Picker Grid.Row="4" ItemsSource="{Binding ErrorMetricOptions}" SelectedItem="{Binding ReconstructionParameters.ErrorMetric}" WidthRequest="150"/>
                                 <Label Grid.Row="5" HorizontalOptions="Start" Text="Regularization" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Picker Grid.Row="6" ItemsSource="{Binding RegularizationTechniqueOptions}" SelectedItem="{Binding ReconstructionParameters.RegularizationTechnique}"/>
                                 <Label Grid.Row="7" HorizontalOptions="Start" Text="Linear Solver" FontFamily="SF Pro Text" FontAttributes="None"/>
