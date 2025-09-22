@@ -1,4 +1,5 @@
-﻿using Utility.Classes.ReconstructionParameters;
+﻿using Utility.Classes.Reconstruction.ErrorMetrics;
+using Utility.Classes.ReconstructionParameters;
 
 using Workspace = Utility.Classes.Application.Workspace;
 
@@ -13,6 +14,7 @@ namespace Utility.Classes.Factories
         {
             ErrorMetric.L2 => CreateL2Metric(),
             ErrorMetric.Wasserstein2 => CreateWasserstein2Metirc(),
+            ErrorMetric.ConductivityAwareW2 => CreateConductivityAwareW2Metric(),
             _ => throw new NotSupportedException()
         };
 
@@ -31,6 +33,15 @@ namespace Utility.Classes.Factories
             var metric = new Wasserstein2ErrorMetric();
 
             Workspace.AddLogMessage("ErrorMetricFactory", "Created Wasserstein2ErrorMetric object.");
+
+            return metric;
+        }
+
+        private static ConductivityAwareW2Metric CreateConductivityAwareW2Metric()
+        {
+            var metric = new ConductivityAwareW2Metric();
+
+            Workspace.AddLogMessage("ErrorMetricFactory", "Created ConductivityAwareW2Metric object.");
 
             return metric;
         }
