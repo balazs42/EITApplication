@@ -1,29 +1,19 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using Google.OrTools.LinearSolver;
-using MathNet.Numerics.LinearAlgebra.Double;
-using MathNet.Numerics.LinearAlgebra.Factorization;
+using MathNet.Numerics.LinearAlgebra;
+using Utility.Classes;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Discretizer.GraphMesh;
+
 using Utility.Classes.ReconstructionParameters;
 
 namespace Utility.Classes.Reconstruction.ErrorMetrics
 {
     /// <summary>
-    /// Small abstraction for adjoint solves used by <see cref="ConductivityAwareW2Metric"/>.
-    /// Implementations should assemble and solve the adjoint PDE given a nodal
-    /// right-hand-side obtained from the lifted electrode potentials.
-    /// </summary>
-    public interface IAdjointFieldSolver
-    {
-        /// <summary>
-        /// Solves the adjoint problem ∇·(σ∇λ) = rhs on the supplied discretization.
-        /// </summary>
-        /// <param name="discretization">Mesh carrying the current conductivity.</param>
-        /// <param name="nodalRhs">Map from FEM vertex ids to source values.</param>
-        /// <returns>The adjoint potential distribution.</returns>
-        PotentialDistribution SolveAdjoint(IDiscretization discretization, IReadOnlyDictionary<int, double> nodalRhs);
-    }
 
-    /// <summary>
     /// Implements the conductivity-aware Wasserstein-2 error metric described in the
     /// user specification.  The class follows the existing <see cref="IErrorMetric"/>
     /// contract, while internally computing the optimal transport objective,
@@ -137,24 +127,23 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             public required double[] GMu;
             public required double[] AdjointElectrodeSource;
             public Dictionary<int, double>? GradientAdjointTerm;
-            public Dictionary<int, double>? GradientCostTerm;
+            public required Dictionary<int, double> GradientCostTerm;
+
             public ConductivityDistribution? Gradient;
         }
 
         private readonly Config _config;
-        private readonly IAdjointFieldSolver? _adjointSolver;
+
         private EvaluationCache? _last;
 
         /// <summary>
         /// Creates a new conductivity-aware W₂ metric.
         /// </summary>
         /// <param name="config">Optional configuration overrides.</param>
-        /// <param name="adjointSolver">Adjoint field solver used to assemble the PDE gradient.</param>
-        public ConductivityAwareW2Metric(Config? config = null, IAdjointFieldSolver? adjointSolver = null)
+        public ConductivityAwareW2Metric(Config? config = null)
         {
             _config = config ?? new Config();
-            _adjointSolver = adjointSolver;
-        }
+       }
 
         /// <summary>
         /// Gets the last computed total gradient with respect to σ, if available.
@@ -165,13 +154,15 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         /// Gets the last computed PDE adjoint contribution, available when
         /// <see cref="Config.ReturnComponents"/> is enabled.
         /// </summary>
-        public IReadOnlyDictionary<int, double>? LastAdjointComponent => _last?.GradientAdjointTerm;
+        public IReadOnlyDictionary<int, double>? LastAdjointComponent =>
+            _config.ReturnComponents ? _last?.GradientAdjointTerm : null;
 
         /// <summary>
         /// Gets the last computed conductivity-cost contribution, available when
         /// <see cref="Config.ReturnComponents"/> is enabled.
         /// </summary>
-        public IReadOnlyDictionary<int, double>? LastCostComponent => _last?.GradientCostTerm;
+        public IReadOnlyDictionary<int, double>? LastCostComponent =>
+            _config.ReturnComponents ? _last?.GradientCostTerm : null;
 
         /// <inheritdoc />
         public double Evaluate(IDiscretization discretization, double[] measured, double[] simulated)
@@ -230,25 +221,8 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
 
             // R^T g_μ for the adjoint RHS (Eq. (1) VJP).
             var adjointSource = ApplyNormalizationVjp(simNorm, gMu);
-
-            // PDE gradient component using ∇φ and ∇λ when the adjoint solver is available.
-            Dictionary<int, double>? adjointTerm = null;
-            if (_adjointSolver != null)
-            {
-                var nodalRhs = LiftElectrodeSourceToNodes(fem, adjointSource);
-                var lambda = _adjointSolver.SolveAdjoint(discretization, nodalRhs);
-                var phi = fem.GetPotentialDistribution();
-                adjointTerm = ComputeAdjointConductivityGradient(fem, phi, lambda);
-            }
-
             // OT physics-cost correction (Eq. (5)-(7)).
             var costTerm = ComputeCostGradient(fem, geodesics, otPhysics.Plan);
-
-            var totalGradient = MergeGradientComponents(fem, adjointTerm, costTerm);
-
-            Dictionary<int, double>? storedAdjoint = _config.ReturnComponents ? adjointTerm : null;
-            Dictionary<int, double>? storedCost = _config.ReturnComponents ? costTerm : null;
-
             _last = new EvaluationCache
             {
                 Mu = mu,
@@ -261,9 +235,9 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 Geodesics = geodesics,
                 GMu = gMu,
                 AdjointElectrodeSource = adjointSource,
-                GradientAdjointTerm = storedAdjoint,
-                GradientCostTerm = storedCost,
-                Gradient = totalGradient
+                GradientAdjointTerm = null,
+                GradientCostTerm = costTerm,
+                Gradient = null
             };
 
             return value;
@@ -275,6 +249,47 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             if (_last == null)
                 throw new InvalidOperationException("Evaluate must be called before EvaluateAdjointSource.");
             return (double[])_last.AdjointElectrodeSource.Clone();
+        }
+
+        /// <summary>
+        /// Combines the cached conductivity-aware OT sensitivity with an externally computed
+        /// adjoint potential to assemble the full gradient with respect to σ.
+        /// Callers are expected to obtain the adjoint field by solving ∇·(σ∇λ) = -S^T R^T g_μ
+        /// using the source returned by <see cref="EvaluateAdjointSource"/>.
+        /// </summary>
+        /// <param name="discretization">Discretization that produced the cached evaluation.</param>
+        /// <param name="adjointPotential">Adjoint potential λ obtained from the PDE solver.</param>
+        /// <returns>The combined conductivity gradient.</returns>
+        public ConductivityDistribution AssembleTotalConductivityGradient(
+            IDiscretization discretization,
+            PotentialDistribution adjointPotential)
+        {
+            if (discretization == null) throw new ArgumentNullException(nameof(discretization));
+            if (adjointPotential == null) throw new ArgumentNullException(nameof(adjointPotential));
+            if (_last == null)
+                throw new InvalidOperationException("Evaluate must be called before assembling gradients.");
+
+            var mesh = discretization.GetDiscretization();
+            if (mesh is not FEMMesh fem)
+                throw new NotSupportedException("ConductivityAwareW2Metric currently requires a FEM mesh discretization.");
+
+            /*
+             * (7) Final gradient assembly:
+             *     ∂J/∂σ(x) = -∇ϕ(x)·∇λ(x) + ½ Σ₍ᵢⱼ₎ Γ*_{ij} ∂Cσ(i,j)/∂σ(x).
+             * The adjoint contribution uses the supplied λ, while the transport-cost
+             * correction reuses the cached soft-geodesic sensitivities from Evaluate().
+             */
+            var phi = fem.GetPotentialDistribution() ??
+                      throw new InvalidOperationException("Forward potential distribution is missing on the FEM mesh.");
+
+            var adjointTerm = ComputeAdjointConductivityGradient(fem, phi, adjointPotential);
+            var costTerm = _last.GradientCostTerm ?? ComputeCostGradient(fem, _last.Geodesics, _last.GammaPhysics);
+
+            _last.GradientAdjointTerm = adjointTerm;
+
+            var totalGradient = MergeGradientComponents(fem, adjointTerm, costTerm);
+            _last.Gradient = totalGradient;
+            return totalGradient;
         }
 
         /// <summary>
@@ -378,9 +393,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 return x;
             if (x < -50)
                 return Math.Exp(x);
-
-            // TODO: Is LOG10 good?
-            return Math.Log10(Math.Exp(x));
+            return Math.Log1p(Math.Exp(x));
         }
 
         private static double Sigmoid(double x)
@@ -436,7 +449,11 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             var dual = SolveOptimalTransportDual(cost, mu, nu);
             return new OptimalTransportResult(plan, dual.alpha, dual.beta);
         }
-
+        
+        private static Variable MakeNonNegativeVariable(Solver solver, string name)
+        {
+            return solver.MakeNumVar(0.0, double.PositiveInfinity, name);
+        }
         /// <summary>
         /// (3) Primal LP: min_Γ Σ Cᵢⱼ Γᵢⱼ subject to row/column marginals.
         /// </summary>
@@ -446,41 +463,43 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             int n = nu.Length;
             var solver = Solver.CreateSolver("GLOP") ?? throw new InvalidOperationException("OR-Tools GLOP solver unavailable.");
 
-            var gamma = new Variable[m, n];
+            var planVar = new Variable[m, n];
             for (int i = 0; i < m; i++)
                 for (int j = 0; j < n; j++)
-                    gamma[i, j] = solver.MakeNonNegVar(0.0, double.PositiveInfinity, $"gamma_{i}_{j}");
+                    planVar[i, j] = MakeNonNegativeVariable(solver, $"P[{i},{j}]");
 
+            var row = new Constraint[m];
             for (int i = 0; i < m; i++)
             {
-                var row = solver.MakeConstraint(mu[i], mu[i], $"row_{i}");
+                row[i] = solver.MakeConstraint(mu[i], mu[i], $"row[{i}]");
                 for (int j = 0; j < n; j++)
-                    row.SetCoefficient(gamma[i, j], 1.0);
+                    row[i].SetCoefficient(planVar[i, j], 1.0);
             }
 
+            var col = new Constraint[n];
             for (int j = 0; j < n; j++)
             {
-                var col = solver.MakeConstraint(nu[j], nu[j], $"col_{j}");
+                col[j] = solver.MakeConstraint(nu[j], nu[j], $"col[{j}]");
                 for (int i = 0; i < m; i++)
-                    col.SetCoefficient(gamma[i, j], 1.0);
+                    col[j].SetCoefficient(planVar[i, j], 1.0);
             }
 
             var objective = solver.Objective();
             for (int i = 0; i < m; i++)
                 for (int j = 0; j < n; j++)
-                    objective.SetCoefficient(gamma[i, j], cost[i, j]);
+                    objective.SetCoefficient(planVar[i, j], cost[i, j]);
             objective.SetMinimization();
 
             var status = solver.Solve();
             if (status != Solver.ResultStatus.OPTIMAL)
                 throw new InvalidOperationException($"Optimal transport primal LP failed with status {status}.");
 
-            var plan = new double[m, n];
+            var planMatrix = new double[m, n];
             for (int i = 0; i < m; i++)
                 for (int j = 0; j < n; j++)
-                    plan[i, j] = gamma[i, j].SolutionValue();
+                    planMatrix[i, j] = planVar[i, j].SolutionValue();
 
-            return plan;
+            return planMatrix;
         }
 
         /// <summary>
@@ -919,7 +938,8 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             return new ConductivityDistribution(merged);
         }
 
-        private static Dictionary<int, double> LiftElectrodeSourceToNodes(FEMMesh mesh, double[] electrodeSource)
+        internal static Dictionary<int, double> LiftElectrodeSourceToNodes(FEMMesh mesh, double[] electrodeSource)
+
         {
             var map = new Dictionary<int, double>();
             var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();

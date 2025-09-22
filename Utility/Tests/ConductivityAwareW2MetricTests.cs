@@ -1,4 +1,6 @@
-using Utility.Classes.Discretizer;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using Utility.Classes;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Reconstruction.ErrorMetrics;
@@ -106,11 +108,14 @@ namespace Utility.Tests
                 Beta = 1.0,
                 ReturnComponents = true
             };
-            var metric = new ConductivityAwareW2Metric(config, new LinearAdjointSolver(0.2));
+            var metric = new ConductivityAwareW2Metric(config);
 
             var simulated = Simulate(mesh, sigma);
             metric.Evaluate(mesh, measured, simulated);
-            var grad = metric.LastConductivityGradient ?? throw new InvalidOperationException("Gradient missing.");
+            var adjointSource = metric.EvaluateAdjointSource(mesh, measured, simulated);
+            var adjointField = SolveAdjoint(mesh, adjointSource, 0.2);
+            var grad = metric.AssembleTotalConductivityGradient(mesh, adjointField);
+
             var gradCopy = grad.Conductivities.ToDictionary(kv => kv.Key, kv => kv.Value);
 
             double h = 1e-4;
@@ -135,6 +140,9 @@ namespace Utility.Tests
             // Reset mesh to baseline for sanity
             Simulate(mesh, sigma);
             metric.Evaluate(mesh, measured, simulated);
+            adjointSource = metric.EvaluateAdjointSource(mesh, measured, simulated);
+            adjointField = SolveAdjoint(mesh, adjointSource, 0.2);
+            metric.AssembleTotalConductivityGradient(mesh, adjointField);
 
             foreach (var kv in gradFd)
             {
@@ -236,25 +244,17 @@ namespace Utility.Tests
             return new FEMMesh(new[] { v1, v2, v3, v4 }, elems, electrodes);
         }
 
-        private sealed class LinearAdjointSolver : IAdjointFieldSolver
+        private static PotentialDistribution SolveAdjoint(FEMMesh mesh, double[] electrodeSource, double scale)
         {
-            private readonly double _scale;
-            public LinearAdjointSolver(double scale) => _scale = scale;
-
-            public PotentialDistribution SolveAdjoint(IDiscretization discretization, IReadOnlyDictionary<int, double> nodalRhs)
+            var nodal = ConductivityAwareW2Metric.LiftElectrodeSourceToNodes(mesh, electrodeSource);
+            var potentials = new Dictionary<int, double>(mesh.GetVertices().Count);
+            foreach (var v in mesh.GetVertices())
             {
-                if (discretization.GetDiscretization() is not FEMMesh mesh)
-                    throw new InvalidOperationException("Expected FEMMesh discretization.");
-
-                var potentials = new Dictionary<int, double>(mesh.GetVertices().Count);
-                foreach (var v in mesh.GetVertices())
-                {
-                    double rhs = nodalRhs.TryGetValue(v.GlobalId, out var value) ? value : 0.0;
-                    potentials[v.GlobalId] = _scale * rhs;
-                }
-
-                return new PotentialDistribution(potentials);
+                double rhs = nodal.TryGetValue(v.GlobalId, out var value) ? value : 0.0;
+                potentials[v.GlobalId] = scale * rhs;
             }
+
+            return new PotentialDistribution(potentials);
         }
     }
 }
