@@ -441,9 +441,8 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
 
         private static OptimalTransportResult SolveOptimalTransport(double[,] cost, double[] mu, double[] nu)
         {
-            var plan = SolveOptimalTransportPrimal(cost, mu, nu);
-            var dual = SolveOptimalTransportDual(cost, mu, nu);
-            return new OptimalTransportResult(plan, dual.alpha, dual.beta);
+            var plan = SolveOptimalTransportPrimal(cost, mu, nu, out var alpha, out var beta);
+            return new OptimalTransportResult(plan, alpha, beta);
         }
 
         private static Variable MakeNonNegativeVariable(Solver solver, string name)
@@ -455,6 +454,10 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         /// (3) Primal LP: min_Γ Σ Cᵢⱼ Γᵢⱼ subject to row/column marginals.
         /// </summary>
         internal static double[,] SolveOptimalTransportPrimal(double[,] cost, double[] mu, double[] nu)
+            => SolveOptimalTransportPrimal(cost, mu, nu, out _, out _);
+
+        private static double[,] SolveOptimalTransportPrimal(double[,] cost, double[] mu, double[] nu,
+            out double[] sourcePotential, out double[] targetPotential)
         {
             int m = mu.Length;
             int n = nu.Length;
@@ -496,49 +499,14 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 for (int j = 0; j < n; j++)
                     planMatrix[i, j] = planVar[i, j].SolutionValue();
 
+            sourcePotential = new double[m];
+            targetPotential = new double[n];
+            for (int i = 0; i < m; i++)
+                sourcePotential[i] = row[i].DualValue();
+            for (int j = 0; j < n; j++)
+                targetPotential[j] = col[j].DualValue();
+
             return planMatrix;
-        }
-
-        /// <summary>
-        /// (3) Dual LP: max_{α,β} Σ αᵢ μᵢ + Σ βⱼ νⱼ subject to αᵢ + βⱼ ≤ Cᵢⱼ.
-        /// </summary>
-        internal static (double[] alpha, double[] beta) SolveOptimalTransportDual(double[,] cost, double[] mu, double[] nu)
-        {
-            int m = mu.Length;
-            int n = nu.Length;
-            var solver = Solver.CreateSolver("GLOP") ?? throw new InvalidOperationException("OR-Tools GLOP solver unavailable.");
-
-            var alpha = new Variable[m];
-            var beta = new Variable[n];
-            for (int i = 0; i < m; i++)
-                alpha[i] = solver.MakeNumVar(double.NegativeInfinity, double.PositiveInfinity, $"alpha_{i}");
-            for (int j = 0; j < n; j++)
-                beta[j] = solver.MakeNumVar(double.NegativeInfinity, double.PositiveInfinity, $"beta_{j}");
-
-            for (int i = 0; i < m; i++)
-                for (int j = 0; j < n; j++)
-                {
-                    var c = solver.MakeConstraint(double.NegativeInfinity, cost[i, j], $"c_{i}_{j}");
-                    c.SetCoefficient(alpha[i], 1.0);
-                    c.SetCoefficient(beta[j], 1.0);
-                }
-
-            var objective = solver.Objective();
-            for (int i = 0; i < m; i++)
-                objective.SetCoefficient(alpha[i], mu[i]);
-            for (int j = 0; j < n; j++)
-                objective.SetCoefficient(beta[j], nu[j]);
-            objective.SetMaximization();
-
-            var status = solver.Solve();
-            if (status != Solver.ResultStatus.OPTIMAL)
-                throw new InvalidOperationException($"Optimal transport dual LP failed with status {status}.");
-
-            var a = new double[m];
-            var b = new double[n];
-            for (int i = 0; i < m; i++) a[i] = alpha[i].SolutionValue();
-            for (int j = 0; j < n; j++) b[j] = beta[j].SolutionValue();
-            return (a, b);
         }
 
         private static double WeightedSum(double[,] matrix, double[,] plan)
@@ -620,18 +588,21 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         private static int[] MapElectrodesToGraphNodes(FEMMesh mesh, IReadOnlyList<(double x, double y)> electrodePositions)
         {
             var graph = mesh.ToGraph();
-            int nodeCount = graph.Vertices.Count;
-            var nodes = graph.Vertices.Select((v, idx) => (idx, v)).ToArray();
+            var vertices = graph.Vertices;
+            int nodeCount = vertices.Count;
 
             int[] mapping = new int[electrodePositions.Count];
             for (int i = 0; i < electrodePositions.Count; i++)
             {
+                double ex = electrodePositions[i].x;
+                double ey = electrodePositions[i].y;
                 double best = double.PositiveInfinity;
                 int bestIdx = 0;
-                foreach (var (idx, v) in nodes)
+                for (int idx = 0; idx < nodeCount; idx++)
                 {
-                    double dx = electrodePositions[i].x - v.X;
-                    double dy = electrodePositions[i].y - v.Y;
+                    var v = vertices[idx];
+                    double dx = ex - v.X;
+                    double dy = ey - v.Y;
                     double dist2 = dx * dx + dy * dy;
                     if (dist2 < best)
                     {
@@ -728,17 +699,18 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                     if (neighbors.Count == 0) continue;
 
                     double maxVal = double.NegativeInfinity;
-                    double[] vals = new double[neighbors.Count];
                     for (int k = 0; k < neighbors.Count; k++)
                     {
                         double val = -(neighbors[k].Cost + d[neighbors[k].To]) / tau;
-                        vals[k] = val;
                         if (val > maxVal) maxVal = val;
                     }
 
                     double sum = 0.0;
-                    for (int k = 0; k < vals.Length; k++)
-                        sum += Math.Exp(vals[k] - maxVal);
+                    for (int k = 0; k < neighbors.Count; k++)
+                    {
+                        double val = -(neighbors[k].Cost + d[neighbors[k].To]) / tau;
+                        sum += Math.Exp(val - maxVal);
+                    }
                     double logSum = maxVal + Math.Log(sum);
                     double candidate = -tau * logSum;
                     double updated = damping * candidate + (1.0 - damping) * d[x];
@@ -765,23 +737,24 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 if (neighbors.Count == 0) continue;
 
                 double maxVal = double.NegativeInfinity;
-                double[] vals = new double[neighbors.Count];
                 for (int k = 0; k < neighbors.Count; k++)
                 {
                     double val = -(neighbors[k].Cost + d[neighbors[k].To]);
-                    vals[k] = val;
                     if (val > maxVal) maxVal = val;
                 }
 
                 double denom = 0.0;
-                for (int k = 0; k < vals.Length; k++)
-                    denom += Math.Exp(vals[k] - maxVal);
+                for (int k = 0; k < neighbors.Count; k++)
+                {
+                    double val = -(neighbors[k].Cost + d[neighbors[k].To]);
+                    denom += Math.Exp(val - maxVal);
+                }
                 double logDenom = maxVal + Math.Log(denom);
 
                 for (int k = 0; k < neighbors.Count; k++)
                 {
-                    double logProb = vals[k] - logDenom;
-                    double prob = Math.Exp(logProb);
+                    double val = -(neighbors[k].Cost + d[neighbors[k].To]);
+                    double prob = Math.Exp(val - logDenom);
                     transitions[i].Add(new Transition(neighbors[k].EdgeIndex, neighbors[k].To, prob));
                 }
             }
