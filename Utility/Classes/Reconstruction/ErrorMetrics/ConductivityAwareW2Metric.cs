@@ -130,6 +130,8 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             public required double[] AdjointElectrodeSource;
             public Dictionary<int, double>? GradientAdjointTerm;
             public required Dictionary<int, double> GradientCostTerm;
+            public required double[] Measured;
+            public required double[] Simulated;
 
             public ConductivityDistribution? Gradient;
         }
@@ -239,6 +241,8 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 AdjointElectrodeSource = adjointSource,
                 GradientAdjointTerm = null,
                 GradientCostTerm = costTerm,
+                Measured = (double[])measured.Clone(),
+                Simulated = (double[])simulated.Clone(),
                 Gradient = null
             };
 
@@ -248,9 +252,38 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         /// <inheritdoc />
         public double[] EvaluateAdjointSource(IDiscretization discretization, double[] measured, double[] simulated)
         {
-            if (_last == null)
-                throw new InvalidOperationException("Evaluate must be called before EvaluateAdjointSource.");
-            return (double[])_last.AdjointElectrodeSource.Clone();
+            if (discretization == null) throw new ArgumentNullException(nameof(discretization));
+            if (measured == null) throw new ArgumentNullException(nameof(measured));
+            if (simulated == null) throw new ArgumentNullException(nameof(simulated));
+
+            if (_last == null || !InputsMatch(_last, measured, simulated))
+            {
+                _ = Evaluate(discretization, measured, simulated);
+            }
+
+            return (double[])_last!.AdjointElectrodeSource.Clone();
+        }
+
+        private static bool InputsMatch(EvaluationCache cache, double[] measured, double[] simulated)
+        {
+            if (cache.Measured.Length != measured.Length || cache.Simulated.Length != simulated.Length)
+                return false;
+
+            var comparer = EqualityComparer<double>.Default;
+
+            for (int i = 0; i < cache.Measured.Length; i++)
+            {
+                if (!comparer.Equals(cache.Measured[i], measured[i]))
+                    return false;
+            }
+
+            for (int i = 0; i < cache.Simulated.Length; i++)
+            {
+                if (!comparer.Equals(cache.Simulated[i], simulated[i]))
+                    return false;
+            }
+
+            return true;
         }
 
         /// <summary>
