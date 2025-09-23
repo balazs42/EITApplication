@@ -1,6 +1,6 @@
 namespace ElectricalImpedanceTomography.Helpers;
 
-internal enum PotentialDisplayMode
+public enum PotentialDisplayMode
 {
     Default,
     Grayscale,

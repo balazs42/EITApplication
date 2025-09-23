@@ -14,6 +14,7 @@ using Utility.Classes;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
+using Utility.Classes.Factories;
 using Utility.Classes.ReconstructionParameters;
 
 using Workspace = Utility.Classes.Application.Workspace;
