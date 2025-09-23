@@ -1,11 +1,15 @@
 using CommunityToolkit.Maui.Views;
 using ElectricalImpedanceTomography.Extensions;
+using ElectricalImpedanceTomography.Helpers;
 using ElectricalImpedanceTomography.ViewModels;
 using Microsoft.Maui.ApplicationModel;
+using Microsoft.Maui.Storage;
+using System.Linq;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
 using SkiaSharp.Views.Maui.Controls;
 using System.Collections.Specialized;
+using System.IO;
 using Utility.Classes;
 using Utility.Classes.Measurement;
 using Utility.Classes.Discretizer;
@@ -39,6 +43,16 @@ public partial class ReconstructionPage : ContentPage
 
     private enum PotentialDisplayMode { Default, Grayscale, Inverted, Heatmap, Rainbow }
     private PotentialDisplayMode _potMode = PotentialDisplayMode.Default;
+
+    private enum DistributionSection
+    {
+        Potential,
+        Adjoint,
+        Gradient,
+        Original,
+        Initial,
+        Reconstructed
+    }
 
     private bool _isPaused = false;
     private bool _sliderChanging = false;
@@ -79,6 +93,8 @@ public partial class ReconstructionPage : ContentPage
         PauseButton.IsVisible = false;
         PlayerBackButton.IsEnabled = false;
         PlayerForwardButton.IsEnabled = false;
+
+        UpdateExportButtonState();
     }
 
     protected override void OnAppearing()
@@ -115,6 +131,9 @@ public partial class ReconstructionPage : ContentPage
         }
     }
 
+    private void UpdateExportButtonState()
+        => ExportVideoButton.IsEnabled = Workspace.GetReconstructionFrames().Count > 0;
+
     #region Simulation control
     private async void OnPlayButtonClicked(object sender, EventArgs e)
     {
@@ -141,6 +160,7 @@ public partial class ReconstructionPage : ContentPage
         _isPaused = false;
 
         _viewModel.PrepareForNewReconstruction();
+        UpdateExportButtonState();
         _viewModel.BeginReconstructionMetrics();
 
         int iterations = _viewModel.MaxIterationCount;
@@ -196,6 +216,7 @@ public partial class ReconstructionPage : ContentPage
         PlayButton.IsEnabled = true;
         PlayButton.IsVisible = true;
         PauseButton.IsVisible = false;
+        UpdateExportButtonState();
     }
     #endregion
 
@@ -240,6 +261,7 @@ public partial class ReconstructionPage : ContentPage
             _sliderChanging = false;
             InvalidateAll();
             UpdatePlaybackLabel();
+            UpdateExportButtonState();
         });
     }
 
@@ -265,6 +287,7 @@ public partial class ReconstructionPage : ContentPage
             GradientColorbarCanvas.InvalidateSurface();
 
             UpdatePlaybackLabel();
+            UpdateExportButtonState();
         });
     }
 
@@ -365,16 +388,18 @@ public partial class ReconstructionPage : ContentPage
         }
     }
 
-    private SKColor GetPotentialColor(double val, double min, double max)
+    private SKColor GetPotentialColor(double val, double min, double max, PotentialDisplayMode? modeOverride = null)
     {
+        var mode = modeOverride ?? _potMode;
         var norm = (float)((val - min) / (max - min));
         norm = Math.Clamp(norm, 0f, 1f);
-        return _potMode switch
+        return mode switch
         {
             PotentialDisplayMode.Grayscale => new SKColor((byte)(norm * 255), (byte)(norm * 255), (byte)(norm * 255)),
-            PotentialDisplayMode.Inverted => new SKColor((byte)(255 - ColorForValue(val, min, max).Red),
-                                                         (byte)(255 - ColorForValue(val, min, max).Green),
-                                                         (byte)(255 - ColorForValue(val, min, max).Blue)),
+            PotentialDisplayMode.Inverted =>
+                new SKColor((byte)(255 - ColorForValue(val, min, max).Red),
+                            (byte)(255 - ColorForValue(val, min, max).Green),
+                            (byte)(255 - ColorForValue(val, min, max).Blue)),
             PotentialDisplayMode.Heatmap => new SKColor(255, (byte)(255 * (1 - norm)), 0),
             PotentialDisplayMode.Rainbow => SKColor.FromHsv(norm * 360f, 100f, 100f),
             _ => ColorForValue(val, min, max),
@@ -404,11 +429,15 @@ public partial class ReconstructionPage : ContentPage
         }
     }
 
-    private void DrawFemConductivity(SKPaintSurfaceEventArgs e, FEMMesh mesh, ConductivityDistribution cd, string[]? lines, SKPoint? pt)
+    private void DrawFemConductivity(SKCanvas canvas,
+                                     SKImageInfo info,
+                                     FEMMesh mesh,
+                                     ConductivityDistribution cd,
+                                     string[]? lines,
+                                     SKPoint? pt)
     {
-        var canvas = e.Surface.Canvas;
         canvas.Clear(DistributionCanvasBackgroundColor);
-        ComputeFemTransform(mesh, e.Info);
+        ComputeFemTransform(mesh, info);
         using var fill = new SKPaint { Style = SKPaintStyle.Fill, IsAntialias = true };
         using var stroke = new SKPaint { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1, IsAntialias = true };
         double minVal = cd.Conductivities.Values.Min();
@@ -426,14 +455,19 @@ public partial class ReconstructionPage : ContentPage
             canvas.DrawPath(path, fill);
             canvas.DrawPath(path, stroke);
         }
-        DrawHoverInfo(canvas, e.Info, lines, pt);
+        DrawHoverInfo(canvas, info, lines, pt);
     }
 
-    private void DrawFemPotential(SKPaintSurfaceEventArgs e, FEMMesh mesh, PotentialDistribution pd, string[]? lines, SKPoint? pt)
+    private void DrawFemPotential(SKCanvas canvas,
+                                  SKImageInfo info,
+                                  FEMMesh mesh,
+                                  PotentialDistribution pd,
+                                  string[]? lines,
+                                  SKPoint? pt,
+                                  PotentialDisplayMode? modeOverride = null)
     {
-        var canvas = e.Surface.Canvas;
         canvas.Clear(DistributionCanvasBackgroundColor);
-        ComputeFemTransform(mesh, e.Info);
+        ComputeFemTransform(mesh, info);
         using var fill = new SKPaint { Style = SKPaintStyle.Fill, IsAntialias = true };
         using var stroke = new SKPaint { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1, IsAntialias = true };
         double minVal = pd.Potentials.Values.Min();
@@ -442,7 +476,7 @@ public partial class ReconstructionPage : ContentPage
         foreach (var elem in mesh.GetElements().Cast<FEMElement>())
         {
             double avg = elem.Vertices.Average(v => pd.GetPotential(v.GlobalId));
-            fill.Color = GetPotentialColor(avg, minVal, maxVal);
+            fill.Color = GetPotentialColor(avg, minVal, maxVal, modeOverride);
             using var path = new SKPath();
             path.MoveTo(ToCanvas(elem.Vertices[0]));
             path.LineTo(ToCanvas(elem.Vertices[1]));
@@ -451,15 +485,21 @@ public partial class ReconstructionPage : ContentPage
             canvas.DrawPath(path, fill);
             canvas.DrawPath(path, stroke);
         }
-        DrawHoverInfo(canvas, e.Info, lines, pt);
+        DrawHoverInfo(canvas, info, lines, pt);
     }
 
-    private void DrawLbmField(SKPaintSurfaceEventArgs e, LBMGrid mesh, Dictionary<int, double> values, bool isPotential, string[]? lines, SKPoint? pt)
+    private void DrawLbmField(SKCanvas canvas,
+                              SKImageInfo info,
+                              LBMGrid mesh,
+                              Dictionary<int, double> values,
+                              bool isPotential,
+                              string[]? lines,
+                              SKPoint? pt,
+                              PotentialDisplayMode? modeOverride = null)
     {
-        var canvas = e.Surface.Canvas;
         canvas.Clear(DistributionCanvasBackgroundColor);
-        float cw = e.Info.Width / mesh.Nx;
-        float ch = e.Info.Height / mesh.Ny;
+        float cw = info.Width / mesh.Nx;
+        float ch = info.Height / mesh.Ny;
         double minVal = values.Values.Min();
         double maxVal = values.Values.Max();
         if (Math.Abs(maxVal - minVal) < 1e-12) maxVal = minVal + 1e-12;
@@ -469,17 +509,26 @@ public partial class ReconstructionPage : ContentPage
             {
                 var el = mesh.GetElementAt(x, y);
                 double val = values[el.Id];
-                SKColor col = el.IsWall ? SKColors.Black : isPotential ? GetPotentialColor(val, minVal, maxVal) : ColorForValue(val, minVal, maxVal);
+                SKColor col = el.IsWall
+                    ? SKColors.Black
+                    : isPotential
+                        ? GetPotentialColor(val, minVal, maxVal, modeOverride)
+                        : ColorForValue(val, minVal, maxVal);
                 using var paint = new SKPaint { Style = SKPaintStyle.Fill, Color = col };
                 var r = SKRect.Create(x * cw, y * ch, cw, ch);
                 canvas.DrawRect(r, paint);
                 canvas.DrawRect(r, new SKPaint { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1 });
             }
         }
-        DrawHoverInfo(canvas, e.Info, lines, pt);
+        DrawHoverInfo(canvas, info, lines, pt);
     }
 
-    private void DrawColorBar(SKCanvas canvas, SKImageInfo info, double min, double max, bool isPotential)
+    private void DrawColorBar(SKCanvas canvas,
+                              SKImageInfo info,
+                              double min,
+                              double max,
+                              bool isPotential,
+                              PotentialDisplayMode? modeOverride = null)
     {
         canvas.Clear(DistributionCanvasBackgroundColor);
         var rect = new SKRect(0, 0, info.Width, info.Height);
@@ -490,7 +539,7 @@ public partial class ReconstructionPage : ContentPage
         {
             double t = i / (double)(steps - 1);
             double val = min + (max - min) * t;
-            colors[i] = isPotential ? GetPotentialColor(val, min, max) : ColorForValue(val, min, max);
+            colors[i] = isPotential ? GetPotentialColor(val, min, max, modeOverride) : ColorForValue(val, min, max);
             positions[i] = (float)t;
         }
         using var paint = new SKPaint
@@ -513,11 +562,12 @@ public partial class ReconstructionPage : ContentPage
 
     #region Canvas paint
     private void OnResidualTrendCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
+        => DrawResidualTrend(e.Surface.Canvas, e.Info, _viewModel.ResidualHistory);
+
+    private void DrawResidualTrend(SKCanvas canvas, SKImageInfo info, IReadOnlyList<double> history)
     {
-        var canvas = e.Surface.Canvas;
         canvas.Clear(DistributionCanvasBackgroundColor);
 
-        var history = _viewModel.ResidualHistory;
         if (history.Count == 0)
         {
             using var emptyPaint = new SKPaint
@@ -527,7 +577,7 @@ public partial class ReconstructionPage : ContentPage
                 IsAntialias = true,
                 TextAlign = SKTextAlign.Center
             };
-            canvas.DrawText("No residual data", e.Info.Width / 2f, e.Info.Height / 2f, emptyPaint);
+            canvas.DrawText("No residual data", info.Width / 2f, info.Height / 2f, emptyPaint);
             return;
         }
 
@@ -547,8 +597,8 @@ public partial class ReconstructionPage : ContentPage
         const float topPadding = 24f;
         const float bottomPadding = 64f;
 
-        float chartWidth = e.Info.Width - leftPadding - rightPadding;
-        float chartHeight = e.Info.Height - topPadding - bottomPadding;
+        float chartWidth = info.Width - leftPadding - rightPadding;
+        float chartHeight = info.Height - topPadding - bottomPadding;
         if (chartWidth <= 0 || chartHeight <= 0)
             return;
 
@@ -771,12 +821,12 @@ public partial class ReconstructionPage : ContentPage
         if (discretization is FEMMesh fem)
         {
             var cd = Workspace.GetOriginalConductivityDistribution() ?? fem.GetConductivityDistribution();
-            DrawFemConductivity(e, fem, cd, _hoverOriginalLines, _hoverOriginalPt);
+            DrawFemConductivity(e.Surface.Canvas, e.Info, fem, cd, _hoverOriginalLines, _hoverOriginalPt);
         }
         else if (discretization is LBMGrid lbm)
         {
             var cd = Workspace.GetOriginalConductivityDistribution() ?? lbm.GetConductivityDistribution();
-            DrawLbmField(e, lbm, cd.Conductivities, false, _hoverOriginalLines, _hoverOriginalPt);
+            DrawLbmField(e.Surface.Canvas, e.Info, lbm, cd.Conductivities, false, _hoverOriginalLines, _hoverOriginalPt);
         }
     }
 
@@ -785,9 +835,9 @@ public partial class ReconstructionPage : ContentPage
         var discretization = GetDiscretization();
         var pd = _currentFrame?.CalculatedPotentialDistribution ?? discretization?.GetPotentialDistribution();
         if (discretization is FEMMesh fem && pd != null)
-            DrawFemPotential(e, fem, pd, _hoverPotentialLines, _hoverPotentialPt);
+            DrawFemPotential(e.Surface.Canvas, e.Info, fem, pd, _hoverPotentialLines, _hoverPotentialPt);
         else if (discretization is LBMGrid lbm && pd != null)
-            DrawLbmField(e, lbm, pd.Potentials, true, _hoverPotentialLines, _hoverPotentialPt);
+            DrawLbmField(e.Surface.Canvas, e.Info, lbm, pd.Potentials, true, _hoverPotentialLines, _hoverPotentialPt);
     }
 
     private void OnReconstructedCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
@@ -795,9 +845,9 @@ public partial class ReconstructionPage : ContentPage
         var discretization = GetDiscretization();
         var cd = _currentResult?.ReconstructedConductivityDistribution ?? discretization?.GetConductivityDistribution();
         if (discretization is FEMMesh fem && cd != null)
-            DrawFemConductivity(e, fem, cd, _hoverReconstructedLines, _hoverReconstructedPt);
+            DrawFemConductivity(e.Surface.Canvas, e.Info, fem, cd, _hoverReconstructedLines, _hoverReconstructedPt);
         else if (discretization is LBMGrid lbm && cd != null)
-            DrawLbmField(e, lbm, cd.Conductivities, false, _hoverReconstructedLines, _hoverReconstructedPt);
+            DrawLbmField(e.Surface.Canvas, e.Info, lbm, cd.Conductivities, false, _hoverReconstructedLines, _hoverReconstructedPt);
     }
 
     private void OnAdjointCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
@@ -805,9 +855,9 @@ public partial class ReconstructionPage : ContentPage
         var discretization = GetDiscretization();
         var pd = _currentFrame?.CalculatedAdjointDistribution ?? discretization?.GetPotentialDistribution();
         if (discretization is FEMMesh fem && pd != null)
-            DrawFemPotential(e, fem, pd, _hoverAdjointLines, _hoverAdjointPt);
+            DrawFemPotential(e.Surface.Canvas, e.Info, fem, pd, _hoverAdjointLines, _hoverAdjointPt);
         else if (discretization is LBMGrid lbm && pd != null)
-            DrawLbmField(e, lbm, pd.Potentials, true, _hoverAdjointLines, _hoverAdjointPt);
+            DrawLbmField(e.Surface.Canvas, e.Info, lbm, pd.Potentials, true, _hoverAdjointLines, _hoverAdjointPt);
     }
 
     private void OnInitialCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
@@ -815,9 +865,9 @@ public partial class ReconstructionPage : ContentPage
         var discretization = GetDiscretization();
         var cd = _currentResult?.InitialConductivitiyDistribution ?? discretization?.GetConductivityDistribution();
         if (discretization is FEMMesh fem && cd != null)
-            DrawFemConductivity(e, fem, cd, _hoverInitialLines, _hoverInitialPt);
+            DrawFemConductivity(e.Surface.Canvas, e.Info, fem, cd, _hoverInitialLines, _hoverInitialPt);
         else if (discretization is LBMGrid lbm && cd != null)
-            DrawLbmField(e, lbm, cd.Conductivities, false, _hoverInitialLines, _hoverInitialPt);
+            DrawLbmField(e.Surface.Canvas, e.Info, lbm, cd.Conductivities, false, _hoverInitialLines, _hoverInitialPt);
     }
 
     private void OnGradientCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
@@ -825,9 +875,9 @@ public partial class ReconstructionPage : ContentPage
         var discretization = GetDiscretization();
         var cd = _currentFrame?.ConductivityGradient;
         if (discretization is FEMMesh fem && cd != null)
-            DrawFemConductivity(e, fem, cd, _hoverGradientLines, _hoverGradientPt);
+            DrawFemConductivity(e.Surface.Canvas, e.Info, fem, cd, _hoverGradientLines, _hoverGradientPt);
         else if (discretization is LBMGrid lbm && cd != null)
-            DrawLbmField(e, lbm, cd.Conductivities, false, _hoverGradientLines, _hoverGradientPt);
+            DrawLbmField(e.Surface.Canvas, e.Info, lbm, cd.Conductivities, false, _hoverGradientLines, _hoverGradientPt);
     }
 
     private void OnOriginalColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
@@ -1224,6 +1274,520 @@ public partial class ReconstructionPage : ContentPage
         return Math.Sqrt(sum);
     }
 
+    private async void OnExportVideoClicked(object sender, EventArgs e)
+    {
+        await AnimateButtonAsync(sender);
+
+        var frames = Workspace.GetReconstructionFrames().ToList();
+        if (frames.Count == 0)
+        {
+            await DisplayAlert("No Frames", "There are no reconstruction frames to export.", "OK");
+            UpdateExportButtonState();
+            return;
+        }
+
+        var discretization = GetDiscretization();
+        if (discretization == null)
+        {
+            await DisplayAlert("No Mesh", "Unable to determine the discretization for rendering.", "OK");
+            UpdateExportButtonState();
+            return;
+        }
+
+        ExportVideoButton.IsEnabled = false;
+
+        try
+        {
+            var results = Workspace.GetReconstructionResults().ToList();
+            var residualHistory = results
+                .Select(r => CalculateResidual(r.ReconstructedConductivityDistribution, r.OriginalConductivityDistribution))
+                .ToList();
+
+            var distributionSize = NormalizeSize(PotentialDistributionCanvas.CanvasSize, 250, 250);
+            var colorbarSize = NormalizeSize(PotentialColorbarCanvas.CanvasSize, 250, 20);
+            var residualSize = NormalizeSize(ResidualTrendCanvas.CanvasSize, 600, 170);
+            var potentialMode = _potMode;
+
+            string directory = FileSystem.Current.AppDataDirectory;
+            Directory.CreateDirectory(directory);
+            string filePath = Path.Combine(directory, $"reconstruction_{DateTime.Now:yyyyMMdd_HHmmss}.avi");
+
+            await Task.Run(() =>
+            {
+                ExportVideoInternal(filePath,
+                                    frames,
+                                    results,
+                                    residualHistory,
+                                    discretization,
+                                    distributionSize,
+                                    colorbarSize,
+                                    residualSize,
+                                    potentialMode);
+            });
+
+            await DisplayAlert("Export Complete", $"Video exported to:\n{filePath}", "OK");
+        }
+        catch (Exception ex)
+        {
+            await DisplayAlert("Export Failed", ex.Message, "OK");
+        }
+        finally
+        {
+            UpdateExportButtonState();
+        }
+    }
+
+    private void ExportVideoInternal(string filePath,
+                                     IReadOnlyList<ReconstructionFrame> frames,
+                                     IReadOnlyList<ReconstructionResult> results,
+                                     IReadOnlyList<double> residualHistory,
+                                     IDiscretization discretization,
+                                     SKSizeI distributionSize,
+                                     SKSizeI colorbarSize,
+                                     SKSizeI residualSize,
+                                     PotentialDisplayMode mode)
+    {
+        var frameData = new List<byte[]>(frames.Count);
+        int videoWidth = 0;
+        int videoHeight = 0;
+
+        for (int i = 0; i < frames.Count; i++)
+        {
+            var context = FindResultForFrame(results, i, out int resultIndex);
+            int residualCount = resultIndex >= 0 ? Math.Min(resultIndex + 1, residualHistory.Count) : residualHistory.Count;
+
+            using var image = RenderFrameSnapshot(frames[i],
+                                                  context,
+                                                  discretization,
+                                                  residualHistory,
+                                                  residualCount,
+                                                  distributionSize,
+                                                  colorbarSize,
+                                                  residualSize,
+                                                  mode);
+
+            if (videoWidth == 0 || videoHeight == 0)
+            {
+                videoWidth = image.Width;
+                videoHeight = image.Height;
+            }
+
+            using var data = image.Encode(SKEncodedImageFormat.Jpeg, 90);
+            frameData.Add(data.ToArray());
+        }
+
+        using var stream = File.Create(filePath);
+        MotionJpegAviWriter.Write(stream,
+                                  frameData,
+                                  videoWidth,
+                                  videoHeight,
+                                  Workspace.ReconstructionVideoFramesPerSecond);
+    }
+
+    private static ReconstructionResult? FindResultForFrame(IReadOnlyList<ReconstructionResult> results,
+                                                            int frameIndex,
+                                                            out int resultIndex)
+    {
+        int cumulative = 0;
+        for (int i = 0; i < results.Count; i++)
+        {
+            int frameCount = results[i].Frames.Count;
+            if (frameIndex < cumulative + frameCount)
+            {
+                resultIndex = i;
+                return results[i];
+            }
+            cumulative += frameCount;
+        }
+
+        resultIndex = results.Count - 1;
+        return results.Count > 0 ? results[^1] : null;
+    }
+
+    private static SKSizeI NormalizeSize(SKSize size, int fallbackWidth, int fallbackHeight)
+    {
+        int width = (int)Math.Round(size.Width);
+        int height = (int)Math.Round(size.Height);
+        if (width <= 0) width = fallbackWidth;
+        if (height <= 0) height = fallbackHeight;
+        return new SKSizeI(width, height);
+    }
+
+    private SKImage RenderFrameSnapshot(ReconstructionFrame frame,
+                                        ReconstructionResult? context,
+                                        IDiscretization discretization,
+                                        IReadOnlyList<double> residualHistory,
+                                        int residualCount,
+                                        SKSizeI distributionSize,
+                                        SKSizeI colorbarSize,
+                                        SKSizeI residualSize,
+                                        PotentialDisplayMode mode)
+    {
+        int cellWidth = Math.Max(distributionSize.Width, 1);
+        int cellHeight = Math.Max(distributionSize.Height, 1);
+        int colorbarHeight = Math.Max(colorbarSize.Height, 1);
+        int residualChartHeight = Math.Max(residualSize.Height, 1);
+
+        const int outerMargin = 32;
+        const int columnSpacing = 32;
+        const int rowSpacing = 40;
+        const int cellPadding = 18;
+        const int labelHeight = 32;
+        const int colorbarSpacing = 10;
+        const int residualPadding = 24;
+        const int residualLabelHeight = 36;
+
+        int cellContainerWidth = cellPadding * 2 + cellWidth;
+        int cellContainerHeight = cellPadding + labelHeight + cellHeight + colorbarSpacing + colorbarHeight + cellPadding;
+        int gridHeight = cellContainerHeight * 2 + rowSpacing;
+        int totalWidth = outerMargin * 2 + cellContainerWidth * 3 + columnSpacing * 2;
+        int residualSectionHeight = residualLabelHeight + residualPadding * 2 + residualChartHeight;
+        int totalHeight = outerMargin * 2 + gridHeight + residualSectionHeight;
+
+        using var surface = SKSurface.Create(new SKImageInfo(totalWidth, totalHeight));
+        var canvas = surface.Canvas;
+        canvas.Clear(new SKColor(21, 30, 45));
+
+        var sections = new (DistributionSection Section, string Title)[]
+        {
+            (DistributionSection.Potential, "Calculated Potential [mV]"),
+            (DistributionSection.Adjoint, "Adjoint Potential [mV]"),
+            (DistributionSection.Gradient, "Conductivity Gradient [∂Ω]"),
+            (DistributionSection.Original, "Original Distribution [Ω]"),
+            (DistributionSection.Initial, "Initial Distribution [Ω]"),
+            (DistributionSection.Reconstructed, "Reconstructed Distribution [Ω]")
+        };
+
+        using var cellBackgroundPaint = new SKPaint { Color = new SKColor(26, 36, 54), IsAntialias = true };
+        using var cellBorderPaint = new SKPaint
+        {
+            Color = new SKColor(58, 124, 165),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = 2,
+            IsAntialias = true
+        };
+        using var titlePaint = new SKPaint
+        {
+            Color = new SKColor(240, 244, 255),
+            TextSize = 20,
+            IsAntialias = true,
+            TextAlign = SKTextAlign.Center,
+            FakeBoldText = true
+        };
+
+        for (int i = 0; i < sections.Length; i++)
+        {
+            int row = i / 3;
+            int col = i % 3;
+            float x = outerMargin + col * (cellContainerWidth + columnSpacing);
+            float y = outerMargin + row * (cellContainerHeight + rowSpacing);
+
+            using var contentImage = RenderDistributionImage(sections[i].Section,
+                                                              discretization,
+                                                              frame,
+                                                              context,
+                                                              distributionSize,
+                                                              mode);
+
+            using var colorbarImage = RenderColorbarImage(sections[i].Section,
+                                                          discretization,
+                                                          frame,
+                                                          context,
+                                                          new SKSizeI(cellWidth, colorbarHeight),
+                                                          mode);
+
+            DrawDistributionCell(canvas,
+                                 sections[i].Title,
+                                 x,
+                                 y,
+                                 cellContainerWidth,
+                                 cellContainerHeight,
+                                 cellWidth,
+                                 cellHeight,
+                                 colorbarHeight,
+                                 cellPadding,
+                                 labelHeight,
+                                 colorbarSpacing,
+                                 contentImage,
+                                 colorbarImage,
+                                 cellBackgroundPaint,
+                                 cellBorderPaint,
+                                 titlePaint);
+        }
+
+        using var residualBackgroundPaint = new SKPaint { Color = new SKColor(34, 48, 70), IsAntialias = true };
+        using var residualBorderPaint = new SKPaint
+        {
+            Color = new SKColor(58, 124, 165),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = 2,
+            IsAntialias = true
+        };
+        using var residualTitlePaint = new SKPaint
+        {
+            Color = new SKColor(240, 244, 255),
+            TextSize = 22,
+            IsAntialias = true,
+            TextAlign = SKTextAlign.Left,
+            FakeBoldText = true
+        };
+
+        float residualTop = outerMargin + gridHeight;
+        float residualLeft = outerMargin;
+        float residualWidth = totalWidth - 2 * outerMargin;
+        var residualRect = new SKRect(residualLeft,
+                                      residualTop,
+                                      residualLeft + residualWidth,
+                                      residualTop + residualSectionHeight);
+        canvas.DrawRoundRect(residualRect, 16f, 16f, residualBackgroundPaint);
+        canvas.DrawRoundRect(residualRect, 16f, 16f, residualBorderPaint);
+
+        float residualTitleX = residualLeft + residualPadding;
+        float residualTitleY = residualTop + residualPadding + residualTitlePaint.TextSize;
+        canvas.DrawText("Residual Trend", residualTitleX, residualTitleY, residualTitlePaint);
+
+        float chartX = residualLeft + residualPadding;
+        float chartY = residualTop + residualPadding + residualLabelHeight;
+        int chartWidth = Math.Max((int)Math.Round(residualWidth - residualPadding * 2), 1);
+
+        using var residualImage = RenderResidualChartImage(residualHistory, residualCount, chartWidth, residualChartHeight);
+        canvas.DrawImage(residualImage, new SKRect(chartX, chartY, chartX + chartWidth, chartY + residualChartHeight));
+
+        return surface.Snapshot();
+    }
+
+    private SKImage RenderDistributionImage(DistributionSection section,
+                                            IDiscretization discretization,
+                                            ReconstructionFrame frame,
+                                            ReconstructionResult? context,
+                                            SKSizeI size,
+                                            PotentialDisplayMode mode)
+    {
+        var info = new SKImageInfo(size.Width, size.Height);
+        using var surface = SKSurface.Create(info);
+        var canvas = surface.Canvas;
+
+        switch (section)
+        {
+            case DistributionSection.Potential when frame.CalculatedPotentialDistribution is { } potential:
+                if (discretization is FEMMesh fem)
+                    DrawFemPotential(canvas, info, fem, potential, null, null, mode);
+                else if (discretization is LBMGrid lbm)
+                    DrawLbmField(canvas, info, lbm, potential.Potentials, true, null, null, mode);
+                else
+                    canvas.Clear(DistributionCanvasBackgroundColor);
+                break;
+
+            case DistributionSection.Adjoint when frame.CalculatedAdjointDistribution is { } adjoint:
+                if (discretization is FEMMesh femAdj)
+                    DrawFemPotential(canvas, info, femAdj, adjoint, null, null, mode);
+                else if (discretization is LBMGrid lbmAdj)
+                    DrawLbmField(canvas, info, lbmAdj, adjoint.Potentials, true, null, null, mode);
+                else
+                    canvas.Clear(DistributionCanvasBackgroundColor);
+                break;
+
+            case DistributionSection.Gradient when frame.ConductivityGradient != null:
+                if (discretization is FEMMesh femGrad)
+                    DrawFemConductivity(canvas, info, femGrad, frame.ConductivityGradient, null, null);
+                else if (discretization is LBMGrid lbmGrad)
+                    DrawLbmField(canvas, info, lbmGrad, frame.ConductivityGradient.Conductivities, false, null, null);
+                else
+                    canvas.Clear(DistributionCanvasBackgroundColor);
+                break;
+
+            case DistributionSection.Original:
+                {
+                    var cd = context?.OriginalConductivityDistribution
+                             ?? Workspace.GetOriginalConductivityDistribution()
+                             ?? discretization.GetConductivityDistribution();
+                    if (discretization is FEMMesh femOrig)
+                        DrawFemConductivity(canvas, info, femOrig, cd, null, null);
+                    else if (discretization is LBMGrid lbmOrig)
+                        DrawLbmField(canvas, info, lbmOrig, cd.Conductivities, false, null, null);
+                    else
+                        canvas.Clear(DistributionCanvasBackgroundColor);
+                    break;
+                }
+
+            case DistributionSection.Initial:
+                {
+                    var cd = context?.InitialConductivitiyDistribution
+                             ?? Workspace.GetInitialDiscretization()?.GetConductivityDistribution()
+                             ?? discretization.GetConductivityDistribution();
+                    if (discretization is FEMMesh femInit)
+                        DrawFemConductivity(canvas, info, femInit, cd, null, null);
+                    else if (discretization is LBMGrid lbmInit)
+                        DrawLbmField(canvas, info, lbmInit, cd.Conductivities, false, null, null);
+                    else
+                        canvas.Clear(DistributionCanvasBackgroundColor);
+                    break;
+                }
+
+            case DistributionSection.Reconstructed:
+                {
+                    var cd = context?.ReconstructedConductivityDistribution
+                             ?? discretization.GetConductivityDistribution();
+                    if (discretization is FEMMesh femRec)
+                        DrawFemConductivity(canvas, info, femRec, cd, null, null);
+                    else if (discretization is LBMGrid lbmRec)
+                        DrawLbmField(canvas, info, lbmRec, cd.Conductivities, false, null, null);
+                    else
+                        canvas.Clear(DistributionCanvasBackgroundColor);
+                    break;
+                }
+
+            default:
+                canvas.Clear(DistributionCanvasBackgroundColor);
+                break;
+        }
+
+        return surface.Snapshot();
+    }
+
+    private SKImage RenderColorbarImage(DistributionSection section,
+                                         IDiscretization discretization,
+                                         ReconstructionFrame frame,
+                                         ReconstructionResult? context,
+                                         SKSizeI size,
+                                         PotentialDisplayMode mode)
+    {
+        var info = new SKImageInfo(size.Width, size.Height);
+        using var surface = SKSurface.Create(info);
+        var canvas = surface.Canvas;
+
+        bool isPotential = section is DistributionSection.Potential or DistributionSection.Adjoint;
+        double min = 0;
+        double max = 0;
+        bool hasValues = false;
+
+        switch (section)
+        {
+            case DistributionSection.Potential when frame.CalculatedPotentialDistribution is { } pot:
+                min = pot.Potentials.Values.Min();
+                max = pot.Potentials.Values.Max();
+                hasValues = true;
+                break;
+
+            case DistributionSection.Adjoint when frame.CalculatedAdjointDistribution is { } adj:
+                min = adj.Potentials.Values.Min();
+                max = adj.Potentials.Values.Max();
+                hasValues = true;
+                break;
+
+            case DistributionSection.Gradient when frame.ConductivityGradient != null:
+                min = frame.ConductivityGradient.Conductivities.Values.Min();
+                max = frame.ConductivityGradient.Conductivities.Values.Max();
+                hasValues = true;
+                break;
+
+            case DistributionSection.Original:
+                {
+                    var cd = context?.OriginalConductivityDistribution
+                             ?? Workspace.GetOriginalConductivityDistribution()
+                             ?? discretization.GetConductivityDistribution();
+                    min = cd.Conductivities.Values.Min();
+                    max = cd.Conductivities.Values.Max();
+                    hasValues = true;
+                    break;
+                }
+
+            case DistributionSection.Initial:
+                {
+                    var cd = context?.InitialConductivitiyDistribution
+                             ?? Workspace.GetInitialDiscretization()?.GetConductivityDistribution()
+                             ?? discretization.GetConductivityDistribution();
+                    min = cd.Conductivities.Values.Min();
+                    max = cd.Conductivities.Values.Max();
+                    hasValues = true;
+                    break;
+                }
+
+            case DistributionSection.Reconstructed:
+                {
+                    var cd = context?.ReconstructedConductivityDistribution
+                             ?? discretization.GetConductivityDistribution();
+                    min = cd.Conductivities.Values.Min();
+                    max = cd.Conductivities.Values.Max();
+                    hasValues = true;
+                    break;
+                }
+        }
+
+        if (hasValues)
+        {
+            if (Math.Abs(max - min) < 1e-12)
+                max = min + 1e-12;
+
+            DrawColorBar(canvas, info, min, max, isPotential, mode);
+        }
+        else
+        {
+            canvas.Clear(DistributionCanvasBackgroundColor);
+        }
+
+        return surface.Snapshot();
+    }
+
+    private SKImage RenderResidualChartImage(IReadOnlyList<double> residualHistory,
+                                             int residualCount,
+                                             int width,
+                                             int height)
+    {
+        var info = new SKImageInfo(width, height);
+        using var surface = SKSurface.Create(info);
+        var canvas = surface.Canvas;
+
+        if (residualCount <= 0)
+        {
+            DrawResidualTrend(canvas, info, Array.Empty<double>());
+        }
+        else if (residualCount >= residualHistory.Count)
+        {
+            DrawResidualTrend(canvas, info, residualHistory);
+        }
+        else
+        {
+            DrawResidualTrend(canvas, info, residualHistory.Take(residualCount).ToList());
+        }
+
+        return surface.Snapshot();
+    }
+
+    private static void DrawDistributionCell(SKCanvas canvas,
+                                             string title,
+                                             float x,
+                                             float y,
+                                             int containerWidth,
+                                             int containerHeight,
+                                             int contentWidth,
+                                             int contentHeight,
+                                             int colorbarHeight,
+                                             int padding,
+                                             int labelHeight,
+                                             int colorbarSpacing,
+                                             SKImage contentImage,
+                                             SKImage colorbarImage,
+                                             SKPaint backgroundPaint,
+                                             SKPaint borderPaint,
+                                             SKPaint titlePaint)
+    {
+        var rect = new SKRect(x, y, x + containerWidth, y + containerHeight);
+        canvas.DrawRoundRect(rect, 14f, 14f, backgroundPaint);
+        canvas.DrawRoundRect(rect, 14f, 14f, borderPaint);
+
+        float labelBaseline = y + padding + titlePaint.TextSize;
+        float labelCenterX = x + containerWidth / 2f;
+        canvas.DrawText(title, labelCenterX, labelBaseline, titlePaint);
+
+        float contentX = x + padding;
+        float contentY = y + padding + labelHeight;
+        canvas.DrawImage(contentImage, new SKRect(contentX, contentY, contentX + contentWidth, contentY + contentHeight));
+
+        float colorbarY = contentY + contentHeight + colorbarSpacing;
+        canvas.DrawImage(colorbarImage, new SKRect(contentX, colorbarY, contentX + contentWidth, colorbarY + colorbarHeight));
+    }
+
     private void OnSaveClicked(object sender, EventArgs e) => _viewModel.SaveReconstruction();
     private void OnLoadClicked(object sender, EventArgs e) => _viewModel.LoadAvailableReconstructions();
 
@@ -1248,7 +1812,12 @@ public partial class ReconstructionPage : ContentPage
                 _viewModel.Residual = CalculateResidual(_currentResult.ReconstructedConductivityDistribution,
                                                        _currentResult.OriginalConductivityDistribution);
             }
-            Dispatcher.Dispatch(() => { InvalidateAll(); UpdatePlaybackLabel(); });
+            Dispatcher.Dispatch(() =>
+            {
+                InvalidateAll();
+                UpdatePlaybackLabel();
+                UpdateExportButtonState();
+            });
         }
     }
 
