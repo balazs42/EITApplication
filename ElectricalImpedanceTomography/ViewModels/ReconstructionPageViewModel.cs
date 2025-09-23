@@ -1,12 +1,20 @@
 using CommunityToolkit.Mvvm.ComponentModel;
-using Utility.Classes.Factories;
+using ElectricalImpedanceTomography.Helpers;
+using Microsoft.Maui.Storage;
 using ServiceLayer;
+using SkiaSharp;
+using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 using Utility.Classes;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
+using Utility.Classes.Factories;
 using Utility.Classes.ReconstructionParameters;
 
 using Workspace = Utility.Classes.Application.Workspace;
@@ -379,6 +387,84 @@ namespace ElectricalImpedanceTomography.ViewModels
             foreach (var r in _reconstructionService.GetReconstructions())
                 AvailableReconstructions.Add(r);
             ApplyReconstructionFilter();
+        }
+
+        public async Task<VideoExportResult> ExportReconstructionVideoAsync(SKSize distributionCanvasSize,
+                                                                            SKSize colorbarCanvasSize,
+                                                                            SKSize residualCanvasSize,
+                                                                            PotentialDisplayMode mode)
+        {
+            var frames = Workspace.GetReconstructionFrames().ToList();
+            if (frames.Count == 0)
+                return VideoExportResult.CreateFailure("No Frames", "There are no reconstruction frames to export.");
+
+            var discretization = Workspace.GetDiscretization();
+            if (discretization == null)
+                return VideoExportResult.CreateFailure("No Mesh", "Unable to determine the discretization for rendering.");
+
+            var results = Workspace.GetReconstructionResults().ToList();
+            var residualHistory = results
+                .Select(r => CalculateResidual(r.ReconstructedConductivityDistribution,
+                                               r.OriginalConductivityDistribution))
+                .ToList();
+
+            var distributionSize = ReconstructionVideoRenderer.NormalizeSize(distributionCanvasSize, 250, 250);
+            var colorbarSize = ReconstructionVideoRenderer.NormalizeSize(colorbarCanvasSize, 250, 20);
+            var residualSize = ReconstructionVideoRenderer.NormalizeSize(residualCanvasSize, 600, 170);
+
+            string directory = FileSystem.Current.AppDataDirectory;
+            Directory.CreateDirectory(directory);
+            string filePath = Path.Combine(directory, $"reconstruction_{DateTime.Now:yyyyMMdd_HHmmss}.avi");
+
+            try
+            {
+                await Task.Run(() =>
+                {
+                    var frameData = new List<byte[]>(frames.Count);
+                    int videoWidth = 0;
+                    int videoHeight = 0;
+
+                    for (int i = 0; i < frames.Count; i++)
+                    {
+                        var context = ReconstructionVideoRenderer.FindResultForFrame(results, i, out int resultIndex);
+                        int residualCount = resultIndex >= 0
+                            ? Math.Min(resultIndex + 1, residualHistory.Count)
+                            : residualHistory.Count;
+
+                        using var image = ReconstructionVideoRenderer.RenderFrameSnapshot(frames[i],
+                                                                                           context,
+                                                                                           discretization,
+                                                                                           residualHistory,
+                                                                                           residualCount,
+                                                                                           distributionSize,
+                                                                                           colorbarSize,
+                                                                                           residualSize,
+                                                                                           mode);
+
+                        if (videoWidth == 0 || videoHeight == 0)
+                        {
+                            videoWidth = image.Width;
+                            videoHeight = image.Height;
+                        }
+
+                        using var data = image.Encode(SKEncodedImageFormat.Jpeg, 90);
+                        frameData.Add(data.ToArray());
+                    }
+
+                    using var stream = File.Create(filePath);
+                    MotionJpegAviWriter.Write(stream,
+                                              frameData,
+                                              videoWidth,
+                                              videoHeight,
+                                              Workspace.ReconstructionVideoFramesPerSecond);
+                });
+
+                return VideoExportResult.CreateSuccess(filePath);
+            }
+            catch (Exception ex)
+            {
+                return VideoExportResult.CreateFailure("Export Failed", ex.Message);
+            }
         }
 
         private void ApplyReconstructionFilter()
