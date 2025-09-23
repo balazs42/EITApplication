@@ -475,9 +475,12 @@ internal static class ReconstructionVideoRenderer
             TextAlign = SKTextAlign.Center
         };
 
-        canvas.DrawText(min.ToString("F2"), 0, info.Height - 4, SKTextAlign.Left, textPaint);
+        textPaint.TextAlign = SKTextAlign.Left;
+        canvas.DrawText(min.ToString("F2"), 0, info.Height - 4, textPaint);
+        textPaint.TextAlign = SKTextAlign.Center;
         canvas.DrawText(((min + max) * 0.5).ToString("F2"), info.Width / 2f, info.Height - 4, textPaint);
-        canvas.DrawText(max.ToString("F2"), info.Width, info.Height - 4, SKTextAlign.Right, textPaint);
+        textPaint.TextAlign = SKTextAlign.Right;
+        canvas.DrawText(max.ToString("F2"), info.Width, info.Height - 4, textPaint);
     }
 
     private static void DrawResidualTrend(SKCanvas canvas,
@@ -560,7 +563,7 @@ internal static class ReconstructionVideoRenderer
                 path.LineTo(x, y);
         }
 
-        var fillPath = path.Copy();
+        var fillPath = new SKPath(path);
         fillPath.LineTo(rect.Right, rect.Bottom);
         fillPath.LineTo(rect.Left, rect.Bottom);
         fillPath.Close();

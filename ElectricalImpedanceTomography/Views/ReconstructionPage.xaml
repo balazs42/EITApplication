@@ -220,7 +220,7 @@
                     <Border.Stroke>
                         <SolidColorBrush Color="{AppThemeBinding Light=#3A5F8A, Dark=#C0CAD8}" />
                     </Border.Stroke>
-                    <Grid ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto"
+                    <Grid ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto"
                           RowDefinitions="*, Auto"
                           ColumnSpacing="15"
                           HorizontalOptions="Center">
@@ -282,7 +282,7 @@
                                 <x:String>Rainbow</x:String>
                             </Picker.Items>
                         </Picker>
-                        <Border Grid.Column="8" Margin="2" Background="Transparent" Stroke="Transparent">
+                        <Border Grid.Column="7" Grid.Row="1"  Background="Transparent" Stroke="Transparent">
                             <Button x:Name="ExportVideoButton"
                                     Text="Export Video"
                                     Margin="10"
@@ -414,7 +414,7 @@
                   RowSpacing="10" 
                   Margin="5"
                   HorizontalOptions="End">
-                <Border Grid.Row="1" Style="{StaticResource PanelBorderStyle}" Background="{StaticResource HistoryPanelBrush}">
+                <Border Grid.Row="2" Style="{StaticResource PanelBorderStyle}" Background="{StaticResource HistoryPanelBrush}">
                     <Border.Stroke>
                         <SolidColorBrush Color="{AppThemeBinding Light=#3D5D8C, Dark=#C0CAD8}" />
                     </Border.Stroke>
@@ -446,7 +446,7 @@
                                 
                 <Border Style="{StaticResource PanelSectionBorderStyle}"
                          BackgroundColor="{AppThemeBinding Light=#22304A, Dark=#36404C}"
-                         Grid.Row="2">
+                         Grid.Row="1">
                     <VerticalStackLayout Spacing="12">
                         <Entry Text="{Binding Name}" Placeholder="Name" TextColor="{AppThemeBinding Light=White, Dark=#262E38}"/>
                         <Grid ColumnDefinitions="*, *" ColumnSpacing="12">
