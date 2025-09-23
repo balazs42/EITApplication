@@ -6,7 +6,6 @@ internal static class MotionJpegAviWriter
 {
     private const uint AviIfKeyFrame = 0x10;
     private const uint AviMainHeaderHasIndex = 0x10;
-    private const uint AviMainHeaderIsInterleaved = 0x100;
 
     public static void Write(Stream stream,
                              IReadOnlyList<byte[]> frames,
@@ -37,7 +36,6 @@ internal static class MotionJpegAviWriter
 
         using var writer = new BinaryWriter(stream, Encoding.ASCII, leaveOpen: true);
 
-        long riffStart = writer.BaseStream.Position;
         WriteFourCC(writer, "RIFF");
         long riffSizePos = writer.BaseStream.Position;
         writer.Write(0);
@@ -67,7 +65,6 @@ internal static class MotionJpegAviWriter
         long moviSizePos = writer.BaseStream.Position;
         writer.Write(0);
         WriteFourCC(writer, "movi");
-        long moviDataStart = writer.BaseStream.Position;
 
         var indexEntries = new List<AviIndexEntry>(frames.Count);
 
@@ -80,7 +77,7 @@ internal static class MotionJpegAviWriter
             if ((frame.Length & 1) == 1)
                 writer.Write((byte)0);
 
-            uint offset = (uint)(chunkStart - moviDataStart);
+            uint offset = (uint)(chunkStart - moviListStart - 4);
             indexEntries.Add(new AviIndexEntry(ToFourCC("00dc"), AviIfKeyFrame, offset, (uint)frame.Length));
         }
 
@@ -117,7 +114,7 @@ internal static class MotionJpegAviWriter
         writer.Write(microSecPerFrame);
         writer.Write(bytesPerSecond);
         writer.Write(0u);
-        writer.Write(AviMainHeaderHasIndex | AviMainHeaderIsInterleaved);
+        writer.Write(AviMainHeaderHasIndex);
         writer.Write(totalFrames);
         writer.Write(0u);
         writer.Write(1u);
@@ -163,7 +160,9 @@ internal static class MotionJpegAviWriter
         writer.Write((ushort)1);
         writer.Write((ushort)24);
         writer.Write(ToFourCC("MJPG"));
-        writer.Write(maxFrameSize);
+        ulong rawImageSize = (ulong)width * height * 3u;
+        uint imageSize = rawImageSize > uint.MaxValue ? uint.MaxValue : (uint)rawImageSize;
+        writer.Write(imageSize);
         writer.Write(0u);
         writer.Write(0u);
         writer.Write(0u);
