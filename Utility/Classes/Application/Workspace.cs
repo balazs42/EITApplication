@@ -15,6 +15,8 @@ namespace Utility.Classes.Application
         private static double _stepSize = 0.001;
         private static double _regularizationWeight = 1e-3;
 
+        public const int ReconstructionVideoFramesPerSecond = 10;
+
         private static List<ReconstructionResult> _reconstructionResults = [];
         private static List<ReconstructionFrame> _reconstructionFrames = [];
         private static List<WorkspaceMessage> _messages = [];
