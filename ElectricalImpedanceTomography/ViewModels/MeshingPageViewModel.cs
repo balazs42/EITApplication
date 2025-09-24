@@ -389,6 +389,15 @@ namespace ElectricalImpedanceTomography.ViewModels
             MeshChanged?.Invoke();
         }
 
+        public void DeleteMesh(DiscretizationInfo mesh)
+        {
+            if (mesh == null)
+                return;
+
+            _daqService.DeleteMesh(mesh.FilePath);
+            LoadAvailableMeshes();
+        }
+
         private void ApplyMeshFilter()
         {
             FilteredMeshes.Clear();
