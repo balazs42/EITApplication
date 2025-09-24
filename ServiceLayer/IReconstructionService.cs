@@ -41,6 +41,7 @@ namespace ServiceLayer
                                              double excitationAmplitude,
                                              double tolerance = 1e-6);
         ReconstructionFrame InverseSolveStepFem(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double stepSize);
+
         List<double[]> SimulateFemMeasurements(FEMMesh mesh, double excitationAmplitude);
 
         // --- Graph-based Reconstruction ---

@@ -1,4 +1,6 @@
-using Utility.Classes.Discretizer;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using Utility.Classes;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Reconstruction.ErrorMetrics;
@@ -113,6 +115,7 @@ namespace Utility.Tests
             var adjointSource = metric.EvaluateAdjointSource(mesh, measured, simulated);
             var adjointField = SolveAdjoint(mesh, adjointSource, 0.2);
             var grad = metric.AssembleTotalConductivityGradient(mesh, adjointField);
+
             var gradCopy = grad.Conductivities.ToDictionary(kv => kv.Key, kv => kv.Value);
 
             double h = 1e-4;

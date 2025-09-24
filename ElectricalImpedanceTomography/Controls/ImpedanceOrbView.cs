@@ -89,6 +89,7 @@ namespace ElectricalImpedanceTomography.Controls
                 float relativeY = (float)(position.Value.Y - Height / 2);
                 _drawable.HighlightX = Math.Clamp(relativeX, -limit, limit);
                 _drawable.HighlightY = Math.Clamp(relativeY, -limit, limit);
+
                 Invalidate();
             }
         }

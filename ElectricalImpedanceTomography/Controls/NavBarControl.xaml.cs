@@ -163,4 +163,23 @@ public partial class NavBarControl : ContentView
             parent = parent.Parent;
         return parent as Page;
     }
+
+    // Performs the unstuck and stuck animations between pages
+    private async Task AnimateButtonChangeAsync(string? oldPage, string? newPage)
+    {
+        var oldBtn = GetButtonForPage(oldPage);
+        var newBtn = GetButtonForPage(newPage);
+
+        if (oldBtn != null)
+        {
+            await oldBtn.ScaleTo(1.0, 50);
+            oldBtn.BackgroundColor = Color.FromRgb(0x55, 0x55, 0x55);
+        }
+
+        if (newBtn != null)
+        {
+            await newBtn.ScaleTo(0.95, 50);
+            newBtn.BackgroundColor = Color.FromRgb(0x44, 0x44, 0x44);
+        }
+    }
 }

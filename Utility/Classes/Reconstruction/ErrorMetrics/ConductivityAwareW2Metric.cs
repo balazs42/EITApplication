@@ -1,13 +1,21 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using Google.OrTools.LinearSolver;
+using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Double;
 using MathNet.Numerics.LinearAlgebra.Factorization;
+using Utility.Classes;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Discretizer.GraphMesh;
+
 using Utility.Classes.ReconstructionParameters;
 
 namespace Utility.Classes.Reconstruction.ErrorMetrics
 {
     /// <summary>
+
     /// Implements the conductivity-aware Wasserstein-2 error metric described in the
     /// user specification.  The class follows the existing <see cref="IErrorMetric"/>
     /// contract, while internally computing the optimal transport objective,
@@ -122,10 +130,14 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             public required double[] AdjointElectrodeSource;
             public Dictionary<int, double>? GradientAdjointTerm;
             public required Dictionary<int, double> GradientCostTerm;
+            public required double[] Measured;
+            public required double[] Simulated;
+
             public ConductivityDistribution? Gradient;
         }
 
         private readonly Config _config;
+
         private EvaluationCache? _last;
 
         /// <summary>
@@ -135,7 +147,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         public ConductivityAwareW2Metric(Config? config = null)
         {
             _config = config ?? new Config();
-        }
+       }
 
         /// <summary>
         /// Gets the last computed total gradient with respect to σ, if available.
@@ -213,10 +225,8 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
 
             // R^T g_μ for the adjoint RHS (Eq. (1) VJP).
             var adjointSource = ApplyNormalizationVjp(simNorm, gMu);
-
             // OT physics-cost correction (Eq. (5)-(7)).
             var costTerm = ComputeCostGradient(fem, geodesics, otPhysics.Plan);
-
             _last = new EvaluationCache
             {
                 Mu = mu,
@@ -231,6 +241,8 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 AdjointElectrodeSource = adjointSource,
                 GradientAdjointTerm = null,
                 GradientCostTerm = costTerm,
+                Measured = (double[])measured.Clone(),
+                Simulated = (double[])simulated.Clone(),
                 Gradient = null
             };
 
@@ -240,9 +252,38 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         /// <inheritdoc />
         public double[] EvaluateAdjointSource(IDiscretization discretization, double[] measured, double[] simulated)
         {
-            if (_last == null)
-                throw new InvalidOperationException("Evaluate must be called before EvaluateAdjointSource.");
-            return (double[])_last.AdjointElectrodeSource.Clone();
+            if (discretization == null) throw new ArgumentNullException(nameof(discretization));
+            if (measured == null) throw new ArgumentNullException(nameof(measured));
+            if (simulated == null) throw new ArgumentNullException(nameof(simulated));
+
+            if (_last == null || !InputsMatch(_last, measured, simulated))
+            {
+                _ = Evaluate(discretization, measured, simulated);
+            }
+
+            return (double[])_last!.AdjointElectrodeSource.Clone();
+        }
+
+        private static bool InputsMatch(EvaluationCache cache, double[] measured, double[] simulated)
+        {
+            if (cache.Measured.Length != measured.Length || cache.Simulated.Length != simulated.Length)
+                return false;
+
+            var comparer = EqualityComparer<double>.Default;
+
+            for (int i = 0; i < cache.Measured.Length; i++)
+            {
+                if (!comparer.Equals(cache.Measured[i], measured[i]))
+                    return false;
+            }
+
+            for (int i = 0; i < cache.Simulated.Length; i++)
+            {
+                if (!comparer.Equals(cache.Simulated[i], simulated[i]))
+                    return false;
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -380,16 +421,21 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
 
             return result;
         }
-
         private static double Softplus(double x)
         {
             if (x > 50) // avoid overflow
                 return x;
             if (x < -50)
                 return Math.Exp(x);
+            return Log1p(Math.Exp(x));
+        }
 
-            // TODO: Is LOG10 good?
-            return Math.Log10(Math.Exp(x));
+        private static double Log1p(double x)
+        {
+            // For very small x, use series expansion to avoid loss of precision
+            if (Math.Abs(x) < 1e-4)
+                return x - x * x / 2.0 + x * x * x / 3.0;
+            return Math.Log(1.0 + x);
         }
 
         private static double Sigmoid(double x)
@@ -444,12 +490,11 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             var plan = SolveOptimalTransportPrimal(cost, mu, nu, out var alpha, out var beta);
             return new OptimalTransportResult(plan, alpha, beta);
         }
-
+        
         private static Variable MakeNonNegativeVariable(Solver solver, string name)
         {
             return solver.MakeNumVar(0.0, double.PositiveInfinity, name);
         }
-
         /// <summary>
         /// (3) Primal LP: min_Γ Σ Cᵢⱼ Γᵢⱼ subject to row/column marginals.
         /// </summary>
@@ -909,6 +954,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         }
 
         internal static Dictionary<int, double> LiftElectrodeSourceToNodes(FEMMesh mesh, double[] electrodeSource)
+
         {
             var map = new Dictionary<int, double>();
             var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();

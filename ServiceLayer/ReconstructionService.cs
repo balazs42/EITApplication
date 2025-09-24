@@ -191,6 +191,7 @@ namespace ServiceLayer
             {
                 var femBc = boundaryCondition as FEMBoundaryCondition
                              ?? throw new ArgumentException("Boundary condition must be FEMBoundaryCondition", nameof(boundaryCondition));
+
                 ReconstructionFrame frame = _reconstructionPersistence.InverseSolveStepFem(mesh, femBc, measurement, stepSize);
 
                 Workspace.AddReconstructionFrameToWorkspace(frame);
