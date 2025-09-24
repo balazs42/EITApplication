@@ -5,8 +5,6 @@ using SkiaSharp.Views.Maui;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Discretizer;
-using Microsoft.Maui.Controls;
-using Microsoft.Maui.Graphics;
 
 namespace ElectricalImpedanceTomography.Views;
 
