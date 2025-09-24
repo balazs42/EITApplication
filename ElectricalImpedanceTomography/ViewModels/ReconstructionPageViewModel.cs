@@ -9,6 +9,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Utility.Classes;
 using Utility.Classes.Discretizer;
@@ -446,17 +447,40 @@ namespace ElectricalImpedanceTomography.ViewModels
                             videoWidth = image.Width;
                             videoHeight = image.Height;
                         }
+                        else if (image.Width != videoWidth || image.Height != videoHeight)
+                        {
+                            throw new InvalidOperationException("All exported frames must share the same dimensions.");
+                        }
 
-                        using var data = image.Encode(SKEncodedImageFormat.Jpeg, 90);
-                        frameData.Add(data.ToArray());
+                        var imageInfo = new SKImageInfo(image.Width,
+                                                        image.Height,
+                                                        SKColorType.Bgra8888,
+                                                        SKAlphaType.Premul);
+
+                        using var bitmap = new SKBitmap(imageInfo);
+                        if (!image.ReadPixels(imageInfo, bitmap.GetPixels(), bitmap.RowBytes))
+                            throw new InvalidOperationException("Failed to read frame pixels for video export.");
+
+                        var pixelBytes = MemoryMarshal.AsBytes(bitmap.GetPixelSpan());
+                        int rowBytes = bitmap.RowBytes;
+                        var rawFrame = new byte[rowBytes * image.Height];
+
+                        for (int y = 0; y < image.Height; y++)
+                        {
+                            var sourceRow = pixelBytes.Slice(y * rowBytes, rowBytes);
+                            var destinationRow = rawFrame.AsSpan((image.Height - 1 - y) * rowBytes, rowBytes);
+                            sourceRow.CopyTo(destinationRow);
+                        }
+
+                        frameData.Add(rawFrame);
                     }
 
                     using var stream = File.Create(filePath);
-                    MotionJpegAviWriter.Write(stream,
-                                              frameData,
-                                              videoWidth,
-                                              videoHeight,
-                                              Workspace.ReconstructionVideoFramesPerSecond);
+                    AviVideoWriter.Write(stream,
+                                         frameData,
+                                         videoWidth,
+                                         videoHeight,
+                                         Workspace.ReconstructionVideoFramesPerSecond);
                 });
 
                 return VideoExportResult.CreateSuccess(filePath);

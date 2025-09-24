@@ -1,11 +1,17 @@
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Text;
 
 namespace ElectricalImpedanceTomography.Helpers;
 
-internal static class MotionJpegAviWriter
+internal static class AviVideoWriter
 {
     private const uint AviIfKeyFrame = 0x10;
     private const uint AviMainHeaderHasIndex = 0x10;
+    private const ushort BitsPerPixel = 32;
+    private const uint BiRgbCompression = 0u;
+    private static readonly uint VideoChunkFourCc = ToFourCC("00db");
 
     public static void Write(Stream stream,
                              IReadOnlyList<byte[]> frames,
@@ -28,6 +34,8 @@ internal static class MotionJpegAviWriter
         int maxFrameSize = frames.Max(f => f.Length);
         if (maxFrameSize == 0)
             throw new ArgumentException("Frame data was empty.", nameof(frames));
+        if (frames.Any(f => f.Length != maxFrameSize))
+            throw new ArgumentException("All frames must have the same size.", nameof(frames));
 
         uint microSecPerFrame = (uint)Math.Round(1_000_000d / framesPerSecond);
         uint bytesPerSecond = (uint)(maxFrameSize * framesPerSecond);
@@ -55,7 +63,8 @@ internal static class MotionJpegAviWriter
                        (uint)width,
                        (uint)height,
                        (uint)framesPerSecond,
-                       (uint)maxFrameSize);
+                       (uint)maxFrameSize,
+                       BitsPerPixel);
 
         long hdrlListEnd = writer.BaseStream.Position;
         UpdateChunkSize(writer, hdrlSizePos, hdrlListEnd);
@@ -71,14 +80,14 @@ internal static class MotionJpegAviWriter
         foreach (var frame in frames)
         {
             long chunkStart = writer.BaseStream.Position;
-            WriteFourCC(writer, "00dc");
+            WriteFourCC(writer, "00db");
             writer.Write(frame.Length);
             writer.Write(frame);
             if ((frame.Length & 1) == 1)
                 writer.Write((byte)0);
 
             uint offset = (uint)(chunkStart - moviListStart - 4);
-            indexEntries.Add(new AviIndexEntry(ToFourCC("00dc"), AviIfKeyFrame, offset, (uint)frame.Length));
+            indexEntries.Add(new AviIndexEntry(VideoChunkFourCc, AviIfKeyFrame, offset, (uint)frame.Length));
         }
 
         long moviListEnd = writer.BaseStream.Position;
@@ -107,7 +116,8 @@ internal static class MotionJpegAviWriter
                                        uint width,
                                        uint height,
                                        uint framesPerSecond,
-                                       uint maxFrameSize)
+                                       uint imageSize,
+                                       ushort bitsPerPixel)
     {
         WriteFourCC(writer, "avih");
         writer.Write(56);
@@ -135,7 +145,7 @@ internal static class MotionJpegAviWriter
         WriteFourCC(writer, "strh");
         writer.Write(56);
         writer.Write(ToFourCC("vids"));
-        writer.Write(ToFourCC("MJPG"));
+        writer.Write(BiRgbCompression);
         writer.Write(0u);
         writer.Write((ushort)0);
         writer.Write((ushort)0);
@@ -158,10 +168,8 @@ internal static class MotionJpegAviWriter
         writer.Write((int)width);
         writer.Write((int)height);
         writer.Write((ushort)1);
-        writer.Write((ushort)24);
-        writer.Write(ToFourCC("MJPG"));
-        ulong rawImageSize = (ulong)width * height * 3u;
-        uint imageSize = rawImageSize > uint.MaxValue ? uint.MaxValue : (uint)rawImageSize;
+        writer.Write(bitsPerPixel);
+        writer.Write(BiRgbCompression);
         writer.Write(imageSize);
         writer.Write(0u);
         writer.Write(0u);
