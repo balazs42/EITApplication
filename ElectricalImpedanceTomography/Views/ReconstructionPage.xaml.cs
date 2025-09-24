@@ -146,6 +146,25 @@ public partial class ReconstructionPage : ContentPage
     }
     #endregion
 
+    private void OnPlayPauseAcceleratorInvoked(object sender, KeyboardAcceleratorInvokedEventArgs e)
+    {
+        if (PlayButton.IsVisible)
+            OnPlayButtonClicked(PlayButton, EventArgs.Empty);
+        else
+            OnPauseButtonClicked(PauseButton, EventArgs.Empty);
+    }
+
+    private void OnStepAcceleratorInvoked(object sender, KeyboardAcceleratorInvokedEventArgs e)
+    {
+        if (StepButton.IsEnabled)
+            OnStepButtonClicked(StepButton, EventArgs.Empty);
+    }
+
+    private void OnStopAcceleratorInvoked(object sender, KeyboardAcceleratorInvokedEventArgs e)
+    {
+        OnStopButtonClicked(StopButton, EventArgs.Empty);
+    }
+
     private void OnReconstructionUpdated(object? sender, ReconstructionResult result)
     {
         _currentResult = result;
