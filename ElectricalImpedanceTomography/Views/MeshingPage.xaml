@@ -266,6 +266,32 @@
 
                                 </Border>
 
+                                <Border Stroke="Transparent">
+                                    <Grid ColumnDefinitions="Auto, *" Margin="5">
+                                        <Image Grid.Column="0" Source="icon_next_black.png" HeightRequest="30" Rotation="180"/>
+                                        <Label Grid.Column="1" Text="Undo" FontSize="Medium" HorizontalOptions="Center" VerticalOptions="Center" FontAttributes="Bold"/>
+                                    </Grid>
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnUndoClicked"/>
+                                    </Border.GestureRecognizers>
+                                    <Border.Shadow>
+                                        <Shadow Brush="Black" Opacity="5.0" Radius="4.0"/>
+                                    </Border.Shadow>
+                                </Border>
+
+                                <Border Stroke="Transparent">
+                                    <Grid ColumnDefinitions="Auto, *" Margin="5">
+                                        <Image Grid.Column="0" Source="icon_next_black.png" HeightRequest="30"/>
+                                        <Label Grid.Column="1" Text="Redo" FontSize="Medium" HorizontalOptions="Center" VerticalOptions="Center" FontAttributes="Bold"/>
+                                    </Grid>
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnRedoClicked"/>
+                                    </Border.GestureRecognizers>
+                                    <Border.Shadow>
+                                        <Shadow Brush="Black" Opacity="5.0" Radius="4.0"/>
+                                    </Border.Shadow>
+                                </Border>
+
                             </HorizontalStackLayout>
                         </Border>
                         
