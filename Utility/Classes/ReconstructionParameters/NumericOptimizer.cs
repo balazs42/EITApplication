@@ -59,8 +59,6 @@
     public sealed class PolyakHeavyBallOptimizer : INumericOptimizer
     {
         private readonly double _beta;
-        private readonly double _min = 1e-6;
-        private readonly double _max = 10.0;
         // store velocity per element
         private Dictionary<int, double>? _velocity;
 
@@ -90,7 +88,6 @@
                 double v_new = _beta * v_prev - stepSize * gradient;
                 // σ_new = σ + v_new
                 double nextValue = conductivity + v_new;
-                nextValue = Math.Max(_min, Math.Min(_max, nextValue));
 
                 nextVel[id] = v_new;
                 nextSigma[id] = nextValue;
@@ -111,8 +108,6 @@
         private readonly double _eps;
         private readonly double _weightDecay;
         private readonly double? _maxGradNorm;
-        private readonly double _min = 1e-6;
-        private readonly double _max = 10.0;
 
         private int _t = 0;
         private Dictionary<int, double>? _m;  // 1st moment
@@ -198,7 +193,6 @@
 
                 // update σ
                 double σn = conductivity - stepSize * m_hat / denom;
-                σn = Math.Max(_min, Math.Min(_max, σn));
                 newSigma[id] = σn;
             }
             return new ConductivityDistribution(newSigma);
@@ -212,8 +206,6 @@
     public sealed class NesterovAcceleratedGradientOptimizer : INumericOptimizer
     {
         private readonly double _gamma;
-        private readonly double _min = 1e-6;
-        private readonly double _max = 10.0;
         private Dictionary<int, double>? _prevSigma;
 
         public NesterovAcceleratedGradientOptimizer(double gamma = 0.9)
@@ -246,7 +238,6 @@
                 double yv = kv.Value;
                 double gradient = totalGradient.GetConductivity(id);
                 double nextValue = yv - stepSize * gradient;
-                nextValue = Math.Max(_min, Math.Min(_max, nextValue));
                 nextSigma[id] = nextValue;
             }
 
@@ -382,25 +373,14 @@
     {
         private double _temperature = 1.0;
         private readonly double _cooling = 0.95;
-        private readonly Random _rnd;
-        private readonly double _min = 1e-6;
-        private readonly double _max = 10.0;
-
-        public SimulatedAnnealingOptimizer(Random? random = null)
-        {
-            _rnd = random ?? new Random();
-        }
+        private readonly Random _rnd = new Random();
 
         public ConductivityDistribution OptimizationStep(ConductivityDistribution sigmaK, ConductivityDistribution totalGradient, double stepSize)
         {
             // propose Δσ uniform in [-stepSize,stepSize]
             var σp = new Dictionary<int, double>();
             foreach (var kv in sigmaK.Conductivities)
-            {
-                double proposal = kv.Value + (2 * _rnd.NextDouble() - 1) * stepSize;
-                proposal = Math.Max(_min, Math.Min(_max, proposal));
-                σp[kv.Key] = proposal;
-            }
+                σp[kv.Key] = kv.Value + (2 * _rnd.NextDouble() - 1) * stepSize;
 
             // approximate ΔJ = ∑g_i Δσ_i
             double dJ = 0;
