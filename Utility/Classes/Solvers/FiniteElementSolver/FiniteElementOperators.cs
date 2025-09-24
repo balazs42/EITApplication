@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Linq;
-using Utility.Classes.Discretizer.FiniteElementMesh;
+﻿using Utility.Classes.Discretizer.FiniteElementMesh;
 
 namespace Utility.Classes.Solvers.FiniteElementSolver
 {

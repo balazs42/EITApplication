@@ -512,6 +512,7 @@ public partial class ReconstructionPage : ContentPage
         DrawHoverInfo(canvas, info, lines, pt);
     }
 
+    [Obsolete]
     private void DrawColorBar(SKCanvas canvas,
                               SKImageInfo info,
                               double min,
@@ -553,6 +554,7 @@ public partial class ReconstructionPage : ContentPage
     private void OnResidualTrendCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
         => DrawResidualTrend(e.Surface.Canvas, e.Info, _viewModel.ResidualHistory);
 
+    [Obsolete]
     private void DrawResidualTrend(SKCanvas canvas, SKImageInfo info, IReadOnlyList<double> history)
     {
         canvas.Clear(DistributionCanvasBackgroundColor);

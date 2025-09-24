@@ -76,6 +76,7 @@ internal static class ReconstructionVideoRenderer
         return results.Count > 0 ? results[^1] : null;
     }
 
+    [Obsolete]
     public static SKImage RenderFrameSnapshot(ReconstructionFrame frame,
                                               ReconstructionResult? context,
                                               IDiscretization discretization,
@@ -396,6 +397,7 @@ internal static class ReconstructionVideoRenderer
         return surface.Snapshot();
     }
 
+    [Obsolete]
     private static void DrawDistributionCell(SKCanvas canvas,
                                              string title,
                                              float x,
@@ -433,6 +435,7 @@ internal static class ReconstructionVideoRenderer
                                     colorbarY + colorbarHeight));
     }
 
+    [Obsolete]
     private static void DrawColorBar(SKCanvas canvas,
                                      SKImageInfo info,
                                      double min,
@@ -482,6 +485,7 @@ internal static class ReconstructionVideoRenderer
         canvas.DrawText(max.ToString("F2"), info.Width, info.Height - 4, textPaint);
     }
 
+    [Obsolete]
     private static void DrawResidualTrend(SKCanvas canvas,
                                           SKRect rect,
                                           IReadOnlyList<double> history,
