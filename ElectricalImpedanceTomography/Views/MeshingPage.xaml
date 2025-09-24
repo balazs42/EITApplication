@@ -7,12 +7,34 @@
              xmlns:controls="clr-namespace:ElectricalImpedanceTomography.Controls"
              xmlns:models="clr-namespace:Utility.Classes.Meshing;assembly=Utility"
              Title="MeshingPage"
+             Shell.NavBarIsVisible="False"
              x:DataType="viewmodels:MeshingPageViewModel">
-    <ContentPage.KeyboardAccelerators>
-        <KeyboardAccelerator Key="Z" Modifiers="Ctrl" Invoked="OnUndoAcceleratorInvoked" />
-        <KeyboardAccelerator Key="Y" Modifiers="Ctrl" Invoked="OnRedoAcceleratorInvoked" />
-        <KeyboardAccelerator Key="S" Modifiers="Ctrl" Invoked="OnSaveAcceleratorInvoked" />
-    </ContentPage.KeyboardAccelerators>
+    <ContentPage.MenuBarItems>
+        <MenuBarItem Text="Edit" IsEnabled="False">
+            <MenuFlyoutItem Text="Undo"
+                            Clicked="OnUndoAcceleratorInvoked">
+                <MenuFlyoutItem.KeyboardAccelerators>
+                    <KeyboardAccelerator Modifiers="Ctrl"
+                                         Key="Z" />
+                </MenuFlyoutItem.KeyboardAccelerators>
+            </MenuFlyoutItem>
+            <MenuFlyoutItem Text="Redo"
+                            Clicked="OnRedoAcceleratorInvoked">
+                <MenuFlyoutItem.KeyboardAccelerators>
+                    <KeyboardAccelerator Modifiers="Ctrl"
+                                         Key="Y" />
+                </MenuFlyoutItem.KeyboardAccelerators>
+            </MenuFlyoutItem>
+            <MenuFlyoutItem Text="Save"
+                            Clicked="OnSaveAcceleratorInvoked">
+                <MenuFlyoutItem.KeyboardAccelerators>
+                    <KeyboardAccelerator Modifiers="Ctrl"
+                                         Key="S" />
+                </MenuFlyoutItem.KeyboardAccelerators>
+            </MenuFlyoutItem>
+        </MenuBarItem>
+    </ContentPage.MenuBarItems>
+    
     <ContentPage.Resources>
         <Style TargetType="Label">
             <Setter Property="FontFamily" Value="SF Pro Text"/>

@@ -147,7 +147,7 @@
                     </VerticalStackLayout>
                 </Border>
 
-                <Border Grid.Row="1" Stroke="LightGray" StrokeThickness="1" Padding="10" StrokeShape="RoundRectangle 3" HeightRequest="300" VerticalOptions="Start" BackgroundColor="{AppThemeBinding Light=White, Dark=#1F1F1F}">
+                <Border Grid.Row="1" Stroke="LightGray" StrokeThickness="1" Padding="10" StrokeShape="RoundRectangle 3" HeightRequest="400" VerticalOptions="Start" BackgroundColor="{AppThemeBinding Light=White, Dark=#1F1F1F}">
                     <Grid RowDefinitions="Auto,*,Auto" RowSpacing="2">
                         <Grid Grid.Row="0" ColumnDefinitions="Auto, Auto" ColumnSpacing="5">
                             <Image Grid.Column="0" Source="icon_terminal2.png" HeightRequest="20" BackgroundColor="Transparent"/>

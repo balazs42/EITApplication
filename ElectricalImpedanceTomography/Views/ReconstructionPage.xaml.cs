@@ -146,24 +146,6 @@ public partial class ReconstructionPage : ContentPage
     }
     #endregion
 
-    private void OnPlayPauseAcceleratorInvoked(object sender, KeyboardAcceleratorInvokedEventArgs e)
-    {
-        if (PlayButton.IsVisible)
-            OnPlayButtonClicked(PlayButton, EventArgs.Empty);
-        else
-            OnPauseButtonClicked(PauseButton, EventArgs.Empty);
-    }
-
-    private void OnStepAcceleratorInvoked(object sender, KeyboardAcceleratorInvokedEventArgs e)
-    {
-        if (StepButton.IsEnabled)
-            OnStepButtonClicked(StepButton, EventArgs.Empty);
-    }
-
-    private void OnStopAcceleratorInvoked(object sender, KeyboardAcceleratorInvokedEventArgs e)
-    {
-        OnStopButtonClicked(StopButton, EventArgs.Empty);
-    }
 
     private void OnReconstructionUpdated(object? sender, ReconstructionResult result)
     {
@@ -727,6 +709,25 @@ public partial class ReconstructionPage : ContentPage
             }
             Dispatcher.Dispatch(InvalidateAll);
         }
+    }
+
+    private void OnPlayPauseAcceleratorInvoked(object sender, EventArgs e)
+    {
+        if (PlayButton.IsVisible)
+            OnPlayButtonClicked(PlayButton, EventArgs.Empty);
+        else
+            OnPauseButtonClicked(PauseButton, EventArgs.Empty);
+    }
+
+    private void OnStepAcceleratorInvoked(object sender, EventArgs e)
+    {
+        if (StepButton.IsEnabled)
+            OnStepButtonClicked(StepButton, EventArgs.Empty);
+    }
+
+    private void OnStopAcceleratorInvoked(object sender, EventArgs e)
+    {
+        OnStopButtonClicked(StopButton, EventArgs.Empty);
     }
 
     private void OnPlaybackSliderValueChanged(object sender, ValueChangedEventArgs e)
