@@ -488,6 +488,7 @@
             <!-- Right panel with saved meshes -->
             <Border Grid.Column="2"
                     Padding="10"
+                    MaximumWidthRequest="350"
                     Margin="5, 5, 5, 5"
                     Style="{StaticResource PanelBorderStyle}"
                     Background="{StaticResource StatisticsPanelBrush}">
