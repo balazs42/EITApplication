@@ -129,75 +129,57 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
         /// </summary>
         public void PlaceEquidistantElectrodes(int numElectrodes)
         {
-            // 1) Clear any existing electrode flags
             foreach (var el in _elements)
                 el.IsElectrode = false;
 
-            if (numElectrodes <= 0) return;
+            _electrodes.Clear();
 
-            // 2) Compute center and max radius in lattice coords
+            if (numElectrodes <= 0)
+                return;
+
             double cx = (Nx - 1) / 2.0;
             double cy = (Ny - 1) / 2.0;
 
-            double maxR = 0.0;
+            var boundary = new List<LBMElement>();
             for (int y = 0; y < Ny; y++)
-                for (int x = 0; x < Nx; x++)
-                    if (!_grid[x, y].IsWall)
-                    {
-                        double dx = x - cx;
-                        double dy = y - cy;
-                        double dist = Math.Sqrt(dx * dx + dy * dy);
-                        if (dist > maxR)
-                            maxR = dist;
-                    }
-
-            maxR += 1.0; // start from just outside the domain
-
-            // 3) For each electrode, pick an angle and ray‐cast inward
-            for (int i = 0; i < numElectrodes; i++)
             {
-                double theta = 2.0 * Math.PI * i / numElectrodes;
-                int chosenId = -1;
-
-                // Step from outer radius toward center in small increments
-                for (double r = maxR; r >= 0; r -= 0.5)
+                for (int x = 0; x < Nx; x++)
                 {
-                    // continuous coords along ray
-                    double fx = cx + r * Math.Cos(theta);
-                    double fy = cy + r * Math.Sin(theta);
-                    int ix = (int)Math.Round(fx);
-                    int iy = (int)Math.Round(fy);
-
-                    // skip out‐of‐bounds
-                    if (ix < 0 || ix >= Nx || iy < 0 || iy >= Ny)
+                    var cell = _grid[x, y];
+                    if (cell.IsWall)
                         continue;
 
-                    var cell = _grid[ix, iy];
-                    // first non‐wall is our electrode
-                    if (!cell.IsWall)
-                    {
-                        chosenId = cell.Id;
-                        break;
-                    }
+                    bool isBoundary = false;
+                    if (x == 0 || x == Nx - 1 || y == 0 || y == Ny - 1)
+                        continue; // outer walls are already walls
+                    if (_grid[x - 1, y].IsWall || _grid[x + 1, y].IsWall ||
+                        _grid[x, y - 1].IsWall || _grid[x, y + 1].IsWall)
+                        isBoundary = true;
+
+                    if (isBoundary)
+                        boundary.Add(cell);
                 }
+            }
 
-                // fallback if ray never hit a non‐wall cell
-                if (chosenId < 0)
-                    chosenId = _elements.First(el => !el.IsWall).Id;
+            boundary = boundary
+                .OrderBy(el =>
+                {
+                    var (bx, by) = ToLattice(el.Id);
+                    return Math.Atan2(by - cy, bx - cx);
+                })
+                .ToList();
 
-                // 4) Mark the chosen element as an electrode
-                var chosenEl = _elements.Single(el => el.Id == chosenId);
-                chosenEl.IsElectrode = true;
-
-                // 5) Create and register the high‐level LBMElectrode
-                var electrode = new LBMElectrode(
-                    id: i,
-                    gridId: chosenId,
-                    current: 0.0,
-                    contactImpedance: 0.0,
-                    potential: 0.0
-                );
+            int count = boundary.Count;
+            double step = count / (double)numElectrodes;
+            double pos = 0.0;
+            for (int i = 0; i < numElectrodes; i++)
+            {
+                int idx = (int)Math.Floor(pos) % count;
+                var cell = boundary[idx];
+                cell.IsElectrode = true;
+                var electrode = new LBMElectrode(i, cell.Id, 0.0, 0.0, 0.0);
                 _electrodes.Add(electrode);
+                pos += step;
             }
         }
 

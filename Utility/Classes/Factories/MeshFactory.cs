@@ -437,31 +437,7 @@ namespace Utility.Classes.Factories
         {
             var mesh = new LBMMesh(nx, ny);
 
-            // collect inner boundary cells (adjacent to outer walls)
-            var boundary = new List<LBMElement>();
-            for (int x = 1; x < nx - 1; x++)
-                boundary.Add(mesh.GetElementAt(x, 1));
-            for (int y = 2; y < ny - 1; y++)
-                boundary.Add(mesh.GetElementAt(nx - 2, y));
-            for (int x = nx - 3; x >= 1; x--)
-                boundary.Add(mesh.GetElementAt(x, ny - 2));
-            for (int y = ny - 3; y >= 2; y--)
-                boundary.Add(mesh.GetElementAt(1, y));
-
-            var electrodes = new List<LBMElectrode>();
-            int count = Math.Min(electrodeCount, boundary.Count);
-            if (count > 0)
-            {
-                int step = Math.Max(boundary.Count / count, 1);
-                for (int i = 0; i < count; i++)
-                {
-                    var cell = boundary[i * step];
-                    cell.IsElectrode = true;
-                    electrodes.Add(new LBMElectrode(i, cell.Id, 0.0, 0.0, 0.0));
-                }
-            }
-
-            mesh.SetElectrodes(electrodes);
+            mesh.PlaceEquidistantElectrodes(electrodeCount);
 
             var cd = mesh.GetElements().ToDictionary(e => e.Id, e => e.Conductivity);
             mesh.SetConductivityDistribution(new ConductivityDistribution(cd));

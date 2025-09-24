@@ -148,13 +148,13 @@
                 </Border>
 
                 <Border Grid.Row="1" Stroke="LightGray" StrokeThickness="1" Padding="10" StrokeShape="RoundRectangle 3" HeightRequest="300" VerticalOptions="Start" BackgroundColor="{AppThemeBinding Light=White, Dark=#1F1F1F}">
-                    <Grid RowDefinitions="Auto, *" RowSpacing="2">
+                    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="2">
                         <Grid Grid.Row="0" ColumnDefinitions="Auto, Auto" ColumnSpacing="5">
                             <Image Grid.Column="0" Source="icon_terminal2.png" HeightRequest="20" BackgroundColor="Transparent"/>
                             <Label Grid.Column="1" Text="Console" FontAttributes="Italic" FontSize="Medium"/>
                         </Grid>
-                        <ScrollView Grid.Row="1">
-                            <VerticalStackLayout Spacing="2"
+                        <ScrollView x:Name="ConsoleScroll" Grid.Row="1">
+                            <VerticalStackLayout x:Name="ConsoleStack" Spacing="2"
                                                  BindableLayout.ItemsSource="{Binding DebugLog}">
                                 <BindableLayout.ItemTemplate>
                                     <DataTemplate x:DataType="messages:WorkspaceMessage">
@@ -176,6 +176,13 @@
                                 </BindableLayout.ItemTemplate>
                             </VerticalStackLayout>
                         </ScrollView>
+                        <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="5">
+                            <Entry Grid.Column="0" Text="{Binding ConsoleInput}" FontFamily="Consolas"/>
+                            <ImageButton Grid.Column="1"
+                                         Source="icon_next_blue.png"
+                                         BackgroundColor="Transparent"
+                                         Command="{Binding SendConsoleMessageCommand}"/>
+                        </Grid>
                     </Grid>
                 </Border>
             </Grid>
