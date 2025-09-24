@@ -4,7 +4,6 @@ namespace Utility.Classes.Meshing
     {
         Circular,
         Rectangular,
-        Thorax,
         Custom
     }
 }
