@@ -1,5 +1,4 @@
-﻿using Google.OrTools.Sat;
-using Utility.Classes.ReconstructionParameters;
+﻿using Utility.Classes.ReconstructionParameters;
 
 namespace Utility.Classes.Application
 {
@@ -34,7 +33,7 @@ namespace Utility.Classes.Application
 
         public static void SetUser(User user) => _user = user;
         public static void SetReconstructionParameters(EITReconstructionParameters eITReconstructionParameters) => _reconstructionParameters = eITReconstructionParameters;
-        public static void SetMesh(IMesh mesh) => _mesh = mesh;
+        public static void SetMesh(IMesh? mesh) => _mesh = mesh;
         public static void SetReconstructionResults(List<ReconstructionResult> results) => _reconstructionResults = results;
 
         public static User GetUser() => _user;
