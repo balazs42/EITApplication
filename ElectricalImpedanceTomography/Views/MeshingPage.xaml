@@ -9,7 +9,7 @@
              Title="MeshingPage"
              Shell.NavBarIsVisible="False"
              x:DataType="viewmodels:MeshingPageViewModel"
-             BackgroundColor="{AppThemeBinding Dark=#121212, Light=#CCCCCC}">
+             BackgroundColor="{AppThemeBinding Dark=#102024, Light=#D4EFE7}">
     <ContentPage.MenuBarItems>
         <MenuBarItem Text="Edit" IsEnabled="False">
             <MenuFlyoutItem Text="Undo"

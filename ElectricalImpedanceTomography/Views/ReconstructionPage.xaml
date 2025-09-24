@@ -8,7 +8,7 @@
              x:Class="ElectricalImpedanceTomography.Views.ReconstructionPage"
              Title="ReconstructionPage"
              Shell.NavBarIsVisible="False"
-             BackgroundColor="{AppThemeBinding Dark=#121212, Light=#CCCCCC}"
+             BackgroundColor="{AppThemeBinding Dark=#1B1A13, Light=#F2E7D8}"
              x:DataType="viewmodels:ReconstructionPageViewModel">
     <ContentPage.MenuBarItems>
         <MenuBarItem Text="Reconstruction">

@@ -1,4 +1,5 @@
 using CommunityToolkit.Maui.Views;
+using ElectricalImpedanceTomography.Extensions;
 using ElectricalImpedanceTomography.ViewModels;
 using Microsoft.Maui.ApplicationModel;
 using SkiaSharp;
@@ -10,6 +11,7 @@ using Utility.Classes.Measurement;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
+using Microsoft.Maui.Graphics;
 
 using Workspace = Utility.Classes.Application.Workspace;
 
@@ -82,7 +84,23 @@ public partial class ReconstructionPage : ContentPage
     protected override void OnAppearing()
     {
         base.OnAppearing();
+        var (startColor, endColor) = GetBackgroundPulseColors();
+        this.StartBackgroundPulse(startColor, endColor);
         _viewModel.LoadAvailableReconstructions();
+    }
+
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+        this.StopBackgroundPulse();
+    }
+
+    private static (Color Start, Color End) GetBackgroundPulseColors()
+    {
+        var theme = Application.Current?.RequestedTheme ?? AppTheme.Light;
+        return theme == AppTheme.Dark
+            ? (Color.FromArgb("#1B1A13"), Color.FromArgb("#2A281E"))
+            : (Color.FromArgb("#F2E7D8"), Color.FromArgb("#E6DAC9"));
     }
 
     private IDiscretization? GetDiscretization()

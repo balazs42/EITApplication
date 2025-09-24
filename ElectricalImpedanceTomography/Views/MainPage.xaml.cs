@@ -1,5 +1,7 @@
 ﻿using ElectricalImpedanceTomography.ViewModels;
+using ElectricalImpedanceTomography.Extensions;
 using SkiaSharp;
+using Microsoft.Maui.Graphics;
 using Utility.Classes.Application;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
@@ -38,10 +40,26 @@ namespace ElectricalImpedanceTomography.Views
         protected override void OnAppearing()
         {
             base.OnAppearing();
+            var (startColor, endColor) = GetBackgroundPulseColors();
+            this.StartBackgroundPulse(startColor, endColor);
             MeshCanvasView?.InvalidateSurface();
             if (ConsoleScroll != null && ConsoleStack != null)
                 MainThread.BeginInvokeOnMainThread(async () =>
                     await ConsoleScroll.ScrollToAsync(0, ConsoleStack.Height, false));
+        }
+
+        protected override void OnDisappearing()
+        {
+            base.OnDisappearing();
+            this.StopBackgroundPulse();
+        }
+
+        private static (Color Start, Color End) GetBackgroundPulseColors()
+        {
+            var theme = Application.Current?.RequestedTheme ?? AppTheme.Light;
+            return theme == AppTheme.Dark
+                ? (Color.FromArgb("#101B2B"), Color.FromArgb("#1A2F45"))
+                : (Color.FromArgb("#D7E4F8"), Color.FromArgb("#C8D6F2"));
         }
 
         private void OnLoadMeasurementClicked(object sender, EventArgs e)
