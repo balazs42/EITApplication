@@ -69,8 +69,8 @@ public partial class ReconstructionPage : ContentPage
         _viewModel.LoadAvailableReconstructions();
     }
 
-    private IMesh? GetMesh()
-        => (_currentResult?.Mesh as IMesh) ?? (IMesh?)Workspace.GetMesh();
+    private IDiscretization? GetMesh()
+        => (_currentResult?.Discretization as IDiscretization) ?? (IDiscretization?)Workspace.GetDiscretization();
 
     private static async Task AnimateButtonAsync(object sender)
     {
@@ -365,7 +365,7 @@ public partial class ReconstructionPage : ContentPage
         DrawHoverInfo(canvas, e.Info, lines, pt);
     }
 
-    private void DrawLbmField(SKPaintSurfaceEventArgs e, LBMMesh mesh, Dictionary<int, double> values, bool isPotential, string[]? lines, SKPoint? pt)
+    private void DrawLbmField(SKPaintSurfaceEventArgs e, LBMGrid mesh, Dictionary<int, double> values, bool isPotential, string[]? lines, SKPoint? pt)
     {
         var canvas = e.Surface.Canvas;
         canvas.Clear(SKColor.Parse("#1E1E1E"));
@@ -432,7 +432,7 @@ public partial class ReconstructionPage : ContentPage
             var cd = Workspace.GetOriginalConductivityDistribution() ?? fem.GetConductivityDistribution();
             DrawFemConductivity(e, fem, cd, _hoverOriginalLines, _hoverOriginalPt);
         }
-        else if (mesh is LBMMesh lbm)
+        else if (mesh is LBMGrid lbm)
         {
             var cd = Workspace.GetOriginalConductivityDistribution() ?? lbm.GetConductivityDistribution();
             DrawLbmField(e, lbm, cd.Conductivities, false, _hoverOriginalLines, _hoverOriginalPt);
@@ -445,7 +445,7 @@ public partial class ReconstructionPage : ContentPage
         var pd = _currentFrame?.CalculatedPotentialDistribution ?? mesh?.GetPotentialDistribution();
         if (mesh is FEMMesh fem && pd != null)
             DrawFemPotential(e, fem, pd, _hoverPotentialLines, _hoverPotentialPt);
-        else if (mesh is LBMMesh lbm && pd != null)
+        else if (mesh is LBMGrid lbm && pd != null)
             DrawLbmField(e, lbm, pd.Potentials, true, _hoverPotentialLines, _hoverPotentialPt);
     }
 
@@ -455,7 +455,7 @@ public partial class ReconstructionPage : ContentPage
         var cd = _currentResult?.ReconstructedConductivityDistribution ?? mesh?.GetConductivityDistribution();
         if (mesh is FEMMesh fem && cd != null)
             DrawFemConductivity(e, fem, cd, _hoverReconstructedLines, _hoverReconstructedPt);
-        else if (mesh is LBMMesh lbm && cd != null)
+        else if (mesh is LBMGrid lbm && cd != null)
             DrawLbmField(e, lbm, cd.Conductivities, false, _hoverReconstructedLines, _hoverReconstructedPt);
     }
 
@@ -465,7 +465,7 @@ public partial class ReconstructionPage : ContentPage
         var pd = _currentFrame?.CalculatedAdjointDistribution ?? mesh?.GetPotentialDistribution();
         if (mesh is FEMMesh fem && pd != null)
             DrawFemPotential(e, fem, pd, _hoverAdjointLines, _hoverAdjointPt);
-        else if (mesh is LBMMesh lbm && pd != null)
+        else if (mesh is LBMGrid lbm && pd != null)
             DrawLbmField(e, lbm, pd.Potentials, true, _hoverAdjointLines, _hoverAdjointPt);
     }
 
@@ -475,7 +475,7 @@ public partial class ReconstructionPage : ContentPage
         var cd = _currentResult?.InitialConductivitiyDistribution ?? mesh?.GetConductivityDistribution();
         if (mesh is FEMMesh fem && cd != null)
             DrawFemConductivity(e, fem, cd, _hoverInitialLines, _hoverInitialPt);
-        else if (mesh is LBMMesh lbm && cd != null)
+        else if (mesh is LBMGrid lbm && cd != null)
             DrawLbmField(e, lbm, cd.Conductivities, false, _hoverInitialLines, _hoverInitialPt);
     }
 
@@ -485,7 +485,7 @@ public partial class ReconstructionPage : ContentPage
         var cd = _currentFrame?.ConductivityGradient;
         if (mesh is FEMMesh fem && cd != null)
             DrawFemConductivity(e, fem, cd, _hoverGradientLines, _hoverGradientPt);
-        else if (mesh is LBMMesh lbm && cd != null)
+        else if (mesh is LBMGrid lbm && cd != null)
             DrawLbmField(e, lbm, cd.Conductivities, false, _hoverGradientLines, _hoverGradientPt);
     }
 
@@ -501,7 +501,7 @@ public partial class ReconstructionPage : ContentPage
             if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
             DrawColorBar(e.Surface.Canvas, e.Info, min, max, false);
         }
-        else if (mesh is LBMMesh lbm)
+        else if (mesh is LBMGrid lbm)
         {
             var cd = _currentResult?.OriginalConductivityDistribution ?? Workspace.GetOriginalConductivityDistribution() ?? lbm.GetConductivityDistribution();
             double min = cd.Conductivities.Values.Min();
@@ -535,7 +535,7 @@ public partial class ReconstructionPage : ContentPage
             if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
             DrawColorBar(e.Surface.Canvas, e.Info, min, max, false);
         }
-        else if (mesh is LBMMesh lbm)
+        else if (mesh is LBMGrid lbm)
         {
             var cd = _currentResult?.ReconstructedConductivityDistribution ?? lbm.GetConductivityDistribution();
             double min = cd.Conductivities.Values.Min();
@@ -569,7 +569,7 @@ public partial class ReconstructionPage : ContentPage
             if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
             DrawColorBar(e.Surface.Canvas, e.Info, min, max, false);
         }
-        else if (mesh is LBMMesh lbm)
+        else if (mesh is LBMGrid lbm)
         {
             var cd = _currentResult?.InitialConductivitiyDistribution ?? lbm.GetConductivityDistribution();
             double min = cd.Conductivities.Values.Min();
@@ -624,7 +624,7 @@ public partial class ReconstructionPage : ContentPage
             }
             view.InvalidateSurface(); e.Handled = true;
         }
-        else if (mesh is LBMMesh lbm)
+        else if (mesh is LBMGrid lbm)
         {
             float cw = view.CanvasSize.Width / lbm.Nx;
             float ch = view.CanvasSize.Height / lbm.Ny;
@@ -659,7 +659,7 @@ public partial class ReconstructionPage : ContentPage
             _hoverPotentialPt = e.Location;
             view.InvalidateSurface(); e.Handled = true;
         }
-        else if (mesh is LBMMesh lbm)
+        else if (mesh is LBMGrid lbm)
         {
             float cw = view.CanvasSize.Width / lbm.Nx;
             float ch = view.CanvasSize.Height / lbm.Ny;
@@ -703,7 +703,7 @@ public partial class ReconstructionPage : ContentPage
             }
             view.InvalidateSurface(); e.Handled = true;
         }
-        else if (mesh is LBMMesh lbm)
+        else if (mesh is LBMGrid lbm)
         {
             float cw = view.CanvasSize.Width / lbm.Nx;
             float ch = view.CanvasSize.Height / lbm.Ny;
@@ -738,7 +738,7 @@ public partial class ReconstructionPage : ContentPage
             _hoverAdjointPt = e.Location;
             view.InvalidateSurface(); e.Handled = true;
         }
-        else if (mesh is LBMMesh lbm)
+        else if (mesh is LBMGrid lbm)
         {
             float cw = view.CanvasSize.Width / lbm.Nx; float ch = view.CanvasSize.Height / lbm.Ny;
             int col = (int)(e.Location.X / cw); int row = (int)(e.Location.Y / ch);
@@ -781,7 +781,7 @@ public partial class ReconstructionPage : ContentPage
             }
             view.InvalidateSurface(); e.Handled = true;
         }
-        else if (mesh is LBMMesh lbm)
+        else if (mesh is LBMGrid lbm)
         {
             float cw = view.CanvasSize.Width / lbm.Nx; float ch = view.CanvasSize.Height / lbm.Ny;
             int col = (int)(e.Location.X / cw); int row = (int)(e.Location.Y / ch);
@@ -827,7 +827,7 @@ public partial class ReconstructionPage : ContentPage
             }
             view.InvalidateSurface(); e.Handled = true;
         }
-        else if (mesh is LBMMesh lbm)
+        else if (mesh is LBMGrid lbm)
         {
             float cw = view.CanvasSize.Width / lbm.Nx; float ch = view.CanvasSize.Height / lbm.Ny;
             int col = (int)(e.Location.X / cw); int row = (int)(e.Location.Y / ch);
@@ -1026,7 +1026,7 @@ public partial class ReconstructionPage : ContentPage
                 InvalidateAll();
             }
         }
-        else if (mesh is LBMMesh lbm)
+        else if (mesh is LBMGrid lbm)
         {
             var bc = new LBMBoundaryCondition(lbm.GetElectrodes().Cast<LBMElectrode>().ToList());
             var popup = new BoundaryConditionsPopup(bc);

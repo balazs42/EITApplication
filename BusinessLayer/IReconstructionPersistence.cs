@@ -9,7 +9,7 @@ namespace BusinessLayer
     public interface IReconstructionPersistence
     {
         void SetConductivityDistributions(ConductivityDistribution original, ConductivityDistribution initial);
-        public void InitializeReconstruction(IMesh mesh, EITReconstructionParameters parameters, bool reinit);
+        public void InitializeReconstruction(IDiscretization discretization, EITReconstructionParameters parameters, bool reinit);
 
         public ReconstructionFrame Step(double[] measurement, BoundaryCondition boundaryCondition, double gradientStepSize, double redularizationStepSize);
         public void Run(int maxIterationCount, double gradientStepSize, double redularizationStepSize);
@@ -21,14 +21,14 @@ namespace BusinessLayer
 
         // --- Inverse Solve Functions ---
         public ReconstructionFrame InverseSolveStepFem(FEMMesh mesh, FEMBoundaryCondition bc, double[] currentMeasurement, double gradientStepSize);
-        public ReconstructionFrame InverseSolveStepLbm(LBMMesh mesh, LBMBoundaryCondition bc, double[] currentMeasurement);
+        public ReconstructionFrame InverseSolveStepLbm(LBMGrid mesh, LBMBoundaryCondition bc, double[] currentMeasurement);
 
         public ReconstructionResult InverseSolveFem(int maxIterationCount, double gradientStepSize, double redularizationStepSize, double excitationAmplitude, double tolerance = 1e-6);
         public ReconstructionResult InverseSolveLbm(int maxIterationCount, double gradientStepSize, double redularizationStepSize, double excitationAmplitude, double tolerance = 1e-6);
 
 
         public List<double[]> SimulateFemMeasurements(FEMMesh mesh, double excitationAmplitude);
-        public EITMeasurement SimulateLbmMeasurements(LBMMesh mesh, double excitationAmplitude);
+        public EITMeasurement SimulateLbmMeasurements(LBMGrid mesh, double excitationAmplitude);
 
         // --- Graph-based Reconstruction ---
         /// <summary>

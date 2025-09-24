@@ -6,7 +6,7 @@ namespace Utility.Classes.Factories
 {
     public static class ForwardModelFactory
     {
-        public static IForwardModel Create(INumericSolver ns, IDifferentialEquationSolver des, IMesh mesh, ConductivityDistribution conductivityDistribution, BoundaryCondition boundaryCondition)
+        public static IForwardModel Create(INumericSolver ns, IDifferentialEquationSolver des, IDiscretization discretization, ConductivityDistribution conductivityDistribution, BoundaryCondition boundaryCondition)
         {
             throw new NotImplementedException();
             //return new ForwardModel(ns, des, mesh, conductivityDistribution, boundaryCondition);

@@ -4,7 +4,6 @@ using Utility.Classes.Meshing;
 using Utility.Classes.Meshing.FiniteElementMesh;
 using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 using Utility.Classes.Factories;
-using System.Linq;
 
 namespace DataAccessLayer
 {
@@ -22,21 +21,21 @@ namespace DataAccessLayer
             SaveDocument(doc, name, "fem");
         }
 
-        public void SaveLBMMesh(LBMMesh mesh, string name)
+        public void SaveLBMGrid(LBMGrid grid, string name)
         {
-            if (mesh == null) throw new ArgumentNullException(nameof(mesh));
+            if (grid == null) throw new ArgumentNullException(nameof(grid));
             if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Name required.", nameof(name));
 
-            var doc = BuildLbmDocument(mesh, name);
+            var doc = BuildLbmDocument(grid, name);
             SaveDocument(doc, name, "lbm");
         }
 
-        public IEnumerable<MeshInfo> GetMeshes()
+        public IEnumerable<DiscretizationInfo> GetMeshes()
         {
             Directory.CreateDirectory(MeshDir);
             foreach (var file in Directory.GetFiles(MeshDir, "*.eitmesh"))
             {
-                MeshInfo? info = null;
+                DiscretizationInfo? info = null;
                 try
                 {
                     var doc = XDocument.Load(file);
@@ -44,7 +43,7 @@ namespace DataAccessLayer
                     if (root == null) continue;
                     var name = root.Attribute("name")?.Value ?? Path.GetFileNameWithoutExtension(file);
                     var md = DeserializeMetadata(root.Element("Metadata"));
-                    info = new MeshInfo(name, file, md);
+                    info = new DiscretizationInfo(name, file, md);
                 }
                 catch
                 {
@@ -154,7 +153,7 @@ namespace DataAccessLayer
             return mesh;
         }
 
-        public LBMMesh LoadLBMMesh(string filePath)
+        public LBMGrid LoadLBMGrid(string filePath)
         {
             if (!File.Exists(filePath))
                 throw new FileNotFoundException($"Mesh file not found: {filePath}");
@@ -163,7 +162,7 @@ namespace DataAccessLayer
             var root = doc.Root ?? throw new InvalidOperationException("Invalid mesh file.");
 
             var metadata = DeserializeMetadata(root.Element("Metadata"));
-            LBMMesh mesh = CreateLbmFromMetadata(metadata);
+            LBMGrid grid = CreateLbmFromMetadata(metadata);
 
             // elements
             var elementsEl = root.Element("Elements");
@@ -172,7 +171,7 @@ namespace DataAccessLayer
                 foreach (var el in elementsEl.Elements("Element"))
                 {
                     int id = (int)(el.Attribute("id") ?? throw new NullReferenceException());
-                    var e = mesh.ElementsTyped.FirstOrDefault(x => x.Id == id);
+                    var e = grid.ElementsTyped.FirstOrDefault(x => x.Id == id);
                     if (e != null)
                     {
                         e.Conductivity = (double)(el.Attribute("conductivity") ?? throw new NullReferenceException());
@@ -195,22 +194,22 @@ namespace DataAccessLayer
                     isMeasuring: (bool)(e.Attribute("isMeasuring") ?? throw new NullReferenceException()))
             ).ToList() ?? new List<LBMElectrode>();
             if (electrodes.Count > 0)
-                mesh.SetElectrodes(electrodes);
+                grid.SetElectrodes(electrodes);
 
             var cdDict = root.Element("ConductivityDistribution")?.Elements("Value")
                               .ToDictionary(v => (int)((v.Attribute("elementId") ?? throw new NullReferenceException()) ?? throw new NullReferenceException()),
                                             v => (double)(v.Attribute("sigma") ?? throw new NullReferenceException()))
                           ?? new Dictionary<int, double>();
-            mesh.SetConductivityDistribution(new ConductivityDistribution(cdDict));
+            grid.SetConductivityDistribution(new ConductivityDistribution(cdDict));
 
             var pdDict = root.Element("PotentialDistribution")?.Elements("Value")
                               .ToDictionary(v => (int)(v.Attribute("id") ?? throw new NullReferenceException()),
                                             v => (double)(v.Attribute("phi") ?? throw new NullReferenceException()))
                           ?? new Dictionary<int, double>();
-            mesh.SetPotentialDistribution(new PotentialDistribution(pdDict));
+            grid.SetPotentialDistribution(new PotentialDistribution(pdDict));
 
-            mesh.Metadata = metadata;
-            return mesh;
+            grid.Metadata = metadata;
+            return grid;
         }
 
         private static void SaveDocument(XDocument doc, string name, string suffix)
@@ -287,11 +286,11 @@ namespace DataAccessLayer
             return doc;
         }
 
-        private static XDocument BuildLbmDocument(LBMMesh mesh, string name)
+        private static XDocument BuildLbmDocument(LBMGrid mesh, string name)
         {
             mesh.Metadata.ElementCount = mesh.ElementsTyped.Count;
             var doc = new XDocument(
-                new XElement("LBMMesh",
+                new XElement("LBMGrid",
                     new XAttribute("name", name),
                     new XAttribute("nx", mesh.Nx),
                     new XAttribute("ny", mesh.Ny),
@@ -338,7 +337,7 @@ namespace DataAccessLayer
             return doc;
         }
 
-        private static XElement SerializeMetadata(MeshMetadata metadata)
+        private static XElement SerializeMetadata(DiscretizationMetaData metadata)
         {
             return new XElement("Metadata",
                 new XElement("CreatedOn", metadata.CreatedOn.ToString("o")),
@@ -353,9 +352,9 @@ namespace DataAccessLayer
             );
         }
 
-        private static MeshMetadata DeserializeMetadata(XElement? element)
+        private static DiscretizationMetaData DeserializeMetadata(XElement? element)
         {
-            var md = new MeshMetadata();
+            var md = new DiscretizationMetaData();
             if (element == null) return md;
 
             md.CreatedOn = DateTime.Parse(element.Element("CreatedOn")?.Value ?? DateTime.UtcNow.ToString("o"));
@@ -372,7 +371,7 @@ namespace DataAccessLayer
             return md;
         }
 
-        private static FEMMesh CreateFemFromMetadata(MeshMetadata md)
+        private static FEMMesh CreateFemFromMetadata(DiscretizationMetaData md)
         {
             try
             {
@@ -426,12 +425,12 @@ namespace DataAccessLayer
             return new FEMMesh();
         }
 
-        private static LBMMesh CreateLbmFromMetadata(MeshMetadata md)
+        private static LBMGrid CreateLbmFromMetadata(DiscretizationMetaData md)
         {
             try
             {
-                if (md.Generator == nameof(MeshFactory.CreateLBMMeshFromPerimeter) ||
-                    md.Generator == nameof(MeshFactory.CreateThoraxLBMMesh))
+                if (md.Generator == nameof(MeshFactory.CreateLBMGridFromPerimeter) ||
+                    md.Generator == nameof(MeshFactory.CreateThoraxLBMGrid))
                 {
                     md.Parameters.TryGetValue("nx", out var nxStr);
                     md.Parameters.TryGetValue("ny", out var nyStr);
@@ -444,12 +443,12 @@ namespace DataAccessLayer
                                     .Select(s => s.Split(','))
                                     .Select(parts => (double.Parse(parts[0]), double.Parse(parts[1])))
                                     .ToList();
-                    var mesh = MeshFactory.CreateLBMMeshFromPerimeter(nx, ny, points, electrodes);
-                    if (md.Generator == nameof(MeshFactory.CreateThoraxLBMMesh))
-                        mesh.Metadata.Generator = nameof(MeshFactory.CreateThoraxLBMMesh);
+                    var mesh = MeshFactory.CreateLBMGridFromPerimeter(nx, ny, points, electrodes);
+                    if (md.Generator == nameof(MeshFactory.CreateThoraxLBMGrid))
+                        mesh.Metadata.Generator = nameof(MeshFactory.CreateThoraxLBMGrid);
                     return mesh;
                 }
-                if (md.Generator == nameof(MeshFactory.CreateRectangularLBMMesh))
+                if (md.Generator == nameof(MeshFactory.CreateRectangularLBMGrid))
                 {
                     md.Parameters.TryGetValue("nx", out var nxStr);
                     md.Parameters.TryGetValue("ny", out var nyStr);
@@ -457,7 +456,7 @@ namespace DataAccessLayer
                     int nx = int.Parse(nxStr ?? "15");
                     int ny = int.Parse(nyStr ?? "15");
                     int electrodes = int.Parse(elStr ?? "16");
-                    return MeshFactory.CreateRectangularLBMMesh(nx, ny, electrodes);
+                    return MeshFactory.CreateRectangularLBMGrid(nx, ny, electrodes);
                 }
                 if (md.Generator == "LBMCreateCircular")
                 {
@@ -469,14 +468,14 @@ namespace DataAccessLayer
                     int ny = int.Parse(nyStr ?? "15");
                     int r = int.Parse(rStr ?? "10");
                     int electrodes = int.Parse(elStr ?? "16");
-                    var parameters = new MeshParameters { MeshType = MeshType.LBM, Nx = nx, Ny = ny, Radius = r, ElectrodeCount = electrodes };
-                    return (LBMMesh)MeshFactory.Create(parameters);
+                    var parameters = new DiscretizationParameters { MeshType = DiscretizationType.LBM, Nx = nx, Ny = ny, Radius = r, ElectrodeCount = electrodes };
+                    return (LBMGrid)MeshFactory.Create(parameters);
                 }
             }
             catch
             {
             }
-            return new LBMMesh();
+            return new LBMGrid();
         }
     }
 }

@@ -64,15 +64,11 @@ namespace ElectricalImpedanceTomography.Views
             var info = e.Info;
             canvas.Clear(SKColor.Parse("#1E1E1E"));
 
-            var mesh = Workspace.GetMesh();
-            if (mesh is LBMMesh lbm)
-            {
-                DrawLBMMesh(canvas, info, lbm);
-            }
-            else if (mesh is FEMMesh fem)
-            {
+            var discretization = Workspace.GetDiscretization();
+            if (discretization is LBMGrid lbm)
+                DrawLBMGrid(canvas, info, lbm);
+            else if (discretization is FEMMesh fem)
                 DrawFEMMesh(canvas, info, fem);
-            }
         }
 
         private static SKColor ColorForValue(double val, double min, double max)
@@ -94,16 +90,16 @@ namespace ElectricalImpedanceTomography.Views
             }
         }
 
-        private void DrawLBMMesh(SKCanvas canvas, SKImageInfo info, LBMMesh mesh)
+        private void DrawLBMGrid(SKCanvas canvas, SKImageInfo info, LBMGrid grid)
         {
-            float cellW = (float)info.Width / mesh.Nx;
-            float cellH = (float)info.Height / mesh.Ny;
+            float cellW = (float)info.Width / grid.Nx;
+            float cellH = (float)info.Height / grid.Ny;
 
-            for (int y = 0; y < mesh.Ny; y++)
+            for (int y = 0; y < grid.Ny; y++)
             {
-                for (int x = 0; x < mesh.Nx; x++)
+                for (int x = 0; x < grid.Nx; x++)
                 {
-                    var el = mesh.GetElementAt(x, y);
+                    var el = grid.GetElementAt(x, y);
                     SKPaint fill = el.IsElectrode
                         ? _lbmElectrode
                         : el.IsWall

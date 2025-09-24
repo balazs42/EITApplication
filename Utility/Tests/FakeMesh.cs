@@ -5,19 +5,19 @@ using Utility.Classes.Meshing.FiniteElementMesh;
 namespace Utility.Tests
 {
     /// <summary>Minimal mesh double. Enough for units that don’t actually need FEM/LBM.</summary>
-    internal sealed class FakeMesh : IMesh
+    internal sealed class FakeMesh : IDiscretization
     {
-        private sealed class FakeElement : MeshElement { }
+        private sealed class FakeElement : DiscretizationElement { }
         private sealed class FakeElectrode : Electrode { }
 
         private readonly List<Electrode> _electrodes = new();
         private readonly List<FEMVertex> _vertices = new();
-        private readonly List<MeshElement> _elements = new();
+        private readonly List<DiscretizationElement> _elements = new();
 
         private ConductivityDistribution _sigma = new(new Dictionary<int, double>());
         private PotentialDistribution _phi = new(new Dictionary<int, double>());
 
-        public MeshMetadata Metadata { get; set; } = new();
+        public DiscretizationMetaData Metadata { get; set; } = new();
 
         public FakeMesh(int nElems = 0, int nElectrodes = 0)
         {
@@ -37,21 +37,21 @@ namespace Utility.Tests
             }
         }
 
-        public void LogMesh() { }
+        public void LogDiscretization() { }
         public ConductivityDistribution GetConductivityDistribution() => _sigma;
         public PotentialDistribution GetPotentialDistribution() => _phi;
-        public Mesh GetMesh() => null!; // not used in these tests
+        public Discretization GetDiscretization() => null!; // not used in these tests
 
         public IReadOnlyList<Electrode> GetElectrodes() => _electrodes;
         public IReadOnlyList<FEMVertex> GetVertices() => _vertices;
-        public IReadOnlyList<MeshElement> GetElements() => _elements;
+        public IReadOnlyList<DiscretizationElement> GetElements() => _elements;
 
         public double[] GetElectrodePotentials() => _electrodes.Select(e => e.Potential).ToArray();
         public IReadOnlyList<FEMVertex> GetElectrodeVertices() => _vertices.Where(v => v.IsElectrode).ToList();
 
-        public Mesh DeepCopy() => null!;
+        public Discretization DeepCopy() => null!;
         public Classes.Meshing.GraphMesh.Graph ToGraph() => null!;
-        public Mesh FromGraph() => null!;
+        public Discretization FromGraph() => null!;
 
         public void SetConductivityDistribution(ConductivityDistribution cd) => _sigma = cd;
         public void SetPotentialDistribution(PotentialDistribution pd) => _phi = pd;

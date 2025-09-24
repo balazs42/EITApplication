@@ -11,11 +11,11 @@ namespace Utility.Classes.Factories
     /// </summary>
     public static class DifferentialEquationSolverFactory
     {
-        public static IDifferentialEquationSolver Create(IMesh mesh, DifferentialEquationSolver des, INumericSolver numericSolver) => des switch
+        public static IDifferentialEquationSolver Create(IDiscretization discretization, DifferentialEquationSolver des, INumericSolver numericSolver) => des switch
         {
-            DifferentialEquationSolver.FiniteElementMethod => CreateFiniteElementSolver((FEMMesh)mesh, numericSolver),
+            DifferentialEquationSolver.FiniteElementMethod => CreateFiniteElementSolver((FEMMesh)discretization, numericSolver),
             DifferentialEquationSolver.LatticeBoltzmannMethod => CreateLatticeBoltzmannSolver(),
-            DifferentialEquationSolver.GraphBased => CreateGraphBasedSolver((FEMMesh)mesh, numericSolver),
+            DifferentialEquationSolver.GraphBased => CreateGraphBasedSolver((FEMMesh)discretization, numericSolver),
             _ => throw new NotSupportedException()
         };
 

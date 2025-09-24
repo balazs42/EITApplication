@@ -1,8 +1,5 @@
-using System;
-using System.Collections.Generic;
 using System.Numerics;
 using DataAccessLayer;
-using Utility.Classes;
 using Utility.Classes.Measurement;
 using Utility.Classes.Meshing;
 using Utility.Classes.Meshing.FiniteElementMesh;
@@ -66,9 +63,9 @@ namespace BusinessLayer
             _meshRepository.SaveFEMMesh(mesh, name);
         }
 
-        public void SaveLBMMesh(LBMMesh mesh, string name)
+        public void SaveLBMGrid(LBMGrid grid, string name)
         {
-            _meshRepository.SaveLBMMesh(mesh, name);
+            _meshRepository.SaveLBMGrid(grid, name);
         }
 
         public FEMMesh LoadFEMMesh(string filePath)
@@ -76,12 +73,12 @@ namespace BusinessLayer
             return _meshRepository.LoadFEMMesh(filePath);
         }
 
-        public LBMMesh LoadLBMMesh(string filePath)
+        public LBMGrid LoadLBMGrid(string filePath)
         {
-            return _meshRepository.LoadLBMMesh(filePath);
+            return _meshRepository.LoadLBMGrid(filePath);
         }
 
-        public IEnumerable<MeshInfo> GetMeshes()
+        public IEnumerable<DiscretizationInfo> GetMeshes()
         {
             return _meshRepository.GetMeshes();
         }

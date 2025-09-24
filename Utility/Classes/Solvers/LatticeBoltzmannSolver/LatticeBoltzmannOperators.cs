@@ -15,7 +15,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         /// <summary>
         /// Central‐difference gradient of a scalar field φ on D2Q9 mesh.
         /// </summary>
-        public static VectorField CalculateGradient(LBMMesh mesh, ScalarField φ)
+        public static VectorField CalculateGradient(LBMGrid mesh, ScalarField φ)
         {
             var grad = new Dictionary<int, (double X, double Y)>();
             var elements = mesh.GetElements().Cast<LBMElement>();
@@ -46,7 +46,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         /// <summary>
         /// Standard 5-point Laplacian Δφ = φ_r+φ_l+φ_u+φ_d - 4φ0.
         /// </summary>
-        public static ScalarField CalculateLaplacian(LBMMesh mesh, ScalarField φ)
+        public static ScalarField CalculateLaplacian(LBMGrid mesh, ScalarField φ)
         {
             var lap = new Dictionary<int, double>();
             var elements = mesh.GetElements();
@@ -74,7 +74,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         /// <summary>
         /// ∇·F = ∂Fx/∂x + ∂Fy/∂y, using neighbor-based differences.
         /// </summary>
-        public static ScalarField CalculateDivergence(LBMMesh mesh, VectorField F)
+        public static ScalarField CalculateDivergence(LBMGrid mesh, VectorField F)
         {
             var div = new Dictionary<int, double>();
             var elements = mesh.GetElements().Cast<LBMElement>();
@@ -104,7 +104,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         /// Finite‐difference gradient of J wrt σ: dJ/dσ_i ≈ [J(σ+δ) - J(σ-δ)]/(2δ).
         /// </summary>
         public static ScalarField ComputeFiniteDifferenceGradient(
-            LBMMesh mesh,
+            LBMGrid mesh,
             LBMBoundaryCondition bc,
             Complex[] observed,
             LatticeBoltzmannSolver solver,

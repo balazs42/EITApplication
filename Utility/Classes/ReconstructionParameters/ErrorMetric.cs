@@ -24,7 +24,7 @@ namespace Utility.Classes.ReconstructionParameters
         /// <param name="measured">Observed boundary potentials.</param>
         /// <param name="simulated">Simulated boundary potentials from the forward model.</param>
         /// <returns>A scalar value representing the misfit.</returns>
-        double Evaluate(IMesh mesh, double[] measured, double[] simulated);
+        double Evaluate(IDiscretization discretization, double[] measured, double[] simulated);
 
         /// <summary>
         /// Evaluates the source term for the adjoint PDE problem.
@@ -34,7 +34,7 @@ namespace Utility.Classes.ReconstructionParameters
         /// <param name="measured">Observed boundary potentials.</param>
         /// <param name="simulated">Simulated boundary potentials from the forward model.</param>
         /// <returns>A vector to be used as the source on the right-hand-side of the adjoint PDE.</returns>
-        double[] EvaluateAdjointSource(IMesh mesh, double[] measured, double[] simulated);
+        double[] EvaluateAdjointSource(IDiscretization discretization, double[] measured, double[] simulated);
     }
 
     /// <summary>
@@ -42,7 +42,7 @@ namespace Utility.Classes.ReconstructionParameters
     /// </summary>
     public sealed class L2ErrorMetric : IErrorMetric
     {
-        public double Evaluate(IMesh mesh, double[] measured, double[] simulated)
+        public double Evaluate(IDiscretization discretization, double[] measured, double[] simulated)
         {
             if (measured.Length != simulated.Length)
                 throw new ArgumentException("Measured and simulated vectors must have the same length.");
@@ -59,7 +59,7 @@ namespace Utility.Classes.ReconstructionParameters
             return 0.5 * sumOfSquares;
         }
 
-        public double[] EvaluateAdjointSource(IMesh mesh, double[] measured, double[] simulated)
+        public double[] EvaluateAdjointSource(IDiscretization discretization, double[] measured, double[] simulated)
         {
             if (measured.Length != simulated.Length)
                 throw new ArgumentException("Measured and simulated vectors must have the same length.");
@@ -84,7 +84,7 @@ namespace Utility.Classes.ReconstructionParameters
     /// W₂²(μ,ν) via the Kantorovich dual:
     ///   maximize  ⟨u, a⟩ + ⟨v, b⟩   subject to  u_i + v_j ≤ c_{ij}
     /// where a,b are probability masses over simulated/measured electrodes (NaNs & non-measuring filtered),
-    /// and c_{ij} = ||x_i - y_j||² built from LBMMesh lattice coordinates.
+    /// and c_{ij} = ||x_i - y_j||² built from LBMGrid lattice coordinates.
     /// The adjoint source equals the (discretized) Kantorovich potential φ ≡ u, mapped back to all electrodes.
     /// </summary>
     public sealed class Wasserstein2ErrorMetric : IErrorMetric
@@ -92,45 +92,45 @@ namespace Utility.Classes.ReconstructionParameters
         // Cache last result to reuse φ when EvaluateAdjointSource() called after Evaluate()
         private OptimalTransportResult? _last;
 
-        public double Evaluate(IMesh mesh, double[] measured, double[] simulated)
+        public double Evaluate(IDiscretization discretization, double[] measured, double[] simulated)
         {
-            var ot = SolveOT(mesh, measured, simulated);
+            var ot = SolveOT(discretization, measured, simulated);
             _last = ot;
             return ot.OptimalValue;
         }
 
-        public double[] EvaluateAdjointSource(IMesh mesh, double[] measured, double[] simulated)
+        public double[] EvaluateAdjointSource(IDiscretization discretization, double[] measured, double[] simulated)
         {
             if (_last != null && _last.MatchesInputs(measured, simulated))
                 return _last.Phi;
 
             // If called independently, solve once to obtain φ then return it
-            return SolveOT(mesh, measured, simulated).Phi;
+            return SolveOT(discretization, measured, simulated).Phi;
         }
 
-        private OptimalTransportResult SolveOT(IMesh mesh, double[] measured, double[] simulated)
+        private OptimalTransportResult SolveOT(IDiscretization discretization, double[] measured, double[] simulated)
         {
             // (1) Gather electrodes and coordinate provider
-            var all = mesh.GetElectrodes().OrderBy(e => e.Id).ToList();
+            var all = discretization.GetElectrodes().OrderBy(e => e.Id).ToList();
             if (all.Count != measured.Length || all.Count != simulated.Length)
                 throw new ArgumentException("Electrode count must match data length.");
 
             Func<Electrode, (double x, double y)> coord;
-            if (mesh is LBMMesh lbm)
+            if (discretization is LBMGrid lbm)
                 coord = e =>
                 {
                     var le = (LBMElectrode)e;
                     var (x, y) = ToXY(lbm, le.GridId);
                     return (x, y);
                 };
-            else if (mesh is FEMMesh fem)
+            else if (discretization is FEMMesh fem)
                 coord = e =>
                 {
                     var fe = (FEMElectrode)e;
                     return GetCoord(fem, fe);
                 };
             else
-                throw new ArgumentException("Wasserstein-2 currently implemented for LBMMesh or FEMMesh because it needs electrode coordinates.");
+                throw new ArgumentException("Wasserstein-2 currently implemented for LBMGrid or FEMMesh because it needs electrode coordinates.");
 
             var (a, aLoc, aIndexMap) = BuildDistribution(simulated, all, coord); // source: simulated
             var (b, bLoc, _) = BuildDistribution(measured, all, coord); // target: measured
@@ -238,7 +238,7 @@ namespace Utility.Classes.ReconstructionParameters
             return (vals.ToArray(), coords, map);
         }
 
-        private static (double x, double y) ToXY(LBMMesh mesh, int gridId)
+        private static (double x, double y) ToXY(LBMGrid mesh, int gridId)
         {
             // Prefer mesh API if public; otherwise decode (id = y*Nx + x)
             int x = gridId % mesh.Nx;

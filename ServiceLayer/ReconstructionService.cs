@@ -18,7 +18,7 @@ namespace ServiceLayer
         private readonly ILogger _logger;
 
         // Background reconstruction state
-        private IMesh? _mesh;
+        private IDiscretization? _discretization;
         private CancellationTokenSource? _cts;
         private Task? _backgroundTask;
         private bool _isPaused;
@@ -89,7 +89,7 @@ namespace ServiceLayer
             }
         }
 
-        public EITMeasurement SimulateLbmMeasurements(LBMMesh mesh, double excitaionAmplitude)
+        public EITMeasurement SimulateLbmMeasurements(LBMGrid mesh, double excitaionAmplitude)
         {
             try
             {
@@ -104,13 +104,13 @@ namespace ServiceLayer
             }
         }
 
-        public void InitializeReconstruction(IMesh mesh, EITReconstructionParameters parameters, bool reinit)
+        public void InitializeReconstruction(IDiscretization discretization, EITReconstructionParameters parameters, bool reinit)
         {
             try
             {
                 Workspace.AddLogMessage("Reconstruction Service", "Reconstruction initialization started with the specified EITReconstructionParameters object.");
-                Workspace.SetMesh(mesh);
-                _mesh = mesh;
+                Workspace.SetDiscretization(discretization);
+                _discretization = discretization;
                 _simulatedMeasurements.Clear();
                 _simMeasurementIndex = 0;
                 _currentCycleFrames.Clear();
@@ -119,17 +119,17 @@ namespace ServiceLayer
 
                 Workspace.SetReconstructionResults(new List<ReconstructionResult>());
 
-                _originalSigma = Workspace.GetOriginalMesh()?.GetConductivityDistribution()
-                                 ?? mesh.DeepCopy().GetConductivityDistribution();
-                _initialSigma = Workspace.GetInitialMesh()?.GetConductivityDistribution() ?? ConductivityDistributionFactory.CreateInitialDistribution(mesh, parameters.InitialDistributionType);
-                mesh.SetConductivityDistribution(_initialSigma);
+                _originalSigma = Workspace.GetOriginalDiscretization()?.GetConductivityDistribution()
+                                 ?? discretization.DeepCopy().GetConductivityDistribution();
+                _initialSigma = Workspace.GetInitialDiscretization()?.GetConductivityDistribution() ?? ConductivityDistributionFactory.CreateInitialDistribution(discretization, parameters.InitialDistributionType);
+                discretization.SetConductivityDistribution(_initialSigma);
 
                 Workspace.SetOriginalConductivityDistribution(_originalSigma);
 
                 _reconstructionPersistence.SetConductivityDistributions(_originalSigma, _initialSigma);
-                _reconstructionPersistence.InitializeReconstruction(mesh, parameters, reinit);
+                _reconstructionPersistence.InitializeReconstruction(discretization, parameters, reinit);
 
-                _framesPerCycle = (mesh.GetElectrodes().Count > 0) ? mesh.GetElectrodes().Count : 1;
+                _framesPerCycle = (discretization.GetElectrodes().Count > 0) ? discretization.GetElectrodes().Count : 1;
             }
             catch(Exception ex)
             {
@@ -233,15 +233,15 @@ namespace ServiceLayer
             if (_simulatedMeasurements.Count > 0)
                 return;
 
-            var original = Workspace.GetOriginalMesh()
+            var original = Workspace.GetOriginalDiscretization()
                            ?? throw new NullReferenceException("Original mesh not set.");
 
-            if (_mesh is FEMMesh && original is FEMMesh femOrig)
+            if (_discretization is FEMMesh && original is FEMMesh femOrig)
             {
                 _simulatedMeasurements =
                     _reconstructionPersistence.SimulateFemMeasurements(femOrig, _excitationAmplitude);
             }
-            else if (_mesh is LBMMesh && original is LBMMesh lbmOrig)
+            else if (_discretization is LBMGrid && original is LBMGrid lbmOrig)
             {
                 _simulatedMeasurements = _reconstructionPersistence
                     .SimulateLbmMeasurements(lbmOrig, _excitationAmplitude).Frames;
@@ -254,7 +254,7 @@ namespace ServiceLayer
 
         private ReconstructionFrame? PerformInverseStep()
         {
-            if (_mesh is FEMMesh femMesh)
+            if (_discretization is FEMMesh femMesh)
             {
                 EnsureSimulatedMeasurements();
 
@@ -293,7 +293,7 @@ namespace ServiceLayer
 
                 if (_simMeasurementIndex % _framesPerCycle == 0)
                 {
-                    var result = new ReconstructionResult(_mesh!.GetMesh(), _originalSigma!, _initialSigma!, _mesh!.GetConductivityDistribution(), _currentCycleFrames.ToList());
+                    var result = new ReconstructionResult(_discretization!.GetDiscretization(), _originalSigma!, _initialSigma!, _discretization!.GetConductivityDistribution(), _currentCycleFrames.ToList());
                     Workspace.AddReconstructionResultToWorkspace(result);
                     ReconstructionUpdated?.Invoke(this, result);
                     _currentCycleFrames.Clear();
@@ -302,11 +302,11 @@ namespace ServiceLayer
 
                 return frame;
             }
-            else if (_mesh is LBMMesh lbmMesh)
+            else if (_discretization is LBMGrid lbmGrid)
             {
                 EnsureSimulatedMeasurements();
 
-                var electrodes = lbmMesh.GetElectrodes().Cast<LBMElectrode>().ToList();
+                var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
 
                 foreach (var el in electrodes)
                 {
@@ -333,7 +333,7 @@ namespace ServiceLayer
 
                 if (_simMeasurementIndex % _framesPerCycle == 0)
                 {
-                    var result = new ReconstructionResult(_mesh!.GetMesh(), _originalSigma!, _initialSigma!, _mesh!.GetConductivityDistribution(), _currentCycleFrames.ToList());
+                    var result = new ReconstructionResult(_discretization!.GetDiscretization(), _originalSigma!, _initialSigma!, _discretization!.GetConductivityDistribution(), _currentCycleFrames.ToList());
                     Workspace.AddReconstructionResultToWorkspace(result);
                     ReconstructionUpdated?.Invoke(this, result);
                     _currentCycleFrames.Clear();
@@ -401,7 +401,7 @@ namespace ServiceLayer
 
             return await Task.Run(() =>
             {
-                if (_mesh is FEMMesh femMesh)
+                if (_discretization is FEMMesh femMesh)
                 {
                     EnsureSimulatedMeasurements();
 
@@ -434,7 +434,7 @@ namespace ServiceLayer
 
                     // accumulate gradient and update conductivity distribution
                     var frameCount = _currentCycleFrames.Count;
-                    var prevSigma = _mesh!.GetConductivityDistribution();
+                    var prevSigma = _discretization!.GetConductivityDistribution();
                     var accumGrad = new Dictionary<int, double>();
                     foreach (var frame in _currentCycleFrames)
                         foreach (var kvp in frame.ConductivityGradient.Conductivities)
@@ -444,23 +444,23 @@ namespace ServiceLayer
                         kvp => kvp.Key,
                         kvp => kvp.Value + (accumGrad.TryGetValue(kvp.Key, out var g) ? g / frameCount : 0.0));
                     var newSigma = new ConductivityDistribution(newSigmaDict);
-                    _mesh.SetConductivityDistribution(newSigma);
+                    _discretization.SetConductivityDistribution(newSigma);
                     _initialSigma = newSigma;
                     _reconstructionPersistence.SetConductivityDistributions(_originalSigma!, _initialSigma!);
 
-                    var result = new ReconstructionResult(_mesh!.GetMesh(), _originalSigma!, prevSigma, newSigma, _currentCycleFrames.ToList());
+                    var result = new ReconstructionResult(_discretization!.GetDiscretization(), _originalSigma!, prevSigma, newSigma, _currentCycleFrames.ToList());
                     Workspace.AddReconstructionResultToWorkspace(result);
                     ReconstructionUpdated?.Invoke(this, result);
                     _currentCycleFrames.Clear();
                     return result;
                 }
-                else if (_mesh is LBMMesh lbmMesh)
+                else if (_discretization is LBMGrid lbmGrid)
                 {
                     EnsureSimulatedMeasurements();
 
                     foreach (var measurement in _simulatedMeasurements)
                     {
-                        var electrodes = lbmMesh.GetElectrodes().Cast<LBMElectrode>().ToList();
+                        var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
                         var bc = new LBMBoundaryCondition(electrodes);
 
                         var frame = _reconstructionPersistence.Step(measurement, bc, _stepSize, _regularizationWeight);
@@ -469,11 +469,11 @@ namespace ServiceLayer
                         _currentCycleFrames.Add(frame);
                         ReconstructionFrameUpdated?.Invoke(this, frame);
 
-                        lbmMesh.ShiftExcitationElectrodes(DrivePattern.Adjecent);
+                        lbmGrid.ShiftExcitationElectrodes(DrivePattern.Adjecent);
                     }
 
                     var frameCount = _currentCycleFrames.Count;
-                    var prevSigma = _mesh!.GetConductivityDistribution();
+                    var prevSigma = _discretization!.GetConductivityDistribution();
                     var accumGrad = new Dictionary<int, double>();
                     foreach (var frame in _currentCycleFrames)
                         foreach (var kvp in frame.ConductivityGradient.Conductivities)
@@ -483,11 +483,11 @@ namespace ServiceLayer
                         kvp => kvp.Key,
                         kvp => kvp.Value + (accumGrad.TryGetValue(kvp.Key, out var g) ? g / frameCount : 0.0));
                     var newSigma = new ConductivityDistribution(newSigmaDict);
-                    _mesh.SetConductivityDistribution(newSigma);
+                    _discretization.SetConductivityDistribution(newSigma);
                     _initialSigma = newSigma;
                     _reconstructionPersistence.SetConductivityDistributions(_originalSigma!, _initialSigma!);
 
-                    var result = new ReconstructionResult(_mesh!.GetMesh(), _originalSigma!, prevSigma, newSigma, _currentCycleFrames.ToList());
+                    var result = new ReconstructionResult(_discretization!.GetDiscretization(), _originalSigma!, prevSigma, newSigma, _currentCycleFrames.ToList());
                     Workspace.AddReconstructionResultToWorkspace(result);
                     ReconstructionUpdated?.Invoke(this, result);
                     _currentCycleFrames.Clear();

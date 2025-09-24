@@ -10,10 +10,10 @@ namespace Utility.Classes.Factories
     /// </summary>
     public static class RegularisationFactory
     {
-        public static IRegularizer Create(RegularizationTechnique rt, IMesh mesh, double lambda = 1e-3) => rt switch
+        public static IRegularizer Create(RegularizationTechnique rt, IDiscretization discretization, double lambda = 1e-3) => rt switch
         {
             RegularizationTechnique.None => CreateNoRegularizer(),
-            RegularizationTechnique.ZeroOrderTikhonov => CreateZeroOrderTikhonovRegulizer(((FEMMesh)mesh).DeepCopy().GetConductivityDistribution()),
+            RegularizationTechnique.ZeroOrderTikhonov => CreateZeroOrderTikhonovRegulizer(((FEMMesh)discretization).DeepCopy().GetConductivityDistribution()),
             RegularizationTechnique.FirstOrderTikhonov => CreateFirstOrderTikhonovRegulizer(),
             RegularizationTechnique.Laplace => CreateLaplaceRegulizer(),
             RegularizationTechnique.TotalVariation => CreateTotalVariationRegulizer(),

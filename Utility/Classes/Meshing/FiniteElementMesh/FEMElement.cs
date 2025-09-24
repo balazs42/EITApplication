@@ -1,6 +1,6 @@
 ﻿namespace Utility.Classes.Meshing.FiniteElementMesh
 {
-    public sealed class FEMElement : MeshElement
+    public sealed class FEMElement : DiscretizationElement
     {
         public double Area { get; set; }
         public List<FEMVertex> Vertices { get; set; } = [new FEMVertex(), new FEMVertex(), new FEMVertex()];

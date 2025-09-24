@@ -3,9 +3,9 @@
     /// <summary>
     /// General mesh descriptor that can be used in both cases of the meshes
     /// </summary>
-    public struct MeshParameters
+    public struct DiscretizationParameters
     {
-        public MeshType MeshType { get; set; }
+        public DiscretizationType MeshType { get; set; }
         public int Layers { get; set; }
         public int BoundaryFEMVertexCount { get; set; }
         public int ElectrodeCount { get; set; }

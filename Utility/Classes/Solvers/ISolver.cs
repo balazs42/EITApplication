@@ -5,7 +5,7 @@ namespace Utility.Classes.Solvers
 {
     public interface ISolver
     {
-        public PotentialDistribution SolveForward(IMesh mesh, BoundaryCondition boundaryCondition);
-        public PotentialDistribution SolveAdjoint(IMesh mesh, BoundaryCondition boundaryCondition, Complex[] adjointSource);
+        public PotentialDistribution SolveForward(IDiscretization discretization, BoundaryCondition boundaryCondition);
+        public PotentialDistribution SolveAdjoint(IDiscretization discretization, BoundaryCondition boundaryCondition, Complex[] adjointSource);
     }
 }

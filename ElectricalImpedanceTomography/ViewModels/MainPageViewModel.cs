@@ -104,7 +104,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             _commandDescriptions = new()
             {
                 {"list", "Lists the available commands"},
-                {"generatemesh", $"Generate default mesh. Usage: /Command GenerateMesh [type] ({FormatEnumOptions<MeshType>()})"},
+                {"generatemesh", $"Generate default mesh. Usage: /Command GenerateMesh [type] ({FormatEnumOptions<DiscretizationType>()})"},
                 {"connecthardware", "Starts the connection procedure to the hardware"},
                 {"disconnecthardware", "Stops the connection procedure to the hardware"},
                 {"initializerreconstruction", "Initializes the reconstruction with the available parameters"},
@@ -217,10 +217,10 @@ namespace ElectricalImpedanceTomography.ViewModels
                         Workspace.AddInfoMessage($"{kv.Key} - {kv.Value}");
                     break;
                 case "generatemesh":
-                    var mt = MeshType.FEM;
-                    if (args.Length > 0 && TryParseEnum(args[0], out MeshType parsed))
+                    var mt = DiscretizationType.FEM;
+                    if (args.Length > 0 && TryParseEnum(args[0], out DiscretizationType parsed))
                         mt = parsed;
-                    var parameters = new MeshParameters
+                    var parameters = new DiscretizationParameters
                     {
                         MeshType = mt,
                         Layers = 2,
@@ -231,7 +231,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                         Radius = 7
                     };
                     var mesh = MeshFactory.CreateDefault(parameters);
-                    Workspace.SetMesh(mesh);
+                    Workspace.SetDiscretization(mesh);
                     Workspace.AddInfoMessage($"Generated {mt} mesh.");
                     MeshUpdated?.Invoke();
                     break;
@@ -255,7 +255,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                         Workspace.AddErrorMessage("Failed to disconnect hardware.");
                     break;
                 case "initializerreconstruction":
-                    var m = Workspace.GetMesh();
+                    var m = Workspace.GetDiscretization();
                     if (m == null)
                     {
                         Workspace.AddErrorMessage("No mesh available.");
@@ -290,10 +290,10 @@ namespace ElectricalImpedanceTomography.ViewModels
                     {
                         try
                         {
-                            IMesh loaded = args[0].EndsWith(".lbm", StringComparison.OrdinalIgnoreCase)
-                                ? _daqService.LoadLBMMesh(args[0])
+                            IDiscretization loaded = args[0].EndsWith(".lbm", StringComparison.OrdinalIgnoreCase)
+                                ? _daqService.LoadLBMGrid(args[0])
                                 : _daqService.LoadFEMMesh(args[0]);
-                            Workspace.SetMesh(loaded);
+                            Workspace.SetDiscretization(loaded);
                             Workspace.AddInfoMessage($"Loaded mesh {args[0]}");
                             MeshUpdated?.Invoke();
                         }

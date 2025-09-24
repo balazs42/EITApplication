@@ -157,11 +157,11 @@ namespace ServiceLayer
             }
         }
 
-        public void SaveLBMMesh(LBMMesh mesh, string name)
+        public void SaveLBMGrid(LBMGrid grid, string name)
         {
             try
             {
-                _daqPersistence.SaveLBMMesh(mesh, name);
+                _daqPersistence.SaveLBMGrid(grid, name);
             }
             catch (Exception ex)
             {
@@ -187,11 +187,11 @@ namespace ServiceLayer
             }
         }
 
-        public LBMMesh LoadLBMMesh(string filePath)
+        public LBMGrid LoadLBMGrid(string filePath)
         {
             try
             {
-                return _daqPersistence.LoadLBMMesh(filePath);
+                return _daqPersistence.LoadLBMGrid(filePath);
             }
             catch (Exception ex)
             {
@@ -202,7 +202,7 @@ namespace ServiceLayer
             }
         }
 
-        public IEnumerable<MeshInfo> GetMeshes()
+        public IEnumerable<DiscretizationInfo> GetMeshes()
         {
             try
             {

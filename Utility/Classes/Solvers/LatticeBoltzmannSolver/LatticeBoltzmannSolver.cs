@@ -40,19 +40,19 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             ConvergenceCheckFrequency = convergenceCheckFrequency;
         }
 
-        public PotentialDistribution SolveForward(IMesh mesh, BoundaryCondition boundaryCondition)
+        public PotentialDistribution SolveForward(IDiscretization discretization, BoundaryCondition boundaryCondition)
         {
-            var lbmMesh = mesh as LBMMesh ?? throw new InvalidCastException();
+            var lbmGrid = discretization as LBMGrid ?? throw new InvalidCastException();
             var bc = boundaryCondition as LBMBoundaryCondition ?? throw new InvalidCastException();
 
-            return RunForward(lbmMesh, bc);
+            return RunForward(lbmGrid, bc);
         }
 
-        public PotentialDistribution SolveAdjoint(IMesh mesh, BoundaryCondition boundaryCondition, Complex[] adjointSource)
+        public PotentialDistribution SolveAdjoint(IDiscretization discretization, BoundaryCondition boundaryCondition, Complex[] adjointSource)
         {
-            var lbmMesh = mesh as LBMMesh ?? throw new InvalidCastException();
+            var lbmGrid = discretization as LBMGrid ?? throw new InvalidCastException();
             var bc = boundaryCondition as LBMBoundaryCondition ?? throw new InvalidCastException();
-            var electrodes = lbmMesh.GetElectrodes();
+            var electrodes = lbmGrid.GetElectrodes();
             var bcElectrodes = bc.GetElectrodes();
             int bcElectrodeCount = bcElectrodes.Count();
 
@@ -65,20 +65,20 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 electrodes[i].Current = adjointSource[i].Real;
             }
 
-            return RunForward(lbmMesh, bc);
+            return RunForward(lbmGrid, bc);
         }
 
         /// <summary>
         /// Runs the forward LBM until steady-state, returning electrode potentials.
         /// </summary>
-        private PotentialDistribution RunForward(LBMMesh mesh, LBMBoundaryCondition bc)
+        private PotentialDistribution RunForward(LBMGrid lbmGrid, LBMBoundaryCondition bc)
         {
             int maxIter = MaxIterationCount;
             double tol = SolutionTolerance;
             int checkFreq = ConvergenceCheckFrequency;
 
-            var elements = mesh.GetElements().Cast<LBMElement>().ToList();
-            var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
+            var elements = lbmGrid.GetElements().Cast<LBMElement>().ToList();
+            var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
             var bcElectrodes = bc.GetElectrodes().ToList();
 
             // 1) Initialize distributions Fi and Fi_next to zero
@@ -126,7 +126,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             }
 
             // 2) Load conductivity γ into each element
-            var sigmaDist = mesh.GetConductivityDistribution();
+            var sigmaDist = lbmGrid.GetConductivityDistribution();
             foreach (var el in elements)
                 el.Conductivity = sigmaDist.GetConductivity(el.Id);
 
@@ -258,7 +258,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
             var pd = new PotentialDistribution(dict);
 
-            mesh.SetPotentialDistribution(pd);
+            lbmGrid.SetPotentialDistribution(pd);
 
             return pd;
         }

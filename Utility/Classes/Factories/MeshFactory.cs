@@ -14,17 +14,17 @@ namespace Utility.Classes.Factories
     /// </summary>
     public static class MeshFactory
     {
-        public static IMesh Create(MeshParameters parameters, double inhomogenityValue = 1.0) => parameters.MeshType switch
+        public static IDiscretization Create(DiscretizationParameters parameters, double inhomogenityValue = 1.0) => parameters.MeshType switch
         {
-            MeshType.FEM => CreateCircularFEMMesh(layers: parameters.Layers,
+            DiscretizationType.FEM => CreateCircularFEMMesh(layers: parameters.Layers,
                                                   boundaryFEMVertexCount: parameters.BoundaryFEMVertexCount,
                                                   electrodeCount: parameters.ElectrodeCount,
                                                   inhomogeneityValue: inhomogenityValue),
-            MeshType.LBM => LBMCreateCircular(parameters.Nx, parameters.Ny, parameters.Radius, parameters.ElectrodeCount),
+            DiscretizationType.LBM => LBMCreateCircular(parameters.Nx, parameters.Ny, parameters.Radius, parameters.ElectrodeCount),
             _ => throw new NotSupportedException()
         };
 
-        public static IMesh CreateDefault(MeshParameters parameters) => Create(parameters, 1.0);
+        public static IDiscretization CreateDefault(DiscretizationParameters parameters) => Create(parameters, 1.0);
         
 
         #region Finite Element Mesh Generation
@@ -414,10 +414,10 @@ namespace Utility.Classes.Factories
         #endregion
 
         #region Lattice Boltzmann Mesh Generation
-        public static LBMMesh CreateLBMMeshFromPerimeter(int nx, int ny, IList<(double x, double y)> perimeter, int electrodeCount = 16)
+        public static LBMGrid CreateLBMGridFromPerimeter(int nx, int ny, IList<(double x, double y)> perimeter, int electrodeCount = 16)
         {
             ValidatePerimeter(perimeter);
-            var mesh = new LBMMesh(nx, ny);
+            var grid = new LBMGrid(nx, ny);
 
             var inside = new bool[nx, ny];
             for (int y = 0; y < ny; y++)
@@ -428,7 +428,7 @@ namespace Utility.Classes.Factories
             {
                 for (int x = 0; x < nx; x++)
                 {
-                    var el = mesh.GetElementAt(x, y);
+                    var el = grid.GetElementAt(x, y);
                     bool cellInside = inside[x, y];
                     bool boundary = false;
                     if (cellInside)
@@ -445,66 +445,66 @@ namespace Utility.Classes.Factories
             }
 
             // place electrodes evenly around the domain boundary
-            mesh.PlaceEquidistantElectrodes(electrodeCount);
+            grid.PlaceEquidistantElectrodes(electrodeCount);
 
-            var cd = mesh.GetElements().ToDictionary(e => e.Id, e => e.Conductivity);
-            mesh.SetConductivityDistribution(new ConductivityDistribution(cd));
+            var cd = grid.GetElements().ToDictionary(e => e.Id, e => e.Conductivity);
+            grid.SetConductivityDistribution(new ConductivityDistribution(cd));
 
-            Workspace.AddLogMessage("MeshFactory", "Created LBMMesh from Perimeter definition.");
+            Workspace.AddLogMessage("MeshFactory", "Created LBMGrid from Perimeter definition.");
 
-            mesh.Metadata.Generator = nameof(CreateLBMMeshFromPerimeter);
-            mesh.Metadata.Parameters["nx"] = nx.ToString();
-            mesh.Metadata.Parameters["ny"] = ny.ToString();
-            mesh.Metadata.Parameters["electrodeCount"] = electrodeCount.ToString();
-            mesh.Metadata.Parameters["perimeter"] = string.Join(";", perimeter.Select(p => $"{p.x},{p.y}"));
+            grid.Metadata.Generator = nameof(CreateLBMGridFromPerimeter);
+            grid.Metadata.Parameters["nx"] = nx.ToString();
+            grid.Metadata.Parameters["ny"] = ny.ToString();
+            grid.Metadata.Parameters["electrodeCount"] = electrodeCount.ToString();
+            grid.Metadata.Parameters["perimeter"] = string.Join(";", perimeter.Select(p => $"{p.x},{p.y}"));
 
-            return mesh;
+            return grid;
         }
 
-        public static LBMMesh CreateRectangularLBMMesh(int nx, int ny, int electrodeCount = 16)
+        public static LBMGrid CreateRectangularLBMGrid(int nx, int ny, int electrodeCount = 16)
         {
-            var mesh = new LBMMesh(nx, ny);
+            var grid = new LBMGrid(nx, ny);
 
-            mesh.PlaceEquidistantElectrodes(electrodeCount);
+            grid.PlaceEquidistantElectrodes(electrodeCount);
 
-            var cd = mesh.GetElements().ToDictionary(e => e.Id, e => e.Conductivity);
-            mesh.SetConductivityDistribution(new ConductivityDistribution(cd));
+            var cd = grid.GetElements().ToDictionary(e => e.Id, e => e.Conductivity);
+            grid.SetConductivityDistribution(new ConductivityDistribution(cd));
 
-            mesh.Metadata.Generator = nameof(CreateRectangularLBMMesh);
-            mesh.Metadata.Parameters["nx"] = nx.ToString();
-            mesh.Metadata.Parameters["ny"] = ny.ToString();
-            mesh.Metadata.Parameters["electrodeCount"] = electrodeCount.ToString();
-            return mesh;
+            grid.Metadata.Generator = nameof(CreateRectangularLBMGrid);
+            grid.Metadata.Parameters["nx"] = nx.ToString();
+            grid.Metadata.Parameters["ny"] = ny.ToString();
+            grid.Metadata.Parameters["electrodeCount"] = electrodeCount.ToString();
+            return grid;
         }
 
-        public static LBMMesh CreateThoraxLBMMesh(int nx, int ny, IList<(double x, double y)> perimeter, int electrodeCount = 16)
+        public static LBMGrid CreateThoraxLBMGrid(int nx, int ny, IList<(double x, double y)> perimeter, int electrodeCount = 16)
         {
-            var mesh = CreateLBMMeshFromPerimeter(nx, ny, perimeter, electrodeCount);
-            mesh.Metadata.Generator = nameof(CreateThoraxLBMMesh);
-            mesh.Metadata.Parameters["nx"] = nx.ToString();
-            mesh.Metadata.Parameters["ny"] = ny.ToString();
-            mesh.Metadata.Parameters["electrodeCount"] = electrodeCount.ToString();
-            mesh.Metadata.Parameters["perimeter"] = string.Join(";", perimeter.Select(p => $"{p.x},{p.y}"));
-            return mesh;
+            var grid = CreateLBMGridFromPerimeter(nx, ny, perimeter, electrodeCount);
+            grid.Metadata.Generator = nameof(CreateThoraxLBMGrid);
+            grid.Metadata.Parameters["nx"] = nx.ToString();
+            grid.Metadata.Parameters["ny"] = ny.ToString();
+            grid.Metadata.Parameters["electrodeCount"] = electrodeCount.ToString();
+            grid.Metadata.Parameters["perimeter"] = string.Join(";", perimeter.Select(p => $"{p.x},{p.y}"));
+            return grid;
         }
 
-        private static LBMMesh LBMCreateRectangularWithBorder(int nx = 15, int ny = 15, int electrodeCount = 16)
+        private static LBMGrid LBMCreateRectangularWithBorder(int nx = 15, int ny = 15, int electrodeCount = 16)
         {
-            var mesh = new LBMMesh(nx, ny);
-            mesh.Metadata.Generator = nameof(LBMCreateRectangularWithBorder);
-            mesh.Metadata.Parameters["nx"] = nx.ToString();
-            mesh.Metadata.Parameters["ny"] = ny.ToString();
-            mesh.Metadata.Parameters["electrodeCount"] = electrodeCount.ToString();
-            return mesh;
+            var grid = new LBMGrid(nx, ny);
+            grid.Metadata.Generator = nameof(LBMCreateRectangularWithBorder);
+            grid.Metadata.Parameters["nx"] = nx.ToString();
+            grid.Metadata.Parameters["ny"] = ny.ToString();
+            grid.Metadata.Parameters["electrodeCount"] = electrodeCount.ToString();
+            return grid;
         }
 
 
-        private static LBMMesh LBMCreateRectangularWithInhomogenity(int nx = 15, int ny = 15, int electrodeCount = 16, double inhomogenityValue = 1.0, int inhomogenitySize = 4)
+        private static LBMGrid LBMCreateRectangularWithInhomogenity(int nx = 15, int ny = 15, int electrodeCount = 16, double inhomogenityValue = 1.0, int inhomogenitySize = 4)
         {
             if (inhomogenitySize > nx || inhomogenitySize > ny)
                 throw new ArgumentOutOfRangeException("Cannot create LBM mesh with inhomogenity, size too big!");
 
-            LBMMesh mesh = new LBMMesh(nx, ny);
+            LBMGrid grid = new LBMGrid(nx, ny);
 
             // 2) overlay a centered square of altered conductivity
             int cx = nx / 2, cy = ny / 2;
@@ -517,22 +517,22 @@ namespace Utility.Classes.Factories
                     if (x < 0 || x >= nx || y < 0 || y >= ny)
                         continue;
 
-                    var el = mesh.GetElementAt(x, y);
+                    var el = grid.GetElementAt(x, y);
                     el.Conductivity = inhomogenityValue;
                 }
             }
 
             // 3) rebuild distribution so downstream code sees it
-            var cd = mesh.GetElements().ToDictionary(e => e.Id, e => e.Conductivity);
-            mesh.SetConductivityDistribution(new ConductivityDistribution(cd));
+            var cd = grid.GetElements().ToDictionary(e => e.Id, e => e.Conductivity);
+            grid.SetConductivityDistribution(new ConductivityDistribution(cd));
 
-            mesh.Metadata.Generator = nameof(LBMCreateRectangularWithInhomogenity);
-            mesh.Metadata.Parameters["nx"] = nx.ToString();
-            mesh.Metadata.Parameters["ny"] = ny.ToString();
-            mesh.Metadata.Parameters["electrodeCount"] = electrodeCount.ToString();
-            mesh.Metadata.Parameters["inhomogenityValue"] = inhomogenityValue.ToString();
-            mesh.Metadata.Parameters["inhomogenitySize"] = inhomogenitySize.ToString();
-            return mesh;
+            grid.Metadata.Generator = nameof(LBMCreateRectangularWithInhomogenity);
+            grid.Metadata.Parameters["nx"] = nx.ToString();
+            grid.Metadata.Parameters["ny"] = ny.ToString();
+            grid.Metadata.Parameters["electrodeCount"] = electrodeCount.ToString();
+            grid.Metadata.Parameters["inhomogenityValue"] = inhomogenityValue.ToString();
+            grid.Metadata.Parameters["inhomogenitySize"] = inhomogenitySize.ToString();
+            return grid;
         }
 
         /// <summary>
@@ -544,13 +544,13 @@ namespace Utility.Classes.Factories
         /// <param name="radius">Radius of the inner circle.</param>
         /// <param name="electrodeCount">Number of electrodes to distribute.</param>
         /// <returns></returns>
-        private static LBMMesh LBMCreateCircular(int nx = 15, int ny = 15, int radius = 10, int electrodeCount = 16)
+        private static LBMGrid LBMCreateCircular(int nx = 15, int ny = 15, int radius = 10, int electrodeCount = 16)
         {
             if (radius > nx / 2 || radius > ny / 2)
                 throw new ArgumentOutOfRangeException(nameof(radius),
                     "Cannot create circular LBM mesh: radius too big.");
 
-            var mesh = new LBMMesh(nx, ny);
+            var grid = new LBMGrid(nx, ny);
 
             double cx = (nx - 1) / 2.0;
             double cy = (ny - 1) / 2.0;
@@ -588,12 +588,12 @@ namespace Utility.Classes.Factories
                 x++;
             }
 
-            var elements = mesh.GetElements().Cast<LBMElement>();
+            var elements = grid.GetElements().Cast<LBMElement>();
 
             foreach (var el in elements)
             {
                 el.IsElectrode = false;
-                var (ex, ey) = mesh.ToLattice(el.Id);
+                var (ex, ey) = grid.ToLattice(el.Id);
                 double dx = ex - cx;
                 double dy = ey - cy;
                 double distSq = dx * dx + dy * dy;
@@ -604,34 +604,34 @@ namespace Utility.Classes.Factories
             }
 
             // Place electrodes on outermost non-wall layer
-            mesh.PlaceEquidistantElectrodes(electrodeCount);
+            grid.PlaceEquidistantElectrodes(electrodeCount);
 
             // Refresh conductivity distribution
-            var cd = mesh.GetElements().ToDictionary(e => e.Id, e => e.Conductivity);
-            mesh.SetConductivityDistribution(new ConductivityDistribution(cd));
+            var cd = grid.GetElements().ToDictionary(e => e.Id, e => e.Conductivity);
+            grid.SetConductivityDistribution(new ConductivityDistribution(cd));
 
-            Workspace.AddLogMessage("MeshFactory", "Created ciruclar LBMMesh object.");
+            Workspace.AddLogMessage("MeshFactory", "Created ciruclar LBMGrid object.");
 
-            mesh.Metadata.Generator = nameof(LBMCreateCircular);
-            mesh.Metadata.Parameters["nx"] = nx.ToString();
-            mesh.Metadata.Parameters["ny"] = ny.ToString();
-            mesh.Metadata.Parameters["radius"] = radius.ToString();
-            mesh.Metadata.Parameters["electrodeCount"] = electrodeCount.ToString();
+            grid.Metadata.Parameters["nx"] = nx.ToString();
+            grid.Metadata.Generator = nameof(LBMCreateCircular);
+            grid.Metadata.Parameters["ny"] = ny.ToString();
+            grid.Metadata.Parameters["radius"] = radius.ToString();
+            grid.Metadata.Parameters["electrodeCount"] = electrodeCount.ToString();
 
-            return mesh;
+            return grid;
         }
 
 
         #endregion
 
-        public static void AddGaussianNoise(IMesh mesh)
+        public static void AddGaussianNoise(IDiscretization discretization)
         {
-            if (mesh == null) throw new ArgumentNullException(nameof(mesh));
+            if (discretization == null) throw new ArgumentNullException(nameof(discretization));
 
             var rng = new Random();
             const double sigma = 0.05; // 5% relative noise
 
-            var elems = mesh.GetElements();
+            var elems = discretization.GetElements();
             var noisy = new Dictionary<int, double>(elems.Count);
 
             foreach (var el in elems)
@@ -647,7 +647,7 @@ namespace Utility.Classes.Factories
                 noisy[el.Id] = value;
             }
 
-            mesh.SetConductivityDistribution(new ConductivityDistribution(noisy));
+            discretization.SetConductivityDistribution(new ConductivityDistribution(noisy));
 
             Workspace.AddLogMessage("MeshFactory", "Added gaussian noise to mesh conductivities.");
         }

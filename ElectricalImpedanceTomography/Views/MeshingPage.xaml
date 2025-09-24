@@ -349,7 +349,7 @@
                             <VerticalStackLayout Spacing="2"                                                  
                                                  BindableLayout.ItemsSource="{Binding FilteredMeshes}">
                                 <BindableLayout.ItemTemplate>
-                                    <DataTemplate x:DataType="models:MeshInfo">
+                                    <DataTemplate x:DataType="models:DiscretizationInfo">
                                         <Border StrokeShape="RoundRectangle 5" Padding="4" Stroke="Transparent">
                                             <Grid ColumnDefinitions="Auto, *" RowDefinitions="Auto, Auto, Auto" ColumnSpacing="5">
                                                 <Label Grid.Column="0" Grid.Row="0" Text="{Binding Name}" FontAttributes="Bold" FontSize="Small"/>

@@ -2,15 +2,15 @@
 {
     public class ReconstructionResult
     {
-        public Mesh? Mesh { get; private set; }                                 // The mesh we will work during reconstruction
+        public Discretization? Discretization { get; private set; }            // The discretization we will work during reconstruction
         public ConductivityDistribution OriginalConductivityDistribution;      // The original conductivity distribution which we try to reconstruct
         public ConductivityDistribution InitialConductivitiyDistribution;      // The initial conductivity distribution from which we started the iterations
         public ConductivityDistribution ReconstructedConductivityDistribution; // The reconstructed conductivity distribution of the model
         public List<ReconstructionFrame> Frames { get; private set; }
         #region Constructors
-        public ReconstructionResult(Mesh mesh, ConductivityDistribution originalConductivityDistribution, ConductivityDistribution initialConductivitiyDistribution, ConductivityDistribution reconstructedConductivityDistribution, List<ReconstructionFrame> frames)
+        public ReconstructionResult(Discretization discretization, ConductivityDistribution originalConductivityDistribution, ConductivityDistribution initialConductivitiyDistribution, ConductivityDistribution reconstructedConductivityDistribution, List<ReconstructionFrame> frames)
         {
-            Mesh = mesh;
+            Discretization = discretization;
             OriginalConductivityDistribution = originalConductivityDistribution;
             InitialConductivitiyDistribution = initialConductivitiyDistribution;
             ReconstructedConductivityDistribution = reconstructedConductivityDistribution;
@@ -19,7 +19,7 @@
 
         public ReconstructionResult(ConductivityDistribution originalConductivityDistribution, ConductivityDistribution initialConductivitiyDistribution, ConductivityDistribution reconstructedConductivityDistribution, List<ReconstructionFrame> frames)
         {
-            Mesh = null;
+            Discretization = null;
             OriginalConductivityDistribution = originalConductivityDistribution;
             InitialConductivitiyDistribution = initialConductivitiyDistribution;
             ReconstructedConductivityDistribution = reconstructedConductivityDistribution;
@@ -28,7 +28,7 @@
         #endregion
         #region Getters
         // --- Getter Functrions ---
-        public Mesh? GetMesh() => Mesh;
+        public Discretization? GetDiscretization() => Discretization;
         public ConductivityDistribution GetOriginalConductivityDistribution() => OriginalConductivityDistribution;
         public ConductivityDistribution GetInitialConductivityDistribution() => InitialConductivitiyDistribution;
         
@@ -36,7 +36,7 @@
         #endregion
         #region Setters
         // --- Setter Functions
-        public void SetMesh(Mesh mesh) => Mesh = mesh;
+        public void SetMesh(Discretization discretization) => Discretization = discretization;
         public void SetOriginalConductivityDistribution(ConductivityDistribution originalDistribution) => OriginalConductivityDistribution = originalDistribution;
         public void SetInitialConductivityDistribution(ConductivityDistribution initialDistribution) => InitialConductivitiyDistribution = initialDistribution;
         public void SetReconstructedConductivityDistribution(ConductivityDistribution reconstructedDistribution) => ReconstructedConductivityDistribution = reconstructedDistribution;

@@ -25,12 +25,12 @@ namespace Utility.Tests
             Assert.Equal(new[] { -0.5, 1.0, 0.0, 0.0 }, adj, new DoubleArrayComparer(1e-12));
         }
 
-        // Optional: W2 is an integration test because it needs LBMMesh + OR-Tools.
+        // Optional: W2 is an integration test because it needs LBMGrid + OR-Tools.
         // You can enable this on CI runners that have the dependency available.
-        [Fact(Skip = "Enable when OR-Tools + LBMMesh are wired; this is an integration test.")]
+        [Fact(Skip = "Enable when OR-Tools + LBMGrid are wired; this is an integration test.")]
         public void Wasserstein2_Evaluate_Produces_Finite_Value()
         {
-            // Arrange a tiny LBMMesh with 4 electrodes and deterministic coordinates,
+            // Arrange a tiny LBMGrid with 4 electrodes and deterministic coordinates,
             /// TODO: validate W2
         }
 

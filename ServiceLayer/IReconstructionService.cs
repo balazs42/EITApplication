@@ -11,7 +11,7 @@ namespace ServiceLayer
 {
     public interface IReconstructionService
     {
-        void InitializeReconstruction(IMesh mesh, EITReconstructionParameters parameters, bool reinit);
+        void InitializeReconstruction(IDiscretization discretization, EITReconstructionParameters parameters, bool reinit);
 
         // --- Background reconstruction control ---
         event EventHandler<ReconstructionResult> ReconstructionUpdated;
@@ -33,7 +33,7 @@ namespace ServiceLayer
                                              double regularizationWeight,
                                              double excitationAmplitude,
                                              double tolerance = 1e-6);
-        EITMeasurement SimulateLbmMeasurements(LBMMesh mesh, double excitaionAmplitude);
+        EITMeasurement SimulateLbmMeasurements(LBMGrid mesh, double excitaionAmplitude);
 
         // --- FEM Reconstruction
         PotentialDistribution ForwardSolveStepFem();
