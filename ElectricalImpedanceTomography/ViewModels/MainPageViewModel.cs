@@ -18,7 +18,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         private readonly IReconstructionService _reconstructionService;
 
         [ObservableProperty]
-        private ObservableCollection<WorkspaceMessage> debugLog = new();
+        private ObservableCollection<WorkspaceMessage> debugLog = [];
 
         [ObservableProperty]
         private double currentAmplitude = 1.0;

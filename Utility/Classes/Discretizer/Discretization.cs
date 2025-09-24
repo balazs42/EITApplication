@@ -196,8 +196,8 @@ namespace Utility.Classes.Discretizer
         protected abstract void ApplyPotentialToState(int key, double phi); 
         protected abstract double ReadPotentialOf(TElectrode electrode);
 
-        public override ConductivityDistribution ConductivityDistribution { get; protected set; } = new(new());
-        public override PotentialDistribution PotentialDistribution { get; protected set; } = new(new());
+        public override ConductivityDistribution ConductivityDistribution { get; protected set; } = new([]);
+        public override PotentialDistribution PotentialDistribution { get; protected set; } = new([]);
 
         /// <summary>
         /// Refines the mesh object to a higher resolution one.

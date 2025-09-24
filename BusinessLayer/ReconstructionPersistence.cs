@@ -277,7 +277,7 @@ namespace BusinessLayer
                 )
             );
 
-            return new ReconstructionFrame(dataGrad, phi, mu, new ConductivityDistribution(new()));
+            return new ReconstructionFrame(dataGrad, phi, mu, new ConductivityDistribution([]));
         }
 
         // ------------------------------------------------------------------
@@ -724,7 +724,7 @@ namespace BusinessLayer
                 )
             );
 
-            return new ReconstructionFrame(dataGrad, phi, mu, new ConductivityDistribution(new()));
+            return new ReconstructionFrame(dataGrad, phi, mu, new ConductivityDistribution([]));
         }
 
         public ReconstructionResult SolveLbmInverse(int maxIterationCount)
@@ -892,7 +892,7 @@ namespace BusinessLayer
             {
                 Debug.WriteLine($"\n=== Inverse iteration {iter} ===");
 
-                Dictionary<int, double> totalGrad = new();
+                Dictionary<int, double> totalGrad = [];
                 for (int i = 0; i < elementCount; i++)
                     totalGrad.Add(i, 0.0);
 
@@ -1178,7 +1178,7 @@ namespace BusinessLayer
             );
 
             int elementCount = mesh.GetElements().Count();
-            Dictionary<int, double> totalGrad = new();
+            Dictionary<int, double> totalGrad = [];
             for (int i = 0; i < elementCount; i++)
                 totalGrad.Add(i, 0.0);
 
@@ -1193,7 +1193,7 @@ namespace BusinessLayer
             // 4h) Total gradient ∇J = ∇J_data + ∇R  (Eq. 2.1.31)
             var totalGradDict = totalGrad.ToDictionary(kvp => kvp.Key, kvp => kvp.Value + regGrad.GetConductivity(kvp.Key));
 
-            ConductivityDistribution grad = new ConductivityDistribution(totalGradDict);
+            ConductivityDistribution grad = new(totalGradDict);
 
             Debug.WriteLine("Gradient ∇J computed.");
 

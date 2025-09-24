@@ -28,9 +28,9 @@ namespace ServiceLayer
         private double _stepSize;
         private double _regularizationWeight;
         private double _excitationAmplitude;
-        private List<double[]> _simulatedMeasurements = new();
+        private List<double[]> _simulatedMeasurements = [];
         private int _simMeasurementIndex;
-        private List<ReconstructionFrame> _currentCycleFrames = new();
+        private List<ReconstructionFrame> _currentCycleFrames = [];
         private ConductivityDistribution? _originalSigma;
         private ConductivityDistribution? _initialSigma;
         private int _framesPerCycle;
