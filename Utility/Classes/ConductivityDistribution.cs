@@ -10,8 +10,8 @@ namespace Utility.Classes
 
         public ConductivityDistribution(Dictionary<int, double> conductivities)
         {
-            IdValuePairs = new Dictionary<int, double>();
-            Conductivities = conductivities;
+            Conductivities = new Dictionary<int, double>(conductivities);
+            IdValuePairs = Conductivities;
         }
 
         /// <summary>
@@ -44,9 +44,13 @@ namespace Utility.Classes
         }
 
         public override Dictionary<int,double> Get() => Conductivities;
-        public override void Set(Dictionary<int, double> conductivites) => Conductivities = conductivites;
-        public override double GetValue(int key) => Conductivities[key];
+        public override void Set(Dictionary<int, double> conductivites)
+        {
+            Conductivities = new Dictionary<int, double>(conductivites);
+            IdValuePairs = Conductivities;
+        }
+        public override double GetValue(int key) => Conductivities.TryGetValue(key, out var value) ? value : 0.0;
         public override void SetValue(int key, double value) => Conductivities[key] = value;
-    
+
     }
 }

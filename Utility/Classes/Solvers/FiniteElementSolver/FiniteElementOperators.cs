@@ -1,4 +1,6 @@
-﻿using Utility.Classes.Discretizer.FiniteElementMesh;
+﻿using System.Collections.Generic;
+using System.Linq;
+using Utility.Classes.Discretizer.FiniteElementMesh;
 
 namespace Utility.Classes.Solvers.FiniteElementSolver
 {
@@ -48,6 +50,100 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             }
 
             return new VectorField(gradientData);
+        }
+
+        /// <summary>
+        /// Calculates the divergence of a piecewise constant vector field defined per element
+        /// by integrating the fluxes over the edges (discrete Gauss theorem).
+        /// </summary>
+        /// <remarks>
+        /// This operator is used in the TV gradient (Eq. (A.6)) to assemble
+        /// ∇·(∇γ / ||∇γ||) directly on the conductivity elements.
+        /// </remarks>
+        public static Dictionary<int, double> CalculateElementWiseDivergence(FEMMesh femMesh, VectorField elementField)
+        {
+            var divergence = new Dictionary<int, double>();
+            var elements = femMesh.GetElements().Cast<FEMElement>().ToList();
+            var edgeToElements = BuildEdgeToElementMap(elements);
+
+            foreach (var element in elements)
+            {
+                double centroidX = element.Vertices.Average(v => v.X);
+                double centroidY = element.Vertices.Average(v => v.Y);
+                double elementFlux = 0.0;
+
+                for (int i = 0; i < element.Vertices.Count; i++)
+                {
+                    var vStart = element.Vertices[i];
+                    var vEnd = element.Vertices[(i + 1) % element.Vertices.Count];
+
+                    double edgeDx = vEnd.X - vStart.X;
+                    double edgeDy = vEnd.Y - vStart.Y;
+                    double edgeLength = Math.Sqrt(edgeDx * edgeDx + edgeDy * edgeDy);
+                    if (edgeLength < 1e-12)
+                        continue;
+
+                    // Outward unit normal (rotate edge by +90° and orient away from centroid)
+                    double nx = edgeDy;
+                    double ny = -edgeDx;
+                    double midX = 0.5 * (vStart.X + vEnd.X);
+                    double midY = 0.5 * (vStart.Y + vEnd.Y);
+                    double toCentroidX = centroidX - midX;
+                    double toCentroidY = centroidY - midY;
+                    if (nx * toCentroidX + ny * toCentroidY > 0)
+                    {
+                        nx = -nx;
+                        ny = -ny;
+                    }
+                    double invLength = 1.0 / edgeLength;
+                    nx *= invLength;
+                    ny *= invLength;
+
+                    var key = NormaliseEdgeKey(vStart.GlobalId, vEnd.GlobalId);
+                    edgeToElements.TryGetValue(key, out var attachedElements);
+                    int neighbourId = attachedElements?.FirstOrDefault(id => id != element.Id) ?? -1;
+
+                    var (fx, fy) = elementField.GetVector(element.Id);
+                    double flux;
+                    if (neighbourId >= 0)
+                    {
+                        var (fnx, fny) = elementField.GetVector(neighbourId);
+                        flux = 0.5 * ((fx + fnx) * nx + (fy + fny) * ny);
+                    }
+                    else
+                    {
+                        flux = fx * nx + fy * ny;
+                    }
+
+                    elementFlux += flux * edgeLength;
+                }
+
+                double area = Math.Max(element.Area, 1e-12);
+                divergence[element.Id] = elementFlux / area;
+            }
+
+            return divergence;
+        }
+
+        /// <summary>
+        /// Projects a nodal scalar field (e.g., Δγ at vertices) onto the elements by averaging
+        /// the values of the element's vertices. This allows us to express vertex-based
+        /// operators in the conductivity space (Eq. (A.4)).
+        /// </summary>
+        public static Dictionary<int, double> ProjectVertexFieldToElements(FEMMesh femMesh, ScalarField vertexField)
+        {
+            var projection = new Dictionary<int, double>();
+
+            foreach (var element in femMesh.GetElements().Cast<FEMElement>())
+            {
+                double sum = 0.0;
+                foreach (var v in element.Vertices)
+                    sum += vertexField.GetValue(v.GlobalId);
+
+                projection[element.Id] = sum / element.Vertices.Count;
+            }
+
+            return projection;
         }
 
         /// <summary>
@@ -147,6 +243,30 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             if (!adjacency[u].Contains(v)) adjacency[u].Add(v);
             if (!adjacency[v].Contains(u)) adjacency[v].Add(u);
         }
+
+        private static Dictionary<(int, int), List<int>> BuildEdgeToElementMap(IEnumerable<FEMElement> elements)
+        {
+            var map = new Dictionary<(int, int), List<int>>();
+            foreach (var element in elements)
+            {
+                for (int i = 0; i < element.Vertices.Count; i++)
+                {
+                    int idA = element.Vertices[i].GlobalId;
+                    int idB = element.Vertices[(i + 1) % element.Vertices.Count].GlobalId;
+                    var key = NormaliseEdgeKey(idA, idB);
+                    if (!map.TryGetValue(key, out var list))
+                    {
+                        list = new List<int>();
+                        map[key] = list;
+                    }
+                    if (!list.Contains(element.Id))
+                        list.Add(element.Id);
+                }
+            }
+            return map;
+        }
+
+        private static (int, int) NormaliseEdgeKey(int a, int b) => a < b ? (a, b) : (b, a);
 
         #endregion
     }

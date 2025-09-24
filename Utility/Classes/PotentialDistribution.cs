@@ -11,8 +11,8 @@ namespace Utility.Classes
 
         public PotentialDistribution(Dictionary<int, double> potentials)
         {
-            IdValuePairs = new Dictionary<int, double>();
-            Potentials = potentials;
+            Potentials = new Dictionary<int, double>(potentials);
+            IdValuePairs = Potentials;
         }
 
         public double GetPotential(int FEMVertexId)
@@ -31,8 +31,12 @@ namespace Utility.Classes
         }
 
         public override Dictionary<int, double> Get() => Potentials;
-        public override void Set(Dictionary<int, double> potentials) => Potentials = potentials;
-        public override double GetValue(int key) => Potentials[key];
+        public override void Set(Dictionary<int, double> potentials)
+        {
+            Potentials = new Dictionary<int, double>(potentials);
+            IdValuePairs = Potentials;
+        }
+        public override double GetValue(int key) => Potentials.TryGetValue(key, out var value) ? value : 0.0;
         public override void SetValue(int key, double value) => Potentials[key] = value;
     }
 }

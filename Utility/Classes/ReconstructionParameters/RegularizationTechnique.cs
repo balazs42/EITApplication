@@ -1,4 +1,5 @@
-﻿using Utility.Classes.Discretizer;
+﻿using System.Linq;
+using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Solvers;
@@ -131,19 +132,24 @@ namespace Utility.Classes.ReconstructionParameters
         public ConductivityDistribution EvaluateGradient(IDiscretization discretization, ConductivityDistribution sigma)
         {
             // Gradient is -λ * Δσ.
-            ScalarField laplacian;
             if (discretization is FEMMesh femMesh)
-                laplacian = FiniteElementOperators.CalculateLaplacian(femMesh, sigma.ToPotentialDistribution());
-            else if (discretization is LBMGrid lbmGrid)
-                laplacian = LatticeBoltzmannOperators.CalculateLaplacian(lbmGrid, sigma.ToPotentialDistribution());
-            else
-                throw new NotSupportedException($"Mesh type {discretization.GetType().Name} not supported for First-Order Tikhonov regularization.");
-            
-            var gradientDict = laplacian.IdValuePairs.ToDictionary(
-                kvp => kvp.Key,
-                kvp => -_lambda * kvp.Value
-            );
-            return new ConductivityDistribution(gradientDict);
+            {
+                var laplacian = FiniteElementOperators.CalculateLaplacian(femMesh, sigma.ToPotentialDistribution());
+                var projected = FiniteElementOperators.ProjectVertexFieldToElements(femMesh, laplacian);
+                var gradientDict = projected.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => -_lambda * kvp.Value);
+                return new ConductivityDistribution(gradientDict);
+            }
+            if (discretization is LBMGrid lbmGrid)
+            {
+                var laplacian = LatticeBoltzmannOperators.CalculateLaplacian(lbmGrid, sigma.ToPotentialDistribution());
+                var gradientDict = laplacian.Get().ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => -_lambda * kvp.Value);
+                return new ConductivityDistribution(gradientDict);
+            }
+            throw new NotSupportedException($"Mesh type {discretization.GetType().Name} not supported for First-Order Tikhonov regularization.");
         }
     }
 
@@ -165,8 +171,8 @@ namespace Utility.Classes.ReconstructionParameters
             else
                 throw new NotSupportedException($"Mesh type {discretization.GetType().Name} not supported.");
 
-            // Calculate L2-norm squared of the Laplacian field
-            double normSq = laplacian.IdValuePairs.Values.Sum(v => v * v);
+            // Calculate L2-norm squared of the Laplacian field (Eq. (A.5))
+            double normSq = laplacian.Get().Values.Sum(v => v * v);
             return 0.5 * _lambda * normSq;
         }
 
@@ -174,25 +180,26 @@ namespace Utility.Classes.ReconstructionParameters
         {
             // Gradient is λ * Δ^2 σ (bi-Laplacian).
             // This is achieved by applying the Laplacian operator twice.
-            ScalarField laplacian1, laplacian2;
             if (discretization is FEMMesh femMesh)
             {
-                laplacian1 = FiniteElementOperators.CalculateLaplacian(femMesh, sigma.ToPotentialDistribution());
-                laplacian2 = FiniteElementOperators.CalculateLaplacian(femMesh, laplacian1); // Apply again
+                var laplacian1 = FiniteElementOperators.CalculateLaplacian(femMesh, sigma.ToPotentialDistribution());
+                var laplacian2 = FiniteElementOperators.CalculateLaplacian(femMesh, laplacian1); // Δ(Δγ)
+                var projected = FiniteElementOperators.ProjectVertexFieldToElements(femMesh, laplacian2);
+                var gradientDict = projected.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => _lambda * kvp.Value);
+                return new ConductivityDistribution(gradientDict);
             }
-            else if (discretization is LBMGrid lbmGrid)
+            if (discretization is LBMGrid lbmGrid)
             {
-                laplacian1 = LatticeBoltzmannOperators.CalculateLaplacian(lbmGrid, sigma.ToPotentialDistribution());
-                laplacian2 = LatticeBoltzmannOperators.CalculateLaplacian(lbmGrid, laplacian1); // Apply again
+                var laplacian1 = LatticeBoltzmannOperators.CalculateLaplacian(lbmGrid, sigma.ToPotentialDistribution());
+                var laplacian2 = LatticeBoltzmannOperators.CalculateLaplacian(lbmGrid, laplacian1);
+                var gradientDict = laplacian2.Get().ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => _lambda * kvp.Value);
+                return new ConductivityDistribution(gradientDict);
             }
-            else
-                throw new NotSupportedException($"Mesh type {discretization.GetType().Name} not supported.");
-
-            var gradientDict = laplacian2.IdValuePairs.ToDictionary(
-                 kvp => kvp.Key,
-                 kvp => _lambda * kvp.Value
-             );
-            return new ConductivityDistribution(gradientDict);
+            throw new NotSupportedException($"Mesh type {discretization.GetType().Name} not supported.");
         }
     }
 
@@ -237,43 +244,40 @@ namespace Utility.Classes.ReconstructionParameters
 
             // 1. Calculate the gradient field: ∇σ
             VectorField gradSigma;
-            if (discretization is FEMMesh femMesh) // Note: Gradient is on elements, Divergence is on nodes. This needs careful handling.
+            Dictionary<int, double> divergence;
+            if (discretization is FEMMesh femMesh)
+            {
                 gradSigma = FiniteElementOperators.CalculateElementWiseGradient(femMesh, sigma.ToPotentialDistribution());
+                var normalizedGradData = gradSigma.Data.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp =>
+                    {
+                        double mag = Math.Sqrt(kvp.Value.X * kvp.Value.X + kvp.Value.Y * kvp.Value.Y);
+                        double divisor = Math.Max(mag, Epsilon);
+                        return (kvp.Value.X / divisor, kvp.Value.Y / divisor);
+                    });
+                var normalizedGradField = new VectorField(normalizedGradData);
+                divergence = FiniteElementOperators.CalculateElementWiseDivergence(femMesh, normalizedGradField);
+            }
             else if (discretization is LBMGrid grid)
+            {
                 gradSigma = LatticeBoltzmannOperators.CalculateGradient(grid, sigma.ToPotentialDistribution());
-            else
-                throw new NotSupportedException($"Mesh type {discretization.GetType().Name} not supported.");
-
-            // 2. Normalize the gradient field: ∇σ / (||∇σ|| + ε)
-            var normalizedGradData = gradSigma.Data.ToDictionary(
-                kvp => kvp.Key,
-                kvp =>
-                {
-                    double mag = Math.Sqrt(kvp.Value.X * kvp.Value.X + kvp.Value.Y * kvp.Value.Y);
-                    double divisor = mag + Epsilon;
-                    return (kvp.Value.X / divisor, kvp.Value.Y / divisor);
-                }
-            );
-            var normalizedGradField = new VectorField(normalizedGradData);
-
-            // 3. Calculate the divergence of the normalized field: ∇·(...)
-            ScalarField divergence;
-            if (discretization is LBMGrid lbmGrid)
-            {
-                divergence = LatticeBoltzmannOperators.CalculateDivergence(lbmGrid, normalizedGradField);
-            }
-            else if (discretization is FEMMesh)
-            {
-                // NOTE: Implementing divergence on an FEM mesh is complex.
-                // It requires integrating over element patches, similar to the Laplacian.
-                // This is a placeholder for that advanced implementation.
-                throw new NotImplementedException("Divergence for FEM meshes is not yet implemented in the operators helper.");
+                var normalizedGradData = gradSigma.Data.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp =>
+                    {
+                        double mag = Math.Sqrt(kvp.Value.X * kvp.Value.X + kvp.Value.Y * kvp.Value.Y);
+                        double divisor = Math.Max(mag, Epsilon);
+                        return (kvp.Value.X / divisor, kvp.Value.Y / divisor);
+                    });
+                var normalizedGradField = new VectorField(normalizedGradData);
+                divergence = LatticeBoltzmannOperators.CalculateDivergence(grid, normalizedGradField).Get();
             }
             else
                 throw new NotSupportedException($"Mesh type {discretization.GetType().Name} not supported.");
 
-            // 4. Scale by -λ
-            var gradientDict = divergence.IdValuePairs.ToDictionary(
+            // 4. Scale by -λ (Eq. (A.6))
+            var gradientDict = divergence.ToDictionary(
                 kvp => kvp.Key,
                 kvp => -_lambda * kvp.Value
             );
