@@ -1,15 +1,12 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ServiceLayer;
-using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Linq;
 using Utility.Classes;
 using Utility.Classes.Factories;
-using Utility.Classes.Meshing;
-using Utility.Classes.Meshing.FiniteElementMesh;
-using Utility.Classes.Meshing.LatticeBoltzmannMesh;
+using Utility.Classes.Discretizer;
+using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 
 using Workspace = Utility.Classes.Application.Workspace;
 
@@ -370,7 +367,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         public void LoadAvailableMeshes()
         {
             AvailableMeshes.Clear();
-            foreach (var m in _daqService.GetMeshes())
+            foreach (var m in _daqService.GetDiscretizationInfos())
                 AvailableMeshes.Add(m);
             ApplyMeshFilter();
         }

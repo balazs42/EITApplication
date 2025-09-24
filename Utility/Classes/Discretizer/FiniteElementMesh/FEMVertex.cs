@@ -1,4 +1,4 @@
-﻿namespace Utility.Classes.Meshing.FiniteElementMesh
+﻿namespace Utility.Classes.Discretizer.FiniteElementMesh
 {
     public class FEMVertex
     {

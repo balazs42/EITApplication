@@ -1,5 +1,5 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
-using Utility.Classes.Meshing;
+﻿using Utility.Classes.Discretizer;
+using CommunityToolkit.Mvvm.ComponentModel;
 using Utility.Classes.Factories;
 
 namespace Utility.Classes.ReconstructionParameters

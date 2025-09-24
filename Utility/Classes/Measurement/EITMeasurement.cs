@@ -1,5 +1,4 @@
-﻿
-namespace Utility.Classes.Measurement
+﻿namespace Utility.Classes.Measurement
 {
     public class EITMeasurement
     {

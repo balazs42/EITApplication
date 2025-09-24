@@ -1,7 +1,6 @@
 ﻿using Utility.Classes.Factories;
-using Utility.Classes.Meshing.LatticeBoltzmannMesh;
 
-namespace Utility.Classes.Meshing.FiniteElementMesh
+namespace Utility.Classes.Discretizer.FiniteElementMesh
 {
     public class FEMMesh : Discretization<FEMElement, FEMElectrode>
     {
@@ -348,7 +347,7 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
         /// then the two graph nodes will be connected with a weigth of the two elements harmonic mean conductance.
         /// </summary>
         /// <returns>The graph object created from the FEM discretization.</returns>
-        public override Utility.Classes.Meshing.GraphMesh.Graph ToGraph()
+        public override Utility.Classes.Discretizer.GraphMesh.Graph ToGraph()
         {
             // -- Build dual graph: one GraphFEMVertex per FEM element (at its centroid),
             //    connect elements that share an edge, with two-point flux/transmissibility weight.
@@ -413,7 +412,7 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
             }
 
             // Create GraphFEMVertex list
-            var gVertices = new List<Utility.Classes.Meshing.Graph.Graph.GraphFEMVertex>(ne);
+            var gVertices = new List<Utility.Classes.Discretizer.GraphMesh.GraphFEMVertex>(ne);
             for (int ei = 0; ei < ne; ei++)
             {
                 var el = elements[ei];
@@ -421,13 +420,13 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
                 int domainId = 0;               
                 int boundaryId = isBoundaryElement[ei] ? 1 : 0;
                 // Use element Id for GlobalId so it’s easy to map back
-                gVertices.Add(new Utility.Classes.Meshing.Graph.Graph.GraphFEMVertex(cx, cy, el.Id, domainId, boundaryId));
+                gVertices.Add(new Utility.Classes.Discretizer.GraphMesh.GraphFEMVertex(cx, cy, el.Id, domainId, boundaryId));
             }
 
             // 2) Build edges between neighboring elements that share a mesh edge,
             //    weight = |Γ| / (d_i/σ_i + d_j/σ_j) (two-point flux)
             var idToIndex = elements.ToDictionary(e => e.Id, e => elements.IndexOf(e));
-            var gEdges = new List<Utility.Classes.Meshing.Graph.Graph.GraphEdge>();
+            var gEdges = new List<Utility.Classes.Discretizer.GraphMesh.GraphEdge>();
 
             foreach (var kvp in edgeToElements)
             {
@@ -470,10 +469,10 @@ namespace Utility.Classes.Meshing.FiniteElementMesh
                 // Graph vertices refer to element-ids, fetch those
                 var Gi = gVertices[i];
                 var Gj = gVertices[j];
-                gEdges.Add(new Utility.Classes.Meshing.Graph.Graph.GraphEdge(Gi, Gj, tau));
+                gEdges.Add(new Utility.Classes.Discretizer.GraphMesh.GraphEdge(Gi, Gj, tau));
             }
 
-            return new Utility.Classes.Meshing.GraphMesh.Graph(gVertices, gEdges);
+            return new Utility.Classes.Discretizer.GraphMesh.Graph(gVertices, gEdges);
         }
 
 

@@ -1,6 +1,4 @@
-using System.Linq;
-
-namespace Utility.Classes.Meshing
+namespace Utility.Classes.Discretizer
 {
     public record DiscretizationInfo(string Name, string FilePath, DiscretizationMetaData Metadata)
     {

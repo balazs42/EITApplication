@@ -1,10 +1,8 @@
 ﻿using System.Text.Json.Serialization;
+using Utility.Classes.Discretizer.GraphMesh;
 using Utility.Classes.Factories;
-using Utility.Classes.Measurement;
-using Utility.Classes.Meshing;
-using Utility.Classes.Meshing.Graph.Graph;
 
-namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
+namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
 {
     public class LBMGrid : Discretization<LBMElement, LBMElectrode>
     {
@@ -71,13 +69,13 @@ namespace Utility.Classes.Meshing.LatticeBoltzmannMesh
                 }
             }
             
-            Dictionary<int, double> cd = new();
+            Dictionary<int, double> cd = [];
             foreach (var el in _elements)
                 cd.Add(el.Id, el.Conductivity);
             ConductivityDistribution = new(cd);
 
             ConductivityDistribution = ConductivityDistributionFactory.CreateHomogeneous(this, 1.0);
-            Dictionary<int, double> pd = new();
+            Dictionary<int, double> pd = [];
 
             foreach (var el in _elements)
                 pd.Add(el.Id, el.Fi.Sum());

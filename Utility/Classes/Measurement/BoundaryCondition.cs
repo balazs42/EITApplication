@@ -1,4 +1,4 @@
-﻿using Utility.Classes.Meshing;
+﻿using Utility.Classes.Discretizer;
 
 namespace Utility.Classes.Measurement
 {

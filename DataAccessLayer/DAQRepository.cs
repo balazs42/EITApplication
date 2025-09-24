@@ -2,8 +2,6 @@
 using System.IO.Ports;
 using System.Numerics;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 using Utility.Classes.Configurations;
 using Utility.Classes.Measurement;
 

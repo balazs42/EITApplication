@@ -4,8 +4,9 @@ using System.Numerics;
 using Utility.Classes;
 using Utility.Classes.Factories;
 using Utility.Classes.Measurement;
-using Utility.Classes.Meshing.FiniteElementMesh;
-using Utility.Classes.Meshing.LatticeBoltzmannMesh;
+using Utility.Classes.Discretizer;
+using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Models;
 using Utility.Classes.ReconstructionParameters;
 using Utility.Classes.Solvers.FiniteElementSolver;
@@ -173,7 +174,6 @@ namespace BusinessLayer
             LBMBoundaryCondition boundaryConditions = new(electrodes);
 
             return _differentialEquationSolver.Solve(lbmGrid, boundaryConditions, null);
-
         }
 
         public ReconstructionFrame InverseSolveStepFem(FEMMesh mesh, FEMBoundaryCondition bc, double[] currentMeasurement, double gradientStepSize)
@@ -688,20 +688,6 @@ namespace BusinessLayer
 
         #region Lattice Boltzmann Reconstruction
 
-        private PotentialDistribution SolveLbmForward()
-        {
-            LBMGrid? lbmGrid = _discretization as LBMGrid;
-
-            if (_inverseModel == null || _discretization == null || lbmGrid == null || _differentialEquationSolver == null)
-                throw new NullReferenceException();
-
-            var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
-
-            LBMBoundaryCondition bc = new(electrodes);
-
-            return _differentialEquationSolver.Solve(lbmGrid, bc, null);
-        }
-
         private ReconstructionFrame LbmSolveStep(LBMGrid mesh, LBMBoundaryCondition bc, double[] currentMeasurement)
         {
             if (_differentialEquationSolver == null)
@@ -872,131 +858,6 @@ namespace BusinessLayer
 
             PotentialDistribution potentialDistribution = _differentialEquationSolver.Solve(mesh, boundaryConditions, null);
             mesh.SetPotentialDistribution(potentialDistribution);
-
-            return mesh;
-        }
-
-        public FEMMesh SolveFemInverse(FEMMesh mesh, int maxIterCount, double stepSize, double regularization)
-        {
-            _regularizationWeight = regularization;
-            return SolveFemInverseAllFrames(mesh, maxIterCount, stepSize, regularization);
-
-            // Forward step computes the correct potential values
-            FEMMesh forwardProjection = SolveFemForward(mesh);
-            double[] measuredValues = forwardProjection.GetElectrodePotentials();
-
-            Debug.WriteLine("The simulated measured values are:");
-            for (int i = 0; i < measuredValues.Length; i++)
-                Debug.WriteLine($"{measuredValues[i]}");
-
-            // 2) Initialize conductivity (σ^{0}) to homogeneous distribution
-            ConductivityDistribution sigma = ConductivityDistributionFactory.CreateRandom(mesh);
-            mesh.SetConductivityDistribution(sigma);
-            
-            // 3) Mark electrodes: 0=ground, 1=excitation
-            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
-            var bc = new FEMBoundaryCondition(electrodes);
-
-            // 4) Iterative loop
-            double prevError = double.PositiveInfinity;
-            List<double> errors = [];
-
-            for (int iter = 0; iter < maxIterCount; iter++)
-            {
-                Debug.WriteLine($"\n=== Inverse iteration {iter} ===");
-
-                // 4a) Forward solve φ⁽ᵏ⁾ = S(σ⁽ᵏ⁾)   (thesis Eq. 1.1.16)
-                PotentialDistribution phi = _differentialEquationSolver.Solve(mesh, bc, null);
-                Debug.WriteLine("Forward φ computed.");
-
-                // 4b) Extract simulated boundary data d_sim
-                double[] dSim = mesh.GetElectrodePotentials();
-                Debug.WriteLine("The simulated electrode potentials during iteration:");
-                for (int i = 0; i < dSim.Length; i++)
-                    Debug.WriteLine($"{dSim[i]}");
-
-                double[] dObs = measuredValues;
-
-                // 4c) Compute misfit J_misfit (thesis Eq. 2.1.4 or 3.1.1)
-                double misfit = _errorMetric.Evaluate(mesh, dObs, dSim);
-                Debug.WriteLine($"Misfit J = {misfit:0.#####}");
-
-                // 4d) Regularization term J_reg and grad ∇J_reg (Eq. 2.1.27/2.1.28)
-                double regTerm = _regularizer.EvaluateTerm(mesh, sigma);
-                var regGrad = _regularizer.EvaluateGradient(mesh, sigma);
-                Debug.WriteLine($"Regularization R = {regTerm:0.#####}");
-
-                // 4e) Build adjoint source s = EvaluateAdjointSource (L2: residual; W2: Kantorovich φ) 
-                var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, dObs, dSim);
-                // wrap into a PotentialDistribution on electrodes
-                var srcDist = new PotentialDistribution(
-                    Enumerable.Range(0, adjSrc.Length)
-                              .ToDictionary(i => electrodes[i].Id, i => adjSrc[i])
-                );
-
-                // 4f) Adjoint solve μ: same forward‐solver but feed in adjSrc as boundary currents
-                var mu = _differentialEquationSolver
-                    .Solve(mesh,
-                                  new FEMBoundaryCondition(electrodes, srcDist), null /*TODO: this should be adjoint source*/ );
-                Debug.WriteLine("Adjoint μ computed.");
-
-                // 4g) Compute gradient ∇J_data = ∇μ·∇φ elementwise  (thesis Eq. 2.1.20)
-                var dataGrad = new ConductivityDistribution(
-                    mesh.GetElements().Cast<FEMElement>().ToDictionary(
-                        el => el.Id,
-                        el => {
-                            // compute ∇φ, ∇μ on this element
-                            var gPhi = FiniteElementOperators.CalculateElementWiseGradient(mesh, phi)
-                                        .GetVector(el.Id);
-                            var gMu = FiniteElementOperators.CalculateElementWiseGradient(mesh, mu)
-                                        .GetVector(el.Id);
-                            return (gMu.X * gPhi.X + gMu.Y * gPhi.Y) * el.Area;
-                        }
-                    )
-                );
-
-                // 4h) Total gradient ∇J = ∇J_data + ∇R  (Eq. 2.1.31)
-                var totalGradDict = dataGrad.Conductivities.ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => kvp.Value + regGrad.GetConductivity(kvp.Key)
-                );
-                var totalGrad = new ConductivityDistribution(totalGradDict);
-
-                Debug.WriteLine("Gradient ∇J computed.");
-
-                // 4i) Line search / simple step: σ⁽ᵏ⁺¹⁾ = σ⁽ᵏ⁾ - α ∇J
-                double step = stepSize;  // choose small enough for stability
-                var newSigmaDict = sigma.Conductivities.ToDictionary(
-                    kvp => kvp.Key,
-                    // Clamp conductivites which got below 0
-                    kvp => ((kvp.Value - step * totalGrad.GetConductivity(kvp.Key)) < 0.0) ? 1e-1 : kvp.Value - step * totalGrad.GetConductivity(kvp.Key)
-                );
-                
-                sigma = new ConductivityDistribution(newSigmaDict);
-                mesh.SetConductivityDistribution(sigma);
-
-                // 4j) Check convergence on boundary misfit change
-                if (Math.Abs(prevError - misfit) < 1e-8)
-                {
-                    Debug.WriteLine("Converged on misfit change. Stopping.");
-                    break;
-                }
-                prevError = misfit;
-                errors.Add(prevError);
-            }
-
-            Debug.WriteLine("Erorrs during iteration:");
-            // print errors
-            for (int i = 0; i < errors.Count; i++)
-                if (i % 10 == 0)
-                    Debug.WriteLine($"{errors[i]:F6} ");
-                else Debug.Write($"{errors[i]:F6}, ");
-
-            var elements = mesh.GetElements();
-
-            // 5) Update mesh ConductivityDistribution and return
-            foreach (var el in elements)
-                el.Conductivity = sigma.GetConductivity(el.Id);
 
             return mesh;
         }
@@ -1349,11 +1210,8 @@ namespace BusinessLayer
         public void SaveReconstruction(List<ReconstructionResult> frames, string name, EITReconstructionParameters parameters)
             => _reconstructionRepository.SaveReconstruction(frames, name, parameters);
 
-        public IEnumerable<ReconstructionInfo> GetReconstructions()
-            => _reconstructionRepository.GetReconstructions();
+        public IEnumerable<ReconstructionInfo> GetReconstructions() => _reconstructionRepository.GetReconstructions();
 
-        public List<ReconstructionResult> LoadReconstruction(string filePath)
-            => _reconstructionRepository.LoadReconstruction(filePath);
+        public List<ReconstructionResult> LoadReconstruction(string filePath) => _reconstructionRepository.LoadReconstruction(filePath);
     }
 }
-

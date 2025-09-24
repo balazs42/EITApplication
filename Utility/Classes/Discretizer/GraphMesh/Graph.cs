@@ -1,6 +1,4 @@
-﻿using Utility.Classes.Meshing.Graph.Graph;
-
-namespace Utility.Classes.Meshing.GraphMesh
+﻿namespace Utility.Classes.Discretizer.GraphMesh
 {
     public sealed class Graph
     {

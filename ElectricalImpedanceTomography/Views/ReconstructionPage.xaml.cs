@@ -5,11 +5,11 @@ using SkiaSharp.Views.Maui;
 using SkiaSharp.Views.Maui.Controls;
 using Utility.Classes;
 using Utility.Classes.Measurement;
-using Utility.Classes.Meshing.FiniteElementMesh;
-using Utility.Classes.Meshing.LatticeBoltzmannMesh;
+using Utility.Classes.Discretizer;
+using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
+
 using Workspace = Utility.Classes.Application.Workspace;
-using System;
-using System.Linq;
 
 namespace ElectricalImpedanceTomography.Views;
 
@@ -69,7 +69,7 @@ public partial class ReconstructionPage : ContentPage
         _viewModel.LoadAvailableReconstructions();
     }
 
-    private IDiscretization? GetMesh()
+    private IDiscretization? GetDiscretization()
         => (_currentResult?.Discretization as IDiscretization) ?? (IDiscretization?)Workspace.GetDiscretization();
 
     private static async Task AnimateButtonAsync(object sender)
@@ -84,7 +84,7 @@ public partial class ReconstructionPage : ContentPage
     #region Simulation control
     private async void OnPlayButtonClicked(object sender, EventArgs e)
     {
-        if(GetMesh() == null)
+        if(GetDiscretization() == null)
         {
             await DisplayAlert("No Mesh", "You should create or load a mesh to start reconstrucion!", "Ok");
             return;
@@ -154,9 +154,7 @@ public partial class ReconstructionPage : ContentPage
         var frames = Workspace.GetReconstructionFrames();
         int index = (int)Math.Round(PlaybackSlider.Value);
         if (index > 0)
-        {
             PlaybackSlider.Value = index - 1;
-        }
     }
 
     private async void OnPlayerForwardButtontapped(object sender, TappedEventArgs e)
@@ -168,9 +166,7 @@ public partial class ReconstructionPage : ContentPage
         var frames = Workspace.GetReconstructionFrames();
         int index = (int)Math.Round(PlaybackSlider.Value);
         if (index < frames.Count - 1)
-        {
             PlaybackSlider.Value = index + 1;
-        }
     }
 
 
@@ -426,13 +422,13 @@ public partial class ReconstructionPage : ContentPage
     private void OnOriginalCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
         _currentResult ??= Workspace.GetReconstructionResults().LastOrDefault();
-        var mesh = GetMesh();
-        if (mesh is FEMMesh fem)
+        var discretization = GetDiscretization();
+        if (discretization is FEMMesh fem)
         {
             var cd = Workspace.GetOriginalConductivityDistribution() ?? fem.GetConductivityDistribution();
             DrawFemConductivity(e, fem, cd, _hoverOriginalLines, _hoverOriginalPt);
         }
-        else if (mesh is LBMGrid lbm)
+        else if (discretization is LBMGrid lbm)
         {
             var cd = Workspace.GetOriginalConductivityDistribution() ?? lbm.GetConductivityDistribution();
             DrawLbmField(e, lbm, cd.Conductivities, false, _hoverOriginalLines, _hoverOriginalPt);
@@ -441,59 +437,59 @@ public partial class ReconstructionPage : ContentPage
 
     private void OnPotentialCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
-        var mesh = GetMesh();
-        var pd = _currentFrame?.CalculatedPotentialDistribution ?? mesh?.GetPotentialDistribution();
-        if (mesh is FEMMesh fem && pd != null)
+        var discretization = GetDiscretization();
+        var pd = _currentFrame?.CalculatedPotentialDistribution ?? discretization?.GetPotentialDistribution();
+        if (discretization is FEMMesh fem && pd != null)
             DrawFemPotential(e, fem, pd, _hoverPotentialLines, _hoverPotentialPt);
-        else if (mesh is LBMGrid lbm && pd != null)
+        else if (discretization is LBMGrid lbm && pd != null)
             DrawLbmField(e, lbm, pd.Potentials, true, _hoverPotentialLines, _hoverPotentialPt);
     }
 
     private void OnReconstructedCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
-        var mesh = GetMesh();
-        var cd = _currentResult?.ReconstructedConductivityDistribution ?? mesh?.GetConductivityDistribution();
-        if (mesh is FEMMesh fem && cd != null)
+        var discretization = GetDiscretization();
+        var cd = _currentResult?.ReconstructedConductivityDistribution ?? discretization?.GetConductivityDistribution();
+        if (discretization is FEMMesh fem && cd != null)
             DrawFemConductivity(e, fem, cd, _hoverReconstructedLines, _hoverReconstructedPt);
-        else if (mesh is LBMGrid lbm && cd != null)
+        else if (discretization is LBMGrid lbm && cd != null)
             DrawLbmField(e, lbm, cd.Conductivities, false, _hoverReconstructedLines, _hoverReconstructedPt);
     }
 
     private void OnAdjointCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
-        var mesh = GetMesh();
-        var pd = _currentFrame?.CalculatedAdjointDistribution ?? mesh?.GetPotentialDistribution();
-        if (mesh is FEMMesh fem && pd != null)
+        var discretization = GetDiscretization();
+        var pd = _currentFrame?.CalculatedAdjointDistribution ?? discretization?.GetPotentialDistribution();
+        if (discretization is FEMMesh fem && pd != null)
             DrawFemPotential(e, fem, pd, _hoverAdjointLines, _hoverAdjointPt);
-        else if (mesh is LBMGrid lbm && pd != null)
+        else if (discretization is LBMGrid lbm && pd != null)
             DrawLbmField(e, lbm, pd.Potentials, true, _hoverAdjointLines, _hoverAdjointPt);
     }
 
     private void OnInitialCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
-        var mesh = GetMesh();
-        var cd = _currentResult?.InitialConductivitiyDistribution ?? mesh?.GetConductivityDistribution();
-        if (mesh is FEMMesh fem && cd != null)
+        var discretization = GetDiscretization();
+        var cd = _currentResult?.InitialConductivitiyDistribution ?? discretization?.GetConductivityDistribution();
+        if (discretization is FEMMesh fem && cd != null)
             DrawFemConductivity(e, fem, cd, _hoverInitialLines, _hoverInitialPt);
-        else if (mesh is LBMGrid lbm && cd != null)
+        else if (discretization is LBMGrid lbm && cd != null)
             DrawLbmField(e, lbm, cd.Conductivities, false, _hoverInitialLines, _hoverInitialPt);
     }
 
     private void OnGradientCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
-        var mesh = GetMesh();
+        var discretization = GetDiscretization();
         var cd = _currentFrame?.ConductivityGradient;
-        if (mesh is FEMMesh fem && cd != null)
+        if (discretization is FEMMesh fem && cd != null)
             DrawFemConductivity(e, fem, cd, _hoverGradientLines, _hoverGradientPt);
-        else if (mesh is LBMGrid lbm && cd != null)
+        else if (discretization is LBMGrid lbm && cd != null)
             DrawLbmField(e, lbm, cd.Conductivities, false, _hoverGradientLines, _hoverGradientPt);
     }
 
     private void OnOriginalColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
         _currentResult ??= Workspace.GetReconstructionResults().LastOrDefault();
-        var mesh = GetMesh();
-        if (mesh is FEMMesh fem)
+        var discretization = GetDiscretization();
+        if (discretization is FEMMesh fem)
         {
             var cd = _currentResult?.OriginalConductivityDistribution ?? Workspace.GetOriginalConductivityDistribution() ?? fem.GetConductivityDistribution();
             double min = cd.Conductivities.Values.Min();
@@ -501,7 +497,7 @@ public partial class ReconstructionPage : ContentPage
             if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
             DrawColorBar(e.Surface.Canvas, e.Info, min, max, false);
         }
-        else if (mesh is LBMGrid lbm)
+        else if (discretization is LBMGrid lbm)
         {
             var cd = _currentResult?.OriginalConductivityDistribution ?? Workspace.GetOriginalConductivityDistribution() ?? lbm.GetConductivityDistribution();
             double min = cd.Conductivities.Values.Min();
@@ -513,8 +509,8 @@ public partial class ReconstructionPage : ContentPage
 
     private void OnPotentialColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
-        var mesh = GetMesh();
-        var pd = _currentFrame?.CalculatedPotentialDistribution ?? mesh?.GetPotentialDistribution();
+        var discretization = GetDiscretization();
+        var pd = _currentFrame?.CalculatedPotentialDistribution ?? discretization?.GetPotentialDistribution();
         if (pd != null)
         {
             double min = pd.Potentials.Values.Min();
@@ -526,8 +522,8 @@ public partial class ReconstructionPage : ContentPage
 
     private void OnReconstructedColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
-        var mesh = GetMesh();
-        if (mesh is FEMMesh fem)
+        var discretization = GetDiscretization();
+        if (discretization is FEMMesh fem)
         {
             var cd = _currentResult?.ReconstructedConductivityDistribution ?? fem.GetConductivityDistribution();
             double min = cd.Conductivities.Values.Min();
@@ -535,7 +531,7 @@ public partial class ReconstructionPage : ContentPage
             if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
             DrawColorBar(e.Surface.Canvas, e.Info, min, max, false);
         }
-        else if (mesh is LBMGrid lbm)
+        else if (discretization is LBMGrid lbm)
         {
             var cd = _currentResult?.ReconstructedConductivityDistribution ?? lbm.GetConductivityDistribution();
             double min = cd.Conductivities.Values.Min();
@@ -547,8 +543,8 @@ public partial class ReconstructionPage : ContentPage
 
     private void OnAdjointColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
-        var mesh = GetMesh();
-        var pd = _currentFrame?.CalculatedAdjointDistribution ?? mesh?.GetPotentialDistribution();
+        var discretization = GetDiscretization();
+        var pd = _currentFrame?.CalculatedAdjointDistribution ?? discretization?.GetPotentialDistribution();
         if (pd != null)
         {
             double min = pd.Potentials.Values.Min();
@@ -560,8 +556,8 @@ public partial class ReconstructionPage : ContentPage
 
     private void OnInitialColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
-        var mesh = GetMesh();
-        if (mesh is FEMMesh fem)
+        var discretization = GetDiscretization();
+        if (discretization is FEMMesh fem)
         {
             var cd = _currentResult?.InitialConductivitiyDistribution ?? fem.GetConductivityDistribution();
             double min = cd.Conductivities.Values.Min();
@@ -569,7 +565,7 @@ public partial class ReconstructionPage : ContentPage
             if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
             DrawColorBar(e.Surface.Canvas, e.Info, min, max, false);
         }
-        else if (mesh is LBMGrid lbm)
+        else if (discretization is LBMGrid lbm)
         {
             var cd = _currentResult?.InitialConductivitiyDistribution ?? lbm.GetConductivityDistribution();
             double min = cd.Conductivities.Values.Min();
@@ -597,10 +593,10 @@ public partial class ReconstructionPage : ContentPage
     {
         if (e.MouseButton == SKMouseButton.Right && e.ActionType == SKTouchAction.Pressed)
         { await ShowDisplayModeMenu(); e.Handled = true; return; }
-        var mesh = GetMesh();
-        if (mesh == null) return;
+        var discretization = GetDiscretization();
+        if (discretization == null) return;
         var view = (SKCanvasView)sender;
-        if (mesh is FEMMesh fem)
+        if (discretization is FEMMesh fem)
         {
             if (e.ActionType == SKTouchAction.Released)
             {
@@ -624,7 +620,7 @@ public partial class ReconstructionPage : ContentPage
             }
             view.InvalidateSurface(); e.Handled = true;
         }
-        else if (mesh is LBMGrid lbm)
+        else if (discretization is LBMGrid lbm)
         {
             float cw = view.CanvasSize.Width / lbm.Nx;
             float ch = view.CanvasSize.Height / lbm.Ny;
@@ -645,8 +641,8 @@ public partial class ReconstructionPage : ContentPage
     {
         if (e.MouseButton == SKMouseButton.Right && e.ActionType == SKTouchAction.Pressed)
         { await ShowDisplayModeMenu(); e.Handled = true; return; }
-        var mesh = GetMesh(); if (mesh == null) return; var view = (SKCanvasView)sender;
-        if (mesh is FEMMesh fem)
+        var discretization = GetDiscretization(); if (discretization == null) return; var view = (SKCanvasView)sender;
+        if (discretization is FEMMesh fem)
         {
             if (e.ActionType == SKTouchAction.Released)
             { _hoverPotentialLines = null; _hoverPotentialPt = null; view.InvalidateSurface(); e.Handled = true; return; }
@@ -659,7 +655,7 @@ public partial class ReconstructionPage : ContentPage
             _hoverPotentialPt = e.Location;
             view.InvalidateSurface(); e.Handled = true;
         }
-        else if (mesh is LBMGrid lbm)
+        else if (discretization is LBMGrid lbm)
         {
             float cw = view.CanvasSize.Width / lbm.Nx;
             float ch = view.CanvasSize.Height / lbm.Ny;
@@ -680,8 +676,8 @@ public partial class ReconstructionPage : ContentPage
     {
         if (e.MouseButton == SKMouseButton.Right && e.ActionType == SKTouchAction.Pressed)
         { await ShowDisplayModeMenu(); e.Handled = true; return; }
-        var mesh = GetMesh(); if (mesh == null) return; var view = (SKCanvasView)sender;
-        if (mesh is FEMMesh fem)
+        var discretization = GetDiscretization(); if (discretization == null) return; var view = (SKCanvasView)sender;
+        if (discretization is FEMMesh fem)
         {
             if (e.ActionType == SKTouchAction.Released)
             { _hoverReconstructedLines = null; _hoverReconstructedPt = null; view.InvalidateSurface(); e.Handled = true; return; }
@@ -703,7 +699,7 @@ public partial class ReconstructionPage : ContentPage
             }
             view.InvalidateSurface(); e.Handled = true;
         }
-        else if (mesh is LBMGrid lbm)
+        else if (discretization is LBMGrid lbm)
         {
             float cw = view.CanvasSize.Width / lbm.Nx;
             float ch = view.CanvasSize.Height / lbm.Ny;
@@ -724,8 +720,8 @@ public partial class ReconstructionPage : ContentPage
     {
         if (e.MouseButton == SKMouseButton.Right && e.ActionType == SKTouchAction.Pressed)
         { await ShowDisplayModeMenu(); e.Handled = true; return; }
-        var mesh = GetMesh(); if (mesh == null) return; var view = (SKCanvasView)sender;
-        if (mesh is FEMMesh fem)
+        var discretization = GetDiscretization(); if (discretization == null) return; var view = (SKCanvasView)sender;
+        if (discretization is FEMMesh fem)
         {
             if (e.ActionType == SKTouchAction.Released)
             { _hoverAdjointLines = null; _hoverAdjointPt = null; view.InvalidateSurface(); e.Handled = true; return; }
@@ -738,7 +734,7 @@ public partial class ReconstructionPage : ContentPage
             _hoverAdjointPt = e.Location;
             view.InvalidateSurface(); e.Handled = true;
         }
-        else if (mesh is LBMGrid lbm)
+        else if (discretization is LBMGrid lbm)
         {
             float cw = view.CanvasSize.Width / lbm.Nx; float ch = view.CanvasSize.Height / lbm.Ny;
             int col = (int)(e.Location.X / cw); int row = (int)(e.Location.Y / ch);
@@ -758,8 +754,8 @@ public partial class ReconstructionPage : ContentPage
     {
         if (e.MouseButton == SKMouseButton.Right && e.ActionType == SKTouchAction.Pressed)
         { await ShowDisplayModeMenu(); e.Handled = true; return; }
-        var mesh = GetMesh(); if (mesh == null) return; var view = (SKCanvasView)sender;
-        if (mesh is FEMMesh fem)
+        var discretization = GetDiscretization(); if (discretization == null) return; var view = (SKCanvasView)sender;
+        if (discretization is FEMMesh fem)
         {
             if (e.ActionType == SKTouchAction.Released)
             { _hoverInitialLines = null; _hoverInitialPt = null; view.InvalidateSurface(); e.Handled = true; return; }
@@ -781,7 +777,7 @@ public partial class ReconstructionPage : ContentPage
             }
             view.InvalidateSurface(); e.Handled = true;
         }
-        else if (mesh is LBMGrid lbm)
+        else if (discretization is LBMGrid lbm)
         {
             float cw = view.CanvasSize.Width / lbm.Nx; float ch = view.CanvasSize.Height / lbm.Ny;
             int col = (int)(e.Location.X / cw); int row = (int)(e.Location.Y / ch);
@@ -801,8 +797,8 @@ public partial class ReconstructionPage : ContentPage
     {
         if (e.MouseButton == SKMouseButton.Right && e.ActionType == SKTouchAction.Pressed)
         { await ShowDisplayModeMenu(); e.Handled = true; return; }
-        var mesh = GetMesh(); if (mesh == null) return; var view = (SKCanvasView)sender;
-        if (mesh is FEMMesh fem)
+        var discretization = GetDiscretization(); if (discretization == null) return; var view = (SKCanvasView)sender;
+        if (discretization is FEMMesh fem)
         {
             if (e.ActionType == SKTouchAction.Released)
             { _hoverGradientLines = null; _hoverGradientPt = null; view.InvalidateSurface(); e.Handled = true; return; }
@@ -827,7 +823,7 @@ public partial class ReconstructionPage : ContentPage
             }
             view.InvalidateSurface(); e.Handled = true;
         }
-        else if (mesh is LBMGrid lbm)
+        else if (discretization is LBMGrid lbm)
         {
             float cw = view.CanvasSize.Width / lbm.Nx; float ch = view.CanvasSize.Height / lbm.Ny;
             int col = (int)(e.Location.X / cw); int row = (int)(e.Location.Y / ch);
@@ -883,15 +879,8 @@ public partial class ReconstructionPage : ContentPage
         return Math.Sqrt(sum);
     }
 
-    private void OnSaveClicked(object sender, EventArgs e)
-    {
-        _viewModel.SaveReconstruction();
-    }
-
-    private void OnLoadClicked(object sender, EventArgs e)
-    {
-        _viewModel.LoadAvailableReconstructions();
-    }
+    private void OnSaveClicked(object sender, EventArgs e) => _viewModel.SaveReconstruction();
+    private void OnLoadClicked(object sender, EventArgs e) => _viewModel.LoadAvailableReconstructions();
 
     private void OnReconstructionSelected(object sender, TappedEventArgs e)
     {
@@ -899,11 +888,15 @@ public partial class ReconstructionPage : ContentPage
         {
             _viewModel.LoadReconstruction(info.FilePath);
             var results = Workspace.GetReconstructionResults();
+
             _currentResult = results.LastOrDefault();
             var frames = Workspace.GetReconstructionFrames();
+
             _currentFrame = frames.LastOrDefault();
+
             PlaybackSlider.Maximum = frames.Count > 0 ? frames.Count - 1 : 0;
             PlaybackSlider.Value = PlaybackSlider.Maximum;
+
             if (_currentResult != null)
             {
                 _viewModel.IterationCount = results.Count;
@@ -928,10 +921,7 @@ public partial class ReconstructionPage : ContentPage
             OnStepButtonClicked(StepButton, EventArgs.Empty);
     }
 
-    private void OnStopAcceleratorInvoked(object sender, EventArgs e)
-    {
-        OnStopButtonClicked(StopButton, EventArgs.Empty);
-    }
+    private void OnStopAcceleratorInvoked(object sender, EventArgs e) => OnStopButtonClicked(StopButton, EventArgs.Empty);
 
     private void OnPlaybackSliderValueChanged(object sender, ValueChangedEventArgs e)
     {
@@ -977,7 +967,7 @@ public partial class ReconstructionPage : ContentPage
 
     private async void OnSolveForwardClicked(object sender, EventArgs e)
     {
-        if (GetMesh() == null)
+        if (GetDiscretization() == null)
         {
             await DisplayAlert("No Mesh", "You should create or load a mesh to start reconstrucion!", "Ok");
             return;
@@ -995,7 +985,7 @@ public partial class ReconstructionPage : ContentPage
 
     private async void OnSolveInverseClicked(object sender, EventArgs e)
     {
-        if (GetMesh() == null)
+        if (GetDiscretization() == null)
         {
             await DisplayAlert("No Mesh", "You should create or load a mesh to start reconstrucion!", "Ok");
             return;
@@ -1003,7 +993,7 @@ public partial class ReconstructionPage : ContentPage
 
         if (!_viewModel.CheckReconstructionMethodAgainstMesh())
         {
-            DisplayAlert("Bad Differential Equation Solver", "You should select the same type of DE solver what your mesh is made for.", "Ok");
+            await DisplayAlert("Bad Differential Equation Solver", "You should select the same type of DE solver what your mesh is made for.", "Ok");
             return;
         }
 
@@ -1014,7 +1004,7 @@ public partial class ReconstructionPage : ContentPage
     private async void OnEditBoundaryConditionsClicked(object sender, EventArgs e)
     {
         await AnimateButtonAsync(sender);
-        var mesh = GetMesh();
+        var mesh = GetDiscretization();
         if (mesh is FEMMesh fem)
         {
             var bc = new FEMBoundaryCondition(fem.GetElectrodes().Cast<FEMElectrode>().ToList());

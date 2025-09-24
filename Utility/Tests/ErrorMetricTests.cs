@@ -1,5 +1,5 @@
 ﻿using Utility.Classes.ReconstructionParameters;
-using Utility.Classes.Meshing.FiniteElementMesh;
+using Utility.Classes.Discretizer.FiniteElementMesh;
 using Xunit;
 
 namespace Utility.Tests

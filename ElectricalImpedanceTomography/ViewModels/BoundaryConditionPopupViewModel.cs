@@ -1,7 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using System.Collections.ObjectModel;
 using Utility.Classes.Measurement;
-using Utility.Classes.Meshing;
+using Utility.Classes.Discretizer;
 
 namespace ElectricalImpedanceTomography.ViewModels
 {
@@ -32,7 +32,6 @@ namespace ElectricalImpedanceTomography.ViewModels
         }
 
         public BoundaryCondition GetBoundaryCondition() => BoundaryCondition;
-
         public void SetBoundaryCondition(BoundaryCondition boundaryCondition) => BoundaryCondition = boundaryCondition;
     }
 }

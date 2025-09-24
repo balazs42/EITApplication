@@ -1,4 +1,4 @@
-﻿namespace Utility.Classes.Meshing.Graph.Graph
+﻿namespace Utility.Classes.Discretizer.GraphMesh
 {
     public class GraphEdge
     {

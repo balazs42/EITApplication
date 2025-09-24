@@ -1,7 +1,8 @@
 ﻿using System.Diagnostics;
 using System.Numerics;
 using Utility.Classes.Measurement;
-using Utility.Classes.Meshing.FiniteElementMesh;
+using Utility.Classes.Discretizer;
+using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.ReconstructionParameters;
 
 namespace Utility.Classes.Solvers.FiniteElementSolver

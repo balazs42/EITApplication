@@ -2,8 +2,9 @@
 using System.Diagnostics;
 using Utility.Classes;
 using Utility.Classes.Measurement;
-using Utility.Classes.Meshing.FiniteElementMesh;
-using Utility.Classes.Meshing.LatticeBoltzmannMesh;
+using Utility.Classes.Discretizer;
+using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.ReconstructionParameters;
 using Utility.Classes.Factories;
 using Utility.Logger;

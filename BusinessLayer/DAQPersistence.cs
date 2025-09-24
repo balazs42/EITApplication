@@ -1,9 +1,9 @@
 using System.Numerics;
 using DataAccessLayer;
 using Utility.Classes.Measurement;
-using Utility.Classes.Meshing;
-using Utility.Classes.Meshing.FiniteElementMesh;
-using Utility.Classes.Meshing.LatticeBoltzmannMesh;
+using Utility.Classes.Discretizer;
+using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 
 namespace BusinessLayer
 {
@@ -18,90 +18,22 @@ namespace BusinessLayer
             _meshRepository = meshRepository;
         }
 
-        public EITMeasurement GetEITMeasurement()
-        {
-            return _daqRepository.GetEITMeasurement();
-        }
-
-        public Complex[][] ComputeFourierTransform(EITMeasurement measurement)
-        {
-            return _daqRepository.ComputeFourierTransform(measurement);
-        }
-
-        public Complex[][] ComputeDFT(EITMeasurement measurement)
-        {
-            return _daqRepository.ComputeDFT(measurement);
-        }
-
-        public double[][] ComputeDCT(EITMeasurement measurement)
-        {
-            return _daqRepository.ComputeDCT(measurement);
-        }
-
-        public Complex[][] ComputeFFT(EITMeasurement measurement)
-        {
-            return _daqRepository.ComputeFFT(measurement);
-        }
-
-        public void SaveEITMeasurement(EITMeasurement measurement, string name)
-        {
-            _daqRepository.SaveEITMeasurement(measurement, name);
-        }
-
-        public EITMeasurement LoadEITMeasurement(string name, DateTime savedAt)
-        {
-            return _daqRepository.LoadEITMeasurement(name, savedAt);
-        }
-
-        public void DeleteEITMeasurement(string name, DateTime savedAt)
-        {
-            _daqRepository.DeleteEITMeasurement(name, savedAt);
-        }
-
-        public void SaveFEMMesh(FEMMesh mesh, string name)
-        {
-            _meshRepository.SaveFEMMesh(mesh, name);
-        }
-
-        public void SaveLBMGrid(LBMGrid grid, string name)
-        {
-            _meshRepository.SaveLBMGrid(grid, name);
-        }
-
-        public FEMMesh LoadFEMMesh(string filePath)
-        {
-            return _meshRepository.LoadFEMMesh(filePath);
-        }
-
-        public LBMGrid LoadLBMGrid(string filePath)
-        {
-            return _meshRepository.LoadLBMGrid(filePath);
-        }
-
-        public IEnumerable<DiscretizationInfo> GetMeshes()
-        {
-            return _meshRepository.GetMeshes();
-        }
-
-        public bool ConnectHardware()
-        {
-            return _daqRepository.Connect();
-        }
-
-        public bool DisconnectHardware()
-        {
-            return _daqRepository.Disconnect();
-        }
-
-        public bool ChangeHardwarePort(string portName)
-        {
-            return _daqRepository.ChangePort(portName);
-        }
-
-        public void SetFrequency(double frequency)
-        {
-            _daqRepository.SetExcitationFrequency(frequency);
-        }
+        public EITMeasurement GetEITMeasurement() => _daqRepository.GetEITMeasurement();
+        public Complex[][] ComputeFourierTransform(EITMeasurement measurement) => _daqRepository.ComputeFourierTransform(measurement);        
+        public Complex[][] ComputeDFT(EITMeasurement measurement) => _daqRepository.ComputeDFT(measurement);
+        public double[][] ComputeDCT(EITMeasurement measurement) => _daqRepository.ComputeDCT(measurement);        
+        public Complex[][] ComputeFFT(EITMeasurement measurement) => _daqRepository.ComputeFFT(measurement);
+        public void SaveEITMeasurement(EITMeasurement measurement, string name) => _daqRepository.SaveEITMeasurement(measurement, name);
+        public EITMeasurement LoadEITMeasurement(string name, DateTime savedAt) => _daqRepository.LoadEITMeasurement(name, savedAt);        
+        public void DeleteEITMeasurement(string name, DateTime savedAt) => _daqRepository.DeleteEITMeasurement(name, savedAt);        
+        public void SaveFEMMesh(FEMMesh mesh, string name) => _meshRepository.SaveFEMMesh(mesh, name);        
+        public void SaveLBMGrid(LBMGrid grid, string name) => _meshRepository.SaveLBMGrid(grid, name);        
+        public FEMMesh LoadFEMMesh(string filePath) => _meshRepository.LoadFEMMesh(filePath);        
+        public LBMGrid LoadLBMGrid(string filePath) => _meshRepository.LoadLBMGrid(filePath);        
+        public IEnumerable<DiscretizationInfo> GetDiscretizationInfos() => _meshRepository.GetDiscretizationInfos();        
+        public bool ConnectHardware() => _daqRepository.Connect();        
+        public bool DisconnectHardware() => _daqRepository.Disconnect();        
+        public bool ChangeHardwarePort(string portName) => _daqRepository.ChangePort(portName);        
+        public void SetFrequency(double frequency) => _daqRepository.SetExcitationFrequency(frequency);
     }
 }
-

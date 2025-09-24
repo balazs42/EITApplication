@@ -1,10 +1,12 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using ServiceLayer;
 using Utility.Classes;
-using Utility.Classes.Meshing.FiniteElementMesh;
-using Utility.Classes.Meshing.LatticeBoltzmannMesh;
-using Workspace = Utility.Classes.Application.Workspace;
+using Utility.Classes.Discretizer;
+using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using System.Collections.ObjectModel;
+
+using Workspace = Utility.Classes.Application.Workspace;
 
 namespace ElectricalImpedanceTomography.ViewModels
 {
@@ -51,7 +53,6 @@ namespace ElectricalImpedanceTomography.ViewModels
         }
 
         partial void OnReconstructionSearchTextChanged(string value) => ApplyReconstructionFilter();
-
         private void UpdateMesh() => _discretization = Workspace.GetDiscretization();
         private void UpdateReconstructionParameters() => ReconstructionParameters = Workspace.GetReconstructionParameters();
 
@@ -126,7 +127,6 @@ namespace ElectricalImpedanceTomography.ViewModels
         }
 
         public void PauseReconstruction() => _reconstructionService.PauseBackgroundReconstruction();
-
         public void ResumeReconstruction() => _reconstructionService.ResumeBackgroundReconstruction();
 
         public void StopReconstruction()

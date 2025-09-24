@@ -1,8 +1,8 @@
 using System.Xml.Linq;
 using Utility.Classes;
-using Utility.Classes.Meshing;
-using Utility.Classes.Meshing.FiniteElementMesh;
-using Utility.Classes.Meshing.LatticeBoltzmannMesh;
+using Utility.Classes.Discretizer;
+using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Factories;
 
 namespace DataAccessLayer
@@ -30,7 +30,7 @@ namespace DataAccessLayer
             SaveDocument(doc, name, "lbm");
         }
 
-        public IEnumerable<DiscretizationInfo> GetMeshes()
+        public IEnumerable<DiscretizationInfo> GetDiscretizationInfos()
         {
             Directory.CreateDirectory(MeshDir);
             foreach (var file in Directory.GetFiles(MeshDir, "*.eitmesh"))

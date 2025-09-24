@@ -1,7 +1,8 @@
 ﻿using Google.OrTools.ConstraintSolver;
 using System.Numerics;
 using Utility.Classes.Measurement;
-using Utility.Classes.Meshing.LatticeBoltzmannMesh;
+using Utility.Classes.Discretizer;
+using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 
 namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 {

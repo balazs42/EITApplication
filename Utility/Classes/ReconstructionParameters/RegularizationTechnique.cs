@@ -1,5 +1,6 @@
-﻿using Utility.Classes.Meshing.FiniteElementMesh;
-using Utility.Classes.Meshing.LatticeBoltzmannMesh;
+﻿using Utility.Classes.Discretizer;
+using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Solvers;
 using Utility.Classes.Solvers.FiniteElementSolver;
 using Utility.Classes.Solvers.LatticeBoltzmannSolver;
@@ -83,10 +84,10 @@ namespace Utility.Classes.ReconstructionParameters
         {
             // Gradient is λ * (σ - σ_prior).
             var gradientDict = new Dictionary<int, double>();
+
             foreach (var kvp in sigma.Conductivities)
-            {
                 gradientDict[kvp.Key] = _lambda * (kvp.Value - _sigmaPrior.GetConductivity(kvp.Key));
-            }
+
             return new ConductivityDistribution(gradientDict);
         }
     }
@@ -185,9 +186,7 @@ namespace Utility.Classes.ReconstructionParameters
                 laplacian2 = LatticeBoltzmannOperators.CalculateLaplacian(lbmGrid, laplacian1); // Apply again
             }
             else
-            {
                 throw new NotSupportedException($"Mesh type {discretization.GetType().Name} not supported.");
-            }
 
             var gradientDict = laplacian2.IdValuePairs.ToDictionary(
                  kvp => kvp.Key,
@@ -271,9 +270,7 @@ namespace Utility.Classes.ReconstructionParameters
                 throw new NotImplementedException("Divergence for FEM meshes is not yet implemented in the operators helper.");
             }
             else
-            {
                 throw new NotSupportedException($"Mesh type {discretization.GetType().Name} not supported.");
-            }
 
             // 4. Scale by -λ
             var gradientDict = divergence.IdValuePairs.ToDictionary(

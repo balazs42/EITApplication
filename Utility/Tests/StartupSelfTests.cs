@@ -1,6 +1,6 @@
 ﻿using System.Diagnostics;
 using Utility.Classes;
-using Utility.Classes.Meshing.LatticeBoltzmannMesh;
+using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.ReconstructionParameters;
 
 namespace Utility.Tests

@@ -1,5 +1,6 @@
 ﻿using Utility.Classes.Measurement;
-using Utility.Classes.Meshing.FiniteElementMesh;
+using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Discretizer;
 
 using Workspace = Utility.Classes.Application.Workspace;
 
@@ -13,12 +14,10 @@ namespace Utility.Classes.Factories
         /// </summary>
         public static FEMBoundaryCondition CreateHomogeneous(Discretization mesh)
         {
-            FEMMesh? femMesh = mesh as FEMMesh;
-
-            if (femMesh == null)
+            if (mesh is not FEMMesh femMesh)
                 throw new TypeLoadException("Cannot convert mesh to femMesh. Check calling code!");
 
-            List<FEMElectrode> electrodes = femMesh.GetElectrodes().Cast<FEMElectrode>().ToList();
+            List<FEMElectrode> electrodes = [.. femMesh.GetElectrodes().Cast<FEMElectrode>()];
 
             Workspace.AddLogMessage("BoundaryConditionFactory" ,"Created Homogeneous FEMBoundaryCondition object.");
 

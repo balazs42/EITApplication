@@ -5,7 +5,7 @@
              xmlns:skia="clr-namespace:SkiaSharp.Views.Maui.Controls;assembly=SkiaSharp.Views.Maui.Controls"
              xmlns:viewmodels="clr-namespace:ElectricalImpedanceTomography.ViewModels"
              xmlns:controls="clr-namespace:ElectricalImpedanceTomography.Controls"
-             xmlns:models="clr-namespace:Utility.Classes.Meshing;assembly=Utility"
+             xmlns:models="clr-namespace:Utility.Classes.Discretizer;assembly=Utility"
              Title="MeshingPage"
              Shell.NavBarIsVisible="False"
              x:DataType="viewmodels:MeshingPageViewModel">
