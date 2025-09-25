@@ -124,7 +124,7 @@
         <controls:NavBarControl x:Name="NavBar" Grid.Row="0" Grid.ColumnSpan="1" CurrentPageName="ReconstructionPage"/>
 
         <!-- Main Grid For Page display -->
-        <Grid Grid.Row="1" ColumnDefinitions="Auto, Auto, *" Margin="5">
+        <Grid Grid.Row="1" ColumnDefinitions="Auto, *, Auto" Margin="5">
             <!-- Left hand Side controls-->
             <Border Style="{StaticResource PanelBorderStyle}"
                     Grid.Column="0"
@@ -204,6 +204,18 @@
                             <Button Grid.Row="7" Text="Edit Boundary Conditions" Background="#2F9E9C" TextColor="White" FontAttributes="Bold" Clicked="OnEditBoundaryConditionsClicked"/>
                         </Grid>
                     </Border>
+
+                    <Border Style="{StaticResource PanelSectionBorderStyle}"
+                            BackgroundColor="{AppThemeBinding Light=#22304A, Dark=#36404C}">
+                        <VerticalStackLayout Spacing="12">
+                            <Entry Text="{Binding Name}" Placeholder="Name" TextColor="{AppThemeBinding Light=White, Dark=#262E38}"/>
+                            <Grid ColumnDefinitions="*, *" ColumnSpacing="12">
+                                <Button Grid.Column="0" Text="Save" BackgroundColor="#2E8B57" TextColor="White" FontFamily="SF Pro Text" FontAttributes="Bold" Clicked="OnSaveClicked"/>
+                                <Button Grid.Column="1" Text="Load" BackgroundColor="#3A7CA5" TextColor="White" FontFamily="SF Pro Text" FontAttributes="Bold" Clicked="OnLoadClicked"/>
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Border>
+
                 </VerticalStackLayout>
             </Border>
 
@@ -216,6 +228,7 @@
                 <!-- Control Panel to control reconstruction -->
                     <Border Style="{StaticResource PanelBorderStyle}"                           
                             Grid.Row="0"
+                            MaximumWidthRequest="1010"
                             Background="{StaticResource ConfigurationPanelBrush}">
                     <Border.Stroke>
                         <SolidColorBrush Color="{AppThemeBinding Light=#3A5F8A, Dark=#C0CAD8}" />
@@ -256,8 +269,8 @@
                             </Image>
                         </Border>
 
-                        <Label Grid.Column="3" HorizontalOptions="Center" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding IterationCount, StringFormat='Iteration: {0}'}" TextColor="{AppThemeBinding Light=#F0F4FF, Dark=#262E38}"/>
-                        <Label Grid.Column="4" HorizontalOptions="Center" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding Residual, StringFormat='Residual: {0:F3}'}" TextColor="{AppThemeBinding Light=#F0F4FF, Dark=#262E38}"/>
+                        <Label Grid.Column="3" HorizontalOptions="Center" WidthRequest="100"  VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding IterationCount, StringFormat='Iteration: {0}'}" TextColor="{AppThemeBinding Light=#F0F4FF, Dark=#262E38}"/>
+                        <Label Grid.Column="4" HorizontalOptions="Center" WidthRequest="120" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding Residual, StringFormat='Residual: {0:F3}'}" TextColor="{AppThemeBinding Light=#F0F4FF, Dark=#262E38}"/>
 
                         <Border Grid.Column="5" Margin="2" Background="Transparent" Stroke="Transparent">
                             <Button Text="Solve Forward" Margin="10" BackgroundColor="DarkOliveGreen" TextColor="White" FontAttributes="Bold" Clicked="OnSolveForwardClicked"/>
@@ -294,11 +307,14 @@
                         </Border>
                         <Slider x:Name="PlaybackSlider"
                                 Grid.Row="1"
+                                VerticalOptions="Center"
+                                HorizontalOptions="Center"
                                 Grid.ColumnSpan="3"
                                 Minimum="0"
                                 Maximum="0"
                                 ValueChanged="OnPlaybackSliderValueChanged" />
                         <Label x:Name="PlaybackFrameLabel"
+                               WidthRequest="100"
                                Grid.Row="1"
                                Grid.Column="3"
                                VerticalOptions="Center"
@@ -410,10 +426,12 @@
                 </Grid>
             </Grid>
             <Grid Grid.Column="2" 
+                  WidthRequest="270"
                   RowDefinitions="Auto, Auto, Auto" 
                   RowSpacing="10" 
                   Margin="5"
                   HorizontalOptions="End">
+                <!--
                 <Border Grid.Row="2" Style="{StaticResource PanelBorderStyle}" Background="{StaticResource HistoryPanelBrush}">
                     <Border.Stroke>
                         <SolidColorBrush Color="{AppThemeBinding Light=#3D5D8C, Dark=#C0CAD8}" />
@@ -443,37 +461,25 @@
                         </Border>
                     </VerticalStackLayout>
                 </Border>
-                                
-                <Border Style="{StaticResource PanelSectionBorderStyle}"
-                         BackgroundColor="{AppThemeBinding Light=#22304A, Dark=#36404C}"
-                         Grid.Row="1">
-                    <VerticalStackLayout Spacing="12">
-                        <Entry Text="{Binding Name}" Placeholder="Name" TextColor="{AppThemeBinding Light=White, Dark=#262E38}"/>
-                        <Grid ColumnDefinitions="*, *" ColumnSpacing="12">
-                            <Button Grid.Column="0" Text="Save" BackgroundColor="#2E8B57" TextColor="White" FontFamily="SF Pro Text" FontAttributes="Bold" Clicked="OnSaveClicked"/>
-                            <Button Grid.Column="1" Text="Load" BackgroundColor="#3A7CA5" TextColor="White" FontFamily="SF Pro Text" FontAttributes="Bold" Clicked="OnLoadClicked"/>
-                        </Grid>
-                    </VerticalStackLayout>
-                </Border>
-
+               -->
                 <Border Grid.Row="0" Style="{StaticResource PanelBorderStyle}" Background="{StaticResource StatisticsPanelBrush}">
                     <Border.Stroke>
                         <SolidColorBrush Color="{AppThemeBinding Light=#3A7CA5, Dark=#C0CAD8}" />
                     </Border.Stroke>
-                    <VerticalStackLayout Margin="16" Spacing="16">
+                    <VerticalStackLayout Margin="16" Spacing="10">
                         <Label Text="Reconstruction Statistics" HorizontalOptions="Center" FontSize="16"  TextColor="{AppThemeBinding Light=#F0F4FF, Dark=#262E38}"/>
-                        <VerticalStackLayout BindableLayout.ItemsSource="{Binding MetricGroups}" Spacing="12">
+                        <VerticalStackLayout BindableLayout.ItemsSource="{Binding MetricGroups}" Spacing="10">
                             <BindableLayout.ItemTemplate>
                                 <DataTemplate x:DataType="viewmodels:ReconstructionMetricGroupViewModel">
                                     <Border Style="{StaticResource PanelSectionBorderStyle}" BackgroundColor="{AppThemeBinding Light=#252F44, Dark=#353F4C}">
-                                        <VerticalStackLayout Spacing="8">
-                                            <Label Text="{Binding Title}" FontSize="14" FontAttributes="Bold" TextColor="#F0F4FF"/>
+                                        <VerticalStackLayout Spacing="5">
+                                            <Label Text="{Binding Title}" FontSize="12" FontAttributes="Bold" TextColor="#F0F4FF"/>
                                             <VerticalStackLayout BindableLayout.ItemsSource="{Binding Metrics}" Spacing="6">
                                                 <BindableLayout.ItemTemplate>
                                                     <DataTemplate x:DataType="viewmodels:ReconstructionMetricViewModel">
                                                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                                                             <Label Text="{Binding Name}" FontAttributes="None" FontSize="12" TextColor="#9DAAD3"/>
-                                                            <Label Grid.Column="1" Text="{Binding Value}" FontSize="16" TextColor="#F0F4FF" HorizontalOptions="End"/>
+                                                            <Label Grid.Column="1" Text="{Binding Value}" FontSize="10" TextColor="#F0F4FF" HorizontalOptions="End"/>
                                                         </Grid>
                                                     </DataTemplate>
                                                 </BindableLayout.ItemTemplate>

@@ -5,13 +5,14 @@
     xmlns:toolkit="clr-namespace:CommunityToolkit.Maui.Views;assembly=CommunityToolkit.Maui"
     x:Class="ElectricalImpedanceTomography.Views.VideoExportProgressPopup"
     CanBeDismissedByTappingOutsideOfPopup="False"
-    Color="#66000000">
+    Color="Transparent">
 
     <Border
         StrokeShape="RoundRectangle 18"
         StrokeThickness="0"
         Padding="24"
         WidthRequest="420"
+        HeightRequest="400"
         BackgroundColor="{AppThemeBinding Light=#F8FAFC, Dark=#111827}">
         <Border.Shadow>
             <Shadow
@@ -82,7 +83,7 @@
                 </VerticalStackLayout>
             </Border>
 
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+            <Grid ColumnDefinitions="*" ColumnSpacing="16" VerticalOptions="Center">
                 <Button
                     x:Name="AbortButton"
                     Text="Abort"

@@ -134,8 +134,8 @@ namespace ElectricalImpedanceTomography.ViewModels
             InitializeMetricGroups();
             PropertyChanged += OnViewModelPropertyChanged;
 
-            UpdateMetric(MetricKeys.ErrorMetric, ReconstructionParameters.ErrorMetric.ToString());
-            UpdateMetric(MetricKeys.RegularizationWeight, FormatDouble(RegularizationWeight, "G3"));
+            //UpdateMetric(MetricKeys.ErrorMetric, ReconstructionParameters.ErrorMetric.ToString());
+            //UpdateMetric(MetricKeys.RegularizationWeight, FormatDouble(RegularizationWeight, "G3"));
             UpdateMetric(MetricKeys.IterationCount, IterationCount.ToString(CultureInfo.InvariantCulture));
             UpdateMetric(MetricKeys.ElapsedTime, FormatElapsed(ElapsedTime));
             UpdateMetric(MetricKeys.Residual, FormatDouble(Residual));
@@ -197,20 +197,20 @@ namespace ElectricalImpedanceTomography.ViewModels
             RegisterMetric("Improvement", MetricKeys.RmseImprovement, "RMSE Improvement vs. Initial");
             RegisterMetric("Improvement", MetricKeys.MaeImprovement, "MAE Improvement vs. Initial");
 
-            RegisterMetric("Misfit & Regularization", MetricKeys.ErrorMetric, "Misfit Metric");
-            RegisterMetric("Misfit & Regularization", MetricKeys.MisfitValue, "Misfit Value");
-            RegisterMetric("Misfit & Regularization", MetricKeys.RegularizationWeight, "Regularization Weight");
-            RegisterMetric("Misfit & Regularization", MetricKeys.RegularizationEnergy, "Regularization Energy");
-            RegisterMetric("Misfit & Regularization", MetricKeys.RegularizationRange, "Regularization Range");
+            //RegisterMetric("Misfit & Regularization", MetricKeys.ErrorMetric, "Misfit Metric");
+            //RegisterMetric("Misfit & Regularization", MetricKeys.MisfitValue, "Misfit Value");
+            //RegisterMetric("Misfit & Regularization", MetricKeys.RegularizationWeight, "Regularization Weight");
+            //RegisterMetric("Misfit & Regularization", MetricKeys.RegularizationEnergy, "Regularization Energy");
+            //RegisterMetric("Misfit & Regularization", MetricKeys.RegularizationRange, "Regularization Range");
 
             RegisterMetric("Gradient & Field Diagnostics", MetricKeys.GradientNorm, "Gradient L2 Norm");
             RegisterMetric("Gradient & Field Diagnostics", MetricKeys.GradientAngleChange, "Gradient Angle Δ");
             RegisterMetric("Gradient & Field Diagnostics", MetricKeys.PotentialRange, "Potential Range");
             RegisterMetric("Gradient & Field Diagnostics", MetricKeys.AdjointRange, "Adjoint Range");
 
-            RegisterMetric("Electrode Measurements", MetricKeys.ElectrodeRmse, "Electrode RMSE");
-            RegisterMetric("Electrode Measurements", MetricKeys.ElectrodeMae, "Electrode MAE");
-            RegisterMetric("Electrode Measurements", MetricKeys.ElectrodeMape, "Electrode MAPE");
+            //RegisterMetric("Electrode Measurements", MetricKeys.ElectrodeRmse, "Electrode RMSE");
+            //RegisterMetric("Electrode Measurements", MetricKeys.ElectrodeMae, "Electrode MAE");
+            //RegisterMetric("Electrode Measurements", MetricKeys.ElectrodeMape, "Electrode MAPE");
         }
 
         private void RegisterMetric(string groupTitle, string key, string name)
@@ -300,18 +300,18 @@ namespace ElectricalImpedanceTomography.ViewModels
             foreach (var metric in _metricsByKey.Values)
                 metric.Value = "—";
 
-            UpdateMetric(MetricKeys.ErrorMetric, ReconstructionParameters.ErrorMetric.ToString());
-            UpdateMetric(MetricKeys.RegularizationWeight, FormatDouble(RegularizationWeight, "G3"));
+            //UpdateMetric(MetricKeys.ErrorMetric, ReconstructionParameters.ErrorMetric.ToString());
+            //UpdateMetric(MetricKeys.RegularizationWeight, FormatDouble(RegularizationWeight, "G3"));
             UpdateMetric(MetricKeys.IterationCount, IterationCount.ToString(CultureInfo.InvariantCulture));
             UpdateMetric(MetricKeys.ElapsedTime, FormatElapsed(TimeSpan.Zero));
         }
 
         private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(RegularizationWeight))
-                UpdateMetric(MetricKeys.RegularizationWeight, FormatDouble(RegularizationWeight, "G3"));
-            else if (e.PropertyName == nameof(ReconstructionParameters))
-                UpdateMetric(MetricKeys.ErrorMetric, ReconstructionParameters.ErrorMetric.ToString());
+            //if (e.PropertyName == nameof(RegularizationWeight))
+            //    UpdateMetric(MetricKeys.RegularizationWeight, FormatDouble(RegularizationWeight, "G3"));
+            //else if (e.PropertyName == nameof(ReconstructionParameters))
+            //    UpdateMetric(MetricKeys.ErrorMetric, ReconstructionParameters.ErrorMetric.ToString());
         }
 
         partial void OnElapsedTimeChanged(TimeSpan value)
@@ -558,21 +558,21 @@ namespace ElectricalImpedanceTomography.ViewModels
                         UpdateMetric(MetricKeys.MaeImprovement, FormatPercent(metrics.MaeImprovement));
                     }
 
-                    if (measurementMetrics.HasValue)
-                    {
-                        var m = measurementMetrics.Value;
-                        UpdateMetric(MetricKeys.ElectrodeRmse, FormatDouble(m.Rmse));
-                        UpdateMetric(MetricKeys.ElectrodeMae, FormatDouble(m.Mae));
-                        UpdateMetric(MetricKeys.ElectrodeMape, FormatPercent(m.Mape));
-                        UpdateMetric(MetricKeys.MisfitValue, m.Misfit.HasValue ? FormatDouble(m.Misfit.Value, "G4") : "—");
-                    }
-                    else
-                    {
-                        UpdateMetric(MetricKeys.ElectrodeRmse, "—");
-                        UpdateMetric(MetricKeys.ElectrodeMae, "—");
-                        UpdateMetric(MetricKeys.ElectrodeMape, "—");
-                        UpdateMetric(MetricKeys.MisfitValue, "—");
-                    }
+                    //if (measurementMetrics.HasValue)
+                    //{
+                    //    var m = measurementMetrics.Value;
+                    //    UpdateMetric(MetricKeys.ElectrodeRmse, FormatDouble(m.Rmse));
+                    //    UpdateMetric(MetricKeys.ElectrodeMae, FormatDouble(m.Mae));
+                    //    UpdateMetric(MetricKeys.ElectrodeMape, FormatPercent(m.Mape));
+                    //    UpdateMetric(MetricKeys.MisfitValue, m.Misfit.HasValue ? FormatDouble(m.Misfit.Value, "G4") : "—");
+                    //}
+                    //else
+                    //{
+                    //    UpdateMetric(MetricKeys.ElectrodeRmse, "—");
+                    //    UpdateMetric(MetricKeys.ElectrodeMae, "—");
+                    //    UpdateMetric(MetricKeys.ElectrodeMape, "—");
+                    //    UpdateMetric(MetricKeys.MisfitValue, "—");
+                    //}
 
                     if (fieldMetrics.HasData)
                     {
@@ -583,8 +583,8 @@ namespace ElectricalImpedanceTomography.ViewModels
                                          : "—");
                         UpdateMetric(MetricKeys.PotentialRange, FormatRange(fieldMetrics.PotentialRange));
                         UpdateMetric(MetricKeys.AdjointRange, FormatRange(fieldMetrics.AdjointRange));
-                        UpdateMetric(MetricKeys.RegularizationRange, FormatRange(fieldMetrics.RegularizationRange));
-                        UpdateMetric(MetricKeys.RegularizationEnergy, FormatDouble(fieldMetrics.RegularizationEnergy));
+                        //UpdateMetric(MetricKeys.RegularizationRange, FormatRange(fieldMetrics.RegularizationRange));
+                        //UpdateMetric(MetricKeys.RegularizationEnergy, FormatDouble(fieldMetrics.RegularizationEnergy));
 
                         if (fieldMetrics.GradientSnapshot != null)
                         {
@@ -950,19 +950,11 @@ namespace ElectricalImpedanceTomography.ViewModels
             public const string Psnr = "psnr";
             public const string Ssim = "ssim";
             public const string RmseImprovement = "rmseImprovement";
-            public const string MaeImprovement = "maeImprovement";
-            public const string ErrorMetric = "errorMetric";
-            public const string MisfitValue = "misfitValue";
-            public const string RegularizationWeight = "regularizationWeight";
-            public const string RegularizationEnergy = "regularizationEnergy";
-            public const string RegularizationRange = "regularizationRange";
+            public const string MaeImprovement = "maeImprovement";        
             public const string GradientNorm = "gradientNorm";
             public const string GradientAngleChange = "gradientAngle";
             public const string PotentialRange = "potentialRange";
             public const string AdjointRange = "adjointRange";
-            public const string ElectrodeRmse = "electrodeRmse";
-            public const string ElectrodeMae = "electrodeMae";
-            public const string ElectrodeMape = "electrodeMape";
         }
 
         private readonly struct DistributionMetrics
