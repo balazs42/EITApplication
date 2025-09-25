@@ -32,11 +32,13 @@ public partial class VideoExportProgressPopup : Popup
         _colorbarCanvasSize = colorbarCanvasSize;
         _residualCanvasSize = residualCanvasSize;
         _mode = mode;
+        Opened += OnPopupOpened;
+        Closed += OnPopupClosed;
     }
 
-    protected override void OnOpened()
+    private void OnPopupOpened(object? sender, PopupOpenedEventArgs e)
     {
-        base.OnOpened();
+
         StartExport();
     }
 
@@ -98,9 +100,11 @@ public partial class VideoExportProgressPopup : Popup
         Close(new VideoExportPopupResult(result, false));
     }
 
-    protected override void OnClosed()
+    private void OnPopupClosed(object? sender, PopupClosedEventArgs e)
     {
-        base.OnClosed();
+        Opened -= OnPopupOpened;
+        Closed -= OnPopupClosed;
+
 
         if (_cancellationTokenSource != null)
         {
