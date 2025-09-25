@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -7,17 +8,25 @@ namespace ElectricalImpedanceTomography.Helpers;
 
 internal static class AviVideoWriter
 {
+    internal enum AviVideoCodec
+    {
+        UncompressedBgra32,
+        MotionJpeg
+    }
+
     private const uint AviIfKeyFrame = 0x10;
     private const uint AviMainHeaderHasIndex = 0x10;
-    private const ushort BitsPerPixel = 32;
     private const uint BiRgbCompression = 0u;
-    private static readonly uint VideoChunkFourCc = ToFourCC("00db");
+    private static readonly uint VideoChunkUncompressedFourCc = ToFourCC("00db");
+    private static readonly uint VideoChunkCompressedFourCc = ToFourCC("00dc");
+    private static readonly uint MotionJpegFourCc = ToFourCC("MJPG");
 
     public static void Write(Stream stream,
                              IReadOnlyList<byte[]> frames,
                              int width,
                              int height,
-                             int framesPerSecond)
+                             int framesPerSecond,
+                             AviVideoCodec codec = AviVideoCodec.UncompressedBgra32)
     {
         ArgumentNullException.ThrowIfNull(stream);
         ArgumentNullException.ThrowIfNull(frames);
@@ -34,10 +43,10 @@ internal static class AviVideoWriter
         int frameSize = frames[0].Length;
         if (frameSize == 0)
             throw new ArgumentException("Frame data was empty.", nameof(frames));
-        if (frames.Any(f => f.Length != frameSize))
+        if (codec == AviVideoCodec.UncompressedBgra32 && frames.Any(f => f.Length != frameSize))
             throw new ArgumentException("All frames must have the same size.", nameof(frames));
 
-        using var writer = BeginWrite(stream, width, height, framesPerSecond, frameSize);
+        using var writer = BeginWrite(stream, width, height, framesPerSecond, frameSize, codec);
         foreach (var frame in frames)
             writer.WriteFrame(frame);
 
@@ -48,9 +57,10 @@ internal static class AviVideoWriter
                                             int width,
                                             int height,
                                             int framesPerSecond,
-                                            int frameSize)
+                                            int frameSize,
+                                            AviVideoCodec codec = AviVideoCodec.UncompressedBgra32)
     {
-        return new AviVideoStream(stream, width, height, framesPerSecond, frameSize);
+        return new AviVideoStream(stream, width, height, framesPerSecond, frameSize, codec);
     }
 
     private static void WriteFourCC(BinaryWriter writer, string fourCc)
@@ -59,6 +69,11 @@ internal static class AviVideoWriter
         if (bytes.Length != 4)
             throw new ArgumentException("FourCC codes must be exactly four ASCII characters.", nameof(fourCc));
         writer.Write(bytes);
+    }
+
+    private static void WriteFourCC(BinaryWriter writer, uint fourCc)
+    {
+        writer.Write(fourCc);
     }
 
     private static uint ToFourCC(string fourCc)
@@ -102,18 +117,29 @@ internal static class AviVideoWriter
         private readonly long _moviSizePos;
         private readonly long _moviListStart;
         private readonly long _avihTotalFramesPos;
+        private readonly long _avihMaxBytesPerSecondPos;
+        private readonly long _avihSuggestedBufferSizePos;
         private readonly long _strhTotalFramesPos;
-        private readonly uint _frameSize;
-        private readonly uint _bytesPerSecond;
-        private readonly uint _suggestedBufferSize;
+        private readonly long _strhSuggestedBufferSizePos;
+        private readonly long _strfSizeImagePos;
+        private readonly uint _framesPerSecond;
         private readonly uint _width;
         private readonly uint _height;
-        private readonly uint _framesPerSecond;
+        private readonly uint _compressionFourCc;
+        private readonly uint _chunkFourCc;
+        private readonly ushort _bitsPerPixel;
+        private readonly bool _allowVariableFrameSize;
         private readonly uint _microSecPerFrame;
+        private uint _maxFrameSize;
         private bool _completed;
         private uint _frameCount;
 
-        public AviVideoStream(Stream stream, int width, int height, int framesPerSecond, int frameSize)
+        public AviVideoStream(Stream stream,
+                              int width,
+                              int height,
+                              int framesPerSecond,
+                              int frameSize,
+                              AviVideoCodec codec)
         {
             ArgumentNullException.ThrowIfNull(stream);
 
@@ -129,10 +155,14 @@ internal static class AviVideoWriter
             _width = (uint)width;
             _height = (uint)height;
             _framesPerSecond = (uint)framesPerSecond;
-            _frameSize = (uint)frameSize;
-            _bytesPerSecond = (uint)(frameSize * (long)framesPerSecond);
-            _suggestedBufferSize = (uint)frameSize;
             _microSecPerFrame = (uint)Math.Round(1_000_000d / framesPerSecond);
+            _maxFrameSize = (uint)frameSize;
+
+            (_bitsPerPixel, _compressionFourCc, _chunkFourCc, _allowVariableFrameSize) = codec switch
+            {
+                AviVideoCodec.MotionJpeg => ((ushort)24, MotionJpegFourCc, VideoChunkCompressedFourCc, true),
+                _ => ((ushort)32, BiRgbCompression, VideoChunkUncompressedFourCc, false)
+            };
 
             _writer = new BinaryWriter(stream, Encoding.ASCII, leaveOpen: true);
 
@@ -149,14 +179,16 @@ internal static class AviVideoWriter
             WriteFourCC(_writer, "avih");
             _writer.Write(56);
             _writer.Write(_microSecPerFrame);
-            _writer.Write(_bytesPerSecond);
+            _avihMaxBytesPerSecondPos = _writer.BaseStream.Position;
+            _writer.Write(0u);
             _writer.Write(0u);
             _writer.Write(AviMainHeaderHasIndex);
             _avihTotalFramesPos = _writer.BaseStream.Position;
             _writer.Write(0u);
             _writer.Write(0u);
             _writer.Write(1u);
-            _writer.Write(_suggestedBufferSize);
+            _avihSuggestedBufferSizePos = _writer.BaseStream.Position;
+            _writer.Write(_maxFrameSize);
             _writer.Write(_width);
             _writer.Write(_height);
             _writer.Write(0u);
@@ -172,7 +204,7 @@ internal static class AviVideoWriter
             WriteFourCC(_writer, "strh");
             _writer.Write(56);
             _writer.Write(ToFourCC("vids"));
-            _writer.Write(BiRgbCompression);
+            _writer.Write(_compressionFourCc);
             _writer.Write(0u);
             _writer.Write((ushort)0);
             _writer.Write((ushort)0);
@@ -182,7 +214,8 @@ internal static class AviVideoWriter
             _writer.Write(0u);
             _strhTotalFramesPos = _writer.BaseStream.Position;
             _writer.Write(0u);
-            _writer.Write(_suggestedBufferSize);
+            _strhSuggestedBufferSizePos = _writer.BaseStream.Position;
+            _writer.Write(_maxFrameSize);
             _writer.Write(uint.MaxValue);
             _writer.Write(0u);
             _writer.Write((short)0);
@@ -196,9 +229,10 @@ internal static class AviVideoWriter
             _writer.Write(width);
             _writer.Write(height);
             _writer.Write((ushort)1);
-            _writer.Write(BitsPerPixel);
-            _writer.Write(BiRgbCompression);
-            _writer.Write(_frameSize);
+            _writer.Write(_bitsPerPixel);
+            _writer.Write(_compressionFourCc);
+            _strfSizeImagePos = _writer.BaseStream.Position;
+            _writer.Write(_maxFrameSize);
             _writer.Write(0u);
             _writer.Write(0u);
             _writer.Write(0u);
@@ -221,11 +255,16 @@ internal static class AviVideoWriter
         {
             if (_completed)
                 throw new InvalidOperationException("Cannot write frames after the stream has been completed.");
-            if ((uint)frameData.Length != _frameSize)
+            if (!_allowVariableFrameSize && (uint)frameData.Length != _maxFrameSize)
+                throw new ArgumentException("Frame size did not match the expected size.", nameof(frameData));
+            if (frameData.Length <= 0)
                 throw new ArgumentException("Frame size did not match the expected size.", nameof(frameData));
 
+            if ((uint)frameData.Length > _maxFrameSize)
+                _maxFrameSize = (uint)frameData.Length;
+
             long chunkStart = _writer.BaseStream.Position;
-            WriteFourCC(_writer, "00db");
+            WriteFourCC(_writer, _chunkFourCc);
             _writer.Write(frameData.Length);
             _writer.Write(frameData);
 
@@ -233,7 +272,7 @@ internal static class AviVideoWriter
                 _writer.Write((byte)0);
 
             uint offset = (uint)(chunkStart - _moviListStart - 4);
-            _indexEntries.Add(new AviIndexEntry(VideoChunkFourCc, AviIfKeyFrame, offset, (uint)frameData.Length));
+            _indexEntries.Add(new AviIndexEntry(_chunkFourCc, AviIfKeyFrame, offset, (uint)frameData.Length));
             _frameCount++;
         }
 
@@ -243,6 +282,8 @@ internal static class AviVideoWriter
                 return;
             if (_frameCount == 0)
                 throw new InvalidOperationException("At least one frame must be written before completing the stream.");
+
+            UpdateHeaderForFrameSizes();
 
             long moviListEnd = _writer.BaseStream.Position;
             UpdateChunkSize(_writer, _moviSizePos, moviListEnd);
@@ -277,6 +318,29 @@ internal static class AviVideoWriter
                 Complete();
 
             _writer.Dispose();
+        }
+
+        private void UpdateHeaderForFrameSizes()
+        {
+            uint suggestedBufferSize = Math.Max(_maxFrameSize, 1u);
+            ulong bytesPerSecond = suggestedBufferSize * (ulong)_framesPerSecond;
+            uint clampedBytesPerSecond = bytesPerSecond > uint.MaxValue ? uint.MaxValue : (uint)bytesPerSecond;
+
+            long current = _writer.BaseStream.Position;
+
+            _writer.BaseStream.Seek(_avihMaxBytesPerSecondPos, SeekOrigin.Begin);
+            _writer.Write(clampedBytesPerSecond);
+
+            _writer.BaseStream.Seek(_avihSuggestedBufferSizePos, SeekOrigin.Begin);
+            _writer.Write(suggestedBufferSize);
+
+            _writer.BaseStream.Seek(_strhSuggestedBufferSizePos, SeekOrigin.Begin);
+            _writer.Write(suggestedBufferSize);
+
+            _writer.BaseStream.Seek(_strfSizeImagePos, SeekOrigin.Begin);
+            _writer.Write(suggestedBufferSize);
+
+            _writer.BaseStream.Seek(current, SeekOrigin.Begin);
         }
     }
 }

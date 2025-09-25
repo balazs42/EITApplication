@@ -9,7 +9,6 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Utility.Classes;
@@ -459,8 +458,6 @@ namespace ElectricalImpedanceTomography.ViewModels
                     AviVideoWriter.AviVideoStream? videoStream = null;
                     int videoWidth = 0;
                     int videoHeight = 0;
-                    int expectedFrameSize = 0;
-                    byte[]? reusableFrameBuffer = null;
 
                     using var stream = File.Create(filePath);
                     double totalSteps = frames.Count + 1.0;
@@ -500,46 +497,23 @@ namespace ElectricalImpedanceTomography.ViewModels
                                 throw new InvalidOperationException("All exported frames must share the same dimensions.");
                             }
 
-                            var imageInfo = new SKImageInfo(image.Width,
-                                                            image.Height,
-                                                            SKColorType.Bgra8888,
-                                                            SKAlphaType.Premul);
+                            using var encodedFrame = image.Encode(SKEncodedImageFormat.Jpeg, 85);
+                            if (encodedFrame == null)
+                                throw new InvalidOperationException("Failed to encode video frame to JPEG.");
 
-                            using var bitmap = new SKBitmap(imageInfo);
-                            if (!image.ReadPixels(imageInfo, bitmap.GetPixels(), bitmap.RowBytes))
-                                throw new InvalidOperationException("Failed to read frame pixels for video export.");
-
-                            var pixelBytes = MemoryMarshal.AsBytes(bitmap.GetPixelSpan());
-                            int rowBytes = bitmap.RowBytes;
-                            int frameSize = rowBytes * image.Height;
-
-                            if (reusableFrameBuffer == null || reusableFrameBuffer.Length < frameSize)
-                                reusableFrameBuffer = GC.AllocateUninitializedArray<byte>(frameSize);
-
-                            var rawFrame = reusableFrameBuffer.AsSpan(0, frameSize);
-
-                            for (int y = 0; y < image.Height; y++)
-                            {
-                                var sourceRow = pixelBytes.Slice(y * rowBytes, rowBytes);
-                                var destinationRow = rawFrame.Slice((image.Height - 1 - y) * rowBytes, rowBytes);
-                                sourceRow.CopyTo(destinationRow);
-                            }
+                            var frameBytes = encodedFrame.ToArray();
 
                             if (videoStream == null)
                             {
-                                expectedFrameSize = frameSize;
                                 videoStream = AviVideoWriter.BeginWrite(stream,
                                                                         videoWidth,
                                                                         videoHeight,
                                                                         Workspace.ReconstructionVideoFramesPerSecond,
-                                                                        expectedFrameSize);
-                            }
-                            else if (frameSize != expectedFrameSize)
-                            {
-                                throw new InvalidOperationException("All exported frames must share the same size.");
+                                                                        frameBytes.Length,
+                                                                        AviVideoWriter.AviVideoCodec.MotionJpeg);
                             }
 
-                            videoStream.WriteFrame(rawFrame);
+                            videoStream.WriteFrame(frameBytes);
                         }
 
                         cancellationToken.ThrowIfCancellationRequested();
