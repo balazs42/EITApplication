@@ -38,6 +38,7 @@ public partial class VideoExportProgressPopup : Popup
 
     private void OnPopupOpened(object? sender, PopupOpenedEventArgs e)
     {
+
         StartExport();
     }
 
@@ -103,6 +104,7 @@ public partial class VideoExportProgressPopup : Popup
     {
         Opened -= OnPopupOpened;
         Closed -= OnPopupClosed;
+
 
         if (_cancellationTokenSource != null)
         {
