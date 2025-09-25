@@ -73,6 +73,9 @@ namespace ElectricalImpedanceTomography.ViewModels
         private bool videoExportWasSuccessful;
 
         [ObservableProperty]
+        private bool videoExportIsConfiguring;
+
+        [ObservableProperty]
         private string videoExportHeading = "Video Generation in Progress";
 
         [ObservableProperty]
@@ -89,6 +92,20 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         [ObservableProperty]
         private VideoExportResult? videoExportResult;
+
+        [ObservableProperty]
+        private VideoExportFormatOption? selectedVideoExportFormat;
+
+        [ObservableProperty]
+        private string videoExportEstimatedSizeText = string.Empty;
+
+        [ObservableProperty]
+        private string videoExportEstimatedTimeText = string.Empty;
+
+        [ObservableProperty]
+        private bool videoExportCanStart;
+
+        public ObservableCollection<VideoExportFormatOption> VideoExportFormatOptions { get; } = [];
 
         public ObservableCollection<ReconstructionInfo> AvailableReconstructions { get; } = [];
         public ObservableCollection<ReconstructionInfo> FilteredReconstructions { get; } = [];
@@ -109,6 +126,27 @@ namespace ElectricalImpedanceTomography.ViewModels
         private Dictionary<int, double>? _previousGradientSnapshot;
         private IErrorMetric? _cachedErrorMetric;
         private ErrorMetric _cachedErrorMetricChoice;
+
+        private SKSizeI _videoExportDistributionSize;
+        private SKSizeI _videoExportColorbarSize;
+        private SKSizeI _videoExportResidualSize;
+        private SKSizeI _videoExportFrameSize;
+        private int _videoExportFrameCount;
+
+        partial void OnSelectedVideoExportFormatChanged(VideoExportFormatOption? value)
+        {
+            UpdateVideoExportEstimates();
+        }
+
+        partial void OnVideoExportIsRunningChanged(bool value)
+        {
+            UpdateVideoExportPhase();
+        }
+
+        partial void OnVideoExportHasResultChanged(bool value)
+        {
+            UpdateVideoExportPhase();
+        }
 
         public ReconstructionPageViewModel(IReconstructionService reconstructionService)
         {
@@ -1158,10 +1196,44 @@ namespace ElectricalImpedanceTomography.ViewModels
             ApplyReconstructionFilter();
         }
 
+        public void PrepareVideoExportOptions(SKSize distributionCanvasSize,
+                                              SKSize colorbarCanvasSize,
+                                              SKSize residualCanvasSize,
+                                              PotentialDisplayMode mode)
+        {
+            ResetVideoExportState();
+
+            _ = mode;
+
+            _videoExportDistributionSize = ReconstructionVideoRenderer.NormalizeSize(distributionCanvasSize, 250, 250);
+            _videoExportColorbarSize = ReconstructionVideoRenderer.NormalizeSize(colorbarCanvasSize, 250, 20);
+            _videoExportResidualSize = ReconstructionVideoRenderer.NormalizeSize(residualCanvasSize, 600, 170);
+            _videoExportFrameSize = ReconstructionVideoRenderer.CalculateFrameDimensions(_videoExportDistributionSize,
+                                                                                         _videoExportColorbarSize,
+                                                                                         _videoExportResidualSize);
+
+            var frames = Workspace.GetReconstructionFrames();
+            _videoExportFrameCount = frames.Count;
+
+            VideoExportFormatOptions.Clear();
+            VideoExportFormatOptions.Add(new VideoExportFormatOption("MP4", "Best balance of quality and size.", VideoExportContainer.Mp4, ".mp4"));
+            VideoExportFormatOptions.Add(new VideoExportFormatOption("AVI", "Larger files but widely supported.", VideoExportContainer.Avi, ".avi"));
+
+            VideoExportHeading = "Export Reconstruction Video";
+            VideoExportStatusMessage = _videoExportFrameCount > 0
+                ? "Choose the output format for your reconstruction video."
+                : "No reconstruction frames are available for export.";
+
+            SelectedVideoExportFormat = VideoExportFormatOptions.FirstOrDefault();
+            UpdateVideoExportEstimates();
+            UpdateVideoExportPhase();
+        }
+
         public async Task<VideoExportResult> ExportReconstructionVideoAsync(SKSize distributionCanvasSize,
                                                                             SKSize colorbarCanvasSize,
                                                                             SKSize residualCanvasSize,
                                                                             PotentialDisplayMode mode,
+                                                                            VideoExportContainer container,
                                                                             IProgress<VideoExportProgressReport>? progress = null,
                                                                             CancellationToken cancellationToken = default)
         {
@@ -1191,6 +1263,11 @@ namespace ElectricalImpedanceTomography.ViewModels
             string baseFileName = $"reconstruction_{DateTime.Now:yyyyMMdd_HHmmss}";
             string mp4FilePath = Path.Combine(directory, baseFileName + ".mp4");
             string aviFallbackFilePath = Path.Combine(directory, baseFileName + ".avi");
+            string requestedFilePath = container switch
+            {
+                VideoExportContainer.Avi => aviFallbackFilePath,
+                _ => mp4FilePath
+            };
             string? finalFilePath = null;
 
             try
@@ -1263,23 +1340,29 @@ namespace ElectricalImpedanceTomography.ViewModels
                         progress?.Report(new VideoExportProgressReport(Math.Min(0.98, frames.Count / (frames.Count + 1.0)),
                                                                         "Encoding video stream..."));
 
-                        bool mp4Created = await Mp4VideoExporter.TryExportAsync(frameImagePaths,
-                                                                                videoWidth,
-                                                                                videoHeight,
-                                                                                Workspace.ReconstructionVideoFramesPerSecond,
-                                                                                mp4FilePath,
-                                                                                cancellationToken).ConfigureAwait(false);
+                        bool mp4Created = false;
 
-                        if (mp4Created)
+                        if (container != VideoExportContainer.Avi)
                         {
-                            finalFilePath = mp4FilePath;
+                            mp4Created = await Mp4VideoExporter.TryExportAsync(frameImagePaths,
+                                                                              videoWidth,
+                                                                              videoHeight,
+                                                                              Workspace.ReconstructionVideoFramesPerSecond,
+                                                                              requestedFilePath,
+                                                                              cancellationToken).ConfigureAwait(false);
+
+                            if (mp4Created)
+                            {
+                                finalFilePath = requestedFilePath;
+                            }
                         }
-                        else
+
+                        if (!mp4Created)
                         {
                             if (encodedFrames.Count == 0)
                                 throw new InvalidOperationException("No frames were encoded for export.");
 
-                            if (File.Exists(mp4FilePath))
+                            if (File.Exists(mp4FilePath) && container != VideoExportContainer.Avi)
                             {
                                 try
                                 {
@@ -1291,7 +1374,23 @@ namespace ElectricalImpedanceTomography.ViewModels
                                 }
                             }
 
-                            using var stream = File.Create(aviFallbackFilePath);
+                            string aviTargetPath = container == VideoExportContainer.Avi
+                                ? requestedFilePath
+                                : aviFallbackFilePath;
+
+                            if (File.Exists(aviTargetPath))
+                            {
+                                try
+                                {
+                                    File.Delete(aviTargetPath);
+                                }
+                                catch
+                                {
+                                    // Ignore cleanup errors.
+                                }
+                            }
+
+                            using var stream = File.Create(aviTargetPath);
                             using var videoStream = AviVideoWriter.BeginWrite(stream,
                                                                              videoWidth,
                                                                              videoHeight,
@@ -1306,7 +1405,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                             }
 
                             videoStream.Complete();
-                            finalFilePath = aviFallbackFilePath;
+                            finalFilePath = aviTargetPath;
                         }
                     }
                     finally
@@ -1326,7 +1425,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 }, cancellationToken);
 
                 progress?.Report(new VideoExportProgressReport(1.0, "Video generation completed."));
-                string path = finalFilePath ?? mp4FilePath;
+                string path = finalFilePath ?? requestedFilePath;
                 return VideoExportResult.CreateSuccess(path);
             }
             catch (OperationCanceledException)
@@ -1379,6 +1478,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             UpdateVideoExportProgressCore(0.0);
             VideoExportFilePath = null;
             VideoExportResult = null;
+            UpdateVideoExportCanStart();
         }
 
         public void UpdateVideoExportProgress(VideoExportProgressReport report)
@@ -1412,6 +1512,8 @@ namespace ElectricalImpedanceTomography.ViewModels
                 VideoExportStatusMessage = result.ErrorMessage ?? "An unknown error occurred during video export.";
                 VideoExportFilePath = null;
             }
+
+            UpdateVideoExportPhase();
         }
 
         public void ResetVideoExportState()
@@ -1424,6 +1526,13 @@ namespace ElectricalImpedanceTomography.ViewModels
             UpdateVideoExportProgressCore(0.0);
             VideoExportFilePath = null;
             VideoExportResult = null;
+            VideoExportFormatOptions.Clear();
+            SelectedVideoExportFormat = null;
+            VideoExportEstimatedSizeText = string.Empty;
+            VideoExportEstimatedTimeText = string.Empty;
+            _videoExportFrameCount = 0;
+            _videoExportFrameSize = new SKSizeI(0, 0);
+            UpdateVideoExportPhase();
         }
 
         private void UpdateVideoExportProgressCore(double progress)
@@ -1431,6 +1540,61 @@ namespace ElectricalImpedanceTomography.ViewModels
             double clamped = Math.Clamp(progress, 0.0, 1.0);
             VideoExportProgress = clamped;
             VideoExportProgressPercentText = $"{Math.Round(clamped * 100.0)}%";
+        }
+
+        private void UpdateVideoExportEstimates()
+        {
+            if (SelectedVideoExportFormat is null ||
+                _videoExportFrameCount <= 0 ||
+                _videoExportFrameSize.Width <= 0 ||
+                _videoExportFrameSize.Height <= 0)
+            {
+                VideoExportEstimatedSizeText = "Estimated size: --";
+                VideoExportEstimatedTimeText = "Estimated time: --";
+                UpdateVideoExportCanStart();
+                return;
+            }
+
+            double pixelCount = (double)_videoExportFrameSize.Width * _videoExportFrameSize.Height;
+            double bytesPerPixel = SelectedVideoExportFormat.Container switch
+            {
+                VideoExportContainer.Mp4 => 0.09,
+                VideoExportContainer.Avi => 0.16,
+                _ => 0.1
+            };
+
+            double totalBytes = pixelCount * _videoExportFrameCount * bytesPerPixel;
+            double sizeMb = totalBytes / (1024.0 * 1024.0);
+            VideoExportEstimatedSizeText = $"Estimated size: ~{sizeMb:F1} MB";
+
+            double baseSecondsPerFrame = SelectedVideoExportFormat.Container switch
+            {
+                VideoExportContainer.Mp4 => 0.12,
+                VideoExportContainer.Avi => 0.09,
+                _ => 0.1
+            };
+
+            double complexityFactor = Math.Max(1.0, pixelCount / 400_000.0);
+            double estimatedSeconds = Math.Max(2.0, _videoExportFrameCount * baseSecondsPerFrame * complexityFactor);
+            VideoExportEstimatedTimeText = $"Estimated time: ~{estimatedSeconds:F1} s";
+
+            UpdateVideoExportCanStart();
+        }
+
+        private void UpdateVideoExportPhase()
+        {
+            VideoExportIsConfiguring = !VideoExportIsRunning && !VideoExportHasResult;
+            UpdateVideoExportCanStart();
+        }
+
+        private void UpdateVideoExportCanStart()
+        {
+            bool canStart = !VideoExportIsRunning
+                            && !VideoExportHasResult
+                            && SelectedVideoExportFormat is not null
+                            && _videoExportFrameCount > 0;
+
+            VideoExportCanStart = canStart;
         }
 
         private void ApplyReconstructionFilter()

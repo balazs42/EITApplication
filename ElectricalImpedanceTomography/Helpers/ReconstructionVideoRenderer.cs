@@ -57,6 +57,34 @@ internal static class ReconstructionVideoRenderer
         return new SKSizeI(width, height);
     }
 
+    public static SKSizeI CalculateFrameDimensions(SKSizeI distributionSize,
+                                                   SKSizeI colorbarSize,
+                                                   SKSizeI residualSize)
+    {
+        int cellWidth = Math.Max(distributionSize.Width, 1);
+        int cellHeight = Math.Max(distributionSize.Height, 1);
+        int colorbarHeight = Math.Max(colorbarSize.Height, 1);
+        int residualChartHeight = Math.Max(residualSize.Height, 1);
+
+        const int outerMargin = 32;
+        const int columnSpacing = 32;
+        const int rowSpacing = 40;
+        const int cellPadding = 18;
+        const int labelHeight = 32;
+        const int colorbarSpacing = 10;
+        const int residualPadding = 24;
+        const int residualLabelHeight = 36;
+
+        int cellContainerWidth = cellPadding * 2 + cellWidth;
+        int cellContainerHeight = cellPadding + labelHeight + cellHeight + colorbarSpacing + colorbarHeight + cellPadding;
+        int gridHeight = cellContainerHeight * 2 + rowSpacing;
+        int totalWidth = outerMargin * 2 + cellContainerWidth * 3 + columnSpacing * 2;
+        int residualSectionHeight = residualLabelHeight + residualPadding * 2 + residualChartHeight;
+        int totalHeight = outerMargin * 2 + gridHeight + residualSectionHeight;
+
+        return new SKSizeI(totalWidth, totalHeight);
+    }
+
     public static ReconstructionResult? FindResultForFrame(IReadOnlyList<ReconstructionResult> results,
                                                             int frameIndex,
                                                             out int resultIndex)

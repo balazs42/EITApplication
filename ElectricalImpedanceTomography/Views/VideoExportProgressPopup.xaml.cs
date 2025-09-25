@@ -5,6 +5,7 @@ using ElectricalImpedanceTomography.ViewModels;
 using SkiaSharp;
 using System;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace ElectricalImpedanceTomography.Views;
 
@@ -39,12 +40,15 @@ public partial class VideoExportProgressPopup : Popup
 
     private void OnPopupOpened(object? sender, PopupOpenedEventArgs e)
     {
-
-        StartExport();
+        _viewModel.PrepareVideoExportOptions(_distributionCanvasSize,
+                                             _colorbarCanvasSize,
+                                             _residualCanvasSize,
+                                             _mode);
     }
 
-    private async void StartExport()
+    private async Task StartExportAsync(VideoExportContainer container)
     {
+        _closeOnCompletion = false;
         _cancellationTokenSource = new CancellationTokenSource();
         _viewModel.BeginVideoExportProgress();
 
@@ -63,6 +67,7 @@ public partial class VideoExportProgressPopup : Popup
                 _colorbarCanvasSize,
                 _residualCanvasSize,
                 _mode,
+                container,
                 progress,
                 token);
         }
@@ -77,6 +82,14 @@ public partial class VideoExportProgressPopup : Popup
         {
             Close(new VideoExportPopupResult(result, true));
         }
+    }
+
+    private void OnStartClicked(object sender, EventArgs e)
+    {
+        if (_viewModel.SelectedVideoExportFormat is null || _viewModel.VideoExportIsRunning)
+            return;
+
+        _ = StartExportAsync(_viewModel.SelectedVideoExportFormat.Container);
     }
 
     private void OnAbortClicked(object sender, EventArgs e)
