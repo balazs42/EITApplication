@@ -83,11 +83,14 @@
           <Compile Update="Controls\PlusMinusEntryControl.xaml.cs">
             <DependentUpon>PlusMinusEntryControl.xaml</DependentUpon>
           </Compile>
+          <Compile Update="Views\VideoExportProgressPopup.xaml.cs">
+            <DependentUpon>VideoExportProgressPopup.xaml</DependentUpon>
+          </Compile>
         </ItemGroup>
 
         <ItemGroup>
-	  <MauiXaml Update="Controls\NavBarControl.xaml">
-	    <Generator>MSBuild:Compile</Generator>
+          <MauiXaml Update="Controls\NavBarControl.xaml">
+            <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
           <MauiXaml Update="Views\BoundaryConditionPopup.xaml">
             <Generator>MSBuild:Compile</Generator>
@@ -108,6 +111,9 @@
             <Generator>MSBuild:Compile</Generator>
           </MauiXaml>
           <MauiXaml Update="Views\ReconstructionPage.xaml">
+            <Generator>MSBuild:Compile</Generator>
+          </MauiXaml>
+          <MauiXaml Update="Views\VideoExportProgressPopup.xaml">
             <Generator>MSBuild:Compile</Generator>
           </MauiXaml>
         </ItemGroup>
