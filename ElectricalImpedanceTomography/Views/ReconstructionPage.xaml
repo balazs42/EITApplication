@@ -462,26 +462,27 @@
                     </Border.Stroke>
                     <VerticalStackLayout Margin="16" Spacing="16">
                         <Label Text="Reconstruction Statistics" HorizontalOptions="Center" FontSize="16"  TextColor="{AppThemeBinding Light=#F0F4FF, Dark=#262E38}"/>
-                        <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="12">
-                            <Border Style="{StaticResource PanelSectionBorderStyle}" BackgroundColor="{AppThemeBinding Light=#252F44, Dark=#353F4C}">
-                                <VerticalStackLayout Spacing="2">
-                                    <Label Text="Elapsed Time" FontAttributes="None" FontSize="12" TextColor="#9DAAD3"/>
-                                    <Label Text="{Binding ElapsedTime, StringFormat='{0:mm\\:ss}'}" FontSize="18" TextColor="#F0F4FF"/>
-                                </VerticalStackLayout>
-                            </Border>
-                            <Border Grid.Column="1" Style="{StaticResource PanelSectionBorderStyle}" BackgroundColor="{AppThemeBinding Light=#252F44, Dark=#3A4452}">
-                                <VerticalStackLayout Spacing="2">
-                                    <Label Text="Residual" FontAttributes="None" FontSize="12" TextColor="#9DAAD3"/>
-                                    <Label Text="{Binding Residual, StringFormat='{0:F3}'}" FontSize="18" TextColor="#F0F4FF"/>
-                                </VerticalStackLayout>
-                            </Border>
-                            <Border Grid.Row="1" Grid.ColumnSpan="2" Style="{StaticResource PanelSectionBorderStyle}" BackgroundColor="{AppThemeBinding Light=#252F44, Dark=#353F4C}">
-                                <VerticalStackLayout Spacing="2">
-                                    <Label Text="Correlation" FontAttributes="None" FontSize="12" TextColor="#9DAAD3"/>
-                                    <Label Text="{Binding Correlation, StringFormat='{0:F3}'}" FontSize="18" TextColor="#F0F4FF"/>
-                                </VerticalStackLayout>
-                            </Border>
-                        </Grid>
+                        <VerticalStackLayout BindableLayout.ItemsSource="{Binding MetricGroups}" Spacing="12">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate x:DataType="viewmodels:ReconstructionMetricGroupViewModel">
+                                    <Border Style="{StaticResource PanelSectionBorderStyle}" BackgroundColor="{AppThemeBinding Light=#252F44, Dark=#353F4C}">
+                                        <VerticalStackLayout Spacing="8">
+                                            <Label Text="{Binding Title}" FontSize="14" FontAttributes="Bold" TextColor="#F0F4FF"/>
+                                            <VerticalStackLayout BindableLayout.ItemsSource="{Binding Metrics}" Spacing="6">
+                                                <BindableLayout.ItemTemplate>
+                                                    <DataTemplate x:DataType="viewmodels:ReconstructionMetricViewModel">
+                                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                                            <Label Text="{Binding Name}" FontAttributes="None" FontSize="12" TextColor="#9DAAD3"/>
+                                                            <Label Grid.Column="1" Text="{Binding Value}" FontSize="16" TextColor="#F0F4FF" HorizontalOptions="End"/>
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </BindableLayout.ItemTemplate>
+                                            </VerticalStackLayout>
+                                        </VerticalStackLayout>
+                                    </Border>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </VerticalStackLayout>
                         <skia:SKCanvasView x:Name="ResidualTrendCanvas"
                                                   HeightRequest="170"
                                                   PaintSurface="OnResidualTrendCanvasPaintSurface"/>
