@@ -1271,22 +1271,27 @@ public partial class ReconstructionPage : ContentPage
 
         ExportVideoButton.IsEnabled = false;
 
-        var result = await _viewModel.ExportReconstructionVideoAsync(
+        var popup = new VideoExportProgressPopup(_viewModel,
             PotentialDistributionCanvas.CanvasSize,
             PotentialColorbarCanvas.CanvasSize,
             ResidualTrendCanvas.CanvasSize,
             _potMode);
 
+        var popupResult = await this.ShowPopupAsync(popup) as VideoExportPopupResult;
+
         UpdateExportButtonState();
 
-        if (result.Success)
+        if (popupResult is { WasAborted: true, Result: var aborted })
         {
-            await DisplayAlert("Export Complete", $"Video exported to:\n{result.FilePath}", "OK");
+            string title = aborted.ErrorTitle ?? "Export Aborted";
+            string message = aborted.ErrorMessage ?? "The video export was aborted.";
+            await DisplayAlert(title, message, "OK");
         }
-        else
+        else if (popupResult is { Result.Success: false, WasAborted: false })
         {
-            string title = result.ErrorTitle ?? "Export Failed";
-            string message = result.ErrorMessage ?? "Unknown error.";
+            var failure = popupResult.Result;
+            string title = failure.ErrorTitle ?? "Export Failed";
+            string message = failure.ErrorMessage ?? "Unknown error.";
             await DisplayAlert(title, message, "OK");
         }
     }
