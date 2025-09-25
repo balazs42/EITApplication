@@ -456,79 +456,106 @@ namespace ElectricalImpedanceTomography.ViewModels
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    var frameData = new List<byte[]>(frames.Count);
+                    AviVideoWriter.AviVideoStream? videoStream = null;
                     int videoWidth = 0;
                     int videoHeight = 0;
-
-                    double totalSteps = frames.Count + 1.0;
-
-                    for (int i = 0; i < frames.Count; i++)
-                    {
-                        cancellationToken.ThrowIfCancellationRequested();
-
-                        double progressValue = (i + 1) / totalSteps;
-                        progress?.Report(new VideoExportProgressReport(progressValue,
-                                                                        $"Rendering frame {i + 1} of {frames.Count}..."));
-
-                        var context = ReconstructionVideoRenderer.FindResultForFrame(results, i, out int resultIndex);
-                        int residualCount = resultIndex >= 0
-                            ? Math.Min(resultIndex + 1, residualHistory.Count)
-                            : residualHistory.Count;
-
-                        using var image = ReconstructionVideoRenderer.RenderFrameSnapshot(frames[i],
-                                                                                           context,
-                                                                                           discretization,
-                                                                                           residualHistory,
-                                                                                           residualCount,
-                                                                                           distributionSize,
-                                                                                           colorbarSize,
-                                                                                           residualSize,
-                                                                                           mode);
-
-                        if (videoWidth == 0 || videoHeight == 0)
-                        {
-                            videoWidth = image.Width;
-                            videoHeight = image.Height;
-                        }
-                        else if (image.Width != videoWidth || image.Height != videoHeight)
-                        {
-                            throw new InvalidOperationException("All exported frames must share the same dimensions.");
-                        }
-
-                        var imageInfo = new SKImageInfo(image.Width,
-                                                        image.Height,
-                                                        SKColorType.Bgra8888,
-                                                        SKAlphaType.Premul);
-
-                        using var bitmap = new SKBitmap(imageInfo);
-                        if (!image.ReadPixels(imageInfo, bitmap.GetPixels(), bitmap.RowBytes))
-                            throw new InvalidOperationException("Failed to read frame pixels for video export.");
-
-                        var pixelBytes = MemoryMarshal.AsBytes(bitmap.GetPixelSpan());
-                        int rowBytes = bitmap.RowBytes;
-                        var rawFrame = new byte[rowBytes * image.Height];
-
-                        for (int y = 0; y < image.Height; y++)
-                        {
-                            var sourceRow = pixelBytes.Slice(y * rowBytes, rowBytes);
-                            var destinationRow = rawFrame.AsSpan((image.Height - 1 - y) * rowBytes, rowBytes);
-                            sourceRow.CopyTo(destinationRow);
-                        }
-
-                        frameData.Add(rawFrame);
-                    }
-
-                    cancellationToken.ThrowIfCancellationRequested();
-
-                    progress?.Report(new VideoExportProgressReport(Math.Min(0.98, frames.Count / (frames.Count + 1.0)),
-                                                                    "Encoding video stream..."));
+                    int expectedFrameSize = 0;
+                    byte[]? reusableFrameBuffer = null;
 
                     using var stream = File.Create(filePath);
-                    AviVideoWriter.Write(stream,
-                                         frameData,
-                                         videoWidth,
-                                         videoHeight,
-                                         Workspace.ReconstructionVideoFramesPerSecond);
+                    double totalSteps = frames.Count + 1.0;
+
+                    try
+                    {
+                        for (int i = 0; i < frames.Count; i++)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+
+                            double progressValue = (i + 1) / totalSteps;
+                            progress?.Report(new VideoExportProgressReport(progressValue,
+                                                                            $"Rendering frame {i + 1} of {frames.Count}..."));
+
+                            var context = ReconstructionVideoRenderer.FindResultForFrame(results, i, out int resultIndex);
+                            int residualCount = resultIndex >= 0
+                                ? Math.Min(resultIndex + 1, residualHistory.Count)
+                                : residualHistory.Count;
+
+                            using var image = ReconstructionVideoRenderer.RenderFrameSnapshot(frames[i],
+                                                                                               context,
+                                                                                               discretization,
+                                                                                               residualHistory,
+                                                                                               residualCount,
+                                                                                               distributionSize,
+                                                                                               colorbarSize,
+                                                                                               residualSize,
+                                                                                               mode);
+
+                            if (videoWidth == 0 || videoHeight == 0)
+                            {
+                                videoWidth = image.Width;
+                                videoHeight = image.Height;
+                            }
+                            else if (image.Width != videoWidth || image.Height != videoHeight)
+                            {
+                                throw new InvalidOperationException("All exported frames must share the same dimensions.");
+                            }
+
+                            var imageInfo = new SKImageInfo(image.Width,
+                                                            image.Height,
+                                                            SKColorType.Bgra8888,
+                                                            SKAlphaType.Premul);
+
+                            using var bitmap = new SKBitmap(imageInfo);
+                            if (!image.ReadPixels(imageInfo, bitmap.GetPixels(), bitmap.RowBytes))
+                                throw new InvalidOperationException("Failed to read frame pixels for video export.");
+
+                            var pixelBytes = MemoryMarshal.AsBytes(bitmap.GetPixelSpan());
+                            int rowBytes = bitmap.RowBytes;
+                            int frameSize = rowBytes * image.Height;
+
+                            if (reusableFrameBuffer == null || reusableFrameBuffer.Length < frameSize)
+                                reusableFrameBuffer = GC.AllocateUninitializedArray<byte>(frameSize);
+
+                            var rawFrame = reusableFrameBuffer.AsSpan(0, frameSize);
+
+                            for (int y = 0; y < image.Height; y++)
+                            {
+                                var sourceRow = pixelBytes.Slice(y * rowBytes, rowBytes);
+                                var destinationRow = rawFrame.Slice((image.Height - 1 - y) * rowBytes, rowBytes);
+                                sourceRow.CopyTo(destinationRow);
+                            }
+
+                            if (videoStream == null)
+                            {
+                                expectedFrameSize = frameSize;
+                                videoStream = AviVideoWriter.BeginWrite(stream,
+                                                                        videoWidth,
+                                                                        videoHeight,
+                                                                        Workspace.ReconstructionVideoFramesPerSecond,
+                                                                        expectedFrameSize);
+                            }
+                            else if (frameSize != expectedFrameSize)
+                            {
+                                throw new InvalidOperationException("All exported frames must share the same size.");
+                            }
+
+                            videoStream.WriteFrame(rawFrame);
+                        }
+
+                        cancellationToken.ThrowIfCancellationRequested();
+
+                        progress?.Report(new VideoExportProgressReport(Math.Min(0.98, frames.Count / (frames.Count + 1.0)),
+                                                                        "Finalizing video stream..."));
+
+                        if (videoStream == null)
+                            throw new InvalidOperationException("Unable to initialize the AVI writer.");
+
+                        videoStream.Complete();
+                    }
+                    finally
+                    {
+                        videoStream?.Dispose();
+                    }
                 });
 
                 progress?.Report(new VideoExportProgressReport(1.0, "Video generation completed."));
