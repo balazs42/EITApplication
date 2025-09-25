@@ -1196,20 +1196,28 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             string directory = FileSystem.Current.AppDataDirectory;
             Directory.CreateDirectory(directory);
-            string filePath = Path.Combine(directory, $"reconstruction_{DateTime.Now:yyyyMMdd_HHmmss}.avi");
+            string baseFileName = $"reconstruction_{DateTime.Now:yyyyMMdd_HHmmss}";
+            string mp4FilePath = Path.Combine(directory, baseFileName + ".mp4");
+            string aviFallbackFilePath = Path.Combine(directory, baseFileName + ".avi");
+            string? finalFilePath = null;
 
             try
             {
-                await Task.Run(() =>
+                await Task.Run(async () =>
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    AviVideoWriter.AviVideoStream? videoStream = null;
                     int videoWidth = 0;
                     int videoHeight = 0;
-
-                    using var stream = File.Create(filePath);
                     double totalSteps = frames.Count + 1.0;
+                    string tempFrameDirectory = Path.Combine(FileSystem.Current.CacheDirectory,
+                                                             "VideoExportFrames",
+                                                             Guid.NewGuid().ToString("N"));
+
+                    Directory.CreateDirectory(tempFrameDirectory);
+
+                    var encodedFrames = new List<byte[]>(frames.Count);
+                    var frameImagePaths = new List<string>(frames.Count);
 
                     try
                     {
@@ -1251,50 +1259,98 @@ namespace ElectricalImpedanceTomography.ViewModels
                                 throw new InvalidOperationException("Failed to encode video frame to JPEG.");
 
                             var frameBytes = encodedFrame.ToArray();
+                            encodedFrames.Add(frameBytes);
 
-                            if (videoStream == null)
-                            {
-                                videoStream = AviVideoWriter.BeginWrite(stream,
-                                                                        videoWidth,
-                                                                        videoHeight,
-                                                                        Workspace.ReconstructionVideoFramesPerSecond,
-                                                                        frameBytes.Length,
-                                                                        AviVideoWriter.AviVideoCodec.MotionJpeg);
-                            }
-
-                            videoStream.WriteFrame(frameBytes);
+                            string framePath = Path.Combine(tempFrameDirectory, $"frame_{i:D6}.jpg");
+                            await File.WriteAllBytesAsync(framePath, frameBytes, cancellationToken).ConfigureAwait(false);
+                            frameImagePaths.Add(framePath);
                         }
 
                         cancellationToken.ThrowIfCancellationRequested();
 
                         progress?.Report(new VideoExportProgressReport(Math.Min(0.98, frames.Count / (frames.Count + 1.0)),
-                                                                        "Finalizing video stream..."));
+                                                                        "Encoding video stream..."));
 
-                        if (videoStream == null)
-                            throw new InvalidOperationException("Unable to initialize the AVI writer.");
+                        bool mp4Created = await Mp4VideoExporter.TryExportAsync(frameImagePaths,
+                                                                                videoWidth,
+                                                                                videoHeight,
+                                                                                Workspace.ReconstructionVideoFramesPerSecond,
+                                                                                mp4FilePath,
+                                                                                cancellationToken).ConfigureAwait(false);
 
-                        videoStream.Complete();
+                        if (mp4Created)
+                        {
+                            finalFilePath = mp4FilePath;
+                        }
+                        else
+                        {
+                            if (encodedFrames.Count == 0)
+                                throw new InvalidOperationException("No frames were encoded for export.");
+
+                            if (File.Exists(mp4FilePath))
+                            {
+                                try
+                                {
+                                    File.Delete(mp4FilePath);
+                                }
+                                catch
+                                {
+                                    // Ignore failures when cleaning up a partial MP4 export.
+                                }
+                            }
+
+                            using var stream = File.Create(aviFallbackFilePath);
+                            using var videoStream = AviVideoWriter.BeginWrite(stream,
+                                                                             videoWidth,
+                                                                             videoHeight,
+                                                                             Workspace.ReconstructionVideoFramesPerSecond,
+                                                                             encodedFrames[0].Length,
+                                                                             AviVideoWriter.AviVideoCodec.MotionJpeg);
+
+                            foreach (var frame in encodedFrames)
+                            {
+                                cancellationToken.ThrowIfCancellationRequested();
+                                videoStream.WriteFrame(frame);
+                            }
+
+                            videoStream.Complete();
+                            finalFilePath = aviFallbackFilePath;
+                        }
                     }
                     finally
                     {
-                        videoStream?.Dispose();
+                        try
+                        {
+                            if (Directory.Exists(tempFrameDirectory))
+                            {
+                                Directory.Delete(tempFrameDirectory, recursive: true);
+                            }
+                        }
+                        catch
+                        {
+                            // Ignore cleanup errors.
+                        }
                     }
-                });
+                }, cancellationToken);
 
                 progress?.Report(new VideoExportProgressReport(1.0, "Video generation completed."));
-                return VideoExportResult.CreateSuccess(filePath);
+                string path = finalFilePath ?? mp4FilePath;
+                return VideoExportResult.CreateSuccess(path);
             }
             catch (OperationCanceledException)
             {
-                if (File.Exists(filePath))
+                foreach (var path in new[] { mp4FilePath, aviFallbackFilePath })
                 {
-                    try
+                    if (File.Exists(path))
                     {
-                        File.Delete(filePath);
-                    }
-                    catch
-                    {
-                        // Ignore any errors encountered during cleanup.
+                        try
+                        {
+                            File.Delete(path);
+                        }
+                        catch
+                        {
+                            // Ignore any errors encountered during cleanup.
+                        }
                     }
                 }
 
@@ -1302,6 +1358,21 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
             catch (Exception ex)
             {
+                foreach (var path in new[] { mp4FilePath, aviFallbackFilePath })
+                {
+                    if (File.Exists(path))
+                    {
+                        try
+                        {
+                            File.Delete(path);
+                        }
+                        catch
+                        {
+                            // Ignore cleanup errors when reporting the failure.
+                        }
+                    }
+                }
+
                 return VideoExportResult.CreateFailure("Export Failed", ex.Message);
             }
         }

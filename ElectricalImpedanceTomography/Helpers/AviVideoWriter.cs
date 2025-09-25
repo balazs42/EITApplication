@@ -271,7 +271,7 @@ internal static class AviVideoWriter
             if ((frameData.Length & 1) == 1)
                 _writer.Write((byte)0);
 
-            uint offset = (uint)(chunkStart - _moviListStart - 4);
+            uint offset = (uint)(chunkStart - _moviListStart);
             _indexEntries.Add(new AviIndexEntry(_chunkFourCc, AviIfKeyFrame, offset, (uint)frameData.Length));
             _frameCount++;
         }
