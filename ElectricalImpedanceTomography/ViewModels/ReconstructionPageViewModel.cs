@@ -10,6 +10,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Utility.Classes;
 using Utility.Classes.Discretizer;
@@ -58,6 +59,33 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         [ObservableProperty]
         private string reconstructionSearchText = string.Empty;
+
+        [ObservableProperty]
+        private bool videoExportIsRunning;
+
+        [ObservableProperty]
+        private bool videoExportHasResult;
+
+        [ObservableProperty]
+        private bool videoExportWasSuccessful;
+
+        [ObservableProperty]
+        private string videoExportHeading = "Video Generation in Progress";
+
+        [ObservableProperty]
+        private string videoExportStatusMessage = string.Empty;
+
+        [ObservableProperty]
+        private double videoExportProgress;
+
+        [ObservableProperty]
+        private string videoExportProgressPercentText = "0%";
+
+        [ObservableProperty]
+        private string? videoExportFilePath;
+
+        [ObservableProperty]
+        private VideoExportResult? videoExportResult;
 
         public ObservableCollection<ReconstructionInfo> AvailableReconstructions { get; } = [];
         public ObservableCollection<ReconstructionInfo> FilteredReconstructions { get; } = [];
@@ -393,7 +421,9 @@ namespace ElectricalImpedanceTomography.ViewModels
         public async Task<VideoExportResult> ExportReconstructionVideoAsync(SKSize distributionCanvasSize,
                                                                             SKSize colorbarCanvasSize,
                                                                             SKSize residualCanvasSize,
-                                                                            PotentialDisplayMode mode)
+                                                                            PotentialDisplayMode mode,
+                                                                            IProgress<VideoExportProgressReport>? progress = null,
+                                                                            CancellationToken cancellationToken = default)
         {
             var frames = Workspace.GetReconstructionFrames().ToList();
             if (frames.Count == 0)
@@ -402,6 +432,9 @@ namespace ElectricalImpedanceTomography.ViewModels
             var discretization = Workspace.GetDiscretization();
             if (discretization == null)
                 return VideoExportResult.CreateFailure("No Mesh", "Unable to determine the discretization for rendering.");
+
+            progress?.Report(new VideoExportProgressReport(0.0,
+                                                            "Preparing reconstruction frames for video generation..."));
 
             var results = Workspace.GetReconstructionResults().ToList();
             var residualHistory = results
@@ -421,12 +454,22 @@ namespace ElectricalImpedanceTomography.ViewModels
             {
                 await Task.Run(() =>
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     var frameData = new List<byte[]>(frames.Count);
                     int videoWidth = 0;
                     int videoHeight = 0;
 
+                    double totalSteps = frames.Count + 1.0;
+
                     for (int i = 0; i < frames.Count; i++)
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
+
+                        double progressValue = (i + 1) / totalSteps;
+                        progress?.Report(new VideoExportProgressReport(progressValue,
+                                                                        $"Rendering frame {i + 1} of {frames.Count}..."));
+
                         var context = ReconstructionVideoRenderer.FindResultForFrame(results, i, out int resultIndex);
                         int residualCount = resultIndex >= 0
                             ? Math.Min(resultIndex + 1, residualHistory.Count)
@@ -475,6 +518,11 @@ namespace ElectricalImpedanceTomography.ViewModels
                         frameData.Add(rawFrame);
                     }
 
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    progress?.Report(new VideoExportProgressReport(Math.Min(0.98, frames.Count / (frames.Count + 1.0)),
+                                                                    "Encoding video stream..."));
+
                     using var stream = File.Create(filePath);
                     AviVideoWriter.Write(stream,
                                          frameData,
@@ -483,12 +531,93 @@ namespace ElectricalImpedanceTomography.ViewModels
                                          Workspace.ReconstructionVideoFramesPerSecond);
                 });
 
+                progress?.Report(new VideoExportProgressReport(1.0, "Video generation completed."));
                 return VideoExportResult.CreateSuccess(filePath);
+            }
+            catch (OperationCanceledException)
+            {
+                if (File.Exists(filePath))
+                {
+                    try
+                    {
+                        File.Delete(filePath);
+                    }
+                    catch
+                    {
+                        // Ignore any errors encountered during cleanup.
+                    }
+                }
+
+                return VideoExportResult.CreateFailure("Export Aborted", "The video export was aborted.");
             }
             catch (Exception ex)
             {
                 return VideoExportResult.CreateFailure("Export Failed", ex.Message);
             }
+        }
+
+        public void BeginVideoExportProgress()
+        {
+            VideoExportIsRunning = true;
+            VideoExportHasResult = false;
+            VideoExportWasSuccessful = false;
+            VideoExportHeading = "Video Generation in Progress";
+            VideoExportStatusMessage = "Preparing video generation...";
+            UpdateVideoExportProgressCore(0.0);
+            VideoExportFilePath = null;
+            VideoExportResult = null;
+        }
+
+        public void UpdateVideoExportProgress(VideoExportProgressReport report)
+        {
+            UpdateVideoExportProgressCore(report.Progress);
+            VideoExportStatusMessage = report.StatusMessage;
+        }
+
+        public void NotifyVideoExportAborting()
+        {
+            VideoExportStatusMessage = "Aborting video generation...";
+        }
+
+        public void CompleteVideoExport(VideoExportResult result)
+        {
+            VideoExportIsRunning = false;
+            VideoExportHasResult = true;
+            VideoExportWasSuccessful = result.Success;
+            VideoExportResult = result;
+
+            if (result.Success)
+            {
+                VideoExportHeading = "Video Generated Successfully";
+                VideoExportStatusMessage = "Your reconstruction video is ready.";
+                VideoExportFilePath = result.FilePath;
+                UpdateVideoExportProgressCore(1.0);
+            }
+            else
+            {
+                VideoExportHeading = result.ErrorTitle ?? "Export Failed";
+                VideoExportStatusMessage = result.ErrorMessage ?? "An unknown error occurred during video export.";
+                VideoExportFilePath = null;
+            }
+        }
+
+        public void ResetVideoExportState()
+        {
+            VideoExportIsRunning = false;
+            VideoExportHasResult = false;
+            VideoExportWasSuccessful = false;
+            VideoExportHeading = "Video Generation in Progress";
+            VideoExportStatusMessage = string.Empty;
+            UpdateVideoExportProgressCore(0.0);
+            VideoExportFilePath = null;
+            VideoExportResult = null;
+        }
+
+        private void UpdateVideoExportProgressCore(double progress)
+        {
+            double clamped = Math.Clamp(progress, 0.0, 1.0);
+            VideoExportProgress = clamped;
+            VideoExportProgressPercentText = $"{Math.Round(clamped * 100.0)}%";
         }
 
         private void ApplyReconstructionFilter()
