@@ -249,15 +249,16 @@ namespace BusinessLayer
             PotentialDistribution mu = _differentialEquationSolver.Solve(mesh, adjointBoundaryCondition, adjointSource);
 
             // Gradient expression for the conductivity field
+            var phiGradient = FiniteElementOperators.CalculateElementWiseGradient(mesh, phi);
+            var muGradient = FiniteElementOperators.CalculateElementWiseGradient(mesh, mu);
+
             ConductivityDistribution dataGrad = new ConductivityDistribution(
                 elements.ToDictionary(
                     el => el.Id,
                     el => {
                         // compute ∇φ, ∇μ on this element
-                        var gPhi = FiniteElementOperators.CalculateElementWiseGradient(mesh, phi)
-                                    .GetVector(el.Id);
-                        var gMu = FiniteElementOperators.CalculateElementWiseGradient(mesh, mu)
-                                    .GetVector(el.Id);
+                        var gPhi = phiGradient.GetVector(el.Id);
+                        var gMu = muGradient.GetVector(el.Id);
                         return -(gMu.X * gPhi.X + gMu.Y * gPhi.Y) * el.Area;
                     }
                 )
@@ -1031,15 +1032,16 @@ namespace BusinessLayer
                     Debug.WriteLine("Adjoint μ computed.");
 
                     // 4g) Compute gradient ∇J_data = ∇μ·∇φ elementwise  (thesis Eq. 2.1.20)
+                    var phiGradient = FiniteElementOperators.CalculateElementWiseGradient(mesh, phi);
+                    var muGradient = FiniteElementOperators.CalculateElementWiseGradient(mesh, mu);
+
                     var dataGrad = new ConductivityDistribution(
                         Workspace.GetCurrentGlobalFemElements().ToDictionary(
                             el => el.Id,
                             el => {
                                 // compute ∇φ, ∇μ on this element
-                                var gPhi = FiniteElementOperators.CalculateElementWiseGradient(mesh, phi)
-                                            .GetVector(el.Id);
-                                var gMu = FiniteElementOperators.CalculateElementWiseGradient(mesh, mu)
-                                            .GetVector(el.Id);
+                                var gPhi = phiGradient.GetVector(el.Id);
+                                var gMu = muGradient.GetVector(el.Id);
                                 return (gMu.X * gPhi.X + gMu.Y * gPhi.Y) * el.Area;
                             }
                         )
