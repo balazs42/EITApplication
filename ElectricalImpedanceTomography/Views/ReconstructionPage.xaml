@@ -306,7 +306,9 @@
                                     IsEnabled="False"/>
                         </Border>
                         <Slider x:Name="PlaybackSlider"
+                                Margin="5"
                                 Grid.Row="1"
+                                WidthRequest="250"
                                 VerticalOptions="Center"
                                 HorizontalOptions="Center"
                                 Grid.ColumnSpan="3"
