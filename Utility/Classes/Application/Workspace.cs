@@ -1,4 +1,7 @@
 ﻿using Utility.Classes.Discretizer;
+using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
+using Utility.Classes.Measurement;
 using Utility.Classes.ReconstructionParameters;
 
 namespace Utility.Classes.Application
@@ -22,6 +25,14 @@ namespace Utility.Classes.Application
         private static List<WorkspaceMessage> _messages = [];
         private static ConductivityDistribution? _originalConductivityDistribution = null;
         public static event Action<WorkspaceMessage>? MessageAdded;
+
+        private static List<FEMElement>? _currentGlobalFemElements;
+        private static List<FEMElectrode>? _currentGlobalFemElectrodes;
+        private static FEMBoundaryCondition? _currentGlobalFemBoundaryCondition;
+
+        private static List<LBMElement>? _currentGlobalLbmElements;
+        private static List<LBMElectrode>? _currentGlobalLbmElectrodes;
+        private static LBMBoundaryCondition? _currentGlobalLbmBoundaryCondition;
 
         private static bool _initialized = false; 
 
@@ -59,6 +70,54 @@ namespace Utility.Classes.Application
         public static List<ReconstructionResult> GetReconstructionResults() => _reconstructionResults;
         public static List<ReconstructionFrame> GetReconstructionFrames() => _reconstructionFrames;
         public static ConductivityDistribution? GetOriginalConductivityDistribution() => _originalConductivityDistribution;
+
+        public static void UpdateCurrentGlobalFemElements(FEMMesh mesh)
+            => _currentGlobalFemElements = [.. mesh.GetElements().Cast<FEMElement>()];
+
+        public static void SetCurrentGlobalFemElements(List<FEMElement> elements)
+            => _currentGlobalFemElements = elements;
+
+        public static List<FEMElement> GetCurrentGlobalFemElements()
+            => _currentGlobalFemElements ?? throw new InvalidOperationException("Current FEM elements have not been cached in the workspace.");
+
+        public static void UpdateCurrentGlobalFemElectrodes(FEMMesh mesh)
+            => _currentGlobalFemElectrodes = [.. mesh.GetElectrodes().Cast<FEMElectrode>()];
+
+        public static void SetCurrentGlobalFemElectrodes(List<FEMElectrode> electrodes)
+            => _currentGlobalFemElectrodes = electrodes;
+
+        public static List<FEMElectrode> GetCurrentGlobalFemElectrodes()
+            => _currentGlobalFemElectrodes ?? throw new InvalidOperationException("Current FEM electrodes have not been cached in the workspace.");
+
+        public static void SetCurrentGlobalFemBoundaryCondition(FEMBoundaryCondition boundaryCondition)
+            => _currentGlobalFemBoundaryCondition = boundaryCondition;
+
+        public static FEMBoundaryCondition GetCurrentGlobalFemBoundaryCondition()
+            => _currentGlobalFemBoundaryCondition ?? throw new InvalidOperationException("Current FEM boundary condition has not been cached in the workspace.");
+
+        public static void UpdateCurrentGlobalLbmElements(LBMGrid mesh)
+            => _currentGlobalLbmElements = [.. mesh.GetElements().Cast<LBMElement>()];
+
+        public static void SetCurrentGlobalLbmElements(List<LBMElement> elements)
+            => _currentGlobalLbmElements = elements;
+
+        public static List<LBMElement> GetCurrentGlobalLbmElements()
+            => _currentGlobalLbmElements ?? throw new InvalidOperationException("Current LBM elements have not been cached in the workspace.");
+
+        public static void UpdateCurrentGlobalLbmElectrodes(LBMGrid mesh)
+            => _currentGlobalLbmElectrodes = [.. mesh.GetElectrodes().Cast<LBMElectrode>()];
+
+        public static void SetCurrentGlobalLbmElectrodes(List<LBMElectrode> electrodes)
+            => _currentGlobalLbmElectrodes = electrodes;
+
+        public static List<LBMElectrode> GetCurrentGlobalLbmElectrodes()
+            => _currentGlobalLbmElectrodes ?? throw new InvalidOperationException("Current LBM electrodes have not been cached in the workspace.");
+
+        public static void SetCurrentGlobalLbmBoundaryCondition(LBMBoundaryCondition boundaryCondition)
+            => _currentGlobalLbmBoundaryCondition = boundaryCondition;
+
+        public static LBMBoundaryCondition GetCurrentGlobalLbmBoundaryCondition()
+            => _currentGlobalLbmBoundaryCondition ?? throw new InvalidOperationException("Current LBM boundary condition has not been cached in the workspace.");
 
         public static int MaxIterationCount
         {
