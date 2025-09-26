@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Numerics;
 using Utility.Classes;
+using Utility.Classes.Application;
 using Utility.Classes.Factories;
 using Utility.Classes.Measurement;
 using Utility.Classes.Discretizer;
@@ -187,9 +188,10 @@ namespace BusinessLayer
             if (_differentialEquationSolver == null)
                 throw new NullReferenceException("Differential equation solver is null, check calling code!");
 
-            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
-
-            FEMBoundaryCondition boundaryConditions = new(electrodes);
+            Workspace.UpdateCurrentGlobalFemElectrodes(mesh);
+            var electrodes = Workspace.GetCurrentGlobalFemElectrodes();
+            var boundaryConditions = new FEMBoundaryCondition(electrodes);
+            Workspace.SetCurrentGlobalFemBoundaryCondition(boundaryConditions);
 
             return _differentialEquationSolver.Solve(mesh, boundaryConditions, null);
         }
@@ -202,9 +204,10 @@ namespace BusinessLayer
             if (_differentialEquationSolver == null)
                 throw new NullReferenceException("Differential equation solver is null, check calling code!");
 
-            var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
-
-            LBMBoundaryCondition boundaryConditions = new(electrodes);
+            Workspace.UpdateCurrentGlobalLbmElectrodes(lbmGrid);
+            var electrodes = Workspace.GetCurrentGlobalLbmElectrodes();
+            var boundaryConditions = new LBMBoundaryCondition(electrodes);
+            Workspace.SetCurrentGlobalLbmBoundaryCondition(boundaryConditions);
 
             return _differentialEquationSolver.Solve(lbmGrid, boundaryConditions, null);
         }
@@ -220,7 +223,11 @@ namespace BusinessLayer
             if (_regularizer == null)
                 throw new NullReferenceException("Regularizer is null, check calling code!");
 
-            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
+            Workspace.UpdateCurrentGlobalFemElectrodes(mesh);
+            Workspace.UpdateCurrentGlobalFemElements(mesh);
+            Workspace.SetCurrentGlobalFemBoundaryCondition(bc);
+            var electrodes = Workspace.GetCurrentGlobalFemElectrodes();
+            var elements = Workspace.GetCurrentGlobalFemElements();
 
             // Solve Forward to extract simulated potentials
             PotentialDistribution phi = _differentialEquationSolver.Solve(mesh, bc, null);
@@ -237,11 +244,13 @@ namespace BusinessLayer
                 adjointSource[k] = adjSrc[k];
 
             // Solve the adjoint equation with the new boundary condition
-            PotentialDistribution mu = _differentialEquationSolver.Solve(mesh, new FEMBoundaryCondition(electrodes), adjointSource);
+            var adjointBoundaryCondition = new FEMBoundaryCondition(electrodes);
+            Workspace.SetCurrentGlobalFemBoundaryCondition(adjointBoundaryCondition);
+            PotentialDistribution mu = _differentialEquationSolver.Solve(mesh, adjointBoundaryCondition, adjointSource);
 
             // Gradient expression for the conductivity field
             ConductivityDistribution dataGrad = new ConductivityDistribution(
-                mesh.GetElements().Cast<FEMElement>().ToDictionary(
+                elements.ToDictionary(
                     el => el.Id,
                     el => {
                         // compute ∇φ, ∇μ on this element
@@ -272,7 +281,11 @@ namespace BusinessLayer
             if (_errorMetric == null)
                 throw new NullReferenceException("Error metric is null, check calling code!");
 
-            var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
+            Workspace.UpdateCurrentGlobalLbmElectrodes(mesh);
+            Workspace.UpdateCurrentGlobalLbmElements(mesh);
+            Workspace.SetCurrentGlobalLbmBoundaryCondition(bc);
+            var electrodes = Workspace.GetCurrentGlobalLbmElectrodes();
+            var elements = Workspace.GetCurrentGlobalLbmElements();
 
             // Solve Forward to extract simulated potentials
             PotentialDistribution phi = _differentialEquationSolver.Solve(mesh, bc, null);
@@ -289,10 +302,12 @@ namespace BusinessLayer
             for (int k = 0; k < adjSrc.Length; k++)
                 adjointSource[k] = adjSrc[k];
 
-            PotentialDistribution mu = _differentialEquationSolver.Solve(mesh, new LBMBoundaryCondition(electrodes), adjointSource);
+            var adjointBoundaryCondition = new LBMBoundaryCondition(electrodes);
+            Workspace.SetCurrentGlobalLbmBoundaryCondition(adjointBoundaryCondition);
+            PotentialDistribution mu = _differentialEquationSolver.Solve(mesh, adjointBoundaryCondition, adjointSource);
 
             ConductivityDistribution dataGrad = new ConductivityDistribution(
-                mesh.GetElements().ToDictionary(
+                elements.ToDictionary(
                     el => el.Id,
                     el => {
                         // compute <∇φ, ∇μ> on this element
@@ -346,10 +361,11 @@ namespace BusinessLayer
             mesh.SetConductivityDistribution(initialSigma);
 
             // Cache electrode and element information for repeated use.
-            List<FEMElectrode> electrodes = [.. mesh.GetElectrodes().Cast<FEMElectrode>()];
+            Workspace.UpdateCurrentGlobalFemElectrodes(mesh);
+            Workspace.UpdateCurrentGlobalFemElements(mesh);
+            var electrodes = Workspace.GetCurrentGlobalFemElectrodes();
+            var elements = Workspace.GetCurrentGlobalFemElements();
             int electrodeCount = electrodes.Count;
-
-            var elements = mesh.GetElements().Cast<FEMElement>().ToList();
 
             // Container that stores intermediate frames for later inspection.
             List<ReconstructionFrame> frames = [];
@@ -386,6 +402,7 @@ namespace BusinessLayer
                     // Boundary condition reflecting the just configured
                     // electrode setup.
                     var bc = new FEMBoundaryCondition(electrodes);
+                    Workspace.SetCurrentGlobalFemBoundaryCondition(bc);
 
                     // Measurement corresponding to this excitation pattern.
                     double[] dObs = measurementFrames[exc];
@@ -457,10 +474,12 @@ namespace BusinessLayer
             ConductivityDistribution initialSigma = _initialSigma ?? mesh.GetConductivityDistribution();
             mesh.SetConductivityDistribution(initialSigma);
 
-            var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
+            Workspace.UpdateCurrentGlobalLbmElectrodes(mesh);
+            Workspace.UpdateCurrentGlobalLbmElements(mesh);
+            var electrodes = Workspace.GetCurrentGlobalLbmElectrodes();
             int electrodeCount = electrodes.Count;
 
-            var elements = mesh.GetElements().ToList();
+            var elements = Workspace.GetCurrentGlobalLbmElements();
 
             List<ReconstructionFrame> frames = [];
 
@@ -487,6 +506,7 @@ namespace BusinessLayer
                     electrodes[(exc + 1) % electrodeCount].Current = -1.0;
 
                     var bc = new LBMBoundaryCondition(electrodes);
+                    Workspace.SetCurrentGlobalLbmBoundaryCondition(bc);
                     double[] dObs = measurementFrames.Frames[exc];
 
                     var frame = InverseSolveStepLbm(mesh, bc, dObs);
@@ -550,11 +570,14 @@ namespace BusinessLayer
             ConductivityDistribution initialConductivityDistribution = _initialSigma ?? ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType);
             mesh.SetConductivityDistribution(initialConductivityDistribution);
 
-            List<FEMElectrode> electrodes = [.. mesh.GetElectrodes().Cast<FEMElectrode>()];
+            Workspace.UpdateCurrentGlobalFemElectrodes(mesh);
+            Workspace.UpdateCurrentGlobalFemElements(mesh);
+            var electrodes = Workspace.GetCurrentGlobalFemElectrodes();
             var bc = new FEMBoundaryCondition(electrodes);
+            Workspace.SetCurrentGlobalFemBoundaryCondition(bc);
             int electrodeCount = electrodes.Count;
 
-            var elements = mesh.GetElements().Cast<FEMElement>().ToList();
+            var elements = Workspace.GetCurrentGlobalFemElements();
             int elementCount = elements.Count;
 
             // 4) Iterative loop
@@ -686,7 +709,9 @@ namespace BusinessLayer
             if (_errorMetric == null)
                 throw new NullReferenceException("Error metric is null, check calling code!");
 
-            List<FEMElectrode> electrodes = [.. mesh.GetElectrodes().Cast<FEMElectrode>()];
+            Workspace.UpdateCurrentGlobalFemElectrodes(mesh);
+            Workspace.SetCurrentGlobalFemBoundaryCondition(bc);
+            var electrodes = Workspace.GetCurrentGlobalFemElectrodes();
             int electrodeCount = electrodes.Count;
 
             double Jtotal = 0;
@@ -731,7 +756,11 @@ namespace BusinessLayer
             if (_errorMetric == null)
                 throw new NullReferenceException("Cannot perform solve step Error Metric is null.");
 
-            var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
+            Workspace.UpdateCurrentGlobalLbmElectrodes(mesh);
+            Workspace.UpdateCurrentGlobalLbmElements(mesh);
+            Workspace.SetCurrentGlobalLbmBoundaryCondition(bc);
+            var electrodes = Workspace.GetCurrentGlobalLbmElectrodes();
+            var elements = Workspace.GetCurrentGlobalLbmElements();
 
             // Solve Forward to extract simulated potentials
             PotentialDistribution phi = _differentialEquationSolver.Solve(mesh, bc, null);
@@ -748,10 +777,12 @@ namespace BusinessLayer
             for (int k = 0; k < adjSrc.Length; k++)
                 adjointSource[k] = adjSrc[k];
 
-            PotentialDistribution mu = _differentialEquationSolver.Solve(mesh, new LBMBoundaryCondition(electrodes), adjointSource);
+            var adjointBoundaryCondition = new LBMBoundaryCondition(electrodes);
+            Workspace.SetCurrentGlobalLbmBoundaryCondition(adjointBoundaryCondition);
+            PotentialDistribution mu = _differentialEquationSolver.Solve(mesh, adjointBoundaryCondition, adjointSource);
 
             ConductivityDistribution dataGrad = new ConductivityDistribution(
-                mesh.GetElements().ToDictionary(
+                elements.ToDictionary(
                     el => el.Id,
                     el => {
                         // compute <∇φ, ∇μ> on this element
@@ -776,9 +807,12 @@ namespace BusinessLayer
             ConductivityDistribution originalConductivityDistribution = _originalSigma ?? ((LBMGrid)lbmGrid.DeepCopy()).GetConductivityDistribution();
             lbmGrid = (LBMGrid)lbmGrid.DeepCopy();
 
-            var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
+            Workspace.UpdateCurrentGlobalLbmElectrodes(lbmGrid);
+            Workspace.UpdateCurrentGlobalLbmElements(lbmGrid);
+            var electrodes = Workspace.GetCurrentGlobalLbmElectrodes();
 
             LBMBoundaryCondition bc = new(electrodes);
+            Workspace.SetCurrentGlobalLbmBoundaryCondition(bc);
 
             EITMeasurement measurementFrames;
             if (_originalSigma != null)
@@ -842,7 +876,8 @@ namespace BusinessLayer
                 throw new NullReferenceException("Differential equation solver was null, check initializiation code!");
 
             LBMGrid deepCopy = (LBMGrid)mesh.DeepCopy();
-            var electrodes = deepCopy.GetElectrodes().Cast<LBMElectrode>().ToList();
+            Workspace.UpdateCurrentGlobalLbmElectrodes(deepCopy);
+            var electrodes = Workspace.GetCurrentGlobalLbmElectrodes();
             int electrodeCount = electrodes.Count;
 
             double[,] measurementFrames = new double[electrodeCount, electrodeCount];
@@ -866,6 +901,7 @@ namespace BusinessLayer
                 electrodes[(i + 1) % electrodeCount].Current = -exciationAmplitude;
 
                 LBMBoundaryCondition boundaryCondition = new LBMBoundaryCondition(electrodes);
+                Workspace.SetCurrentGlobalLbmBoundaryCondition(boundaryCondition);
 
                 _ = _differentialEquationSolver.Solve(deepCopy, boundaryCondition, null);
 
@@ -889,9 +925,10 @@ namespace BusinessLayer
 
             var conductivitiyDistribution = mesh.GetConductivityDistribution();
 
-            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
-
-            BoundaryCondition boundaryConditions = new FEMBoundaryCondition(electrodes);
+            Workspace.UpdateCurrentGlobalFemElectrodes(mesh);
+            var electrodes = Workspace.GetCurrentGlobalFemElectrodes();
+            var boundaryConditions = new FEMBoundaryCondition(electrodes);
+            Workspace.SetCurrentGlobalFemBoundaryCondition(boundaryConditions);
 
             PotentialDistribution potentialDistribution = _differentialEquationSolver.Solve(mesh, boundaryConditions, null);
             mesh.SetPotentialDistribution(potentialDistribution);
@@ -915,11 +952,14 @@ namespace BusinessLayer
             ConductivityDistribution sigma = ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType);
             mesh.SetConductivityDistribution(sigma);
 
-            List<FEMElectrode> electrodes = [.. mesh.GetElectrodes().Cast<FEMElectrode>()];
+            Workspace.UpdateCurrentGlobalFemElectrodes(mesh);
+            Workspace.UpdateCurrentGlobalFemElements(mesh);
+            var electrodes = Workspace.GetCurrentGlobalFemElectrodes();
             var bc = new FEMBoundaryCondition(electrodes);
+            Workspace.SetCurrentGlobalFemBoundaryCondition(bc);
             int electrodeCount = electrodes.Count;
 
-            var elements = mesh.GetElements().Cast<FEMElement>().ToList();
+            var elements = Workspace.GetCurrentGlobalFemElements();
             int elementCount = elements.Count;
 
             // 4) Iterative loop
@@ -985,12 +1025,14 @@ namespace BusinessLayer
                     );
 
                     // 4f) Adjoint solve μ: same forward‐solver but feed in adjSrc as boundary currents
-                    var mu = _differentialEquationSolver.Solve(mesh, new FEMBoundaryCondition(electrodes, srcDist), adjointSource);
+                    var adjointBoundaryCondition = new FEMBoundaryCondition(electrodes, srcDist);
+                    Workspace.SetCurrentGlobalFemBoundaryCondition(adjointBoundaryCondition);
+                    var mu = _differentialEquationSolver.Solve(mesh, adjointBoundaryCondition, adjointSource);
                     Debug.WriteLine("Adjoint μ computed.");
 
                     // 4g) Compute gradient ∇J_data = ∇μ·∇φ elementwise  (thesis Eq. 2.1.20)
                     var dataGrad = new ConductivityDistribution(
-                        mesh.GetElements().Cast<FEMElement>().ToDictionary(
+                        Workspace.GetCurrentGlobalFemElements().ToDictionary(
                             el => el.Id,
                             el => {
                                 // compute ∇φ, ∇μ on this element
@@ -1135,8 +1177,10 @@ namespace BusinessLayer
             if (_differentialEquationSolver == null)
                 throw new NullReferenceException("Cannot perform graph based forward solve, differential equation solver is not specified!");
 
-            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
-            BoundaryCondition bc = new FEMBoundaryCondition(electrodes);
+            Workspace.UpdateCurrentGlobalFemElectrodes(mesh);
+            var electrodes = Workspace.GetCurrentGlobalFemElectrodes();
+            var bc = new FEMBoundaryCondition(electrodes);
+            Workspace.SetCurrentGlobalFemBoundaryCondition(bc);
             var pd = _differentialEquationSolver.Solve(mesh, bc, null);
             mesh.SetPotentialDistribution(pd);
             return mesh;
