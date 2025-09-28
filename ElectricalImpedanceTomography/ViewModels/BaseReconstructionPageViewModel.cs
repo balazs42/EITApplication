@@ -1,4 +1,5 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
+using System.ComponentModel;
 using Utility.Classes.ReconstructionParameters;
 using Utility.Classes.Factories;
 
@@ -8,6 +9,8 @@ namespace ElectricalImpedanceTomography.ViewModels
 {
     public partial class BaseReconstructionPageViewModel : BaseViewModel
     {
+        private EITReconstructionParameters _currentParameters;
+
         private static readonly DifferentialEquationSolver[] DifferentialEquationSolverValues = Enum.GetValues<DifferentialEquationSolver>();
         public IEnumerable<DifferentialEquationSolver> DifferentialEquationSolverOptions => DifferentialEquationSolverValues;
 
@@ -26,10 +29,38 @@ namespace ElectricalImpedanceTomography.ViewModels
         private static readonly InitialDistributionTypes[] InitialDistributionTypeValues = Enum.GetValues<InitialDistributionTypes>();
         public IEnumerable<InitialDistributionTypes> InitialDistributionOptions => InitialDistributionTypeValues;
 
+        private static readonly MeasurementNoiseType[] MeasurementNoiseTypeValues = Enum.GetValues<MeasurementNoiseType>();
+        public IEnumerable<MeasurementNoiseType> MeasurementNoiseTypeOptions => MeasurementNoiseTypeValues;
+
         [ObservableProperty]
         private EITReconstructionParameters reconstructionParameters = Workspace.GetReconstructionParameters();
 
-        partial void OnReconstructionParametersChanged(EITReconstructionParameters value) => Workspace.SetReconstructionParameters(value);
+        public bool IsNoiseAmplitudeEnabled => ReconstructionParameters.MeasurementNoiseType != MeasurementNoiseType.None;
+
+        public BaseReconstructionPageViewModel()
+        {
+            _currentParameters = ReconstructionParameters;
+            _currentParameters.PropertyChanged += OnReconstructionParametersPropertyChanged;
+            OnPropertyChanged(nameof(IsNoiseAmplitudeEnabled));
+        }
+
+        partial void OnReconstructionParametersChanged(EITReconstructionParameters value)
+        {
+            if (_currentParameters != null)
+                _currentParameters.PropertyChanged -= OnReconstructionParametersPropertyChanged;
+
+            Workspace.SetReconstructionParameters(value);
+
+            _currentParameters = value;
+            _currentParameters.PropertyChanged += OnReconstructionParametersPropertyChanged;
+            OnPropertyChanged(nameof(IsNoiseAmplitudeEnabled));
+        }
+
+        private void OnReconstructionParametersPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(EITReconstructionParameters.MeasurementNoiseType))
+                OnPropertyChanged(nameof(IsNoiseAmplitudeEnabled));
+        }
 
         [ObservableProperty]
         private int layers = 2;
