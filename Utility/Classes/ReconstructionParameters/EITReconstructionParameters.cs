@@ -20,6 +20,12 @@ namespace Utility.Classes.ReconstructionParameters
         [ObservableProperty]
         private InitialDistributionTypes initialDistributionType = InitialDistributionTypes.Homogeneous;
 
+        [ObservableProperty]
+        private MeasurementNoiseType measurementNoiseType = MeasurementNoiseType.None;
+
+        [ObservableProperty]
+        private double measurementNoiseAmplitude = 0.0;
+
         public DiscretizationType Mesh = DiscretizationType.FEM;
 
         public EITReconstructionParameters()
@@ -30,15 +36,19 @@ namespace Utility.Classes.ReconstructionParameters
             NumericSolver = NumericSolver.SVD;
             NumericOptimizer = NumericOptimizer.ADAM;
             InitialDistributionType = InitialDistributionTypes.Homogeneous;
+            MeasurementNoiseType = MeasurementNoiseType.None;
+            MeasurementNoiseAmplitude = 0.0;
             Mesh = DiscretizationType.FEM;
         }
 
-        public EITReconstructionParameters(DifferentialEquationSolver differentialEquationSolver, 
+        public EITReconstructionParameters(DifferentialEquationSolver differentialEquationSolver,
                                            RegularizationTechnique regularizationTechnique,
                                            ErrorMetric errorMetric,
                                            NumericSolver numericSolver,
                                            NumericOptimizer numericOptimizer,
-                                           InitialDistributionTypes initialDistributionType = InitialDistributionTypes.SlightlyDiffering)
+                                           InitialDistributionTypes initialDistributionType = InitialDistributionTypes.SlightlyDiffering,
+                                           MeasurementNoiseType measurementNoiseType = MeasurementNoiseType.None,
+                                           double measurementNoiseAmplitude = 0.0)
         {
             DifferentialEquationSolver = differentialEquationSolver;
             RegularizationTechnique = regularizationTechnique;
@@ -46,6 +56,8 @@ namespace Utility.Classes.ReconstructionParameters
             NumericSolver = numericSolver;
             NumericOptimizer = numericOptimizer;
             InitialDistributionType = initialDistributionType;
+            MeasurementNoiseType = measurementNoiseType;
+            MeasurementNoiseAmplitude = measurementNoiseAmplitude;
 
             Mesh = (differentialEquationSolver == DifferentialEquationSolver.FEM) ? DiscretizationType.FEM : DiscretizationType.LBM;
         }

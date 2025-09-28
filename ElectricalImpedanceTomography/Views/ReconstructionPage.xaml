@@ -161,7 +161,7 @@
                         <Border Grid.Column="1"
                                 Style="{StaticResource PanelSectionBorderStyle}"
                                 BackgroundColor="{AppThemeBinding Light=#25324A, Dark=#353F4B}">
-                            <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
+                            <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
                                 <Label Grid.Row="0" Text="Parameters" FontSize="Medium" FontAttributes="Bold" Margin="0,0,0,12"/>
                                 <Label Grid.Row="1" HorizontalOptions="Start" Text="Regularization Weight (θ)" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Entry Grid.Row="2" Text="{Binding RegularizationWeight}"/>
@@ -171,6 +171,13 @@
                                 <Entry Grid.Row="6" Text="{Binding MaxIterationCount}"/>
                                 <Label Grid.Row="7" HorizontalOptions="Start" Text="Initial Distribution" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Picker Grid.Row="8" ItemsSource="{Binding InitialDistributionOptions}" SelectedItem="{Binding ReconstructionParameters.InitialDistributionType}"/>
+                                <Label Grid.Row="9" HorizontalOptions="Start" Text="Measurement Noise" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Picker Grid.Row="10" ItemsSource="{Binding MeasurementNoiseTypeOptions}" SelectedItem="{Binding ReconstructionParameters.MeasurementNoiseType}"/>
+                                <Label Grid.Row="11" HorizontalOptions="Start" Text="Noise Amplitude / dB" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Entry Grid.Row="12"
+                                       Text="{Binding ReconstructionParameters.MeasurementNoiseAmplitude}"
+                                       Keyboard="Numeric"
+                                       IsEnabled="{Binding IsNoiseAmplitudeEnabled}"/>
                             </Grid>
                         </Border>
                     </Grid>

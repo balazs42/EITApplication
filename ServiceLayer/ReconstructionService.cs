@@ -1,5 +1,7 @@
 ﻿using BusinessLayer;
+using System;
 using System.Diagnostics;
+using System.Linq;
 using Utility.Classes;
 using Utility.Classes.Measurement;
 using Utility.Classes.Discretizer;
@@ -34,6 +36,9 @@ namespace ServiceLayer
         private ConductivityDistribution? _originalSigma;
         private ConductivityDistribution? _initialSigma;
         private int _framesPerCycle;
+        private MeasurementNoiseType _measurementNoiseType = MeasurementNoiseType.None;
+        private double _measurementNoiseAmplitude;
+        private readonly Random _noiseRandom = new();
 
         public event EventHandler<ReconstructionResult>? ReconstructionUpdated;
         public event EventHandler<ReconstructionFrame>? ReconstructionFrameUpdated;
@@ -94,7 +99,19 @@ namespace ServiceLayer
         {
             try
             {
-                return _reconstructionPersistence.SimulateLbmMeasurements(mesh, excitaionAmplitude);
+                var measurement = _reconstructionPersistence.SimulateLbmMeasurements(mesh, excitaionAmplitude);
+                var parameters = Workspace.GetReconstructionParameters();
+                var noisyFrames = CloneMeasurementsWithNoise(measurement.Frames,
+                    parameters.MeasurementNoiseType,
+                    parameters.MeasurementNoiseAmplitude);
+
+                var noisyMeasurement = new EITMeasurement(noisyFrames,
+                    measurement.CurrentAmplitude ?? excitaionAmplitude)
+                {
+                    FrameSize = measurement.FrameSize
+                };
+
+                return noisyMeasurement;
             }
             catch(Exception ex)
             {
@@ -131,6 +148,24 @@ namespace ServiceLayer
                 _reconstructionPersistence.InitializeReconstruction(discretization, parameters, reinit);
 
                 _framesPerCycle = (discretization.GetElectrodes().Count > 0) ? discretization.GetElectrodes().Count : 1;
+
+                _measurementNoiseType = parameters.MeasurementNoiseType;
+                _measurementNoiseAmplitude = parameters.MeasurementNoiseAmplitude;
+                if (_measurementNoiseType == MeasurementNoiseType.None || Math.Abs(_measurementNoiseAmplitude) <= double.Epsilon)
+                    Workspace.AddLogMessage("Reconstruction Service", "Measurement noise disabled.");
+                else
+                {
+                    double linearAmplitude = _measurementNoiseAmplitude < 0.0
+                        ? Math.Pow(10.0, _measurementNoiseAmplitude / 20.0)
+                        : Math.Abs(_measurementNoiseAmplitude);
+
+                    string amplitudeDescriptor = _measurementNoiseAmplitude < 0.0
+                        ? string.Format("{0:G4} dB -> {1:G4}", _measurementNoiseAmplitude, linearAmplitude)
+                        : linearAmplitude.ToString("G4");
+
+                    Workspace.AddLogMessage("Reconstruction Service",
+                        $"Measurement noise enabled: {_measurementNoiseType} (amplitude {amplitudeDescriptor}).");
+                }
             }
             catch(Exception ex)
             {
@@ -211,7 +246,11 @@ namespace ServiceLayer
         {
             try
             {
-                return _reconstructionPersistence.SimulateFemMeasurements(mesh, excitationAmplitude);
+                var frames = _reconstructionPersistence.SimulateFemMeasurements(mesh, excitationAmplitude);
+                var parameters = Workspace.GetReconstructionParameters();
+                return CloneMeasurementsWithNoise(frames,
+                    parameters.MeasurementNoiseType,
+                    parameters.MeasurementNoiseAmplitude);
             }
             catch(Exception ex)
             {
@@ -240,18 +279,63 @@ namespace ServiceLayer
 
             if (_discretization is FEMMesh && original is FEMMesh femOrig)
             {
-                _simulatedMeasurements =
-                    _reconstructionPersistence.SimulateFemMeasurements(femOrig, _excitationAmplitude);
+                var frames = _reconstructionPersistence.SimulateFemMeasurements(femOrig, _excitationAmplitude);
+                _simulatedMeasurements = CloneMeasurementsWithNoise(frames, _measurementNoiseType, _measurementNoiseAmplitude);
             }
             else if (_discretization is LBMGrid && original is LBMGrid lbmOrig)
             {
-                _simulatedMeasurements = _reconstructionPersistence
-                    .SimulateLbmMeasurements(lbmOrig, _excitationAmplitude).Frames;
+                var measurement = _reconstructionPersistence.SimulateLbmMeasurements(lbmOrig, _excitationAmplitude);
+                _simulatedMeasurements = CloneMeasurementsWithNoise(measurement.Frames, _measurementNoiseType, _measurementNoiseAmplitude);
             }
             else
             {
                 throw new InvalidOperationException("Mesh type mismatch between original and reconstruction meshes.");
             }
+        }
+
+        private List<double[]> CloneMeasurementsWithNoise(IEnumerable<double[]> measurements,
+            MeasurementNoiseType noiseType,
+            double noiseAmplitude)
+        {
+            var clones = measurements.Select(frame => (double[])frame.Clone()).ToList();
+            ApplyMeasurementNoise(clones, noiseType, noiseAmplitude);
+            return clones;
+        }
+
+        private void ApplyMeasurementNoise(List<double[]> measurements, MeasurementNoiseType noiseType, double noiseAmplitude)
+        {
+            if (measurements.Count == 0 || noiseType == MeasurementNoiseType.None)
+                return;
+
+            bool amplitudeInDecibels = noiseAmplitude < 0.0;
+            double amplitude = amplitudeInDecibels
+                ? Math.Pow(10.0, noiseAmplitude / 20.0)
+                : Math.Abs(noiseAmplitude);
+            if (amplitude <= double.Epsilon)
+                return;
+
+            foreach (var frame in measurements)
+            {
+                for (int i = 0; i < frame.Length; i++)
+                {
+                    double noise = noiseType switch
+                    {
+                        MeasurementNoiseType.Gaussian => NextGaussian(0.0, amplitude),
+                        MeasurementNoiseType.Uniform => (_noiseRandom.NextDouble() * 2.0 - 1.0) * amplitude,
+                        _ => 0.0
+                    };
+
+                    frame[i] += noise;
+                }
+            }
+        }
+
+        private double NextGaussian(double mean, double stdDev)
+        {
+            double u1 = 1.0 - _noiseRandom.NextDouble();
+            double u2 = 1.0 - _noiseRandom.NextDouble();
+            double randStdNormal = Math.Sqrt(-2.0 * Math.Log(u1)) * Math.Sin(2.0 * Math.PI * u2);
+            return mean + stdDev * randStdNormal;
         }
 
         private ReconstructionFrame? PerformInverseStep()
