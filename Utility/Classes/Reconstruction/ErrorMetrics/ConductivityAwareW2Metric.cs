@@ -421,6 +421,14 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
 
             return result;
         }
+        /// <summary>
+        /// Numerically stable softplus implementation that avoids overflow
+        /// and catastrophic cancellation for very large positive or negative
+        /// arguments.  The metric relies on this helper while smoothing the
+        /// electrode histogram prior to the optimal transport solve.
+        /// </summary>
+        /// <param name="x">Input value to be transformed.</param>
+        /// <returns><c>log(1 + exp(x))</c> computed in a stable manner.</returns>
         private static double Softplus(double x)
         {
             if (x > 50) // avoid overflow
@@ -430,6 +438,14 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             return Log1p(Math.Exp(x));
         }
 
+        /// <summary>
+        /// Evaluates <c>log(1 + x)</c> while maintaining precision for tiny
+        /// arguments where the naive formulation would lose significant
+        /// digits.  This is required because the softplus helper frequently
+        /// forwards very small exponentials when κ is large.
+        /// </summary>
+        /// <param name="x">Offset from unity.</param>
+        /// <returns>Accurate value of <c>log(1 + x)</c>.</returns>
         private static double Log1p(double x)
         {
             // For very small x, use series expansion to avoid loss of precision
@@ -438,6 +454,13 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             return Math.Log(1.0 + x);
         }
 
+        /// <summary>
+        /// Computes the logistic sigmoid in a branch-safe fashion.  The
+        /// expression is symmetric but we split the domains to avoid overflow
+        /// when evaluating <c>exp(±x)</c> for large magnitudes.
+        /// </summary>
+        /// <param name="x">Input value.</param>
+        /// <returns>Logistic sigmoid σ(x).</returns>
         private static double Sigmoid(double x)
         {
             if (x >= 0)
@@ -452,6 +475,12 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             }
         }
 
+        /// <summary>
+        /// Squares the conductivity-aware geodesic distances to obtain the
+        /// quadratic ground cost used by the Wasserstein-2 metric.
+        /// </summary>
+        /// <param name="distances">Pairwise soft geodesic distances.</param>
+        /// <returns>Cost matrix with entries <c>d(x, y)^2</c>.</returns>
         private static double[,] BuildCostMatrix(double[,] distances)
         {
             int m = distances.GetLength(0);
@@ -466,6 +495,13 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             return cost;
         }
 
+        /// <summary>
+        /// Builds the purely geometric quadratic cost between electrode
+        /// centroids.  This baseline is blended with the physics-aware ground
+        /// cost when <c>α &lt; 1</c>.
+        /// </summary>
+        /// <param name="electrodePositions">Electrode centroid coordinates.</param>
+        /// <returns>Squared Euclidean distance matrix.</returns>
         private static double[,] BuildGeometricCost(IReadOnlyList<(double x, double y)> electrodePositions)
         {
             int m = electrodePositions.Count;
@@ -485,12 +521,29 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
 
         private sealed record OptimalTransportResult(double[,] Plan, double[] SourcePotential, double[] TargetPotential);
 
+        /// <summary>
+        /// Solves the discrete optimal transport problem and packages both
+        /// the primal transport plan and the dual Kantorovich potentials so
+        /// that the caller can directly reuse them for gradient evaluation.
+        /// </summary>
+        /// <param name="cost">Quadratic ground cost matrix.</param>
+        /// <param name="mu">Source histogram.</param>
+        /// <param name="nu">Target histogram.</param>
+        /// <returns>Optimal plan together with source/target potentials.</returns>
         private static OptimalTransportResult SolveOptimalTransport(double[,] cost, double[] mu, double[] nu)
         {
             var plan = SolveOptimalTransportPrimal(cost, mu, nu, out var alpha, out var beta);
             return new OptimalTransportResult(plan, alpha, beta);
         }
-        
+
+        /// <summary>
+        /// Convenience wrapper that creates a non-negative LP variable for the
+        /// OR-Tools solver while documenting the intent of each transport
+        /// decision variable.
+        /// </summary>
+        /// <param name="solver">Active linear solver instance.</param>
+        /// <param name="name">Human-readable variable name.</param>
+        /// <returns>OR-Tools variable constrained to be ≥ 0.</returns>
         private static Variable MakeNonNegativeVariable(Solver solver, string name)
         {
             return solver.MakeNumVar(0.0, double.PositiveInfinity, name);
@@ -554,6 +607,13 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             return planMatrix;
         }
 
+        /// <summary>
+        /// Computes the Frobenius inner product between a ground cost and the
+        /// optimal transport plan, i.e. <c>Σᵢⱼ Cᵢⱼ Γᵢⱼ</c>.
+        /// </summary>
+        /// <param name="matrix">Ground cost matrix.</param>
+        /// <param name="plan">Transport plan.</param>
+        /// <returns>Weighted sum of costs.</returns>
         private static double WeightedSum(double[,] matrix, double[,] plan)
         {
             int m = matrix.GetLength(0);
@@ -565,6 +625,16 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             return sum;
         }
 
+        /// <summary>
+        /// Forms the convex combination of the conductivity-aware and purely
+        /// geometric Kantorovich potentials.  The factor of ½ follows directly
+        /// from the derivative of the quadratic objective with respect to the
+        /// source histogram.
+        /// </summary>
+        /// <param name="alpha">Blend weight favouring physics-aware costs.</param>
+        /// <param name="phys">Source potential from the conductive transport solve.</param>
+        /// <param name="geo">Optional source potential from the geometric solve.</param>
+        /// <returns>Blended source potential g_μ.</returns>
         private double[] BlendPotentials(double alpha, double[] phys, double[]? geo)
         {
             int n = phys.Length;
@@ -630,6 +700,15 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             return ComputeSoftDistancesAndOccupancies(mesh, nodes);
         }
 
+        /// <summary>
+        /// Associates each electrode with the nearest vertex in the graph that
+        /// is derived from the FEM mesh.  The mapping provides the bridge
+        /// between electrode boundary conditions and the graph-based geodesic
+        /// solver.
+        /// </summary>
+        /// <param name="mesh">Mesh that defines both the graph and electrodes.</param>
+        /// <param name="electrodePositions">Electrode centroid coordinates.</param>
+        /// <returns>Array mapping electrode indices to graph node indices.</returns>
         private static int[] MapElectrodesToGraphNodes(FEMMesh mesh, IReadOnlyList<(double x, double y)> electrodePositions)
         {
             var graph = mesh.ToGraph();
@@ -660,6 +739,15 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             return mapping;
         }
 
+        /// <summary>
+        /// Runs the conductivity-aware soft geodesic solver for every
+        /// electrode pair and stores the resulting distances and edge
+        /// occupancies.  The occupancies enable efficient reuse during
+        /// gradient back-propagation.
+        /// </summary>
+        /// <param name="mesh">Finite-element mesh providing the conductivity graph.</param>
+        /// <param name="electrodeNodes">Indices of graph nodes attached to electrodes.</param>
+        /// <returns>Distances and edge metadata for subsequent computations.</returns>
         private SoftGeodesicResult ComputeSoftDistancesAndOccupancies(FEMMesh mesh, int[] electrodeNodes)
         {
             // Build graph data from the discretization.
@@ -771,6 +859,17 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             return d;
         }
 
+        /// <summary>
+        /// Constructs the soft transition probabilities for the entropy
+        /// regularised shortest-path problem.  The resulting Markov chain
+        /// encodes the likelihood of traversing each edge when moving toward
+        /// the target node under the soft Bellman policy.
+        /// </summary>
+        /// <param name="nodeCount">Number of nodes in the graph.</param>
+        /// <param name="adjacency">Weighted adjacency lists.</param>
+        /// <param name="d">Soft distance vector.</param>
+        /// <param name="target">Destination node.</param>
+        /// <returns>Per-node transition probability lists.</returns>
         private static List<Transition>[] BuildTransitions(int nodeCount, IList<DirectedEdge>[] adjacency, double[] d, int target)
         {
             var transitions = new List<Transition>[nodeCount];
@@ -807,6 +906,15 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             return transitions;
         }
 
+        /// <summary>
+        /// Builds an LU factorisation of the reduced transition matrix (with
+        /// the absorbing target removed) so that multiple right-hand sides can
+        /// be solved efficiently when accumulating edge occupancies for each
+        /// source electrode.
+        /// </summary>
+        /// <param name="transitions">Transition probabilities towards the target.</param>
+        /// <param name="target">Index of the absorbing target node.</param>
+        /// <returns>LU decomposition and node-index mapping.</returns>
         private static (LU<double> lu, Dictionary<int, int> indexMap) FactoriseTransitions(List<Transition>[] transitions, int target)
         {
             int nodeCount = transitions.Length;
@@ -836,6 +944,19 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             return (lu, indexMap);
         }
 
+        /// <summary>
+        /// Accumulates expected edge visitation counts for a soft geodesic
+        /// random walk originating from <paramref name="sourceNode"/> and
+        /// terminating at <paramref name="targetNode"/>.
+        /// </summary>
+        /// <param name="nodeCount">Number of vertices in the graph.</param>
+        /// <param name="edges">Edge metadata including σ and geometry.</param>
+        /// <param name="transitions">Soft transition probabilities.</param>
+        /// <param name="lu">LU factorisation of the reduced transition matrix.</param>
+        /// <param name="indexMap">Mapping from node id to LU row index.</param>
+        /// <param name="sourceNode">Start node of the walk.</param>
+        /// <param name="targetNode">Absorbing target node.</param>
+        /// <returns>Expected number of traversals per edge.</returns>
         private static double[] ComputeEdgeOccupancies(int nodeCount,
                                                         IReadOnlyList<EdgeInfo> edges,
                                                         List<Transition>[] transitions,
@@ -873,6 +994,15 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             return rho;
         }
 
+        /// <summary>
+        /// Contracts the optimal transport plan with the edge occupancy
+        /// sensitivities to yield the conductivity derivative of the OT cost
+        /// term.
+        /// </summary>
+        /// <param name="mesh">Source FEM mesh.</param>
+        /// <param name="geodesics">Soft geodesic cache.</param>
+        /// <param name="gamma">Optimal transport plan Γ.</param>
+        /// <returns>Element-indexed gradient contribution.</returns>
         private Dictionary<int, double> ComputeCostGradient(FEMMesh mesh, SoftGeodesicResult geodesics, double[,] gamma)
         {
             var gradient = new Dictionary<int, double>();
@@ -910,6 +1040,14 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             return gradient;
         }
 
+        /// <summary>
+        /// Computes the classical FEM adjoint gradient component
+        /// <c>-∇ϕ·∇λ</c> for each conductivity element.
+        /// </summary>
+        /// <param name="mesh">Finite-element mesh used in the forward solve.</param>
+        /// <param name="phi">Forward potential distribution.</param>
+        /// <param name="lambda">Adjoint potential distribution.</param>
+        /// <returns>Dictionary of element gradients.</returns>
         private static Dictionary<int, double> ComputeAdjointConductivityGradient(FEMMesh mesh, PotentialDistribution phi, PotentialDistribution lambda)
         {
             var result = new Dictionary<int, double>();
@@ -923,6 +1061,13 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             return result;
         }
 
+        /// <summary>
+        /// Evaluates the gradient of a nodal potential over a single
+        /// triangular FEM element using the stored basis-function gradients.
+        /// </summary>
+        /// <param name="element">Element for which the gradient is required.</param>
+        /// <param name="potential">Potential values defined at element nodes.</param>
+        /// <returns>Gradient components (∂/∂x, ∂/∂y).</returns>
         private static (double dx, double dy) ComputeElementGradient(FEMElement element, PotentialDistribution potential)
         {
             double gx = 0.0, gy = 0.0;
@@ -936,6 +1081,14 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             return (gx, gy);
         }
 
+        /// <summary>
+        /// Aggregates the adjoint and cost contributions into a single
+        /// conductivity distribution that matches the mesh element ordering.
+        /// </summary>
+        /// <param name="mesh">Mesh describing the element indices.</param>
+        /// <param name="adjoint">Optional PDE adjoint component.</param>
+        /// <param name="cost">Transport-cost component.</param>
+        /// <returns>Combined conductivity gradient.</returns>
         private static ConductivityDistribution MergeGradientComponents(FEMMesh mesh,
                                                                          Dictionary<int, double>? adjoint,
                                                                          Dictionary<int, double> cost)
@@ -953,6 +1106,14 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             return new ConductivityDistribution(merged);
         }
 
+        /// <summary>
+        /// Spreads an electrode-indexed adjoint source vector onto mesh nodes
+        /// by proportionally distributing the values across the FEM vertices
+        /// covered by each electrode.
+        /// </summary>
+        /// <param name="mesh">Mesh containing the electrode definitions.</param>
+        /// <param name="electrodeSource">Adjoint source per electrode.</param>
+        /// <returns>Node-indexed adjoint source.</returns>
         internal static Dictionary<int, double> LiftElectrodeSourceToNodes(FEMMesh mesh, double[] electrodeSource)
 
         {

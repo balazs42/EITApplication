@@ -34,6 +34,9 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         private double SolutionTolerance = 1e-6;
         private int ConvergenceCheckFrequency = 100;
 
+        /// <summary>
+        /// Configures the LBM solver with iteration limits and convergence criteria.
+        /// </summary>
         public LatticeBoltzmannSolver(int maxIterationCount, double solutionTolerance, int convergenceCheckFrequency)
         {
             MaxIterationCount = maxIterationCount;
@@ -41,6 +44,9 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             ConvergenceCheckFrequency = convergenceCheckFrequency;
         }
 
+        /// <summary>
+        /// Solves the forward diffusion problem on the LBM grid using the configured parameters.
+        /// </summary>
         public PotentialDistribution SolveForward(IDiscretization discretization, BoundaryCondition boundaryCondition)
         {
             var lbmGrid = discretization as LBMGrid ?? throw new InvalidCastException();
@@ -49,6 +55,9 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             return RunForward(lbmGrid, bc);
         }
 
+        /// <summary>
+        /// Reuses the forward time stepping to solve the adjoint LBM problem driven by electrode sources.
+        /// </summary>
         public PotentialDistribution SolveAdjoint(IDiscretization discretization, BoundaryCondition boundaryCondition, Complex[] adjointSource)
         {
             var lbmGrid = discretization as LBMGrid ?? throw new InvalidCastException();

@@ -5,6 +5,9 @@ using Utility.Classes.Measurement;
 
 namespace Utility.Classes.ReconstructionParameters
 {
+    /// <summary>
+    /// Data transfer object that captures all user-configurable reconstruction options.
+    /// </summary>
     public partial class EITReconstructionParameters : ObservableObject
     {
         [ObservableProperty]
@@ -32,6 +35,9 @@ namespace Utility.Classes.ReconstructionParameters
 
         public DiscretizationType Mesh = DiscretizationType.FEM;
 
+        /// <summary>
+        /// Creates a parameter set using the default reconstruction configuration.
+        /// </summary>
         public EITReconstructionParameters()
         {
             DifferentialEquationSolver = DifferentialEquationSolver.FEM;
@@ -46,6 +52,10 @@ namespace Utility.Classes.ReconstructionParameters
             Mesh = DiscretizationType.FEM;
         }
 
+        /// <summary>
+        /// Creates a parameter set with the provided solver, regularisation,
+        /// and noise configuration.
+        /// </summary>
         public EITReconstructionParameters(DifferentialEquationSolver differentialEquationSolver,
                                            RegularizationTechnique regularizationTechnique,
                                            ErrorMetric errorMetric,

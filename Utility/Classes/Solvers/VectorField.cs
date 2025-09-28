@@ -11,6 +11,9 @@
         /// </summary>
         public IReadOnlyDictionary<int, (double X, double Y)> Data { get; }
 
+        /// <summary>
+        /// Creates a vector field backed by the provided data dictionary.
+        /// </summary>
         public VectorField(IReadOnlyDictionary<int, (double X, double Y)> data)
         {
             Data = data;
