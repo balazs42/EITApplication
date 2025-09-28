@@ -133,7 +133,7 @@
                 <Border.Stroke>
                     <SolidColorBrush Color="{AppThemeBinding Light=#4D6FA3, Dark=#C0CAD8}" />
                 </Border.Stroke>
-                <VerticalStackLayout Margin="5" Spacing="20">
+                <VerticalStackLayout Margin="5" Spacing="10">
                     <Grid ColumnDefinitions="Auto, *" ColumnSpacing="8">
                         <Image Grid.Column="0" Source="icon_configuration.png" HeightRequest="35"/>
                         <Label Grid.Column="1" Text="Configuration" FontAttributes="Italic" FontSize="Large" TextColor="{AppThemeBinding Light=White, Dark=#262E38}"/>
@@ -151,10 +151,10 @@
                                 <Picker Grid.Row="4" ItemsSource="{Binding ErrorMetricOptions}" SelectedItem="{Binding ReconstructionParameters.ErrorMetric}" WidthRequest="150"/>
                                 <Label Grid.Row="5" HorizontalOptions="Start" Text="Regularization" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Picker Grid.Row="6" ItemsSource="{Binding RegularizationTechniqueOptions}" SelectedItem="{Binding ReconstructionParameters.RegularizationTechnique}"/>
-                                <Label Grid.Row="7" HorizontalOptions="Start" Text="Linear Solver" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="8" ItemsSource="{Binding NumericSolverOptions}" SelectedItem="{Binding ReconstructionParameters.NumericSolver}"/>
-                                <Label Grid.Row="9" HorizontalOptions="Start" Text="Optimizer" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="10" ItemsSource="{Binding NumericOptimizerOptions}" SelectedItem="{Binding ReconstructionParameters.NumericOptimizer}"/>
+                                <Label Grid.Row="7" HorizontalOptions="Start" Text="Optimizer" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Picker Grid.Row="8" ItemsSource="{Binding NumericOptimizerOptions}" SelectedItem="{Binding ReconstructionParameters.NumericOptimizer}"/>
+                                <Label Grid.Row="9" HorizontalOptions="Start" Text="Linear Solver" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Picker Grid.Row="10" ItemsSource="{Binding NumericSolverOptions}" SelectedItem="{Binding ReconstructionParameters.NumericSolver}"/>
                             </Grid>
                         </Border>
                         <!-- Parameter Configuration -->
@@ -163,14 +163,14 @@
                                 BackgroundColor="{AppThemeBinding Light=#25324A, Dark=#353F4B}">
                             <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
                                 <Label Grid.Row="0" Text="Parameters" FontSize="Medium" FontAttributes="Bold" Margin="0,0,0,12"/>
-                                <Label Grid.Row="1" HorizontalOptions="Start" Text="Regularization Weight (θ)" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Entry Grid.Row="2" Text="{Binding RegularizationWeight}"/>
-                                <Label Grid.Row="3" HorizontalOptions="Start" Text="Gradient Step Size (β)" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Entry Grid.Row="4" Text="{Binding StepSize}"/>
-                                <Label Grid.Row="5" HorizontalOptions="Start" Text="Max Iteration Count" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Entry Grid.Row="6" Text="{Binding MaxIterationCount}"/>
-                                <Label Grid.Row="7" HorizontalOptions="Start" Text="Initial Distribution" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="8" ItemsSource="{Binding InitialDistributionOptions}" SelectedItem="{Binding ReconstructionParameters.InitialDistributionType}"/>
+                                <Label Grid.Row="1" HorizontalOptions="Start" Text="Initial Distribution" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Picker Grid.Row="2" ItemsSource="{Binding InitialDistributionOptions}" SelectedItem="{Binding ReconstructionParameters.InitialDistributionType}"/>
+                                <Label Grid.Row="3" HorizontalOptions="Start" Text="Max Iteration Count" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Entry Grid.Row="4" Text="{Binding MaxIterationCount}"/>
+                                <Label Grid.Row="5" HorizontalOptions="Start" Text="Regularization Weight (θ)" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Entry Grid.Row="6" Text="{Binding RegularizationWeight}"/>
+                                <Label Grid.Row="7" HorizontalOptions="Start" Text="Gradient Step Size (β)" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Entry Grid.Row="8" Text="{Binding StepSize}"/>
                                 <Label Grid.Row="9" HorizontalOptions="Start" Text="Measurement Noise" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Picker Grid.Row="10" ItemsSource="{Binding MeasurementNoiseTypeOptions}" SelectedItem="{Binding ReconstructionParameters.MeasurementNoiseType}"/>
                                 <Label Grid.Row="11" HorizontalOptions="Start" Text="Noise Amplitude / dB" FontFamily="SF Pro Text" FontAttributes="None"/>
@@ -211,7 +211,7 @@
                             <Button Grid.Row="7" Text="Edit Boundary Conditions" Background="#2F9E9C" TextColor="White" FontAttributes="Bold" Clicked="OnEditBoundaryConditionsClicked"/>
                         </Grid>
                     </Border>
-
+                    <!--
                     <Border Style="{StaticResource PanelSectionBorderStyle}"
                             BackgroundColor="{AppThemeBinding Light=#22304A, Dark=#36404C}">
                         <VerticalStackLayout Spacing="12">
@@ -222,7 +222,7 @@
                             </Grid>
                         </VerticalStackLayout>
                     </Border>
-
+                    -->
                 </VerticalStackLayout>
             </Border>
 
