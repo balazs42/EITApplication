@@ -1454,13 +1454,13 @@ public partial class ReconstructionPage : ContentPage
     private void OnAdjecentDrivePatternChecked(object sender, CheckedChangedEventArgs e)
     {
         if (e.Value)
-            _viewModel.OppositeDrivePattern = false;
+            _viewModel.SetDrivePattern(DrivePattern.Adjecent);
     }
 
     private void OnOppositeDrivePatternChecked(object sender, CheckedChangedEventArgs e)
     {
         if (e.Value)
-            _viewModel.AdjecentDrivePattern = false;
+            _viewModel.SetDrivePattern(DrivePattern.Opposite);
     }
 
     private void OnPotentialModeChanged(object? sender, int index)

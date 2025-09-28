@@ -38,6 +38,8 @@ namespace ServiceLayer
         private int _framesPerCycle;
         private MeasurementNoiseType _measurementNoiseType = MeasurementNoiseType.None;
         private double _measurementNoiseAmplitude;
+        private DrivePattern _drivePattern = DrivePattern.Adjecent;
+        private IDrivePatternStrategy _drivePatternStrategy = DrivePatternStrategyProvider.GetStrategy(DrivePattern.Adjecent);
         private readonly Random _noiseRandom = new();
 
         public event EventHandler<ReconstructionResult>? ReconstructionUpdated;
@@ -99,8 +101,8 @@ namespace ServiceLayer
         {
             try
             {
-                var measurement = _reconstructionPersistence.SimulateLbmMeasurements(mesh, excitaionAmplitude);
                 var parameters = Workspace.GetReconstructionParameters();
+                var measurement = _reconstructionPersistence.SimulateLbmMeasurements(mesh, excitaionAmplitude, parameters.DrivePattern);
                 var noisyFrames = CloneMeasurementsWithNoise(measurement.Frames,
                     parameters.MeasurementNoiseType,
                     parameters.MeasurementNoiseAmplitude);
@@ -147,7 +149,11 @@ namespace ServiceLayer
                 _reconstructionPersistence.SetConductivityDistributions(_originalSigma, _initialSigma);
                 _reconstructionPersistence.InitializeReconstruction(discretization, parameters, reinit);
 
-                _framesPerCycle = (discretization.GetElectrodes().Count > 0) ? discretization.GetElectrodes().Count : 1;
+                _drivePattern = parameters.DrivePattern;
+                _drivePatternStrategy = DrivePatternStrategyProvider.GetStrategy(_drivePattern);
+
+                var electrodeCount = discretization.GetElectrodes().Count;
+                _framesPerCycle = electrodeCount > 0 ? Math.Max(1, _drivePatternStrategy.GetCycleLength(electrodeCount)) : 1;
 
                 _measurementNoiseType = parameters.MeasurementNoiseType;
                 _measurementNoiseAmplitude = parameters.MeasurementNoiseAmplitude;
@@ -246,8 +252,8 @@ namespace ServiceLayer
         {
             try
             {
-                var frames = _reconstructionPersistence.SimulateFemMeasurements(mesh, excitationAmplitude);
                 var parameters = Workspace.GetReconstructionParameters();
+                var frames = _reconstructionPersistence.SimulateFemMeasurements(mesh, excitationAmplitude, parameters.DrivePattern);
                 return CloneMeasurementsWithNoise(frames,
                     parameters.MeasurementNoiseType,
                     parameters.MeasurementNoiseAmplitude);
@@ -269,6 +275,44 @@ namespace ServiceLayer
         ///     the workspace and deep-copied inside the persistence layer so
         ///     that it remains unchanged.
         /// </summary>
+        private (int ExcitationIndex, int GroundIndex) GetDrivePatternPair(int electrodeCount, int stepIndex)
+        {
+            if (electrodeCount <= 0)
+                throw new ArgumentOutOfRangeException(nameof(electrodeCount), "Electrode count must be positive.");
+
+            int cycleLength = Math.Max(1, _drivePatternStrategy.GetCycleLength(electrodeCount));
+            var (excitation, ground) = _drivePatternStrategy.GetElectrodePair(electrodeCount, stepIndex % cycleLength);
+            return (excitation, ground);
+        }
+
+        private void ApplyDrivePatternToElectrodes<TElectrode>(IList<TElectrode> electrodes, double excitationAmplitude, int stepIndex)
+            where TElectrode : Electrode
+        {
+            if (electrodes.Count == 0)
+                return;
+
+            foreach (var el in electrodes)
+            {
+                el.Current = 0.0;
+                el.IsExcitation = false;
+                el.IsGround = false;
+                el.IsMeasuring = true;
+                el.Potential = 0.0;
+            }
+
+            var (excitationIndex, groundIndex) = GetDrivePatternPair(electrodes.Count, stepIndex);
+
+            var excitation = electrodes[excitationIndex];
+            excitation.IsExcitation = true;
+            excitation.IsMeasuring = false;
+            excitation.Current = excitationAmplitude;
+
+            var ground = electrodes[groundIndex];
+            ground.IsGround = true;
+            ground.IsMeasuring = false;
+            ground.Current = -excitationAmplitude;
+        }
+
         private void EnsureSimulatedMeasurements()
         {
             if (_simulatedMeasurements.Count > 0)
@@ -279,12 +323,12 @@ namespace ServiceLayer
 
             if (_discretization is FEMMesh && original is FEMMesh femOrig)
             {
-                var frames = _reconstructionPersistence.SimulateFemMeasurements(femOrig, _excitationAmplitude);
+                var frames = _reconstructionPersistence.SimulateFemMeasurements(femOrig, _excitationAmplitude, _drivePattern);
                 _simulatedMeasurements = CloneMeasurementsWithNoise(frames, _measurementNoiseType, _measurementNoiseAmplitude);
             }
             else if (_discretization is LBMGrid && original is LBMGrid lbmOrig)
             {
-                var measurement = _reconstructionPersistence.SimulateLbmMeasurements(lbmOrig, _excitationAmplitude);
+                var measurement = _reconstructionPersistence.SimulateLbmMeasurements(lbmOrig, _excitationAmplitude, _drivePattern);
                 _simulatedMeasurements = CloneMeasurementsWithNoise(measurement.Frames, _measurementNoiseType, _measurementNoiseAmplitude);
             }
             else
@@ -349,25 +393,12 @@ namespace ServiceLayer
                 // each frame so that the boundary condition reflects the
                 // rotating drive pattern.
                 int electrodeCount = femMesh.GetElectrodes().Count;
-                int exc = _simMeasurementIndex % electrodeCount;
-                var measurement = _simulatedMeasurements[exc];
+                int cycleLength = Math.Max(1, _drivePatternStrategy.GetCycleLength(electrodeCount));
+                int stepIndex = _simMeasurementIndex % cycleLength;
+                var measurement = _simulatedMeasurements[stepIndex];
 
                 var electrodes = femMesh.GetElectrodes().Cast<FEMElectrode>().ToList();
-
-                // Reset electrode state before assigning the new excitation
-                // pattern.
-                foreach (var el in electrodes)
-                {
-                    el.Current = 0.0;
-                    el.IsExcitation = false;
-                    el.IsGround = false;
-                    el.Potential = 0.0;
-                }
-
-                electrodes[exc].IsExcitation = true;
-                electrodes[exc].Current = _excitationAmplitude;
-                electrodes[(exc + 1) % electrodeCount].IsGround = true;
-                electrodes[(exc + 1) % electrodeCount].Current = -_excitationAmplitude;
+                ApplyDrivePatternToElectrodes(electrodes, _excitationAmplitude, stepIndex);
 
                 var bc = new FEMBoundaryCondition(electrodes);
 
@@ -397,24 +428,13 @@ namespace ServiceLayer
                 EnsureSimulatedMeasurements();
 
                 var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
-
-                foreach (var el in electrodes)
-                {
-                    el.Current = 0.0;
-                    el.IsExcitation = false;
-                    el.IsGround = false;
-                    el.Potential = 0.0;
-                }
-
                 int electrodeCount = electrodes.Count;
-                int exc = _simMeasurementIndex % electrodeCount;
-                electrodes[exc].IsExcitation = true;
-                electrodes[exc].Current = _excitationAmplitude;
-                electrodes[(exc + 1) % electrodeCount].IsGround = true;
-                electrodes[(exc + 1) % electrodeCount].Current = -_excitationAmplitude;
+                int cycleLength = Math.Max(1, _drivePatternStrategy.GetCycleLength(electrodeCount));
+                int stepIndex = _simMeasurementIndex % cycleLength;
+                ApplyDrivePatternToElectrodes(electrodes, _excitationAmplitude, stepIndex);
 
                 var bc = new LBMBoundaryCondition(electrodes);
-                double[] measurement = _simulatedMeasurements[exc];
+                double[] measurement = _simulatedMeasurements[stepIndex];
                 var frame = _reconstructionPersistence.Step(measurement, bc, _stepSize, _regularizationWeight);
                 _simMeasurementIndex++;
                 Workspace.AddReconstructionFrameToWorkspace(frame);
@@ -504,18 +524,7 @@ namespace ServiceLayer
 
                     for (int i = 0; i < _simulatedMeasurements.Count; i++)
                     {
-                        foreach (var el in electrodes)
-                        {
-                            el.Current = 0.0;
-                            el.IsExcitation = false;
-                            el.IsGround = false;
-                            el.Potential = 0.0;
-                        }
-
-                        electrodes[i % electrodeCount].IsExcitation = true;
-                        electrodes[i % electrodeCount].Current = _excitationAmplitude;
-                        electrodes[(i + 1) % electrodeCount].IsGround = true;
-                        electrodes[(i + 1) % electrodeCount].Current = -_excitationAmplitude;
+                        ApplyDrivePatternToElectrodes(electrodes, _excitationAmplitude, i);
 
                         var bc = new FEMBoundaryCondition(electrodes);
                         var measurement = _simulatedMeasurements[i];
@@ -562,18 +571,20 @@ namespace ServiceLayer
                 {
                     EnsureSimulatedMeasurements();
 
-                    foreach (var measurement in _simulatedMeasurements)
+                    for (int i = 0; i < _simulatedMeasurements.Count; i++)
                     {
                         var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
+                        ApplyDrivePatternToElectrodes(electrodes, _excitationAmplitude, i);
                         var bc = new LBMBoundaryCondition(electrodes);
 
+                        var measurement = _simulatedMeasurements[i];
                         var frame = _reconstructionPersistence.Step(measurement, bc, _stepSize, _regularizationWeight);
 
                         Workspace.AddReconstructionFrameToWorkspace(frame);
                         _currentCycleFrames.Add(frame);
                         ReconstructionFrameUpdated?.Invoke(this, frame);
 
-                        lbmGrid.ShiftExcitationElectrodes(DrivePattern.Adjecent);
+                        lbmGrid.ShiftExcitationElectrodes(_drivePattern);
                     }
 
                     var frameCount = _currentCycleFrames.Count;

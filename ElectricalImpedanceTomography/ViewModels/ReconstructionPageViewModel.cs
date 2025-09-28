@@ -20,6 +20,7 @@ using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Factories;
+using Utility.Classes.Measurement;
 using Utility.Classes.ReconstructionParameters;
 
 using Workspace = Utility.Classes.Application.Workspace;
@@ -38,6 +39,8 @@ namespace ElectricalImpedanceTomography.ViewModels
         private IDiscretization? _initializedDiscretization;
         private ReconstructionRunSignature? _lastRunSignature;
         private bool _resetMetricsOnStart = true;
+        private bool _updatingDrivePatternSelection;
+        private EITReconstructionParameters? _trackedDrivePatternParameters;
 
         [ObservableProperty]
         private int iterationCount = 0;
@@ -171,6 +174,8 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             InitializeMetricGroups();
             PropertyChanged += OnViewModelPropertyChanged;
+            TrackDrivePatternParameters(ReconstructionParameters);
+            SyncDrivePatternSelection();
 
             //UpdateMetric(MetricKeys.ErrorMetric, ReconstructionParameters.ErrorMetric.ToString());
             //UpdateMetric(MetricKeys.RegularizationWeight, FormatDouble(RegularizationWeight, "G3"));
@@ -210,6 +215,51 @@ namespace ElectricalImpedanceTomography.ViewModels
                 _resetMetricsOnStart = true;
 
             _lastRunSignature = signature;
+        }
+
+        private void TrackDrivePatternParameters(EITReconstructionParameters parameters)
+        {
+            if (_trackedDrivePatternParameters != null)
+                _trackedDrivePatternParameters.PropertyChanged -= OnReconstructionParametersDrivePatternChanged;
+
+            _trackedDrivePatternParameters = parameters;
+            if (_trackedDrivePatternParameters != null)
+                _trackedDrivePatternParameters.PropertyChanged += OnReconstructionParametersDrivePatternChanged;
+        }
+
+        private void OnReconstructionParametersDrivePatternChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(EITReconstructionParameters.DrivePattern))
+                SyncDrivePatternSelection();
+        }
+
+        private void SyncDrivePatternSelection()
+        {
+            if (ReconstructionParameters == null)
+                return;
+
+            SetDrivePattern(ReconstructionParameters.DrivePattern);
+        }
+
+        public void SetDrivePattern(DrivePattern pattern)
+        {
+            if (ReconstructionParameters == null)
+                return;
+
+            if (_updatingDrivePatternSelection)
+                return;
+
+            try
+            {
+                _updatingDrivePatternSelection = true;
+                AdjecentDrivePattern = pattern == DrivePattern.Adjecent;
+                OppositeDrivePattern = pattern == DrivePattern.Opposite;
+                ReconstructionParameters.DrivePattern = pattern;
+            }
+            finally
+            {
+                _updatingDrivePatternSelection = false;
+            }
         }
 
         private void InitializeMetricGroups()
@@ -350,6 +400,11 @@ namespace ElectricalImpedanceTomography.ViewModels
             //    UpdateMetric(MetricKeys.RegularizationWeight, FormatDouble(RegularizationWeight, "G3"));
             //else if (e.PropertyName == nameof(ReconstructionParameters))
             //    UpdateMetric(MetricKeys.ErrorMetric, ReconstructionParameters.ErrorMetric.ToString());
+            if (e.PropertyName == nameof(ReconstructionParameters))
+            {
+                TrackDrivePatternParameters(ReconstructionParameters);
+                SyncDrivePatternSelection();
+            }
         }
 
         partial void OnElapsedTimeChanged(TimeSpan value)
@@ -1624,8 +1679,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 ExcitationCurrentAmplitude,
                 ExcitationElectrodeId,
                 GroundElectrodeId,
-                AdjecentDrivePattern,
-                OppositeDrivePattern);
+                parameters.DrivePattern);
 
             return new ReconstructionRunSignature(mesh, snapshot);
         }
@@ -1645,8 +1699,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             double ExcitationCurrentAmplitude,
             int ExcitationElectrodeId,
             int GroundElectrodeId,
-            bool AdjecentDrivePattern,
-            bool OppositeDrivePattern);
+            DrivePattern DrivePattern);
 
         private record ReconstructionRunSignature(IDiscretization Mesh, ReconstructionParametersSnapshot Parameters);
     }
