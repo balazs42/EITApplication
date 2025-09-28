@@ -38,6 +38,8 @@ namespace BusinessLayer
 
         private bool _initialized = false;
 
+        private DrivePattern _drivePattern = DrivePattern.Adjecent;
+
         // --- Background reconstruction bookkeeping ---
         // Holds the running reconstruction task.  The task performs full
         // cycles of the inverse solver until a stop is requested.
@@ -73,6 +75,7 @@ namespace BusinessLayer
                 _initialDistributionType = parameters.InitialDistributionType;
                 var initSigma = _initialSigma ?? ConductivityDistributionFactory.CreateInitialDistribution(discretization, _initialDistributionType);
                 _numericOptimizer = NumericOptimizerFactory.Create(parameters.NumericOptimizer, initSigma);
+                _drivePattern = parameters.DrivePattern;
 
                 _inverseModel = InverseModelFactory.Create(_discretization, _numericOptimizer, _regularizer, _errorMetric, _differentialEquationSolver);
 
@@ -351,11 +354,11 @@ namespace BusinessLayer
             {
                 FEMMesh measMesh = (FEMMesh)mesh.DeepCopy();
                 measMesh.SetConductivityDistribution(originalSigma);
-                measurementFrames = SimulateFemMeasurements(measMesh, 1.0);
+                measurementFrames = SimulateFemMeasurements(measMesh, 1.0, _drivePattern);
             }
             else
             {
-                measurementFrames = SimulateFemMeasurements(mesh, 1.0);
+                measurementFrames = SimulateFemMeasurements(mesh, 1.0, _drivePattern);
             }
 
             ConductivityDistribution initialSigma = _initialSigma ?? ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType);
@@ -465,11 +468,11 @@ namespace BusinessLayer
             {
                 LBMGrid measMesh = (LBMGrid)mesh.DeepCopy();
                 measMesh.SetConductivityDistribution(originalSigma);
-                measurementFrames = SimulateLbmMeasurements(measMesh, 1.0);
+                measurementFrames = SimulateLbmMeasurements(measMesh, 1.0, _drivePattern);
             }
             else
             {
-                measurementFrames = SimulateLbmMeasurements(mesh, 1.0);
+                measurementFrames = SimulateLbmMeasurements(mesh, 1.0, _drivePattern);
             }
 
             ConductivityDistribution initialSigma = _initialSigma ?? mesh.GetConductivityDistribution();
@@ -563,10 +566,10 @@ namespace BusinessLayer
             {
                 FEMMesh measMesh = (FEMMesh)mesh.DeepCopy();
                 measMesh.SetConductivityDistribution(originalConductivityDistribution);
-                simulatedMeasurements = SimulateFemMeasurements(measMesh, excitationAmplitude);
+                simulatedMeasurements = SimulateFemMeasurements(measMesh, excitationAmplitude, _drivePattern);
             }
             else
-                simulatedMeasurements = SimulateFemMeasurements(mesh, excitationAmplitude);
+                simulatedMeasurements = SimulateFemMeasurements(mesh, excitationAmplitude, _drivePattern);
             
             ConductivityDistribution initialConductivityDistribution = _initialSigma ?? ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType);
             mesh.SetConductivityDistribution(initialConductivityDistribution);
@@ -820,11 +823,11 @@ namespace BusinessLayer
             {
                 LBMGrid measMesh = (LBMGrid)lbmGrid.DeepCopy();
                 measMesh.SetConductivityDistribution(originalConductivityDistribution);
-                measurementFrames = SimulateLbmMeasurements(measMesh, 1.0);
+                measurementFrames = SimulateLbmMeasurements(measMesh, 1.0, _drivePattern);
             }
             else
             {
-                measurementFrames = SimulateLbmMeasurements(lbmGrid, 1.0);
+                measurementFrames = SimulateLbmMeasurements(lbmGrid, 1.0, _drivePattern);
             }
 
             // Container to hold partial results from reconstrucion
@@ -871,7 +874,7 @@ namespace BusinessLayer
                                             frames);
         }
 
-        public EITMeasurement SimulateLbmMeasurements(LBMGrid mesh, double exciationAmplitude)
+        public EITMeasurement SimulateLbmMeasurements(LBMGrid mesh, double exciationAmplitude, DrivePattern drivePattern)
         {
             if (_differentialEquationSolver == null)
                 throw new NullReferenceException("Differential equation solver was null, check initializiation code!");
@@ -881,9 +884,12 @@ namespace BusinessLayer
             var electrodes = Workspace.GetCurrentGlobalLbmElectrodes();
             int electrodeCount = electrodes.Count;
 
-            double[,] measurementFrames = new double[electrodeCount, electrodeCount];
+            var strategy = DrivePatternStrategyProvider.GetStrategy(drivePattern);
+            int cycleLength = Math.Max(1, strategy.GetCycleLength(electrodeCount));
 
-            for (int i = 0; i < electrodeCount; i++)
+            double[,] measurementFrames = new double[cycleLength, electrodeCount];
+
+            for (int i = 0; i < cycleLength; i++)
             {
                 foreach (var el in electrodes)
                 {
@@ -894,12 +900,14 @@ namespace BusinessLayer
                     el.Current = 0.0;
                 }
 
-                electrodes[i % electrodeCount].IsExcitation = true;
-                electrodes[i % electrodeCount].IsMeasuring = false;
-                electrodes[i % electrodeCount].Current = exciationAmplitude;
-                electrodes[(i + 1) % electrodeCount].IsGround = true;
-                electrodes[(i + 1) % electrodeCount].IsMeasuring = false;
-                electrodes[(i + 1) % electrodeCount].Current = -exciationAmplitude;
+                var (excitationIndex, groundIndex) = strategy.GetElectrodePair(electrodeCount, i);
+
+                electrodes[excitationIndex].IsExcitation = true;
+                electrodes[excitationIndex].IsMeasuring = false;
+                electrodes[excitationIndex].Current = exciationAmplitude;
+                electrodes[groundIndex].IsGround = true;
+                electrodes[groundIndex].IsMeasuring = false;
+                electrodes[groundIndex].Current = -exciationAmplitude;
 
                 LBMBoundaryCondition boundaryCondition = new LBMBoundaryCondition(electrodes);
                 Workspace.SetCurrentGlobalLbmBoundaryCondition(boundaryCondition);
@@ -947,7 +955,7 @@ namespace BusinessLayer
 
             _regularizationWeight = regularization;
 
-            List<double[]> simulatedMeasurements = SimulateFemMeasurements(mesh, excitationAmplitude);
+            List<double[]> simulatedMeasurements = SimulateFemMeasurements(mesh, excitationAmplitude, _drivePattern);
             
             // 2) Initialize conductivity (σ^{(0)}) based on user selection
             ConductivityDistribution sigma = ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType);
@@ -1128,7 +1136,7 @@ namespace BusinessLayer
             return mesh;
         }
 
-        public List<double[]> SimulateFemMeasurements(FEMMesh mesh, double excitationAmplitude)
+        public List<double[]> SimulateFemMeasurements(FEMMesh mesh, double excitationAmplitude, DrivePattern drivePattern)
         {
             List<double[]> measurements = [];
 
@@ -1136,7 +1144,10 @@ namespace BusinessLayer
             var electrodes = deepCopy.GetElectrodes().ToList();
             int electrodeCount = electrodes.Count();
 
-            for (int i = 0; i < electrodeCount; i++)
+            var strategy = DrivePatternStrategyProvider.GetStrategy(drivePattern);
+            int cycleLength = Math.Max(1, strategy.GetCycleLength(electrodeCount));
+
+            for (int i = 0; i < cycleLength; i++)
             {
                 // Clear electrode status
                 foreach(var el in electrodes)
@@ -1149,12 +1160,13 @@ namespace BusinessLayer
                 }
 
                 // Set new electrode setup
-                electrodes[i % electrodeCount].IsExcitation = true;
-                electrodes[i % electrodeCount].IsMeasuring = false;
-                electrodes[i % electrodeCount].Current = excitationAmplitude;
-                electrodes[(i + 1) % electrodeCount].IsGround = true;
-                electrodes[(i + 1) % electrodeCount].IsMeasuring = false;
-                electrodes[(i + 1) % electrodeCount].Current = -excitationAmplitude;
+                var (excitationIndex, groundIndex) = strategy.GetElectrodePair(electrodeCount, i);
+                electrodes[excitationIndex].IsExcitation = true;
+                electrodes[excitationIndex].IsMeasuring = false;
+                electrodes[excitationIndex].Current = excitationAmplitude;
+                electrodes[groundIndex].IsGround = true;
+                electrodes[groundIndex].IsMeasuring = false;
+                electrodes[groundIndex].Current = -excitationAmplitude;
 
                 FEMMesh result = SolveFemForward(deepCopy);
 

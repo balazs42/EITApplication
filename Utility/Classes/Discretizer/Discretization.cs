@@ -168,25 +168,51 @@ namespace Utility.Classes.Discretizer
 
             ResetElectrodes();
 
-            switch(drivePattern)
+            var strategy = DrivePatternStrategyProvider.GetStrategy(drivePattern);
+            int cycleLength = Math.Max(1, strategy.GetCycleLength(electrodeCount));
+
+            int currentStep = 0;
+            bool stepFound = false;
+            for (int step = 0; step < cycleLength; step++)
             {
-                case DrivePattern.Adjecent:
-                    int newExcitationElectrodeId = (excitationElectrodeId + 1) % electrodeCount;
-                    _electrodes[newExcitationElectrodeId].Current = excitationCurrent;
-                    _electrodes[newExcitationElectrodeId].IsExcitation = true;
-                    _electrodes[newExcitationElectrodeId].IsMeasuring = false;
-                    
-                    int newGroundElectrodeId = (groundElectrodeId + 1) % electrodeCount;
-                    _electrodes[newGroundElectrodeId].Current = groundCurrent;
-                    _electrodes[newGroundElectrodeId].IsGround = true;
-                    _electrodes[newGroundElectrodeId].IsMeasuring = false;
+                var pair = strategy.GetElectrodePair(electrodeCount, step);
+                if (pair.Excitation == excitationElectrodeId && pair.Ground == groundElectrodeId)
+                {
+                    currentStep = step;
+                    stepFound = true;
                     break;
-                case DrivePattern.Opposite:
-                    //TODO
-                    break;
-                default:
-                    break;
+                }
             }
+
+            if (!stepFound)
+            {
+                for (int step = 0; step < cycleLength; step++)
+                {
+                    var pair = strategy.GetElectrodePair(electrodeCount, step);
+                    if (pair.Excitation == excitationElectrodeId)
+                    {
+                        currentStep = step;
+                        stepFound = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!stepFound)
+                currentStep = excitationElectrodeId % cycleLength;
+
+            int nextStep = (currentStep + 1) % cycleLength;
+            var (nextExcitationElectrodeId, nextGroundElectrodeId) = strategy.GetElectrodePair(electrodeCount, nextStep);
+
+            var nextExcitation = _electrodes[nextExcitationElectrodeId];
+            nextExcitation.Current = excitationCurrent;
+            nextExcitation.IsExcitation = true;
+            nextExcitation.IsMeasuring = false;
+
+            var nextGround = _electrodes[nextGroundElectrodeId];
+            nextGround.Current = groundCurrent;
+            nextGround.IsGround = true;
+            nextGround.IsMeasuring = false;
         }
 
         protected abstract IEnumerable<int> StateKeys();                       

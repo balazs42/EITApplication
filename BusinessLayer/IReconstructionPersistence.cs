@@ -28,8 +28,8 @@ namespace BusinessLayer
         public ReconstructionResult InverseSolveLbm(int maxIterationCount, double gradientStepSize, double redularizationStepSize, double excitationAmplitude, double tolerance = 1e-6);
 
 
-        public List<double[]> SimulateFemMeasurements(FEMMesh mesh, double excitationAmplitude);
-        public EITMeasurement SimulateLbmMeasurements(LBMGrid mesh, double excitationAmplitude);
+        public List<double[]> SimulateFemMeasurements(FEMMesh mesh, double excitationAmplitude, DrivePattern drivePattern);
+        public EITMeasurement SimulateLbmMeasurements(LBMGrid mesh, double excitationAmplitude, DrivePattern drivePattern);
 
         // --- Graph-based Reconstruction ---
         /// <summary>

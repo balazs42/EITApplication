@@ -1,6 +1,7 @@
 ﻿using Utility.Classes.Discretizer;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Utility.Classes.Factories;
+using Utility.Classes.Measurement;
 
 namespace Utility.Classes.ReconstructionParameters
 {
@@ -26,6 +27,9 @@ namespace Utility.Classes.ReconstructionParameters
         [ObservableProperty]
         private double measurementNoiseAmplitude = 0.0;
 
+        [ObservableProperty]
+        private DrivePattern drivePattern = DrivePattern.Adjecent;
+
         public DiscretizationType Mesh = DiscretizationType.FEM;
 
         public EITReconstructionParameters()
@@ -38,6 +42,7 @@ namespace Utility.Classes.ReconstructionParameters
             InitialDistributionType = InitialDistributionTypes.Homogeneous;
             MeasurementNoiseType = MeasurementNoiseType.None;
             MeasurementNoiseAmplitude = 0.0;
+            DrivePattern = DrivePattern.Adjecent;
             Mesh = DiscretizationType.FEM;
         }
 
@@ -48,7 +53,8 @@ namespace Utility.Classes.ReconstructionParameters
                                            NumericOptimizer numericOptimizer,
                                            InitialDistributionTypes initialDistributionType = InitialDistributionTypes.SlightlyDiffering,
                                            MeasurementNoiseType measurementNoiseType = MeasurementNoiseType.None,
-                                           double measurementNoiseAmplitude = 0.0)
+                                           double measurementNoiseAmplitude = 0.0,
+                                           DrivePattern drivePattern = DrivePattern.Adjecent)
         {
             DifferentialEquationSolver = differentialEquationSolver;
             RegularizationTechnique = regularizationTechnique;
@@ -58,6 +64,7 @@ namespace Utility.Classes.ReconstructionParameters
             InitialDistributionType = initialDistributionType;
             MeasurementNoiseType = measurementNoiseType;
             MeasurementNoiseAmplitude = measurementNoiseAmplitude;
+            DrivePattern = drivePattern;
 
             Mesh = (differentialEquationSolver == DifferentialEquationSolver.FEM) ? DiscretizationType.FEM : DiscretizationType.LBM;
         }
