@@ -52,6 +52,14 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             SystemRHS = new Complex[N_phi + L];
         }
 
+        /// <summary>
+        /// Solves the forward CEM problem on the provided discretization by
+        /// assembling the block saddle-point system and applying the configured
+        /// numeric linear solver.
+        /// </summary>
+        /// <param name="discretization">Finite-element discretization.</param>
+        /// <param name="boundaryCondition">Boundary condition carrying electrode drives.</param>
+        /// <returns>Computed potential distribution.</returns>
         public PotentialDistribution SolveForward(IDiscretization discretization, BoundaryCondition boundaryCondition)
         {
             var femMesh = discretization as FEMMesh ?? throw new InvalidCastException();
@@ -61,6 +69,15 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             return Solve(femMesh, bcElectrodes);
         }
 
+        /// <summary>
+        /// Reuses the forward assembly to solve the adjoint CEM problem driven
+        /// by an electrode source vector.  This feeds reconstruction
+        /// algorithms that require ∇·(σ∇λ) solves.
+        /// </summary>
+        /// <param name="discretization">Finite-element discretization.</param>
+        /// <param name="boundaryCondition">Boundary condition providing electrode metadata.</param>
+        /// <param name="adjointSource">Adjoint current density per electrode.</param>
+        /// <returns>Adjoint potential distribution.</returns>
         public PotentialDistribution SolveAdjoint(IDiscretization discretization, BoundaryCondition boundaryCondition, Complex[] adjointSource)
         {
             var femMesh = discretization as FEMMesh ?? throw new InvalidCastException();
@@ -131,7 +148,10 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
 
         #region Assembly
 
-        /// <summary>Eq (1.2.3)</summary>
+        /// <summary>
+        /// Assembles the FEM stiffness matrix K = ∫ σ ∇φ_i · ∇φ_j using the
+        /// conductivity stored on each element.
+        /// </summary>
         private void BuildStiffnessMatrix(FEMMesh mesh)
         {
             Array.Clear(K, 0, K.Length);
@@ -156,7 +176,10 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             //Debug.WriteLine("K:\n" + FormatComplexMatrix(K));
         }
 
-        /// <summary>Eq (1.1.12)</summary>
+        /// <summary>
+        /// Integrates the boundary impedance contributions from the complete
+        /// electrode model to form the Robin mass matrix M.
+        /// </summary>
         private void BuildRobinMassMatrix(FEMMesh mesh)
         {
             Array.Clear(M, 0, M.Length);
@@ -173,7 +196,10 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             //Debug.WriteLine("M:\n" + FormatComplexMatrix(M));
         }
 
-        /// <summary>Eq (1.1.12)</summary>
+        /// <summary>
+        /// Builds the coupling matrix that links node potentials with
+        /// electrode potentials through the contact impedance terms.
+        /// </summary>
         private void BuildCouplingMatrix(FEMMesh mesh)
         {
             Array.Clear(A_coup, 0, A_coup.Length);
@@ -190,7 +216,10 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             //Debug.WriteLine("A_coup:\n" + FormatComplexMatrix(A_coup));
         }
 
-        /// <summary>Eq (1.1.15)</summary>
+        /// <summary>
+        /// Populates the diagonal electrode matrix D that stores the
+        /// aggregate contact admittance for each electrode pad.
+        /// </summary>
         private void BuildElectrodeMatrix(FEMMesh mesh)
         {
             Array.Clear(D, 0, D.Length);
@@ -202,7 +231,10 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             //Debug.WriteLine("D:\n" + FormatComplexMatrix(D));
         }
 
-        /// <summary>Eq (1.1.16)</summary>
+        /// <summary>
+        /// Assembles the saddle-point block system combining K, M, A_coup, and
+        /// D in the canonical CEM ordering.
+        /// </summary>
         private void BuildSystemMatrix()
         {
             int N = N_phi, Lloc = L;
@@ -222,7 +254,10 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
            // Debug.WriteLine("SystemMatrix:\n" + FormatComplexMatrix(SystemMatrix));
         }
 
-        /// <summary>rhs = [0; I] </summary>
+        /// <summary>
+        /// Builds the right-hand side vector with nodal entries set to zero
+        /// and electrode entries equal to the prescribed currents.
+        /// </summary>
         private void BuildRhsVector(List<FEMElectrode> electrodes)
         {
             Array.Clear(SystemRHS, 0, SystemRHS.Length);
@@ -236,7 +271,10 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
 
         #region Grounding
 
-        /// <summary>Sec 1.1.3</summary>
+        /// <summary>
+        /// Removes the ground electrode degree of freedom to obtain a full-rank
+        /// linear system as described in Sec. 1.1.3.
+        /// </summary>
         private (Complex[,], Complex[]) ApplyGrounding(Complex[,] A, Complex[] b, int groundId)
         {
             int full = N_phi + L;
@@ -259,7 +297,10 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             return (Ar, br);
         }
 
-        /// <summary>reinsert U_ground=0</summary>
+        /// <summary>
+        /// Reconstructs the full solution vector by reinserting the grounded
+        /// electrode with zero potential.
+        /// </summary>
         private Complex[] ReconstructFullSolution(double[] solRed, int groundId)
         {
             int full = N_phi + L;
@@ -296,12 +337,18 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             return R;
         }
 
+        /// <summary>
+        /// Formats a complex matrix for debugging output using a compact string representation.
+        /// </summary>
         private static string FormatComplexMatrix(Complex[,] M)
         {
             var s = ""; int r = M.GetLength(0), c = M.GetLength(1);
             for (int i = 0; i < r; i++) { for (int j = 0; j < c; j++) s += M[i, j].ToString("0.###") + " "; s += "\n"; }
             return s;
         }
+        /// <summary>
+        /// Formats a complex vector for debugging output.
+        /// </summary>
         private static string FormatComplexVector(Complex[] v)
         { var s = ""; for (int i = 0; i < v.Length; i++) s += v[i].ToString("0.###") + "\n"; return s; }
         #endregion

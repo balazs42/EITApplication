@@ -22,6 +22,18 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
 
         public double[] LatestElectrodePotentials { get; set; } = Array.Empty<double>();
 
+        /// <summary>
+        /// Initialises the graph-based solver by projecting the supplied FEM
+        /// mesh to a weighted graph and seeding the optimisation parameters for
+        /// the edge conductances.
+        /// </summary>
+        /// <param name="mesh">Source FEM mesh.</param>
+        /// <param name="solver">Linear solver used for the graph CEM system.</param>
+        /// <param name="lambdaW">Regularisation weight for baseline conductances.</param>
+        /// <param name="lambdaAlpha">Regularisation weight for scaling factors.</param>
+        /// <param name="stepW">Gradient step for conductance updates.</param>
+        /// <param name="stepAlpha">Gradient step for scaling updates.</param>
+        /// <param name="epsilon">Numerical floor for edge weights.</param>
         public GraphBasedSolver(FEMMesh mesh, INumericSolver solver, double lambdaW, double lambdaAlpha,
             double stepW, double stepAlpha, double epsilon)
         {
@@ -40,9 +52,19 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
             _ops = new GraphBasedOperators(_graph, _numericSolver);
         }
 
+        /// <summary>
+        /// Exposes the operator bundle that assembles graph-based CEM systems.
+        /// </summary>
         public GraphBasedOperators GetOperators() => _ops;
+
+        /// <summary>
+        /// Provides access to the working graph representation.
+        /// </summary>
         public Graph GetGraph() => _graph;
 
+        /// <summary>
+        /// Returns the current physical edge weights w = α ∘ w̄.
+        /// </summary>
         public double[] CurrentEdgeWeights()
         {
             var w = new double[_graph.EdgeCount];

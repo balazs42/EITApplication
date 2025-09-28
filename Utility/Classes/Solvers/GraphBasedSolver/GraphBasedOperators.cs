@@ -16,6 +16,12 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
         private readonly Graph _graph;
         private readonly Dictionary<int, int> _vidx;   // graph GlobalId -> 0..N-1
 
+        /// <summary>
+        /// Creates a new operator suite bound to the provided graph and
+        /// numeric solver.
+        /// </summary>
+        /// <param name="graph">Graph representation of the domain.</param>
+        /// <param name="solver">Linear solver used for CEM systems.</param>
         public GraphBasedOperators(Graph graph, INumericSolver solver)
         {
             _graph = graph ?? throw new ArgumentNullException(nameof(graph));
@@ -29,6 +35,10 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
         public int NodeCount => _graph.NodeCount;
         public int EdgeCount => _graph.EdgeCount;
 
+        /// <summary>
+        /// Assembles the weighted graph Laplacian using the supplied edge
+        /// conductances.
+        /// </summary>
         private double[,] BuildLaplacian(double[] w)
         {
             int N = _graph.NodeCount;
@@ -46,13 +56,20 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
             return K;
         }
 
+        /// <summary>
+        /// Selects a grounded electrode, falling back to the first electrode
+        /// when none is explicitly marked.
+        /// </summary>
         private static int PickGround(IReadOnlyList<FEMElectrode> el)
         {
             int g = el.ToList().FindIndex(e => e.IsGround);
             return (g >= 0) ? g : 0;
         }
 
-        // FEM electrodes -> graph boundary nodes (nearest by (x,y))
+        /// <summary>
+        /// Maps each FEM electrode to the nearest boundary nodes in the graph
+        /// domain so that electrode potentials can be imposed.
+        /// </summary>
         private Dictionary<int, List<int>> MapElectrodesToGraphNodes(FEMMesh mesh)
         {
             var map = new Dictionary<int, List<int>>();
@@ -98,6 +115,10 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
             return map;
         }
 
+        /// <summary>
+        /// Builds the graph-based CEM matrices for a given set of edge weights
+        /// and returns the electrode-to-node mapping used during assembly.
+        /// </summary>
         private void AssembleCEM(double[] w, FEMMesh mesh,
                                  out double[,] Kt, out double[,] A, out double[,] D,
                                  out int ground, out Dictionary<int, List<int>> emap)
@@ -126,6 +147,10 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
             ground = PickGround(electrodes);
         }
 
+        /// <summary>
+        /// Solves the graph-based CEM system for a given edge-weight vector,
+        /// returning both nodal potentials and electrode voltages.
+        /// </summary>
         public (double[] phi, double[] U, Dictionary<int, List<int>> map) SolveCEM(double[] w, FEMMesh mesh)
         {
             AssembleCEM(w, mesh, out var Kt, out var A, out var D, out int g, out var map);
@@ -170,6 +195,10 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
             return (phi, U, map);
         }
 
+        /// <summary>
+        /// Computes the grounded electrode response matrix Λ that maps drive
+        /// currents to electrode voltages on the graph model.
+        /// </summary>
         public double[,] ElectrodeResponse(double[] w, FEMMesh mesh)
         {
             var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();

@@ -622,6 +622,11 @@ namespace Utility.Classes.Factories
 
         #endregion
 
+        /// <summary>
+        /// Perturbs the conductivity values of every element in the
+        /// discretization using zero-mean Gaussian noise with a 5% relative
+        /// standard deviation.
+        /// </summary>
         public static void AddGaussianNoise(IDiscretization discretization)
         {
             if (discretization == null) throw new ArgumentNullException(nameof(discretization));
@@ -650,6 +655,10 @@ namespace Utility.Classes.Factories
             Workspace.AddLogMessage("MeshFactory", "Added gaussian noise to mesh conductivities.");
         }
 
+        /// <summary>
+        /// Validates that a polygonal perimeter contains at least three
+        /// distinct consecutive points.
+        /// </summary>
         private static void ValidatePerimeter(IList<(double x, double y)> perimeter)
         {
             if (perimeter is null || perimeter.Count < 3)
@@ -663,6 +672,10 @@ namespace Utility.Classes.Factories
             }
         }
 
+        /// <summary>
+        /// Implements the ray casting test to determine whether a point lies
+        /// inside a polygon.
+        /// </summary>
         private static bool IsPointInPolygon(double x, double y, IList<(double x, double y)> polygon)
         {
             bool inside = false;
