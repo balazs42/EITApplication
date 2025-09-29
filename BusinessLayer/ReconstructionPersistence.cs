@@ -32,6 +32,7 @@ namespace BusinessLayer
         private double _gradientStepSize = 0.001;
         private double _regularizationWeight = 0.001;
         private InitialDistributionTypes _initialDistributionType = InitialDistributionTypes.SlightlyDiffering;
+        private bool _useOmpParallelization = false;
 
         private ConductivityDistribution? _originalSigma = null;
         private ConductivityDistribution? _initialSigma = null;
@@ -69,7 +70,15 @@ namespace BusinessLayer
                 _discretization = discretization;
 
                 _numericSolver = NumericSolverFactory.Create(parameters.NumericSolver);
-                _differentialEquationSolver = DifferentialEquationSolverFactory.Create(discretization, parameters.DifferentialEquationSolver, _numericSolver);
+                _useOmpParallelization = parameters.UseOmpParallelization;
+                Workspace.AddLogMessage("Reconstruction", _useOmpParallelization
+                    ? "Using OMP-accelerated finite element assembly."
+                    : "Using standard finite element assembly.");
+
+                _differentialEquationSolver = DifferentialEquationSolverFactory.Create(discretization,
+                                                                                      parameters.DifferentialEquationSolver,
+                                                                                      _numericSolver,
+                                                                                      _useOmpParallelization);
                 _regularizer = RegularisationFactory.Create(parameters.RegularizationTechnique, _discretization);
                 _errorMetric = ErrorMetricFactory.Create(parameters.ErrorMetric);
                 _initialDistributionType = parameters.InitialDistributionType;
