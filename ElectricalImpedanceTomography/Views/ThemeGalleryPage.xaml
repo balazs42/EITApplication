@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="ElectricalImpedanceTomography.Views.ThemeGalleryPage"
+             Title="Theme">
+    <ScrollView>
+        <VerticalStackLayout Spacing="24">
+            <Label Text="Theme Showcase" FontSize="28" FontAttributes="Bold" />
+            <Label Style="{StaticResource LabelMuted}"
+                   Text="Demonstration of the minimalist light and dark dashboard theme." />
+
+            <Frame Style="{StaticResource Card}">
+                <VerticalStackLayout Spacing="16">
+                    <Label Text="Actions" FontSize="20" FontAttributes="Bold" />
+                    <StackLayout Orientation="Horizontal" Spacing="12">
+                        <Button Text="Primary Action" />
+                        <Button Text="Secondary" Style="{StaticResource GhostButton}" />
+                    </StackLayout>
+                    <StackLayout Orientation="Horizontal" Spacing="12">
+                        <Frame Style="{StaticResource SuccessBadge}">
+                            <Label Text="Success" TextColor="{DynamicResource ColorSurface}" />
+                        </Frame>
+                        <Frame Style="{StaticResource WarningBadge}">
+                            <Label Text="Warning" TextColor="{DynamicResource ColorSurface}" />
+                        </Frame>
+                        <Frame Style="{StaticResource DangerBadge}">
+                            <Label Text="Critical" TextColor="{DynamicResource ColorSurface}" />
+                        </Frame>
+                    </StackLayout>
+                </VerticalStackLayout>
+            </Frame>
+
+            <Frame Style="{StaticResource Card}">
+                <VerticalStackLayout Spacing="16">
+                    <Label Text="Inputs" FontSize="20" FontAttributes="Bold" />
+                    <Entry Placeholder="Search or enter value" />
+                    <Picker Title="Select option">
+                        <Picker.ItemsSource>
+                            <x:Array Type="x:String">
+                                <x:String>Option A</x:String>
+                                <x:String>Option B</x:String>
+                                <x:String>Option C</x:String>
+                            </x:Array>
+                        </Picker.ItemsSource>
+                    </Picker>
+                    <Editor Placeholder="Provide additional context" AutoSize="TextChanges" />
+                </VerticalStackLayout>
+            </Frame>
+
+            <Frame Style="{StaticResource Card}">
+                <VerticalStackLayout Spacing="16">
+                    <Label Text="KPI Cards" FontSize="20" FontAttributes="Bold" />
+                    <Grid ColumnDefinitions="*,*,*" ColumnSpacing="16">
+                        <Frame Grid.Column="0" Style="{StaticResource Card}">
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="Active Users" />
+                                <Label Text="1,248" FontSize="24" FontAttributes="Bold" />
+                                <Label Style="{StaticResource LabelMuted}" Text="+12% vs last week" />
+                            </VerticalStackLayout>
+                        </Frame>
+                        <Frame Grid.Column="1" Style="{StaticResource Card}">
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="Conversion" />
+                                <Label Text="3.4%" FontSize="24" FontAttributes="Bold" />
+                                <Label Style="{StaticResource LabelMuted}" Text="Stable" />
+                            </VerticalStackLayout>
+                        </Frame>
+                        <Frame Grid.Column="2" Style="{StaticResource Card}">
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="Alerts" />
+                                <Label Text="5" FontSize="24" FontAttributes="Bold" />
+                                <Label Style="{StaticResource LabelMuted}" Text="3 critical" />
+                            </VerticalStackLayout>
+                        </Frame>
+                    </Grid>
+                </VerticalStackLayout>
+            </Frame>
+
+            <Frame Style="{StaticResource ConsoleFrame}">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="System Console" FontSize="20" FontAttributes="Bold" />
+                    <StackLayout>
+                        <Label Style="{StaticResource LogInfo}" Text="[09:31:08] Connected to acquisition hardware." />
+                        <Label Style="{StaticResource LogInfo}" Text="[09:31:12] Meshing pipeline ready." />
+                        <Label Style="{StaticResource LogError}" Text="[09:31:18] Reconstruction timeout exceeded." />
+                    </StackLayout>
+                </VerticalStackLayout>
+            </Frame>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>
