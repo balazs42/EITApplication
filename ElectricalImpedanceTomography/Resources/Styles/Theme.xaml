@@ -1,0 +1,366 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+
+  <!-- 1) COLOR TOKENS (Light/Dark in one place) -->
+  <AppThemeColor x:Key="ColorBg"
+                 Light="#F9FAFB"
+                 Dark="#0F172A" />
+  <AppThemeColor x:Key="ColorSurface"
+                 Light="#FFFFFF"
+                 Dark="#111827" />
+  <AppThemeColor x:Key="ColorCard"
+                 Light="#FFFFFF"
+                 Dark="#1F2937" />
+  <AppThemeColor x:Key="ColorCardAlt"
+                 Light="#F3F4F6"
+                 Dark="#0B1220" />
+  <AppThemeColor x:Key="ColorText"
+                 Light="#111827"
+                 Dark="#F1F5F9" />
+  <AppThemeColor x:Key="ColorTextMuted"
+                 Light="#6B7280"
+                 Dark="#94A3B8" />
+  <AppThemeColor x:Key="ColorPrimary"
+                 Light="#2563EB"
+                 Dark="#38BDF8" />
+  <AppThemeColor x:Key="ColorPrimaryStrong"
+                 Light="#1D4ED8"
+                 Dark="#0EA5E9" />
+  <AppThemeColor x:Key="ColorAccent"
+                 Light="#10B981"
+                 Dark="#A78BFA" />
+  <AppThemeColor x:Key="ColorSuccess"
+                 Light="#16A34A"
+                 Dark="#22C55E" />
+  <AppThemeColor x:Key="ColorWarning"
+                 Light="#D97706"
+                 Dark="#F59E0B" />
+  <AppThemeColor x:Key="ColorDanger"
+                 Light="#DC2626"
+                 Dark="#EF4444" />
+  <AppThemeColor x:Key="ColorBorder"
+                 Light="#E5E7EB"
+                 Dark="#233044" />
+  <AppThemeColor x:Key="ColorDivider"
+                 Light="#E5E7EB"
+                 Dark="#1C2636" />
+  <AppThemeColor x:Key="ColorInput"
+                 Light="#FFFFFF"
+                 Dark="#0B1220" />
+  <AppThemeColor x:Key="ColorInputBorder"
+                 Light="#CBD5E1"
+                 Dark="#263246" />
+  <AppThemeColor x:Key="ColorSelection"
+                 Light="#2563EB22"
+                 Dark="#0EA5E933" />
+
+  <!-- Supporting brushes -->
+  <SolidColorBrush x:Key="BrushBg" Color="{DynamicResource ColorBg}" />
+  <SolidColorBrush x:Key="BrushSurface" Color="{DynamicResource ColorSurface}" />
+  <SolidColorBrush x:Key="BrushCard" Color="{DynamicResource ColorCard}" />
+  <SolidColorBrush x:Key="BrushCardAlt" Color="{DynamicResource ColorCardAlt}" />
+  <SolidColorBrush x:Key="BrushText" Color="{DynamicResource ColorText}" />
+  <SolidColorBrush x:Key="BrushTextMuted" Color="{DynamicResource ColorTextMuted}" />
+  <SolidColorBrush x:Key="BrushPrimary" Color="{DynamicResource ColorPrimary}" />
+  <SolidColorBrush x:Key="BrushPrimaryStrong" Color="{DynamicResource ColorPrimaryStrong}" />
+  <SolidColorBrush x:Key="BrushAccent" Color="{DynamicResource ColorAccent}" />
+  <SolidColorBrush x:Key="BrushSuccess" Color="{DynamicResource ColorSuccess}" />
+  <SolidColorBrush x:Key="BrushWarning" Color="{DynamicResource ColorWarning}" />
+  <SolidColorBrush x:Key="BrushDanger" Color="{DynamicResource ColorDanger}" />
+  <SolidColorBrush x:Key="BrushBorder" Color="{DynamicResource ColorBorder}" />
+  <SolidColorBrush x:Key="BrushDivider" Color="{DynamicResource ColorDivider}" />
+  <SolidColorBrush x:Key="BrushSelection" Color="{DynamicResource ColorSelection}" />
+
+  <!-- Gradients reused in legacy panels -->
+  <LinearGradientBrush x:Key="ConfigurationPanelBrush" StartPoint="0,0" EndPoint="0,1">
+    <GradientStop Color="{DynamicResource ColorCard}" Offset="0" />
+    <GradientStop Color="{DynamicResource ColorCardAlt}" Offset="1" />
+  </LinearGradientBrush>
+  <LinearGradientBrush x:Key="ControlPanelBrush" StartPoint="0,0" EndPoint="0,1">
+    <GradientStop Color="{DynamicResource ColorCard}" Offset="0" />
+    <GradientStop Color="{DynamicResource ColorCardAlt}" Offset="1" />
+  </LinearGradientBrush>
+  <LinearGradientBrush x:Key="PartialResultsBrush" StartPoint="0,0" EndPoint="0,1">
+    <GradientStop Color="{DynamicResource ColorCard}" Offset="0" />
+    <GradientStop Color="{DynamicResource ColorCardAlt}" Offset="1" />
+  </LinearGradientBrush>
+  <LinearGradientBrush x:Key="FullResultsBrush" StartPoint="0,0" EndPoint="0,1">
+    <GradientStop Color="{DynamicResource ColorCard}" Offset="0" />
+    <GradientStop Color="{DynamicResource ColorCardAlt}" Offset="1" />
+  </LinearGradientBrush>
+  <LinearGradientBrush x:Key="HistoryPanelBrush" StartPoint="0,0" EndPoint="0,1">
+    <GradientStop Color="{DynamicResource ColorCard}" Offset="0" />
+    <GradientStop Color="{DynamicResource ColorCardAlt}" Offset="1" />
+  </LinearGradientBrush>
+  <LinearGradientBrush x:Key="StatisticsPanelBrush" StartPoint="0,0" EndPoint="0,1">
+    <GradientStop Color="{DynamicResource ColorCard}" Offset="0" />
+    <GradientStop Color="{DynamicResource ColorCardAlt}" Offset="1" />
+  </LinearGradientBrush>
+
+  <!-- 2) TYPOGRAPHY -->
+  <Style TargetType="Label">
+    <Setter Property="TextColor" Value="{DynamicResource ColorText}" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="LineBreakMode" Value="WordWrap" />
+  </Style>
+
+  <Style x:Key="LabelMuted" TargetType="Label">
+    <Setter Property="TextColor" Value="{DynamicResource ColorTextMuted}" />
+  </Style>
+
+  <!-- 3) PAGES & SHELL -->
+  <Style TargetType="Page">
+    <Setter Property="BackgroundColor" Value="{DynamicResource ColorBg}" />
+    <Setter Property="Padding" Value="24" />
+  </Style>
+
+  
+  <Style TargetType="ContentPage">
+    <Setter Property="BackgroundColor" Value="{DynamicResource ColorBg}" />
+    <Setter Property="Padding" Value="24" />
+  </Style>
+
+  <Style TargetType="NavigationPage">
+    <Setter Property="BarBackgroundColor" Value="{DynamicResource ColorSurface}" />
+    <Setter Property="BarTextColor" Value="{DynamicResource ColorText}" />
+  </Style>
+
+  <Style TargetType="TabBar">
+    <Setter Property="BackgroundColor" Value="{DynamicResource ColorSurface}" />
+    <Setter Property="TitleColor" Value="{DynamicResource ColorText}" />
+    <Setter Property="UnselectedTabColor" Value="{DynamicResource ColorTextMuted}" />
+    <Setter Property="SelectedTabColor" Value="{DynamicResource ColorPrimary}" />
+  </Style>
+
+  <!-- 3) CARDS -->
+  <Style x:Key="Card" TargetType="Frame">
+    <Setter Property="BackgroundColor" Value="{DynamicResource ColorCard}" />
+    <Setter Property="BorderColor" Value="{DynamicResource ColorBorder}" />
+    <Setter Property="CornerRadius" Value="16" />
+    <Setter Property="HasShadow" Value="True" />
+    <Setter Property="Shadow">
+      <Setter.Value>
+        <Shadow Radius="18" Opacity="0.35" Offset="0,6">
+          <Shadow.Brush>
+            <SolidColorBrush Color="{DynamicResource ColorBorder}" />
+          </Shadow.Brush>
+        </Shadow>
+      </Setter.Value>
+    </Setter>
+    <Setter Property="Padding" Value="20" />
+    <Setter Property="Margin" Value="0,12" />
+  </Style>
+
+  <Style x:Key="CardBorderStyle" TargetType="Border">
+    <Setter Property="StrokeShape" Value="RoundRectangle 16" />
+    <Setter Property="StrokeThickness" Value="1" />
+    <Setter Property="Stroke" Value="{DynamicResource BrushBorder}" />
+    <Setter Property="Background" Value="{DynamicResource BrushCard}" />
+    <Setter Property="Padding" Value="20" />
+    <Setter Property="Shadow">
+      <Setter.Value>
+        <Shadow Radius="18" Opacity="0.35" Offset="0,6">
+          <Shadow.Brush>
+            <SolidColorBrush Color="{DynamicResource ColorBorder}" />
+          </Shadow.Brush>
+        </Shadow>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Legacy panel aliases -->
+  <Style x:Key="PanelBorderStyle" TargetType="Border" BasedOn="{StaticResource CardBorderStyle}" />
+  <Style x:Key="PanelSectionBorderStyle" TargetType="Border">
+    <Setter Property="StrokeShape" Value="RoundRectangle 12" />
+    <Setter Property="StrokeThickness" Value="0" />
+    <Setter Property="BackgroundColor" Value="{DynamicResource ColorCardAlt}" />
+    <Setter Property="Padding" Value="12" />
+  </Style>
+  <Style x:Key="CanvasBorderStyle" TargetType="Border" BasedOn="{StaticResource CardBorderStyle}">
+    <Setter Property="Padding" Value="16" />
+  </Style>
+
+  <!-- 4) BUTTONS -->
+  <Style TargetType="Button">
+    <Setter Property="BackgroundColor" Value="{DynamicResource ColorPrimary}" />
+    <Setter Property="TextColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{DynamicResource ColorSurface}" Dark="{DynamicResource ColorText}" />
+      </Setter.Value>
+    </Setter>
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="Padding" Value="16,12" />
+    <Setter Property="BorderColor" Value="{DynamicResource ColorPrimary}" />
+    <Setter Property="BorderWidth" Value="0" />
+    <Setter Property="FontAttributes" Value="Semibold" />
+    <Setter Property="MinimumHeightRequest" Value="44" />
+    <Setter Property="VisualStateManager.VisualStateGroups">
+      <VisualStateGroupList>
+        <VisualStateGroup x:Name="CommonStates">
+          <VisualState x:Name="Normal" />
+          <VisualState x:Name="PointerOver">
+            <VisualState.Setters>
+              <Setter Property="BackgroundColor" Value="{DynamicResource ColorPrimaryStrong}" />
+            </VisualState.Setters>
+          </VisualState>
+          <VisualState x:Name="Pressed">
+            <VisualState.Setters>
+              <Setter Property="BackgroundColor" Value="{DynamicResource ColorPrimaryStrong}" />
+              <Setter Property="Opacity" Value="0.85" />
+            </VisualState.Setters>
+          </VisualState>
+          <VisualState x:Name="Disabled">
+            <VisualState.Setters>
+              <Setter Property="Opacity" Value="0.45" />
+              <Setter Property="TextColor" Value="{DynamicResource ColorTextMuted}" />
+            </VisualState.Setters>
+          </VisualState>
+        </VisualStateGroup>
+      </VisualStateGroupList>
+    </Setter>
+  </Style>
+
+  <Style x:Key="GhostButton" TargetType="Button">
+    <Setter Property="BackgroundColor" Value="Transparent" />
+    <Setter Property="TextColor" Value="{DynamicResource ColorText}" />
+    <Setter Property="BorderColor" Value="{DynamicResource ColorBorder}" />
+    <Setter Property="BorderWidth" Value="1" />
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="Padding" Value="16,12" />
+    <Setter Property="VisualStateManager.VisualStateGroups">
+      <VisualStateGroupList>
+        <VisualStateGroup x:Name="CommonStates">
+          <VisualState x:Name="PointerOver">
+            <VisualState.Setters>
+              <Setter Property="BackgroundColor" Value="{DynamicResource ColorSelection}" />
+            </VisualState.Setters>
+          </VisualState>
+          <VisualState x:Name="Pressed">
+            <VisualState.Setters>
+              <Setter Property="BackgroundColor" Value="{DynamicResource ColorSelection}" />
+              <Setter Property="Opacity" Value="0.9" />
+            </VisualState.Setters>
+          </VisualState>
+          <VisualState x:Name="Disabled">
+            <VisualState.Setters>
+              <Setter Property="TextColor" Value="{DynamicResource ColorTextMuted}" />
+              <Setter Property="Opacity" Value="0.45" />
+            </VisualState.Setters>
+          </VisualState>
+        </VisualStateGroup>
+      </VisualStateGroupList>
+    </Setter>
+  </Style>
+
+  <!-- 5) INPUTS -->
+  <Style TargetType="Entry">
+    <Setter Property="BackgroundColor" Value="{DynamicResource ColorInput}" />
+    <Setter Property="TextColor" Value="{DynamicResource ColorText}" />
+    <Setter Property="PlaceholderColor" Value="{DynamicResource ColorTextMuted}" />
+    <Setter Property="BorderColor" Value="{DynamicResource ColorInputBorder}" />
+    <Setter Property="BorderWidth" Value="1" />
+    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="HeightRequest" Value="44" />
+    <Setter Property="VisualStateManager.VisualStateGroups">
+      <VisualStateGroupList>
+        <VisualStateGroup x:Name="CommonStates">
+          <VisualState x:Name="Focused">
+            <VisualState.Setters>
+              <Setter Property="BorderColor" Value="{DynamicResource ColorPrimary}" />
+              <Setter Property="BorderWidth" Value="2" />
+            </VisualState.Setters>
+          </VisualState>
+          <VisualState x:Name="Disabled">
+            <VisualState.Setters>
+              <Setter Property="TextColor" Value="{DynamicResource ColorTextMuted}" />
+              <Setter Property="Opacity" Value="0.6" />
+            </VisualState.Setters>
+          </VisualState>
+        </VisualStateGroup>
+      </VisualStateGroupList>
+    </Setter>
+  </Style>
+
+  <Style TargetType="Editor">
+    <Setter Property="BackgroundColor" Value="{DynamicResource ColorInput}" />
+    <Setter Property="TextColor" Value="{DynamicResource ColorText}" />
+    <Setter Property="PlaceholderColor" Value="{DynamicResource ColorTextMuted}" />
+    <Setter Property="BorderColor" Value="{DynamicResource ColorInputBorder}" />
+    <Setter Property="BorderWidth" Value="1" />
+    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="HeightRequest" Value="120" />
+    <Setter Property="VisualStateManager.VisualStateGroups">
+      <VisualStateGroupList>
+        <VisualStateGroup x:Name="CommonStates">
+          <VisualState x:Name="Focused">
+            <VisualState.Setters>
+              <Setter Property="BorderColor" Value="{DynamicResource ColorPrimary}" />
+              <Setter Property="BorderWidth" Value="2" />
+            </VisualState.Setters>
+          </VisualState>
+        </VisualStateGroup>
+      </VisualStateGroupList>
+    </Setter>
+  </Style>
+
+  <Style TargetType="Picker">
+    <Setter Property="BackgroundColor" Value="{DynamicResource ColorInput}" />
+    <Setter Property="TextColor" Value="{DynamicResource ColorText}" />
+    <Setter Property="TitleColor" Value="{DynamicResource ColorTextMuted}" />
+    <Setter Property="BorderColor" Value="{DynamicResource ColorInputBorder}" />
+    <Setter Property="BorderWidth" Value="1" />
+    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="HeightRequest" Value="44" />
+  </Style>
+
+  <!-- 6) LISTS -->
+  <Style TargetType="CollectionView">
+    <Setter Property="SelectionBackgroundColor" Value="{DynamicResource ColorSelection}" />
+  </Style>
+
+  <Style TargetType="ListView">
+    <Setter Property="SelectionMode" Value="Single" />
+    <Setter Property="SelectionBackgroundColor" Value="{DynamicResource ColorSelection}" />
+  </Style>
+
+  <!-- 7) CONSOLE / LOG -->
+  <Style x:Key="ConsoleFrame" TargetType="Frame" BasedOn="{StaticResource Card}">
+    <Setter Property="BackgroundColor" Value="{DynamicResource ColorCardAlt}" />
+  </Style>
+  <Style x:Key="LogError" TargetType="Label" BasedOn="{StaticResource Label}">
+    <Setter Property="TextColor" Value="{DynamicResource ColorDanger}" />
+    <Setter Property="FontFamily" Value="Consolas" />
+  </Style>
+  <Style x:Key="LogInfo" TargetType="Label" BasedOn="{StaticResource Label}">
+    <Setter Property="TextColor" Value="{DynamicResource ColorTextMuted}" />
+    <Setter Property="FontFamily" Value="Consolas" />
+  </Style>
+  <Style x:Key="LogTimestamp" TargetType="Label" BasedOn="{StaticResource LabelMuted}">
+    <Setter Property="FontFamily" Value="Consolas" />
+    <Setter Property="FontAttributes" Value="Italic" />
+  </Style>
+
+  <!-- 8) DIVIDER -->
+  <Style x:Key="Divider" TargetType="BoxView">
+    <Setter Property="HeightRequest" Value="1" />
+    <Setter Property="Color" Value="{DynamicResource ColorDivider}" />
+    <Setter Property="Opacity" Value="1" />
+    <Setter Property="HorizontalOptions" Value="Fill" />
+  </Style>
+
+  <!-- 9) BADGES / STATUS CHIPS -->
+  <Style x:Key="SuccessBadge" TargetType="Frame" BasedOn="{StaticResource Card}">
+    <Setter Property="Padding" Value="12,6" />
+    <Setter Property="CornerRadius" Value="20" />
+    <Setter Property="BackgroundColor" Value="{DynamicResource ColorSuccess}" />
+    <Setter Property="HasShadow" Value="False" />
+  </Style>
+  <Style x:Key="WarningBadge" TargetType="Frame" BasedOn="{StaticResource SuccessBadge}">
+    <Setter Property="BackgroundColor" Value="{DynamicResource ColorWarning}" />
+  </Style>
+  <Style x:Key="DangerBadge" TargetType="Frame" BasedOn="{StaticResource SuccessBadge}">
+    <Setter Property="BackgroundColor" Value="{DynamicResource ColorDanger}" />
+  </Style>
+
+</ResourceDictionary>
