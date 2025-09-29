@@ -8,8 +8,7 @@
             <Label Text="Theme Showcase" FontSize="28" FontAttributes="Bold" />
             <Label Style="{StaticResource LabelMuted}"
                    Text="Demonstration of the minimalist light and dark dashboard theme." />
-
-            <Frame Style="{StaticResource Card}">
+            <Border Style="{StaticResource Card}">
                 <VerticalStackLayout Spacing="16">
                     <Label Text="Actions" FontSize="20" FontAttributes="Bold" />
                     <StackLayout Orientation="Horizontal" Spacing="12">
@@ -17,24 +16,24 @@
                         <Button Text="Secondary" Style="{StaticResource GhostButton}" />
                     </StackLayout>
                     <StackLayout Orientation="Horizontal" Spacing="12">
-                        <Frame Style="{StaticResource SuccessBadge}">
+                        <Border Style="{StaticResource SuccessBadge}">
 
                             <Label Text="Success"
                                    TextColor="{AppThemeBinding Light={StaticResource ColorSurfaceLight}, Dark={StaticResource ColorSurfaceDark}}" />
-                        </Frame>
-                        <Frame Style="{StaticResource WarningBadge}">
+                        </Border>
+                        <Border Style="{StaticResource WarningBadge}">
                             <Label Text="Warning"
                                    TextColor="{AppThemeBinding Light={StaticResource ColorSurfaceLight}, Dark={StaticResource ColorSurfaceDark}}" />
-                        </Frame>
-                        <Frame Style="{StaticResource DangerBadge}">
+                        </Border>
+                        <Border Style="{StaticResource DangerBadge}">
                             <Label Text="Critical"
                                    TextColor="{AppThemeBinding Light={StaticResource ColorSurfaceLight}, Dark={StaticResource ColorSurfaceDark}}" />
-                        </Frame>
+                        </Border>
                     </StackLayout>
                 </VerticalStackLayout>
-            </Frame>
+            </Border>
 
-            <Frame Style="{StaticResource Card}">
+            <Border Style="{StaticResource Card}">
                 <VerticalStackLayout Spacing="16">
                     <Label Text="Inputs" FontSize="20" FontAttributes="Bold" />
                     <Entry Placeholder="Search or enter value" />
@@ -49,38 +48,38 @@
                     </Picker>
                     <Editor Placeholder="Provide additional context" AutoSize="TextChanges" />
                 </VerticalStackLayout>
-            </Frame>
+            </Border>
 
-            <Frame Style="{StaticResource Card}">
+            <Border Style="{StaticResource Card}">
                 <VerticalStackLayout Spacing="16">
                     <Label Text="KPI Cards" FontSize="20" FontAttributes="Bold" />
                     <Grid ColumnDefinitions="*,*,*" ColumnSpacing="16">
-                        <Frame Grid.Column="0" Style="{StaticResource Card}">
+                        <Border Grid.Column="0" Style="{StaticResource Card}">
                             <VerticalStackLayout Spacing="4">
                                 <Label Text="Active Users" />
                                 <Label Text="1,248" FontSize="24" FontAttributes="Bold" />
                                 <Label Style="{StaticResource LabelMuted}" Text="+12% vs last week" />
                             </VerticalStackLayout>
-                        </Frame>
-                        <Frame Grid.Column="1" Style="{StaticResource Card}">
+                        </Border>
+                        <Border Grid.Column="1" Style="{StaticResource Card}">
                             <VerticalStackLayout Spacing="4">
                                 <Label Text="Conversion" />
                                 <Label Text="3.4%" FontSize="24" FontAttributes="Bold" />
                                 <Label Style="{StaticResource LabelMuted}" Text="Stable" />
                             </VerticalStackLayout>
-                        </Frame>
-                        <Frame Grid.Column="2" Style="{StaticResource Card}">
+                        </Border>
+                        <Border Grid.Column="2" Style="{StaticResource Card}">
                             <VerticalStackLayout Spacing="4">
                                 <Label Text="Alerts" />
                                 <Label Text="5" FontSize="24" FontAttributes="Bold" />
                                 <Label Style="{StaticResource LabelMuted}" Text="3 critical" />
                             </VerticalStackLayout>
-                        </Frame>
+                        </Border>
                     </Grid>
                 </VerticalStackLayout>
-            </Frame>
+            </Border>
 
-            <Frame Style="{StaticResource ConsoleFrame}">
+            <Border Style="{StaticResource ConsoleBorder}">
                 <VerticalStackLayout Spacing="8">
                     <Label Text="System Console" FontSize="20" FontAttributes="Bold" />
                     <StackLayout>
@@ -89,7 +88,7 @@
                         <Label Style="{StaticResource LogError}" Text="[09:31:18] Reconstruction timeout exceeded." />
                     </StackLayout>
                 </VerticalStackLayout>
-            </Frame>
+            </Border>
         </VerticalStackLayout>
     </ScrollView>
 </ContentPage>

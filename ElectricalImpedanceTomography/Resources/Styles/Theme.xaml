@@ -217,57 +217,83 @@
     </Setter>
   </Style>
 
-  <Style TargetType="TabBar">
-    <Setter Property="BackgroundColor">
-      <Setter.Value>
-        <AppThemeBinding Light="{StaticResource ColorSurfaceLight}"
-                         Dark="{StaticResource ColorSurfaceDark}" />
-      </Setter.Value>
-    </Setter>
-    <Setter Property="TitleColor">
-      <Setter.Value>
-        <AppThemeBinding Light="{StaticResource ColorTextLight}"
-                         Dark="{StaticResource ColorTextDark}" />
-      </Setter.Value>
-    </Setter>
-    <Setter Property="UnselectedTabColor">
-      <Setter.Value>
-        <AppThemeBinding Light="{StaticResource ColorTextMutedLight}"
-                         Dark="{StaticResource ColorTextMutedDark}" />
-      </Setter.Value>
-    </Setter>
-    <Setter Property="SelectedTabColor">
-      <Setter.Value>
-        <AppThemeBinding Light="{StaticResource ColorPrimaryLight}"
-                         Dark="{StaticResource ColorPrimaryDark}" />
-      </Setter.Value>
-    </Setter>
-  </Style>
+    <!-- SHELL/TabBar colors -->
+    <Style TargetType="Element">
+        <!-- Top NavBar (Shell) -->
+        <Setter Property="Shell.BackgroundColor">
+            <Setter.Value>
+                <AppThemeBinding Light="{StaticResource ColorSurfaceLight}"
+                       Dark="{StaticResource ColorSurfaceDark}" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Shell.TitleColor">
+            <Setter.Value>
+                <AppThemeBinding Light="{StaticResource ColorTextLight}"
+                       Dark="{StaticResource ColorTextDark}" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Shell.ForegroundColor">
+            <Setter.Value>
+                <AppThemeBinding Light="{StaticResource ColorTextLight}"
+                       Dark="{StaticResource ColorTextDark}" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Shell.UnselectedColor">
+            <Setter.Value>
+                <AppThemeBinding Light="{StaticResource ColorTextMutedLight}"
+                       Dark="{StaticResource ColorTextMutedDark}" />
+            </Setter.Value>
+        </Setter>
 
-  <!-- 3) CARDS -->
-  <Style x:Key="Card" TargetType="Frame">
+        <!-- Bottom TabBar -->
+        <Setter Property="Shell.TabBarBackgroundColor">
+            <Setter.Value>
+                <AppThemeBinding Light="{StaticResource ColorSurfaceLight}"
+                       Dark="{StaticResource ColorSurfaceDark}" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Shell.TabBarTitleColor">
+            <Setter.Value>
+                <AppThemeBinding Light="{StaticResource ColorTextLight}"
+                       Dark="{StaticResource ColorTextDark}" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Shell.TabBarForegroundColor">
+            <Setter.Value>
+                <AppThemeBinding Light="{StaticResource ColorPrimaryLight}"
+                       Dark="{StaticResource ColorPrimaryDark}" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Shell.TabBarUnselectedColor">
+            <Setter.Value>
+                <AppThemeBinding Light="{StaticResource ColorTextMutedLight}"
+                       Dark="{StaticResource ColorTextMutedDark}" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+
+    <!-- 3) CARDS -->
+  <Style x:Key="Card" TargetType="Border">
     <Setter Property="BackgroundColor">
       <Setter.Value>
         <AppThemeBinding Light="{StaticResource ColorCardLight}"
                          Dark="{StaticResource ColorCardDark}" />
       </Setter.Value>
     </Setter>
-    <Setter Property="BorderColor">
-      <Setter.Value>
-        <AppThemeBinding Light="{StaticResource ColorBorderLight}"
+        <Setter Property="Stroke">
+            <Setter.Value>
+                <AppThemeBinding Light="{StaticResource ColorBorderLight}"
                          Dark="{StaticResource ColorBorderDark}" />
-      </Setter.Value>
-    </Setter>
-
-    <Setter Property="CornerRadius" Value="16" />
-    <Setter Property="HasShadow" Value="True" />
-    <Setter Property="Shadow">
+            </Setter.Value>
+        </Setter>
+        <Setter Property="StrokeShape" Value="RoundRectangle 16" />
+        <Setter Property="Shadow">
       <Setter.Value>
         <Shadow Radius="18" Opacity="0.35" Offset="0,6">
-          <Shadow.Brush>
-            <StaticResource ResourceKey="BrushBorder" />
-
-          </Shadow.Brush>
+            <Shadow.Brush>
+                <SolidColorBrush Color="{StaticResource BrushBorder}"/>
+            </Shadow.Brush>
         </Shadow>
       </Setter.Value>
     </Setter>
@@ -285,9 +311,9 @@
     <Setter Property="Shadow">
       <Setter.Value>
         <Shadow Radius="18" Opacity="0.35" Offset="0,6">
-          <Shadow.Brush>
-            <StaticResource ResourceKey="BrushBorder" />
-          </Shadow.Brush>
+            <Shadow.Brush>
+                <SolidColorBrush Color="{StaticResource BrushBorder}"/>
+            </Shadow.Brush>
         </Shadow>
       </Setter.Value>
     </Setter>
@@ -333,7 +359,7 @@
       </Setter.Value>
     </Setter>
     <Setter Property="BorderWidth" Value="0" />
-    <Setter Property="FontAttributes" Value="Semibold" />
+    <Setter Property="FontAttributes" Value="Bold" />
     <Setter Property="MinimumHeightRequest" Value="44" />
     <Setter Property="VisualStateManager.VisualStateGroups">
       <VisualStateGroupList>
@@ -423,22 +449,24 @@
                          Dark="{StaticResource ColorTextMutedDark}" />
       </Setter.Value>
     </Setter>
-    <Setter Property="BorderColor">
+    <Setter Property="BackgroundColor">
       <Setter.Value>
         <AppThemeBinding Light="{StaticResource ColorInputBorderLight}"
                          Dark="{StaticResource ColorInputBorderDark}" />
       </Setter.Value>
     </Setter>
+      <!--
     <Setter Property="BorderWidth" Value="1" />
     <Setter Property="CornerRadius" Value="10" />
+      -->
     <Setter Property="HeightRequest" Value="44" />
     <Setter Property="VisualStateManager.VisualStateGroups">
       <VisualStateGroupList>
         <VisualStateGroup x:Name="CommonStates">
           <VisualState x:Name="Focused">
             <VisualState.Setters>
-              <Setter Property="BorderColor" Value="{AppThemeBinding Light={StaticResource ColorPrimaryLight}, Dark={StaticResource ColorPrimaryDark}}" />
-              <Setter Property="BorderWidth" Value="2" />
+              <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource ColorPrimaryLight}, Dark={StaticResource ColorPrimaryDark}}" />
+              <!-- <Setter Property="BorderWidth" Value="2" /> -->
             </VisualState.Setters>
           </VisualState>
           <VisualState x:Name="Disabled">
@@ -471,22 +499,24 @@
                          Dark="{StaticResource ColorTextMutedDark}" />
       </Setter.Value>
     </Setter>
-    <Setter Property="BorderColor">
+    <Setter Property="BackgroundColor">
       <Setter.Value>
         <AppThemeBinding Light="{StaticResource ColorInputBorderLight}"
                          Dark="{StaticResource ColorInputBorderDark}" />
       </Setter.Value>
     </Setter>
+      <!--
     <Setter Property="BorderWidth" Value="1" />
     <Setter Property="CornerRadius" Value="10" />
+      -->
     <Setter Property="HeightRequest" Value="120" />
     <Setter Property="VisualStateManager.VisualStateGroups">
       <VisualStateGroupList>
         <VisualStateGroup x:Name="CommonStates">
           <VisualState x:Name="Focused">
             <VisualState.Setters>
-              <Setter Property="BorderColor" Value="{AppThemeBinding Light={StaticResource ColorPrimaryLight}, Dark={StaticResource ColorPrimaryDark}}" />
-              <Setter Property="BorderWidth" Value="2" />
+              <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource ColorPrimaryLight}, Dark={StaticResource ColorPrimaryDark}}" />
+              <!-- <Setter Property="BorderWidth" Value="2" /> -->
             </VisualState.Setters>
           </VisualState>
         </VisualStateGroup>
@@ -513,29 +543,31 @@
                          Dark="{StaticResource ColorTextMutedDark}" />
       </Setter.Value>
     </Setter>
-    <Setter Property="BorderColor">
+    <Setter Property="BackgroundColor">
       <Setter.Value>
         <AppThemeBinding Light="{StaticResource ColorInputBorderLight}"
                          Dark="{StaticResource ColorInputBorderDark}" />
       </Setter.Value>
     </Setter>
+      <!--
     <Setter Property="BorderWidth" Value="1" />
     <Setter Property="CornerRadius" Value="10" />
+      -->
     <Setter Property="HeightRequest" Value="44" />
   </Style>
 
   <!-- 6) LISTS -->
   <Style TargetType="CollectionView">
-    <Setter Property="SelectionBackgroundColor" Value="{AppThemeBinding Light={StaticResource ColorSelectionLight}, Dark={StaticResource ColorSelectionDark}}" />
+    <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource ColorSelectionLight}, Dark={StaticResource ColorSelectionDark}}" />
   </Style>
 
   <Style TargetType="ListView">
     <Setter Property="SelectionMode" Value="Single" />
-    <Setter Property="SelectionBackgroundColor" Value="{AppThemeBinding Light={StaticResource ColorSelectionLight}, Dark={StaticResource ColorSelectionDark}}" />
+    <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource ColorSelectionLight}, Dark={StaticResource ColorSelectionDark}}" />
   </Style>
 
   <!-- 7) CONSOLE / LOG -->
-  <Style x:Key="ConsoleFrame" TargetType="Frame" BasedOn="{StaticResource Card}">
+  <Style x:Key="ConsoleFrame" TargetType="Border" BasedOn="{StaticResource Card}">
     <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource ColorCardAltLight}, Dark={StaticResource ColorCardAltDark}}" />
   </Style>
   <Style x:Key="LogError" TargetType="Label" BasedOn="{StaticResource Label}">
@@ -560,16 +592,15 @@
   </Style>
 
   <!-- 9) BADGES / STATUS CHIPS -->
-  <Style x:Key="SuccessBadge" TargetType="Frame" BasedOn="{StaticResource Card}">
+  <Style x:Key="SuccessBadge" TargetType="Border" BasedOn="{StaticResource Card}">
     <Setter Property="Padding" Value="12,6" />
-    <Setter Property="CornerRadius" Value="20" />
-    <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource ColorSuccessLight}, Dark={StaticResource ColorSuccessDark}}" />
-    <Setter Property="HasShadow" Value="False" />
-  </Style>
-  <Style x:Key="WarningBadge" TargetType="Frame" BasedOn="{StaticResource SuccessBadge}">
+    <Setter Property="StrokeShape" Value="RoundRectangle 20" />
+        <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource ColorSuccessLight}, Dark={StaticResource ColorSuccessDark}}" />
+    </Style>
+  <Style x:Key="WarningBadge" TargetType="Border" BasedOn="{StaticResource SuccessBadge}">
     <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource ColorWarningLight}, Dark={StaticResource ColorWarningDark}}" />
   </Style>
-  <Style x:Key="DangerBadge" TargetType="Frame" BasedOn="{StaticResource SuccessBadge}">
+  <Style x:Key="DangerBadge" TargetType="Border" BasedOn="{StaticResource SuccessBadge}">
     <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource ColorDangerLight}, Dark={StaticResource ColorDangerDark}}" />
   </Style>
 
