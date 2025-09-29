@@ -18,6 +18,7 @@
                     </StackLayout>
                     <StackLayout Orientation="Horizontal" Spacing="12">
                         <Frame Style="{StaticResource SuccessBadge}">
+
                             <Label Text="Success"
                                    TextColor="{AppThemeBinding Light={StaticResource ColorSurfaceLight}, Dark={StaticResource ColorSurfaceDark}}" />
                         </Frame>
