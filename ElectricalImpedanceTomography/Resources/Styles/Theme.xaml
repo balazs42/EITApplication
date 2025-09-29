@@ -1,152 +1,272 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <ResourceDictionary xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-
-                    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-                    xmlns:maui="clr-namespace:Microsoft.Maui.Controls;assembly=Microsoft.Maui.Controls">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
 
   <!-- 1) COLOR TOKENS (Light/Dark in one place) -->
-  <maui:AppThemeColor x:Key="ColorBg"
-                      Light="#F9FAFB"
-                      Dark="#0F172A" />
-  <maui:AppThemeColor x:Key="ColorSurface"
-                      Light="#FFFFFF"
-                      Dark="#111827" />
-  <maui:AppThemeColor x:Key="ColorCard"
-                      Light="#FFFFFF"
-                      Dark="#1F2937" />
-  <maui:AppThemeColor x:Key="ColorCardAlt"
-                      Light="#F3F4F6"
-                      Dark="#0B1220" />
-  <maui:AppThemeColor x:Key="ColorText"
-                      Light="#111827"
-                      Dark="#F1F5F9" />
-  <maui:AppThemeColor x:Key="ColorTextMuted"
-                      Light="#6B7280"
-                      Dark="#94A3B8" />
-  <maui:AppThemeColor x:Key="ColorPrimary"
-                      Light="#2563EB"
-                      Dark="#38BDF8" />
-  <maui:AppThemeColor x:Key="ColorPrimaryStrong"
-                      Light="#1D4ED8"
-                      Dark="#0EA5E9" />
-  <maui:AppThemeColor x:Key="ColorAccent"
-                      Light="#10B981"
-                      Dark="#A78BFA" />
-  <maui:AppThemeColor x:Key="ColorSuccess"
-                      Light="#16A34A"
-                      Dark="#22C55E" />
-  <maui:AppThemeColor x:Key="ColorWarning"
-                      Light="#D97706"
-                      Dark="#F59E0B" />
-  <maui:AppThemeColor x:Key="ColorDanger"
-                      Light="#DC2626"
-                      Dark="#EF4444" />
-  <maui:AppThemeColor x:Key="ColorBorder"
-                      Light="#E5E7EB"
-                      Dark="#233044" />
-  <maui:AppThemeColor x:Key="ColorDivider"
-                      Light="#E5E7EB"
-                      Dark="#1C2636" />
-  <maui:AppThemeColor x:Key="ColorInput"
-                      Light="#FFFFFF"
-                      Dark="#0B1220" />
-  <maui:AppThemeColor x:Key="ColorInputBorder"
-                      Light="#CBD5E1"
-                      Dark="#263246" />
-  <maui:AppThemeColor x:Key="ColorSelection"
-                      Light="#2563EB22"
-                      Dark="#0EA5E933" />
-
+  <Color x:Key="ColorBgLight">#F9FAFB</Color>
+  <Color x:Key="ColorBgDark">#0F172A</Color>
+  <Color x:Key="ColorSurfaceLight">#FFFFFF</Color>
+  <Color x:Key="ColorSurfaceDark">#111827</Color>
+  <Color x:Key="ColorCardLight">#FFFFFF</Color>
+  <Color x:Key="ColorCardDark">#1F2937</Color>
+  <Color x:Key="ColorCardAltLight">#F3F4F6</Color>
+  <Color x:Key="ColorCardAltDark">#0B1220</Color>
+  <Color x:Key="ColorTextLight">#111827</Color>
+  <Color x:Key="ColorTextDark">#F1F5F9</Color>
+  <Color x:Key="ColorTextMutedLight">#6B7280</Color>
+  <Color x:Key="ColorTextMutedDark">#94A3B8</Color>
+  <Color x:Key="ColorPrimaryLight">#2563EB</Color>
+  <Color x:Key="ColorPrimaryDark">#38BDF8</Color>
+  <Color x:Key="ColorPrimaryStrongLight">#1D4ED8</Color>
+  <Color x:Key="ColorPrimaryStrongDark">#0EA5E9</Color>
+  <Color x:Key="ColorAccentLight">#10B981</Color>
+  <Color x:Key="ColorAccentDark">#A78BFA</Color>
+  <Color x:Key="ColorSuccessLight">#16A34A</Color>
+  <Color x:Key="ColorSuccessDark">#22C55E</Color>
+  <Color x:Key="ColorWarningLight">#D97706</Color>
+  <Color x:Key="ColorWarningDark">#F59E0B</Color>
+  <Color x:Key="ColorDangerLight">#DC2626</Color>
+  <Color x:Key="ColorDangerDark">#EF4444</Color>
+  <Color x:Key="ColorBorderLight">#E5E7EB</Color>
+  <Color x:Key="ColorBorderDark">#233044</Color>
+  <Color x:Key="ColorDividerLight">#E5E7EB</Color>
+  <Color x:Key="ColorDividerDark">#1C2636</Color>
+  <Color x:Key="ColorInputLight">#FFFFFF</Color>
+  <Color x:Key="ColorInputDark">#0B1220</Color>
+  <Color x:Key="ColorInputBorderLight">#CBD5E1</Color>
+  <Color x:Key="ColorInputBorderDark">#263246</Color>
+  <Color x:Key="ColorSelectionLight">#2563EB22</Color>
+  <Color x:Key="ColorSelectionDark">#0EA5E933</Color>
 
   <!-- Supporting brushes -->
-  <SolidColorBrush x:Key="BrushBg" Color="{DynamicResource ColorBg}" />
-  <SolidColorBrush x:Key="BrushSurface" Color="{DynamicResource ColorSurface}" />
-  <SolidColorBrush x:Key="BrushCard" Color="{DynamicResource ColorCard}" />
-  <SolidColorBrush x:Key="BrushCardAlt" Color="{DynamicResource ColorCardAlt}" />
-  <SolidColorBrush x:Key="BrushText" Color="{DynamicResource ColorText}" />
-  <SolidColorBrush x:Key="BrushTextMuted" Color="{DynamicResource ColorTextMuted}" />
-  <SolidColorBrush x:Key="BrushPrimary" Color="{DynamicResource ColorPrimary}" />
-  <SolidColorBrush x:Key="BrushPrimaryStrong" Color="{DynamicResource ColorPrimaryStrong}" />
-  <SolidColorBrush x:Key="BrushAccent" Color="{DynamicResource ColorAccent}" />
-  <SolidColorBrush x:Key="BrushSuccess" Color="{DynamicResource ColorSuccess}" />
-  <SolidColorBrush x:Key="BrushWarning" Color="{DynamicResource ColorWarning}" />
-  <SolidColorBrush x:Key="BrushDanger" Color="{DynamicResource ColorDanger}" />
-  <SolidColorBrush x:Key="BrushBorder" Color="{DynamicResource ColorBorder}" />
-  <SolidColorBrush x:Key="BrushDivider" Color="{DynamicResource ColorDivider}" />
-  <SolidColorBrush x:Key="BrushSelection" Color="{DynamicResource ColorSelection}" />
+  <SolidColorBrush x:Key="BrushBg">
+    <SolidColorBrush.Color>
+      <AppThemeBinding Light="{StaticResource ColorBgLight}"
+                       Dark="{StaticResource ColorBgDark}" />
+    </SolidColorBrush.Color>
+  </SolidColorBrush>
+  <SolidColorBrush x:Key="BrushSurface">
+    <SolidColorBrush.Color>
+      <AppThemeBinding Light="{StaticResource ColorSurfaceLight}"
+                       Dark="{StaticResource ColorSurfaceDark}" />
+    </SolidColorBrush.Color>
+  </SolidColorBrush>
+  <SolidColorBrush x:Key="BrushCard">
+    <SolidColorBrush.Color>
+      <AppThemeBinding Light="{StaticResource ColorCardLight}"
+                       Dark="{StaticResource ColorCardDark}" />
+    </SolidColorBrush.Color>
+  </SolidColorBrush>
+  <SolidColorBrush x:Key="BrushCardAlt">
+    <SolidColorBrush.Color>
+      <AppThemeBinding Light="{StaticResource ColorCardAltLight}"
+                       Dark="{StaticResource ColorCardAltDark}" />
+    </SolidColorBrush.Color>
+  </SolidColorBrush>
+  <SolidColorBrush x:Key="BrushText">
+    <SolidColorBrush.Color>
+      <AppThemeBinding Light="{StaticResource ColorTextLight}"
+                       Dark="{StaticResource ColorTextDark}" />
+    </SolidColorBrush.Color>
+  </SolidColorBrush>
+  <SolidColorBrush x:Key="BrushTextMuted">
+    <SolidColorBrush.Color>
+      <AppThemeBinding Light="{StaticResource ColorTextMutedLight}"
+                       Dark="{StaticResource ColorTextMutedDark}" />
+    </SolidColorBrush.Color>
+  </SolidColorBrush>
+  <SolidColorBrush x:Key="BrushPrimary">
+    <SolidColorBrush.Color>
+      <AppThemeBinding Light="{StaticResource ColorPrimaryLight}"
+                       Dark="{StaticResource ColorPrimaryDark}" />
+    </SolidColorBrush.Color>
+  </SolidColorBrush>
+  <SolidColorBrush x:Key="BrushPrimaryStrong">
+    <SolidColorBrush.Color>
+      <AppThemeBinding Light="{StaticResource ColorPrimaryStrongLight}"
+                       Dark="{StaticResource ColorPrimaryStrongDark}" />
+    </SolidColorBrush.Color>
+  </SolidColorBrush>
+  <SolidColorBrush x:Key="BrushAccent">
+    <SolidColorBrush.Color>
+      <AppThemeBinding Light="{StaticResource ColorAccentLight}"
+                       Dark="{StaticResource ColorAccentDark}" />
+    </SolidColorBrush.Color>
+  </SolidColorBrush>
+  <SolidColorBrush x:Key="BrushSuccess">
+    <SolidColorBrush.Color>
+      <AppThemeBinding Light="{StaticResource ColorSuccessLight}"
+                       Dark="{StaticResource ColorSuccessDark}" />
+    </SolidColorBrush.Color>
+  </SolidColorBrush>
+  <SolidColorBrush x:Key="BrushWarning">
+    <SolidColorBrush.Color>
+      <AppThemeBinding Light="{StaticResource ColorWarningLight}"
+                       Dark="{StaticResource ColorWarningDark}" />
+    </SolidColorBrush.Color>
+  </SolidColorBrush>
+  <SolidColorBrush x:Key="BrushDanger">
+    <SolidColorBrush.Color>
+      <AppThemeBinding Light="{StaticResource ColorDangerLight}"
+                       Dark="{StaticResource ColorDangerDark}" />
+    </SolidColorBrush.Color>
+  </SolidColorBrush>
+  <SolidColorBrush x:Key="BrushBorder">
+    <SolidColorBrush.Color>
+      <AppThemeBinding Light="{StaticResource ColorBorderLight}"
+                       Dark="{StaticResource ColorBorderDark}" />
+    </SolidColorBrush.Color>
+  </SolidColorBrush>
+  <SolidColorBrush x:Key="BrushDivider">
+    <SolidColorBrush.Color>
+      <AppThemeBinding Light="{StaticResource ColorDividerLight}"
+                       Dark="{StaticResource ColorDividerDark}" />
+    </SolidColorBrush.Color>
+  </SolidColorBrush>
+  <SolidColorBrush x:Key="BrushSelection">
+    <SolidColorBrush.Color>
+      <AppThemeBinding Light="{StaticResource ColorSelectionLight}"
+                       Dark="{StaticResource ColorSelectionDark}" />
+    </SolidColorBrush.Color>
+  </SolidColorBrush>
 
   <!-- Gradients reused in legacy panels -->
   <LinearGradientBrush x:Key="ConfigurationPanelBrush" StartPoint="0,0" EndPoint="0,1">
-    <GradientStop Color="{DynamicResource ColorCard}" Offset="0" />
-    <GradientStop Color="{DynamicResource ColorCardAlt}" Offset="1" />
+    <GradientStop Color="{AppThemeBinding Light={StaticResource ColorCardLight}, Dark={StaticResource ColorCardDark}}" Offset="0" />
+    <GradientStop Color="{AppThemeBinding Light={StaticResource ColorCardAltLight}, Dark={StaticResource ColorCardAltDark}}" Offset="1" />
   </LinearGradientBrush>
   <LinearGradientBrush x:Key="ControlPanelBrush" StartPoint="0,0" EndPoint="0,1">
-    <GradientStop Color="{DynamicResource ColorCard}" Offset="0" />
-    <GradientStop Color="{DynamicResource ColorCardAlt}" Offset="1" />
+    <GradientStop Color="{AppThemeBinding Light={StaticResource ColorCardLight}, Dark={StaticResource ColorCardDark}}" Offset="0" />
+    <GradientStop Color="{AppThemeBinding Light={StaticResource ColorCardAltLight}, Dark={StaticResource ColorCardAltDark}}" Offset="1" />
   </LinearGradientBrush>
   <LinearGradientBrush x:Key="PartialResultsBrush" StartPoint="0,0" EndPoint="0,1">
-    <GradientStop Color="{DynamicResource ColorCard}" Offset="0" />
-    <GradientStop Color="{DynamicResource ColorCardAlt}" Offset="1" />
+    <GradientStop Color="{AppThemeBinding Light={StaticResource ColorCardLight}, Dark={StaticResource ColorCardDark}}" Offset="0" />
+    <GradientStop Color="{AppThemeBinding Light={StaticResource ColorCardAltLight}, Dark={StaticResource ColorCardAltDark}}" Offset="1" />
   </LinearGradientBrush>
   <LinearGradientBrush x:Key="FullResultsBrush" StartPoint="0,0" EndPoint="0,1">
-    <GradientStop Color="{DynamicResource ColorCard}" Offset="0" />
-    <GradientStop Color="{DynamicResource ColorCardAlt}" Offset="1" />
+    <GradientStop Color="{AppThemeBinding Light={StaticResource ColorCardLight}, Dark={StaticResource ColorCardDark}}" Offset="0" />
+    <GradientStop Color="{AppThemeBinding Light={StaticResource ColorCardAltLight}, Dark={StaticResource ColorCardAltDark}}" Offset="1" />
   </LinearGradientBrush>
   <LinearGradientBrush x:Key="HistoryPanelBrush" StartPoint="0,0" EndPoint="0,1">
-    <GradientStop Color="{DynamicResource ColorCard}" Offset="0" />
-    <GradientStop Color="{DynamicResource ColorCardAlt}" Offset="1" />
+    <GradientStop Color="{AppThemeBinding Light={StaticResource ColorCardLight}, Dark={StaticResource ColorCardDark}}" Offset="0" />
+    <GradientStop Color="{AppThemeBinding Light={StaticResource ColorCardAltLight}, Dark={StaticResource ColorCardAltDark}}" Offset="1" />
   </LinearGradientBrush>
   <LinearGradientBrush x:Key="StatisticsPanelBrush" StartPoint="0,0" EndPoint="0,1">
-    <GradientStop Color="{DynamicResource ColorCard}" Offset="0" />
-    <GradientStop Color="{DynamicResource ColorCardAlt}" Offset="1" />
+    <GradientStop Color="{AppThemeBinding Light={StaticResource ColorCardLight}, Dark={StaticResource ColorCardDark}}" Offset="0" />
+    <GradientStop Color="{AppThemeBinding Light={StaticResource ColorCardAltLight}, Dark={StaticResource ColorCardAltDark}}" Offset="1" />
+
   </LinearGradientBrush>
 
   <!-- 2) TYPOGRAPHY -->
   <Style TargetType="Label">
-    <Setter Property="TextColor" Value="{DynamicResource ColorText}" />
+    <Setter Property="TextColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{StaticResource ColorTextLight}"
+                         Dark="{StaticResource ColorTextDark}" />
+      </Setter.Value>
+    </Setter>
+
     <Setter Property="FontSize" Value="14" />
     <Setter Property="LineBreakMode" Value="WordWrap" />
   </Style>
 
   <Style x:Key="LabelMuted" TargetType="Label">
-    <Setter Property="TextColor" Value="{DynamicResource ColorTextMuted}" />
+    <Setter Property="TextColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{StaticResource ColorTextMutedLight}"
+                         Dark="{StaticResource ColorTextMutedDark}" />
+      </Setter.Value>
+    </Setter>
+
   </Style>
 
   <!-- 3) PAGES & SHELL -->
   <Style TargetType="Page">
-    <Setter Property="BackgroundColor" Value="{DynamicResource ColorBg}" />
+    <Setter Property="BackgroundColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{StaticResource ColorBgLight}"
+                         Dark="{StaticResource ColorBgDark}" />
+      </Setter.Value>
+    </Setter>
     <Setter Property="Padding" Value="24" />
   </Style>
 
-  
+
   <Style TargetType="ContentPage">
-    <Setter Property="BackgroundColor" Value="{DynamicResource ColorBg}" />
+    <Setter Property="BackgroundColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{StaticResource ColorBgLight}"
+                         Dark="{StaticResource ColorBgDark}" />
+      </Setter.Value>
+    </Setter>
     <Setter Property="Padding" Value="24" />
   </Style>
 
   <Style TargetType="NavigationPage">
-    <Setter Property="BarBackgroundColor" Value="{DynamicResource ColorSurface}" />
-    <Setter Property="BarTextColor" Value="{DynamicResource ColorText}" />
+    <Setter Property="BarBackgroundColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{StaticResource ColorSurfaceLight}"
+                         Dark="{StaticResource ColorSurfaceDark}" />
+      </Setter.Value>
+    </Setter>
+    <Setter Property="BarTextColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{StaticResource ColorTextLight}"
+                         Dark="{StaticResource ColorTextDark}" />
+      </Setter.Value>
+    </Setter>
   </Style>
 
   <Style TargetType="TabBar">
-    <Setter Property="BackgroundColor" Value="{DynamicResource ColorSurface}" />
-    <Setter Property="TitleColor" Value="{DynamicResource ColorText}" />
-    <Setter Property="UnselectedTabColor" Value="{DynamicResource ColorTextMuted}" />
-    <Setter Property="SelectedTabColor" Value="{DynamicResource ColorPrimary}" />
+    <Setter Property="BackgroundColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{StaticResource ColorSurfaceLight}"
+                         Dark="{StaticResource ColorSurfaceDark}" />
+      </Setter.Value>
+    </Setter>
+    <Setter Property="TitleColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{StaticResource ColorTextLight}"
+                         Dark="{StaticResource ColorTextDark}" />
+      </Setter.Value>
+    </Setter>
+    <Setter Property="UnselectedTabColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{StaticResource ColorTextMutedLight}"
+                         Dark="{StaticResource ColorTextMutedDark}" />
+      </Setter.Value>
+    </Setter>
+    <Setter Property="SelectedTabColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{StaticResource ColorPrimaryLight}"
+                         Dark="{StaticResource ColorPrimaryDark}" />
+      </Setter.Value>
+    </Setter>
   </Style>
 
   <!-- 3) CARDS -->
   <Style x:Key="Card" TargetType="Frame">
-    <Setter Property="BackgroundColor" Value="{DynamicResource ColorCard}" />
-    <Setter Property="BorderColor" Value="{DynamicResource ColorBorder}" />
+    <Setter Property="BackgroundColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{StaticResource ColorCardLight}"
+                         Dark="{StaticResource ColorCardDark}" />
+      </Setter.Value>
+    </Setter>
+    <Setter Property="BorderColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{StaticResource ColorBorderLight}"
+                         Dark="{StaticResource ColorBorderDark}" />
+      </Setter.Value>
+    </Setter>
+
     <Setter Property="CornerRadius" Value="16" />
     <Setter Property="HasShadow" Value="True" />
     <Setter Property="Shadow">
       <Setter.Value>
         <Shadow Radius="18" Opacity="0.35" Offset="0,6">
           <Shadow.Brush>
-            <SolidColorBrush Color="{DynamicResource ColorBorder}" />
+            <StaticResource ResourceKey="BrushBorder" />
+
           </Shadow.Brush>
         </Shadow>
       </Setter.Value>
@@ -158,14 +278,15 @@
   <Style x:Key="CardBorderStyle" TargetType="Border">
     <Setter Property="StrokeShape" Value="RoundRectangle 16" />
     <Setter Property="StrokeThickness" Value="1" />
-    <Setter Property="Stroke" Value="{DynamicResource BrushBorder}" />
-    <Setter Property="Background" Value="{DynamicResource BrushCard}" />
+    <Setter Property="Stroke" Value="{StaticResource BrushBorder}" />
+    <Setter Property="Background" Value="{StaticResource BrushCard}" />
+
     <Setter Property="Padding" Value="20" />
     <Setter Property="Shadow">
       <Setter.Value>
         <Shadow Radius="18" Opacity="0.35" Offset="0,6">
           <Shadow.Brush>
-            <SolidColorBrush Color="{DynamicResource ColorBorder}" />
+            <StaticResource ResourceKey="BrushBorder" />
           </Shadow.Brush>
         </Shadow>
       </Setter.Value>
@@ -177,7 +298,12 @@
   <Style x:Key="PanelSectionBorderStyle" TargetType="Border">
     <Setter Property="StrokeShape" Value="RoundRectangle 12" />
     <Setter Property="StrokeThickness" Value="0" />
-    <Setter Property="BackgroundColor" Value="{DynamicResource ColorCardAlt}" />
+    <Setter Property="BackgroundColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{StaticResource ColorCardAltLight}"
+                         Dark="{StaticResource ColorCardAltDark}" />
+      </Setter.Value>
+    </Setter>
     <Setter Property="Padding" Value="12" />
   </Style>
   <Style x:Key="CanvasBorderStyle" TargetType="Border" BasedOn="{StaticResource CardBorderStyle}">
@@ -186,15 +312,26 @@
 
   <!-- 4) BUTTONS -->
   <Style TargetType="Button">
-    <Setter Property="BackgroundColor" Value="{DynamicResource ColorPrimary}" />
+    <Setter Property="BackgroundColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{StaticResource ColorPrimaryLight}"
+                         Dark="{StaticResource ColorPrimaryDark}" />
+      </Setter.Value>
+    </Setter>
     <Setter Property="TextColor">
       <Setter.Value>
-        <AppThemeBinding Light="{DynamicResource ColorSurface}" Dark="{DynamicResource ColorText}" />
+        <AppThemeBinding Light="{StaticResource ColorSurfaceLight}"
+                         Dark="{StaticResource ColorTextDark}" />
       </Setter.Value>
     </Setter>
     <Setter Property="CornerRadius" Value="12" />
     <Setter Property="Padding" Value="16,12" />
-    <Setter Property="BorderColor" Value="{DynamicResource ColorPrimary}" />
+    <Setter Property="BorderColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{StaticResource ColorPrimaryLight}"
+                         Dark="{StaticResource ColorPrimaryDark}" />
+      </Setter.Value>
+    </Setter>
     <Setter Property="BorderWidth" Value="0" />
     <Setter Property="FontAttributes" Value="Semibold" />
     <Setter Property="MinimumHeightRequest" Value="44" />
@@ -204,19 +341,19 @@
           <VisualState x:Name="Normal" />
           <VisualState x:Name="PointerOver">
             <VisualState.Setters>
-              <Setter Property="BackgroundColor" Value="{DynamicResource ColorPrimaryStrong}" />
+              <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource ColorPrimaryStrongLight}, Dark={StaticResource ColorPrimaryStrongDark}}" />
             </VisualState.Setters>
           </VisualState>
           <VisualState x:Name="Pressed">
             <VisualState.Setters>
-              <Setter Property="BackgroundColor" Value="{DynamicResource ColorPrimaryStrong}" />
+              <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource ColorPrimaryStrongLight}, Dark={StaticResource ColorPrimaryStrongDark}}" />
               <Setter Property="Opacity" Value="0.85" />
             </VisualState.Setters>
           </VisualState>
           <VisualState x:Name="Disabled">
             <VisualState.Setters>
               <Setter Property="Opacity" Value="0.45" />
-              <Setter Property="TextColor" Value="{DynamicResource ColorTextMuted}" />
+              <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource ColorTextMutedLight}, Dark={StaticResource ColorTextMutedDark}}" />
             </VisualState.Setters>
           </VisualState>
         </VisualStateGroup>
@@ -226,8 +363,18 @@
 
   <Style x:Key="GhostButton" TargetType="Button">
     <Setter Property="BackgroundColor" Value="Transparent" />
-    <Setter Property="TextColor" Value="{DynamicResource ColorText}" />
-    <Setter Property="BorderColor" Value="{DynamicResource ColorBorder}" />
+    <Setter Property="TextColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{StaticResource ColorTextLight}"
+                         Dark="{StaticResource ColorTextDark}" />
+      </Setter.Value>
+    </Setter>
+    <Setter Property="BorderColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{StaticResource ColorBorderLight}"
+                         Dark="{StaticResource ColorBorderDark}" />
+      </Setter.Value>
+    </Setter>
     <Setter Property="BorderWidth" Value="1" />
     <Setter Property="CornerRadius" Value="12" />
     <Setter Property="Padding" Value="16,12" />
@@ -236,18 +383,18 @@
         <VisualStateGroup x:Name="CommonStates">
           <VisualState x:Name="PointerOver">
             <VisualState.Setters>
-              <Setter Property="BackgroundColor" Value="{DynamicResource ColorSelection}" />
+              <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource ColorSelectionLight}, Dark={StaticResource ColorSelectionDark}}" />
             </VisualState.Setters>
           </VisualState>
           <VisualState x:Name="Pressed">
             <VisualState.Setters>
-              <Setter Property="BackgroundColor" Value="{DynamicResource ColorSelection}" />
+              <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource ColorSelectionLight}, Dark={StaticResource ColorSelectionDark}}" />
               <Setter Property="Opacity" Value="0.9" />
             </VisualState.Setters>
           </VisualState>
           <VisualState x:Name="Disabled">
             <VisualState.Setters>
-              <Setter Property="TextColor" Value="{DynamicResource ColorTextMuted}" />
+              <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource ColorTextMutedLight}, Dark={StaticResource ColorTextMutedDark}}" />
               <Setter Property="Opacity" Value="0.45" />
             </VisualState.Setters>
           </VisualState>
@@ -258,10 +405,30 @@
 
   <!-- 5) INPUTS -->
   <Style TargetType="Entry">
-    <Setter Property="BackgroundColor" Value="{DynamicResource ColorInput}" />
-    <Setter Property="TextColor" Value="{DynamicResource ColorText}" />
-    <Setter Property="PlaceholderColor" Value="{DynamicResource ColorTextMuted}" />
-    <Setter Property="BorderColor" Value="{DynamicResource ColorInputBorder}" />
+    <Setter Property="BackgroundColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{StaticResource ColorInputLight}"
+                         Dark="{StaticResource ColorInputDark}" />
+      </Setter.Value>
+    </Setter>
+    <Setter Property="TextColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{StaticResource ColorTextLight}"
+                         Dark="{StaticResource ColorTextDark}" />
+      </Setter.Value>
+    </Setter>
+    <Setter Property="PlaceholderColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{StaticResource ColorTextMutedLight}"
+                         Dark="{StaticResource ColorTextMutedDark}" />
+      </Setter.Value>
+    </Setter>
+    <Setter Property="BorderColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{StaticResource ColorInputBorderLight}"
+                         Dark="{StaticResource ColorInputBorderDark}" />
+      </Setter.Value>
+    </Setter>
     <Setter Property="BorderWidth" Value="1" />
     <Setter Property="CornerRadius" Value="10" />
     <Setter Property="HeightRequest" Value="44" />
@@ -270,13 +437,13 @@
         <VisualStateGroup x:Name="CommonStates">
           <VisualState x:Name="Focused">
             <VisualState.Setters>
-              <Setter Property="BorderColor" Value="{DynamicResource ColorPrimary}" />
+              <Setter Property="BorderColor" Value="{AppThemeBinding Light={StaticResource ColorPrimaryLight}, Dark={StaticResource ColorPrimaryDark}}" />
               <Setter Property="BorderWidth" Value="2" />
             </VisualState.Setters>
           </VisualState>
           <VisualState x:Name="Disabled">
             <VisualState.Setters>
-              <Setter Property="TextColor" Value="{DynamicResource ColorTextMuted}" />
+              <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource ColorTextMutedLight}, Dark={StaticResource ColorTextMutedDark}}" />
               <Setter Property="Opacity" Value="0.6" />
             </VisualState.Setters>
           </VisualState>
@@ -286,10 +453,30 @@
   </Style>
 
   <Style TargetType="Editor">
-    <Setter Property="BackgroundColor" Value="{DynamicResource ColorInput}" />
-    <Setter Property="TextColor" Value="{DynamicResource ColorText}" />
-    <Setter Property="PlaceholderColor" Value="{DynamicResource ColorTextMuted}" />
-    <Setter Property="BorderColor" Value="{DynamicResource ColorInputBorder}" />
+    <Setter Property="BackgroundColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{StaticResource ColorInputLight}"
+                         Dark="{StaticResource ColorInputDark}" />
+      </Setter.Value>
+    </Setter>
+    <Setter Property="TextColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{StaticResource ColorTextLight}"
+                         Dark="{StaticResource ColorTextDark}" />
+      </Setter.Value>
+    </Setter>
+    <Setter Property="PlaceholderColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{StaticResource ColorTextMutedLight}"
+                         Dark="{StaticResource ColorTextMutedDark}" />
+      </Setter.Value>
+    </Setter>
+    <Setter Property="BorderColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{StaticResource ColorInputBorderLight}"
+                         Dark="{StaticResource ColorInputBorderDark}" />
+      </Setter.Value>
+    </Setter>
     <Setter Property="BorderWidth" Value="1" />
     <Setter Property="CornerRadius" Value="10" />
     <Setter Property="HeightRequest" Value="120" />
@@ -298,7 +485,7 @@
         <VisualStateGroup x:Name="CommonStates">
           <VisualState x:Name="Focused">
             <VisualState.Setters>
-              <Setter Property="BorderColor" Value="{DynamicResource ColorPrimary}" />
+              <Setter Property="BorderColor" Value="{AppThemeBinding Light={StaticResource ColorPrimaryLight}, Dark={StaticResource ColorPrimaryDark}}" />
               <Setter Property="BorderWidth" Value="2" />
             </VisualState.Setters>
           </VisualState>
@@ -308,10 +495,30 @@
   </Style>
 
   <Style TargetType="Picker">
-    <Setter Property="BackgroundColor" Value="{DynamicResource ColorInput}" />
-    <Setter Property="TextColor" Value="{DynamicResource ColorText}" />
-    <Setter Property="TitleColor" Value="{DynamicResource ColorTextMuted}" />
-    <Setter Property="BorderColor" Value="{DynamicResource ColorInputBorder}" />
+    <Setter Property="BackgroundColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{StaticResource ColorInputLight}"
+                         Dark="{StaticResource ColorInputDark}" />
+      </Setter.Value>
+    </Setter>
+    <Setter Property="TextColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{StaticResource ColorTextLight}"
+                         Dark="{StaticResource ColorTextDark}" />
+      </Setter.Value>
+    </Setter>
+    <Setter Property="TitleColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{StaticResource ColorTextMutedLight}"
+                         Dark="{StaticResource ColorTextMutedDark}" />
+      </Setter.Value>
+    </Setter>
+    <Setter Property="BorderColor">
+      <Setter.Value>
+        <AppThemeBinding Light="{StaticResource ColorInputBorderLight}"
+                         Dark="{StaticResource ColorInputBorderDark}" />
+      </Setter.Value>
+    </Setter>
     <Setter Property="BorderWidth" Value="1" />
     <Setter Property="CornerRadius" Value="10" />
     <Setter Property="HeightRequest" Value="44" />
@@ -319,24 +526,24 @@
 
   <!-- 6) LISTS -->
   <Style TargetType="CollectionView">
-    <Setter Property="SelectionBackgroundColor" Value="{DynamicResource ColorSelection}" />
+    <Setter Property="SelectionBackgroundColor" Value="{AppThemeBinding Light={StaticResource ColorSelectionLight}, Dark={StaticResource ColorSelectionDark}}" />
   </Style>
 
   <Style TargetType="ListView">
     <Setter Property="SelectionMode" Value="Single" />
-    <Setter Property="SelectionBackgroundColor" Value="{DynamicResource ColorSelection}" />
+    <Setter Property="SelectionBackgroundColor" Value="{AppThemeBinding Light={StaticResource ColorSelectionLight}, Dark={StaticResource ColorSelectionDark}}" />
   </Style>
 
   <!-- 7) CONSOLE / LOG -->
   <Style x:Key="ConsoleFrame" TargetType="Frame" BasedOn="{StaticResource Card}">
-    <Setter Property="BackgroundColor" Value="{DynamicResource ColorCardAlt}" />
+    <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource ColorCardAltLight}, Dark={StaticResource ColorCardAltDark}}" />
   </Style>
   <Style x:Key="LogError" TargetType="Label" BasedOn="{StaticResource Label}">
-    <Setter Property="TextColor" Value="{DynamicResource ColorDanger}" />
+    <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource ColorDangerLight}, Dark={StaticResource ColorDangerDark}}" />
     <Setter Property="FontFamily" Value="Consolas" />
   </Style>
   <Style x:Key="LogInfo" TargetType="Label" BasedOn="{StaticResource Label}">
-    <Setter Property="TextColor" Value="{DynamicResource ColorTextMuted}" />
+    <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource ColorTextMutedLight}, Dark={StaticResource ColorTextMutedDark}}" />
     <Setter Property="FontFamily" Value="Consolas" />
   </Style>
   <Style x:Key="LogTimestamp" TargetType="Label" BasedOn="{StaticResource LabelMuted}">
@@ -347,7 +554,7 @@
   <!-- 8) DIVIDER -->
   <Style x:Key="Divider" TargetType="BoxView">
     <Setter Property="HeightRequest" Value="1" />
-    <Setter Property="Color" Value="{DynamicResource ColorDivider}" />
+    <Setter Property="Color" Value="{AppThemeBinding Light={StaticResource ColorDividerLight}, Dark={StaticResource ColorDividerDark}}" />
     <Setter Property="Opacity" Value="1" />
     <Setter Property="HorizontalOptions" Value="Fill" />
   </Style>
@@ -356,14 +563,14 @@
   <Style x:Key="SuccessBadge" TargetType="Frame" BasedOn="{StaticResource Card}">
     <Setter Property="Padding" Value="12,6" />
     <Setter Property="CornerRadius" Value="20" />
-    <Setter Property="BackgroundColor" Value="{DynamicResource ColorSuccess}" />
+    <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource ColorSuccessLight}, Dark={StaticResource ColorSuccessDark}}" />
     <Setter Property="HasShadow" Value="False" />
   </Style>
   <Style x:Key="WarningBadge" TargetType="Frame" BasedOn="{StaticResource SuccessBadge}">
-    <Setter Property="BackgroundColor" Value="{DynamicResource ColorWarning}" />
+    <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource ColorWarningLight}, Dark={StaticResource ColorWarningDark}}" />
   </Style>
   <Style x:Key="DangerBadge" TargetType="Frame" BasedOn="{StaticResource SuccessBadge}">
-    <Setter Property="BackgroundColor" Value="{DynamicResource ColorDanger}" />
+    <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource ColorDangerLight}, Dark={StaticResource ColorDangerDark}}" />
   </Style>
 
 </ResourceDictionary>

@@ -18,13 +18,17 @@
                     </StackLayout>
                     <StackLayout Orientation="Horizontal" Spacing="12">
                         <Frame Style="{StaticResource SuccessBadge}">
-                            <Label Text="Success" TextColor="{DynamicResource ColorSurface}" />
+
+                            <Label Text="Success"
+                                   TextColor="{AppThemeBinding Light={StaticResource ColorSurfaceLight}, Dark={StaticResource ColorSurfaceDark}}" />
                         </Frame>
                         <Frame Style="{StaticResource WarningBadge}">
-                            <Label Text="Warning" TextColor="{DynamicResource ColorSurface}" />
+                            <Label Text="Warning"
+                                   TextColor="{AppThemeBinding Light={StaticResource ColorSurfaceLight}, Dark={StaticResource ColorSurfaceDark}}" />
                         </Frame>
                         <Frame Style="{StaticResource DangerBadge}">
-                            <Label Text="Critical" TextColor="{DynamicResource ColorSurface}" />
+                            <Label Text="Critical"
+                                   TextColor="{AppThemeBinding Light={StaticResource ColorSurfaceLight}, Dark={StaticResource ColorSurfaceDark}}" />
                         </Frame>
                     </StackLayout>
                 </VerticalStackLayout>
