@@ -69,7 +69,7 @@ namespace BusinessLayer
                 _discretization = discretization;
 
                 _numericSolver = NumericSolverFactory.Create(parameters.NumericSolver);
-                _differentialEquationSolver = DifferentialEquationSolverFactory.Create(discretization, parameters.DifferentialEquationSolver, _numericSolver);
+                _differentialEquationSolver = DifferentialEquationSolverFactory.Create(discretization, parameters.DifferentialEquationSolver, _numericSolver, parameters.UseOmpParallelization);
                 _regularizer = RegularisationFactory.Create(parameters.RegularizationTechnique, _discretization);
                 _errorMetric = ErrorMetricFactory.Create(parameters.ErrorMetric);
                 _initialDistributionType = parameters.InitialDistributionType;

@@ -17,7 +17,7 @@
         <Grid x:Name="LBMParametersGrid"
               Grid.Row="0"
               Grid.Column="0"
-              ColumnDefinitions="Auto,Auto,Auto,Auto,Auto"
+              ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto"
               ColumnSpacing="10"
               HeightRequest="100">
             <Picker Grid.Column="0"
@@ -49,6 +49,14 @@
                     ItemsSource="{Binding NumericOptimizerOptions}"
                     SelectedItem="{Binding ReconstructionParameters.NumericOptimizer}"
                     ItemDisplayBinding="{Binding ., Converter={StaticResource EnumDesc}}"/>
+            <HorizontalStackLayout Grid.Column="5"
+                                   VerticalOptions="Center"
+                                   Spacing="6">
+                <Label Text="Use OMP"
+                       VerticalOptions="Center"
+                       TextColor="{AppThemeBinding Light=Black, Dark=White}"/>
+                <Switch IsToggled="{Binding ReconstructionParameters.UseOmpParallelization}"/>
+            </HorizontalStackLayout>
         </Grid>
         <!-- FEM parameters -->
         <Grid x:Name="FEMParametersGrid"

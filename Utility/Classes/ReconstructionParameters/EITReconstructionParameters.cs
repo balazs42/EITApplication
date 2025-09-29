@@ -25,6 +25,9 @@ namespace Utility.Classes.ReconstructionParameters
         private InitialDistributionTypes initialDistributionType = InitialDistributionTypes.Homogeneous;
 
         [ObservableProperty]
+        private bool useOmpParallelization = false;
+
+        [ObservableProperty]
         private MeasurementNoiseType measurementNoiseType = MeasurementNoiseType.None;
 
         [ObservableProperty]
@@ -50,6 +53,7 @@ namespace Utility.Classes.ReconstructionParameters
             MeasurementNoiseAmplitude = 0.0;
             DrivePattern = DrivePattern.Adjecent;
             Mesh = DiscretizationType.FEM;
+            UseOmpParallelization = false;
         }
 
         /// <summary>
@@ -64,7 +68,8 @@ namespace Utility.Classes.ReconstructionParameters
                                            InitialDistributionTypes initialDistributionType = InitialDistributionTypes.SlightlyDiffering,
                                            MeasurementNoiseType measurementNoiseType = MeasurementNoiseType.None,
                                            double measurementNoiseAmplitude = 0.0,
-                                           DrivePattern drivePattern = DrivePattern.Adjecent)
+                                           DrivePattern drivePattern = DrivePattern.Adjecent,
+                                           bool useOmpParallelization = false)
         {
             DifferentialEquationSolver = differentialEquationSolver;
             RegularizationTechnique = regularizationTechnique;
@@ -75,6 +80,7 @@ namespace Utility.Classes.ReconstructionParameters
             MeasurementNoiseType = measurementNoiseType;
             MeasurementNoiseAmplitude = measurementNoiseAmplitude;
             DrivePattern = drivePattern;
+            UseOmpParallelization = useOmpParallelization;
 
             Mesh = (differentialEquationSolver == DifferentialEquationSolver.FEM) ? DiscretizationType.FEM : DiscretizationType.LBM;
         }
