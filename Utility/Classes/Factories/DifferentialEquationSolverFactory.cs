@@ -12,17 +12,20 @@ namespace Utility.Classes.Factories
     /// </summary>
     public static class DifferentialEquationSolverFactory
     {
-        public static IDifferentialEquationSolver Create(IDiscretization discretization, DifferentialEquationSolver des, INumericSolver numericSolver) => des switch
+        public static IDifferentialEquationSolver Create(IDiscretization discretization,
+                                                         DifferentialEquationSolver des,
+                                                         INumericSolver numericSolver,
+                                                         bool useOmpParallelization = false) => des switch
         {
-            DifferentialEquationSolver.FEM => CreateFiniteElementSolver((FEMMesh)discretization, numericSolver),
+            DifferentialEquationSolver.FEM => CreateFiniteElementSolver((FEMMesh)discretization, numericSolver, useOmpParallelization),
             DifferentialEquationSolver.LBM => CreateLatticeBoltzmannSolver(),
             DifferentialEquationSolver.Graph => CreateGraphBasedSolver((FEMMesh)discretization, numericSolver),
             _ => throw new NotSupportedException()
         };
 
-        private static FiniteElementDESolver CreateFiniteElementSolver(FEMMesh mesh, INumericSolver numericSolver)
+        private static FiniteElementDESolver CreateFiniteElementSolver(FEMMesh mesh, INumericSolver numericSolver, bool useOmpParallelization)
         {
-            var deSolver = new FiniteElementDESolver(mesh, numericSolver);
+            var deSolver = new FiniteElementDESolver(mesh, numericSolver, useOmpParallelization);
 
             Workspace.AddLogMessage("DifferentialEquationSolverFactory", "Created Finite Element solver object.");
 

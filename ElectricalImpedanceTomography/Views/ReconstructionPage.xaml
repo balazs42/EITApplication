@@ -143,7 +143,7 @@
                         <Border Grid.Column="0"
                                 Style="{StaticResource PanelSectionBorderStyle}"
                                 BackgroundColor="{AppThemeBinding Light=#27344D, Dark=#3B4452}">
-                            <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
+                            <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
                                 <Label Grid.Row="0" Text="Methods" FontSize="Medium" FontAttributes="Bold" Margin="0,0,0,12"/>
                                 <Label Grid.Row="1" HorizontalOptions="Start" Text="DE Solver" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Picker Grid.Row="2" ItemsSource="{Binding DifferentialEquationSolverOptions}" SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}"/>
@@ -155,6 +155,8 @@
                                 <Picker Grid.Row="8" ItemsSource="{Binding NumericOptimizerOptions}" SelectedItem="{Binding ReconstructionParameters.NumericOptimizer}"/>
                                 <Label Grid.Row="9" HorizontalOptions="Start" Text="Linear Solver" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Picker Grid.Row="10" ItemsSource="{Binding NumericSolverOptions}" SelectedItem="{Binding ReconstructionParameters.NumericSolver}"/>
+                                <Label Grid.Row="11" HorizontalOptions="Start" Text="Use OMP Parallelization" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Switch Grid.Row="12" IsToggled="{Binding ReconstructionParameters.UseOmpParallelization}" HorizontalOptions="Start"/>
                             </Grid>
                         </Border>
                         <!-- Parameter Configuration -->

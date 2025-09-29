@@ -34,10 +34,10 @@ namespace Utility.Classes.ReconstructionParameters
         private readonly FiniteElementSolver _solver;
         private readonly FEMMesh _mesh;
 
-        public FiniteElementDESolver(FEMMesh mesh, INumericSolver numericSolver)
+        public FiniteElementDESolver(FEMMesh mesh, INumericSolver numericSolver, bool useOmpParallelization = false)
         {
             _mesh = mesh;
-            _solver = new FiniteElementSolver(mesh, numericSolver);
+            _solver = new FiniteElementSolver(mesh, numericSolver, useOmpParallelization);
         }
 
         /// <summary>

@@ -1679,7 +1679,8 @@ namespace ElectricalImpedanceTomography.ViewModels
                 ExcitationCurrentAmplitude,
                 ExcitationElectrodeId,
                 GroundElectrodeId,
-                parameters.DrivePattern);
+                parameters.DrivePattern,
+                parameters.UseOmpParallelization);
 
             return new ReconstructionRunSignature(mesh, snapshot);
         }
@@ -1699,7 +1700,8 @@ namespace ElectricalImpedanceTomography.ViewModels
             double ExcitationCurrentAmplitude,
             int ExcitationElectrodeId,
             int GroundElectrodeId,
-            DrivePattern DrivePattern);
+            DrivePattern DrivePattern,
+            bool UseOmpParallelization);
 
         private record ReconstructionRunSignature(IDiscretization Mesh, ReconstructionParametersSnapshot Parameters);
     }

@@ -4,6 +4,8 @@ using Utility.Classes.Measurement;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.ReconstructionParameters;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace Utility.Classes.Solvers.FiniteElementSolver
 {
@@ -20,6 +22,8 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
     public sealed class FiniteElementSolver : ISolver
     {
         private readonly INumericSolver _numericSolver;
+        private readonly bool _useOmpParallelization;
+        private readonly object[] _nodeLocks;
 
         public int N_phi { get; }
         public int L { get; }
@@ -37,11 +41,12 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         /// <summary>
         /// Initialize solver with mesh sizes and numeric solver.
         /// </summary>
-        public FiniteElementSolver(FEMMesh mesh, INumericSolver numericSolver)
+        public FiniteElementSolver(FEMMesh mesh, INumericSolver numericSolver, bool useOmpParallelization = false)
         {
             N_phi = mesh.Vertices.Count;
             L = mesh.GetElectrodes().Count;
             _numericSolver = numericSolver ?? throw new ArgumentNullException(nameof(numericSolver));
+            _useOmpParallelization = useOmpParallelization;
 
             // allocate
             K = new Complex[N_phi, N_phi];
@@ -50,6 +55,10 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             D = new Complex[L, L];
             SystemMatrix = new Complex[N_phi + L, N_phi + L];
             SystemRHS = new Complex[N_phi + L];
+
+            _nodeLocks = Enumerable.Range(0, N_phi)
+                                    .Select(_ => new object())
+                                    .ToArray();
         }
 
         /// <summary>
@@ -107,15 +116,10 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         /// <returns>vector [alpha; U]</returns>
         private PotentialDistribution Solve(FEMMesh mesh, List<FEMElectrode> electrodes)
         {
-            // Build sub-blocks of the Saddle-Point System
-            BuildStiffnessMatrix(mesh);     // Eq (1.2.3)
-            BuildRobinMassMatrix(mesh);     // Eq (1.1.12)
-            BuildCouplingMatrix(mesh);      // Eq (1.1.12)
-            BuildElectrodeMatrix(mesh);     // Eq (1.1.15)
-
-            // Assemble saddle system S [α; U] = b  (Eq 1.1.16)
-            BuildSystemMatrix();
-            BuildRhsVector(electrodes);
+            if (_useOmpParallelization)
+                AssembleSystemOmp(mesh, electrodes);
+            else
+                AssembleSystem(mesh, electrodes);
 
             Debug.WriteLine("Assembled S and b");
 
@@ -148,6 +152,28 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
 
         #region Assembly
 
+        private void AssembleSystem(FEMMesh mesh, List<FEMElectrode> electrodes)
+        {
+            BuildStiffnessMatrix(mesh);     // Eq (1.2.3)
+            BuildRobinMassMatrix(mesh);     // Eq (1.1.12)
+            BuildCouplingMatrix(mesh);      // Eq (1.1.12)
+            BuildElectrodeMatrix(mesh);     // Eq (1.1.15)
+
+            BuildSystemMatrix();            // Eq (1.1.16)
+            BuildRhsVector(electrodes);
+        }
+
+        private void AssembleSystemOmp(FEMMesh mesh, List<FEMElectrode> electrodes)
+        {
+            BuildStiffnessMatrixOmp(mesh);     // Eq (1.2.3)
+            BuildRobinMassMatrixOmp(mesh);     // Eq (1.1.12)
+            BuildCouplingMatrixOmp(mesh);      // Eq (1.1.12)
+            BuildElectrodeMatrixOmp(mesh);     // Eq (1.1.15)
+
+            BuildSystemMatrixOmp();            // Eq (1.1.16)
+            BuildRhsVectorOmp(electrodes);
+        }
+
         /// <summary>
         /// Assembles the FEM stiffness matrix K = ∫ σ ∇φ_i · ∇φ_j using the
         /// conductivity stored on each element.
@@ -176,6 +202,42 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             //Debug.WriteLine("K:\n" + FormatComplexMatrix(K));
         }
 
+        private void BuildStiffnessMatrixOmp(FEMMesh mesh)
+        {
+            Array.Clear(K, 0, K.Length);
+            ConductivityDistribution sigma = mesh.GetConductivityDistribution();
+            var elements = mesh.GetElements().Cast<FEMElement>().ToList();
+
+            Parallel.ForEach(elements, elem =>
+            {
+                var contributions = new (int row, int col, Complex value)[9];
+                int idx = 0;
+                double area = elem.Area;
+                double sT = sigma.GetConductivity(elem.Id);
+                var grads = elem.GradPhi;
+
+                for (int i = 0; i < 3; i++)
+                {
+                    int row = elem.Vertices[i].GlobalId;
+                    for (int j = 0; j < 3; j++)
+                    {
+                        int col = elem.Vertices[j].GlobalId;
+                        double gdot = grads[i][0] * grads[j][0] + grads[i][1] * grads[j][1];
+                        contributions[idx++] = (row, col, new Complex(sT * area * gdot, 0));
+                    }
+                }
+
+                for (int k = 0; k < idx; k++)
+                {
+                    var (row, col, value) = contributions[k];
+                    lock (_nodeLocks[row])
+                    {
+                        K[row, col] += value;
+                    }
+                }
+            });
+        }
+
         /// <summary>
         /// Integrates the boundary impedance contributions from the complete
         /// electrode model to form the Robin mass matrix M.
@@ -184,7 +246,7 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         {
             Array.Clear(M, 0, M.Length);
             var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>();
-            
+
             foreach (var el in electrodes)
             {
                 double invZ = 1.0 / el.ZContact;
@@ -192,8 +254,29 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
 
                 foreach (int vid in el.FEMVertexIds)
                     M[vid, vid] += invZ * h;
-            }
+        }
             //Debug.WriteLine("M:\n" + FormatComplexMatrix(M));
+        }
+
+        private void BuildRobinMassMatrixOmp(FEMMesh mesh)
+        {
+            Array.Clear(M, 0, M.Length);
+            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
+
+            Parallel.ForEach(electrodes, el =>
+            {
+                double invZ = 1.0 / el.ZContact;
+                double h = el.Length / el.FEMVertexIds.Count;
+
+                foreach (int vid in el.FEMVertexIds)
+                {
+                    var contribution = new Complex(invZ * h, 0);
+                    lock (_nodeLocks[vid])
+                    {
+                        M[vid, vid] += contribution;
+                    }
+                }
+            });
         }
 
         /// <summary>
@@ -216,6 +299,27 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             //Debug.WriteLine("A_coup:\n" + FormatComplexMatrix(A_coup));
         }
 
+        private void BuildCouplingMatrixOmp(FEMMesh mesh)
+        {
+            Array.Clear(A_coup, 0, A_coup.Length);
+            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
+
+            Parallel.ForEach(electrodes, el =>
+            {
+                double invZ = 1.0 / el.ZContact;
+                double h = el.Length / el.FEMVertexIds.Count;
+
+                foreach (int vid in el.FEMVertexIds)
+                {
+                    var value = new Complex(invZ * h, 0);
+                    lock (_nodeLocks[vid])
+                    {
+                        A_coup[vid, el.Id] += value;
+                    }
+                }
+            });
+        }
+
         /// <summary>
         /// Populates the diagonal electrode matrix D that stores the
         /// aggregate contact admittance for each electrode pad.
@@ -229,6 +333,17 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
                 D[el.Id, el.Id] = el.Length / el.ZContact;
 
             //Debug.WriteLine("D:\n" + FormatComplexMatrix(D));
+        }
+
+        private void BuildElectrodeMatrixOmp(FEMMesh mesh)
+        {
+            Array.Clear(D, 0, D.Length);
+            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
+
+            Parallel.ForEach(electrodes, el =>
+            {
+                D[el.Id, el.Id] = el.Length / el.ZContact;
+            });
         }
 
         /// <summary>
@@ -254,6 +369,29 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
            // Debug.WriteLine("SystemMatrix:\n" + FormatComplexMatrix(SystemMatrix));
         }
 
+        private void BuildSystemMatrixOmp()
+        {
+            int N = N_phi, Lloc = L;
+            Array.Clear(SystemMatrix, 0, SystemMatrix.Length);
+
+            Parallel.For(0, N, i =>
+            {
+                for (int j = 0; j < N; j++)
+                    SystemMatrix[i, j] = K[i, j] + M[i, j];
+
+                for (int ell = 0; ell < Lloc; ell++)
+                    SystemMatrix[i, N + ell] = -A_coup[i, ell];
+            });
+
+            Parallel.For(0, Lloc, ell =>
+            {
+                for (int i = 0; i < N; i++)
+                    SystemMatrix[N + ell, i] = -A_coup[i, ell];
+
+                SystemMatrix[N + ell, N + ell] = D[ell, ell];
+            });
+        }
+
         /// <summary>
         /// Builds the right-hand side vector with nodal entries set to zero
         /// and electrode entries equal to the prescribed currents.
@@ -266,6 +404,16 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
                 SystemRHS[N_phi + ell] = electrodes[ell].Current;
 
            // Debug.WriteLine("SystemRHS:\n" + FormatComplexVector(SystemRHS));
+        }
+
+        private void BuildRhsVectorOmp(List<FEMElectrode> electrodes)
+        {
+            Array.Clear(SystemRHS, 0, SystemRHS.Length);
+
+            Parallel.For(0, L, ell =>
+            {
+                SystemRHS[N_phi + ell] = electrodes[ell].Current;
+            });
         }
         #endregion
 
