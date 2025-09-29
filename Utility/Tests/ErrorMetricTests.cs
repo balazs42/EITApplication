@@ -29,8 +29,7 @@ namespace Utility.Tests
             Assert.Equal(new[] { -0.5, 1.0, 0.0, 0.0 }, adj, new DoubleArrayComparer(1e-12));
         }
 
-        // Optional: W2 is an integration test because it needs LBMGrid + OR-Tools.
-        // You can enable this on CI runners that have the dependency available.
+        // W2 is an integration test because it needs LBMGrid + OR-Tools.
         [Fact]
         public void Wasserstein2_LBM_Includes_Excitation_Electrodes()
         {

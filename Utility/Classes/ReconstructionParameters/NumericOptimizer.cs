@@ -197,11 +197,14 @@
     /// </summary>
     public sealed class AdamGradientOptimizer : INumericOptimizer
     {
+        private const double _minConductivity = 1e-6;
+        private const double _maxConductivity = 10.0;
         private readonly double _beta1;
         private readonly double _beta2;
         private readonly double _eps;
         private readonly double _weightDecay;
         private readonly double? _maxGradNorm;
+        private readonly double _velocityClip = 1000.0;  // Prevent excessive velocity
 
         private int _t = 0;
         private Dictionary<int, double>? _m;  // 1st moment
@@ -263,7 +266,8 @@
                 // decoupled weight decay (AdamW)
                 if (_weightDecay != 0.0)
                 {
-                    conductivity -= stepSize * _weightDecay * conductivity;
+                    conductivity = Math.Max(_minConductivity, 
+                        conductivity * (1 - stepSize * _weightDecay));
                 }
 
                 // update biased moments
@@ -272,23 +276,46 @@
                 double m_new = _beta1 * m_prev + (1 - _beta1) * gradient;
                 double v_new = _beta2 * v_prev + (1 - _beta2) * gradient * gradient;
 
-                _m[id] = m_new;
-                _v[id] = v_new;
-
-                // bias-corrected
-                double m_hat = m_new / (1 - Math.Pow(_beta1, _t));
-                double v_hat = v_new / (1 - Math.Pow(_beta2, _t));
-
-                double denom = Math.Sqrt(v_hat) + _eps;
-                if (!double.IsFinite(denom) || denom == 0.0)
+                // Protect against NaN
+                if (!double.IsFinite(m_new) || !double.IsFinite(v_new))
                 {
                     newSigma[id] = conductivity;
                     continue;
                 }
 
-                // update σ
-                double σn = conductivity - stepSize * m_hat / denom;
+                _m[id] = m_new;
+                _v[id] = v_new;
+
+                // bias-corrected with protection against div/0 and overflow
+                double m_hat = 0.0;
+                double v_hat = 0.0;
+                double beta1_t = Math.Pow(_beta1, _t);
+                double beta2_t = Math.Pow(_beta2, _t);
+
+                if (beta1_t < 1.0 && beta2_t < 1.0)
+                {
+                    m_hat = m_new / (1 - beta1_t);
+                    v_hat = v_new / (1 - beta2_t);
+                }
+
+                double denom = Math.Sqrt(Math.Max(0.0, v_hat)) + _eps;
+                if (!double.IsFinite(denom) || Math.Abs(denom) < double.Epsilon)
+                {
+                    newSigma[id] = conductivity;
+                    continue;
+                }
+
+                // Compute and clip velocity
+                double velocity = stepSize * m_hat / denom;
+                if (Math.Abs(velocity) > _velocityClip)
+                {
+                    velocity = Math.Sign(velocity) * _velocityClip;
+                }
+
+                // update σ with bounds
+                double σn = conductivity - velocity;
                 σn = NumericOptimizerGuards.ClipExcessiveGrowth(original, σn);
+                σn = Math.Max(_minConductivity, Math.Min(_maxConductivity, σn));
                 newSigma[id] = σn;
             }
             return new ConductivityDistribution(newSigma);
@@ -378,18 +405,22 @@
     {
         private readonly double _tol;
         private readonly double _mu0;
+        private readonly double _maxMu;  // Upper bound on mu growth
         private ConductivityDistribution _anchor;  // σ^k at stall
         private bool _anchored = false;
         private double _mu;
         private const double _delta = 0.5; // width of repeller in log domain
+        private const double _minConductivity = 1e-6;
+        private const double _maxConductivity = 10.0;
 
         private GradientBasedOptimizer GradientBasedOptimizer = new();
 
-        public GlobalTunnelingDescentOptimizer(double tolerance = 1e-3, double mu0 = 1.0)
+        public GlobalTunnelingDescentOptimizer(double tolerance = 1e-3, double mu0 = 1.0, double maxMu = 1000.0)
         {
             _anchor = new([]);
             _tol = tolerance;
             _mu0 = mu0;
+            _maxMu = maxMu;
         }
 
         public ConductivityDistribution OptimizationStep(ConductivityDistribution sigmaK, ConductivityDistribution totalGradient, double alpha)
@@ -412,32 +443,72 @@
                 _anchored = true;
             }
 
-            // compute repeller gradient in log domain
+            // compute repeller gradient in log domain with protection against log(0)
             var repGrad = new Dictionary<int, double>();
             foreach (var kv in sigmaK.Conductivities)
             {
                 int id = kv.Key;
-                double conductivity = kv.Value;
+                double conductivity = Math.Max(_minConductivity, kv.Value);
+                double anchorConductivity = Math.Max(_minConductivity, _anchor.GetConductivity(id));
+                
                 double eta = Math.Log(conductivity);
-                double eta0 = Math.Log(_anchor.GetConductivity(id));
+                double eta0 = Math.Log(anchorConductivity);
+                
+                // Protect against extreme differences in log domain
+                if (Math.Abs(eta - eta0) > 20.0)
+                {
+                    repGrad[id] = 0.0;
+                    continue;
+                }
+                
                 double r = Math.Exp(-Math.Pow(eta - eta0, 2) / (_delta * _delta));
                 
                 // ∇_σ R = dr/dη * dη/dσ = r * (-2(η-η0)/δ²) * (1/σ)
+                // Protect against division by zero
+                if (conductivity < double.Epsilon)
+                {
+                    repGrad[id] = 0.0;
+                    continue;
+                }
+                
                 double dRdσ = r * (-2 * (eta - eta0) / (_delta * _delta)) / conductivity;
+                
+                // Clip extreme gradients
+                if (!double.IsFinite(dRdσ))
+                {
+                    dRdσ = 0.0;
+                }
                 repGrad[id] = dRdσ;
             }
 
-            // tunnel step: G+μ repGrad
+            // tunnel step: G+μ repGrad with bounded μ
             var total = new Dictionary<int, double>();
             foreach (var kv in totalGradient.Conductivities)
             {
                 int id = kv.Key;
-                total[id] = kv.Value + _mu * repGrad[id];
+                double combinedGrad = kv.Value + Math.Min(_maxMu, _mu) * repGrad[id];
+                
+                // Clip extreme combined gradients
+                if (!double.IsFinite(combinedGrad))
+                {
+                    combinedGrad = kv.Value;
+                }
+                total[id] = combinedGrad;
             }
 
-            // increase mu for next time
-            _mu *= 1.5;
-            return GradientBasedOptimizer.OptimizationStep(sigmaK, new ConductivityDistribution(total), alpha);
+            // increase mu for next time with upper bound
+            _mu = Math.Min(_maxMu, _mu * 1.5);
+            
+            var result = GradientBasedOptimizer.OptimizationStep(sigmaK, new ConductivityDistribution(total), alpha);
+            
+            // Ensure result stays within bounds
+            var bounded = new Dictionary<int, double>();
+            foreach (var kv in result.Conductivities)
+            {
+                bounded[kv.Key] = Math.Max(_minConductivity, Math.Min(_maxConductivity, kv.Value));
+            }
+            
+            return new ConductivityDistribution(bounded);
         }
     }
 
@@ -493,31 +564,91 @@
     /// </summary>
     public sealed class SimulatedAnnealingOptimizer : INumericOptimizer
     {
-        private double _temperature = 1.0;
+        private const double _minConductivity = 1e-6;
+        private const double _maxConductivity = 10.0;
+        private const double _minTemperature = 1e-6;
+        private const double InitialTemperature = 1.0;
+        
+        private double _temperature = InitialTemperature;
         private readonly double _cooling = 0.95;
         private readonly Random _rnd = new Random();
+        private int _stepsAtMinTemp = 0;
+        private const int MaxStepsAtMinTemp = 100;
 
         public ConductivityDistribution OptimizationStep(ConductivityDistribution sigmaK, ConductivityDistribution totalGradient, double stepSize)
         {
-            // propose Δσ uniform in [-stepSize,stepSize]
+            if (stepSize <= 0.0)
+                return sigmaK;
+
+            // Reset temperature if we've been at minimum too long
+            if (_temperature <= _minTemperature)
+            {
+                _stepsAtMinTemp++;
+                if (_stepsAtMinTemp >= MaxStepsAtMinTemp)
+                {
+                    _temperature = InitialTemperature;
+                    _stepsAtMinTemp = 0;
+                }
+            }
+
+            // propose Δσ uniform in [-stepSize,stepSize] with bounds
             var σp = new Dictionary<int, double>();
             foreach (var kv in sigmaK.Conductivities)
             {
-                double proposal = kv.Value + (2 * _rnd.NextDouble() - 1) * stepSize;
-                σp[kv.Key] = NumericOptimizerGuards.ClipExcessiveGrowth(kv.Value, proposal);
+                double current = kv.Value;
+                double delta = (2 * _rnd.NextDouble() - 1) * stepSize;
+                double proposal = current + delta;
+                
+                // Clip to valid range
+                proposal = Math.Max(_minConductivity, Math.Min(_maxConductivity, proposal));
+                proposal = NumericOptimizerGuards.ClipExcessiveGrowth(current, proposal);
+                
+                σp[kv.Key] = proposal;
             }
 
-            // approximate ΔJ = ∑g_i Δσ_i
+            // approximate ΔJ = ∑g_i Δσ_i with protection against invalid gradients
             double dJ = 0;
+            bool validDeltaJ = true;
             foreach (var kv in sigmaK.Conductivities)
-                dJ += totalGradient.GetConductivity(kv.Key) * (σp[kv.Key] - kv.Value);
+            {
+                int id = kv.Key;
+                double gradient = totalGradient.GetConductivity(id);
+                if (!double.IsFinite(gradient))
+                {
+                    validDeltaJ = false;
+                    break;
+                }
+                dJ += gradient * (σp[id] - kv.Value);
+            }
 
             // accept if downhill or by Metropolis criterion
-            if (dJ < 0 || _rnd.NextDouble() < Math.Exp(-dJ / _temperature))
-                sigmaK = new ConductivityDistribution(σp);
+            bool accept = false;
+            if (validDeltaJ)
+            {
+                if (dJ < 0)
+                {
+                    accept = true;
+                }
+                else if (_temperature > _minTemperature)
+                {
+                    double p = Math.Exp(-dJ / _temperature);
+                    accept = _rnd.NextDouble() < p;
+                }
+            }
 
-            _temperature *= _cooling;
-            return sigmaK;
+            var result = accept ? new ConductivityDistribution(σp) : sigmaK;
+
+            // Update temperature with minimum bound
+            _temperature = Math.Max(_minTemperature, _temperature * _cooling);
+
+            // Ensure result stays within bounds
+            var bounded = new Dictionary<int, double>();
+            foreach (var kv in result.Conductivities)
+            {
+                bounded[kv.Key] = Math.Max(_minConductivity, Math.Min(_maxConductivity, kv.Value));
+            }
+            
+            return new ConductivityDistribution(bounded);
         }
     }
 
