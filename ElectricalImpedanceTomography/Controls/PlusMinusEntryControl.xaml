@@ -6,7 +6,7 @@
     <Grid ColumnDefinitions="*, Auto,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="5">
         <Label Grid.Column="0"
                Grid.RowSpan="2"
-               TextColor="{AppThemeBinding Light=#9DAAD3, Dark=Black}"
+               TextColor="{AppThemeBinding Light=#9DAAD3, Dark=White}"
                HorizontalTextAlignment="Start"
                VerticalTextAlignment="Center"
                Text="{Binding Source={x:Reference Root}, Path=LabelText}"/>
@@ -42,7 +42,7 @@
                HorizontalTextAlignment="End"
                HorizontalOptions="End"
                Keyboard="Numeric"
-               TextColor="{AppThemeBinding Light=#9DAAD3, Dark=Black}"
+               TextColor="{AppThemeBinding Light=#9DAAD3, Dark=White}"
                MaximumWidthRequest="70"
                Text="{Binding Source={x:Reference Root}, Path=Value, Mode=TwoWay}"/>
     </Grid>

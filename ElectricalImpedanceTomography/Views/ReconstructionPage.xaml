@@ -120,13 +120,15 @@
     </ContentPage.Resources>
     
     
-    <Grid RowDefinitions="Auto, Auto">
+    <Grid RowDefinitions="*">
+        <!--
         <controls:NavBarControl x:Name="NavBar" Grid.Row="0" Grid.ColumnSpan="1" CurrentPageName="ReconstructionPage"/>
-
+        -->
         <!-- Main Grid For Page display -->
         <Grid Grid.Row="1" ColumnDefinitions="Auto, *, Auto" Margin="5">
             <!-- Left hand Side controls-->
             <Border Style="{StaticResource PanelBorderStyle}"
+                    MaximumWidthRequest="400"
                     Grid.Column="0"
                     Margin="5"
                     Background="{StaticResource ConfigurationPanelBrush}">
@@ -138,7 +140,7 @@
                         <Image Grid.Column="0" Source="icon_configuration.png" HeightRequest="35"/>
                         <Label Grid.Column="1" Text="Configuration" FontAttributes="Italic" FontSize="Large" TextColor="{AppThemeBinding Light=White, Dark=#262E38}"/>
                     </Grid>
-                    <Grid ColumnDefinitions="*, *" ColumnSpacing="14" RowSpacing="0">
+                    <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="14" RowSpacing="0">
                         <!-- Method Selection -->
                         <Border Grid.Column="0"
                                 Style="{StaticResource PanelSectionBorderStyle}"
@@ -148,7 +150,7 @@
                                 <Label Grid.Row="1" HorizontalOptions="Start" Text="DE Solver" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Picker Grid.Row="2" ItemsSource="{Binding DifferentialEquationSolverOptions}" SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}"/>
                                 <Label Grid.Row="3" HorizontalOptions="Start" Text="Error Metric" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="4" ItemsSource="{Binding ErrorMetricOptions}" SelectedItem="{Binding ReconstructionParameters.ErrorMetric}" WidthRequest="150"/>
+                                <Picker Grid.Row="4" HorizontalOptions="Start" ItemsSource="{Binding ErrorMetricOptions}" SelectedItem="{Binding ReconstructionParameters.ErrorMetric}" WidthRequest="150"/>
                                 <Label Grid.Row="5" HorizontalOptions="Start" Text="Regularization" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Picker Grid.Row="6" ItemsSource="{Binding RegularizationTechniqueOptions}" SelectedItem="{Binding ReconstructionParameters.RegularizationTechnique}"/>
                                 <Label Grid.Row="7" HorizontalOptions="Start" Text="Optimizer" FontFamily="SF Pro Text" FontAttributes="None"/>
@@ -185,6 +187,7 @@
                     </Grid>
 
                     <Border Style="{StaticResource PanelSectionBorderStyle}"
+                            MaximumWidthRequest="350"
                             BackgroundColor="{AppThemeBinding Light=#253049, Dark=#3F4856}">
                         <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
                             <Grid Grid.Row="0" ColumnDefinitions="Auto, *" ColumnSpacing="8">
@@ -196,20 +199,20 @@
                             <Label Grid.Row="3" Text="Starting Ground Electrode" FontAttributes="None"/>
                             <Entry Grid.Row="4" Text="{Binding GroundElectrodeId}"/>
                             <Label Grid.Row="5" Text="Drive Pattern:" FontAttributes="None"/>
-                            <Grid Grid.Row="6" ColumnDefinitions="Auto, Auto, Auto, Auto" ColumnSpacing="20" HorizontalOptions="Center">
-                                <CheckBox Grid.Column="0"
+                            <Grid Grid.Row="6" ColumnDefinitions="Auto, Auto, Auto, Auto" ColumnSpacing="10" HorizontalOptions="Center">
+                                <Label Grid.Column="0" Margin="5" Text="Adjecent" VerticalOptions="Center" HorizontalOptions="Start" FontAttributes="None"/>
+                                <CheckBox Grid.Column="1"
                                           HorizontalOptions="Center"
                                           VerticalOptions="Center"
                                           IsChecked="{Binding AdjecentDrivePattern}"
                                           CheckedChanged="OnAdjecentDrivePatternChecked"/>
-                                <Label Grid.Column="1" Text="Adjecent" VerticalOptions="Center" HorizontalOptions="Start" FontAttributes="None"/>
-                                <CheckBox Grid.Column="2"
+                                <Label Grid.Column="2" Margin="5" Text="Opposite" VerticalOptions="Center" HorizontalOptions="Start" FontAttributes="None"/>
+                                <CheckBox Grid.Column="3"
                                           HorizontalOptions="Center"
                                           VerticalOptions="Center"
                                           IsChecked="{Binding OppositeDrivePattern}"
                                           CheckedChanged="OnOppositeDrivePatternChecked"/>
-                                <Label Grid.Column="3" Text="Opposite" HorizontalOptions="Start" VerticalOptions="Center" FontAttributes="None"/>
-                            </Grid>
+                                </Grid>
                             <Button Grid.Row="7" Text="Edit Boundary Conditions" Background="#2F9E9C" TextColor="White" FontAttributes="Bold" Clicked="OnEditBoundaryConditionsClicked"/>
                         </Grid>
                     </Border>
@@ -282,10 +285,9 @@
                         <Label Grid.Column="4" HorizontalOptions="Center" WidthRequest="120" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding Residual, StringFormat='Residual: {0:F3}'}" TextColor="{AppThemeBinding Light=#F0F4FF, Dark=#262E38}"/>
 
                         <Border Grid.Column="5" Margin="2" Background="Transparent" Stroke="Transparent">
-                            <Button Text="Solve Forward" Margin="10" BackgroundColor="DarkOliveGreen" TextColor="White" FontAttributes="Bold" Clicked="OnSolveForwardClicked"/>
+                            <Button Text="Reset Reconstruction" Margin="10" BackgroundColor="DarkRed" TextColor="White" FontAttributes="Bold" Clicked="OnResetReconstructionClicked"/>
                         </Border>
                         <Border Grid.Column="6" Margin="2" Background="Transparent" Stroke="Transparent">
-                            <Button Text="Solve Inverse" Margin="10" BackgroundColor="DarkRed" TextColor="White" FontAttributes="Bold" Clicked="OnSolveInverseClicked"/>
                         </Border>
                         <Picker x:Name="PotentialModePicker"
                                 Margin="5"

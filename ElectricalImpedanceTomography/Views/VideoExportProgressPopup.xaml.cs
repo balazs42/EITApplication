@@ -3,9 +3,6 @@ using CommunityToolkit.Maui.Views;
 using ElectricalImpedanceTomography.Helpers;
 using ElectricalImpedanceTomography.ViewModels;
 using SkiaSharp;
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace ElectricalImpedanceTomography.Views;
 

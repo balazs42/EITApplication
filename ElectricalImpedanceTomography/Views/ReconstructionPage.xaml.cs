@@ -2,20 +2,15 @@ using CommunityToolkit.Maui.Views;
 using ElectricalImpedanceTomography.Extensions;
 using ElectricalImpedanceTomography.Helpers;
 using ElectricalImpedanceTomography.ViewModels;
-using Microsoft.Maui.ApplicationModel;
-using Microsoft.Maui.Storage;
-using System.Linq;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
 using SkiaSharp.Views.Maui.Controls;
 using System.Collections.Specialized;
-using System.IO;
 using Utility.Classes;
 using Utility.Classes.Measurement;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
-using Microsoft.Maui.Graphics;
 
 using Workspace = Utility.Classes.Application.Workspace;
 
@@ -1402,7 +1397,7 @@ public partial class ReconstructionPage : ContentPage
         }
 
         await AnimateButtonAsync(sender);
-        _viewModel?.OnSolveForwardClicked(this, e);
+        //_viewModel?.OnSolveForwardClicked(this, e);
     }
 
     private async void OnSolveInverseClicked(object sender, EventArgs e)
@@ -1420,7 +1415,7 @@ public partial class ReconstructionPage : ContentPage
         }
 
         await AnimateButtonAsync(sender);
-        _viewModel?.OnSolveInverseClicked(this, e);
+        //_viewModel?.OnSolveInverseClicked(this, e);
     }
 
     private async void OnEditBoundaryConditionsClicked(object sender, EventArgs e)
@@ -1470,5 +1465,26 @@ public partial class ReconstructionPage : ContentPage
         AdjointDistributionCanvas.InvalidateSurface();
         PotentialColorbarCanvas.InvalidateSurface();
         AdjointColorbarCanvas.InvalidateSurface();
+    }
+
+    private async void OnResetReconstructionClicked(object sender, EventArgs e)
+    {
+        await AnimateButtonAsync(sender);
+        bool confirm = await DisplayAlert("Reset Reconstruction", "Are you sure you want to reset all reconstruction parameters and progress?", "Yes", "No");
+        if (!confirm)
+            return;
+
+        _viewModel.ResetAllToDefaults();
+
+        // Clear current visuals to initial state
+        _currentResult = null;
+        _currentFrame = null;
+        PlaybackSlider.Maximum = 0;
+        PlaybackSlider.Value = 0;
+        UpdatePlaybackLabel();
+        InvalidateAll();
+        UpdateExportButtonState();
+
+        await DisplayAlert("Reset Complete", "Reconstruction parameters and progress were reset.", "OK");
     }
 }

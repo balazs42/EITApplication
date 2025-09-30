@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using ElectricalImpedanceTomography.Helpers;
+using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Storage;
 using ServiceLayer;
 using SkiaSharp;
@@ -8,13 +9,12 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Globalization;
-using System.Runtime.InteropServices;
-
 using System.Threading;
 using System.Threading.Tasks;
+
 using Utility.Classes;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
@@ -512,35 +512,6 @@ namespace ElectricalImpedanceTomography.ViewModels
                     return false;
 
             return true;
-        }
-
-        public async void OnSolveForwardClicked(object sender, EventArgs e)
-        {
-            InitializeReconstruction(force: true);
-
-            if (_discretization is FEMMesh)
-                await Task.Run(() => _reconstructionService.ForwardSolveStepFem());
-            else if (_discretization is LBMGrid)
-                await Task.Run(() => _reconstructionService.ForwardSolveStepLbm());
-        }
-
-        public async void OnSolveInverseClicked(object sender, EventArgs e)
-        {
-            InitializeReconstruction(force: true);
-            ResetReconstructionMetrics();
-            BeginReconstructionMetrics();
-
-            try
-            {
-                if (_discretization is FEMMesh)
-                    await Task.Run(() => _reconstructionService.InverseSolveFem(MaxIterationCount, StepSize, RegularizationWeight, ExcitationCurrentAmplitude));
-                else if (_discretization is LBMGrid)
-                    await Task.Run(() => _reconstructionService.InverseSolveLbm(MaxIterationCount, StepSize, RegularizationWeight, ExcitationCurrentAmplitude));
-            }
-            finally
-            {
-                PauseReconstructionMetrics();
-            }
         }
 
         private double CalculateResidual(ConductivityDistribution reconstructed, ConductivityDistribution original)
@@ -1176,18 +1147,35 @@ namespace ElectricalImpedanceTomography.ViewModels
             _lastRunSignature = null;
         }
 
-        public async Task<ReconstructionFrame?> StepReconstructionAsync()
+        /// <summary>
+        /// Completely resets all reconstruction-related data and deallocates resources.
+        /// This clears all reconstruction results, frames, and resets the reconstruction state.
+        /// </summary>
+        public void RestartReconstruction()
         {
-            InitializeReconstruction();
-            BeginReconstructionMetrics();
-            try
-            {
-                return await _reconstructionService.StepReconstructionAsync();
-            }
-            finally
-            {
-                PauseReconstructionMetrics();
-            }
+            StopReconstruction();
+            // Reset view model state and clear workspace frames/results
+            Workspace.ClearReconstructionFrames();
+            Workspace.SetReconstructionResults(new List<ReconstructionResult>());
+
+            IterationCount = 0;
+            Residual = 1.0;
+            Correlation = 0.0;
+            ElapsedTime = TimeSpan.Zero;
+        }
+
+        public void ResetAllToDefaults()
+        {
+            var defaults = new EITReconstructionParameters();
+            ReconstructionParameters = defaults;
+
+            MaxIterationCount = 50;
+            StepSize = 0.001;
+            RegularizationWeight = 0.001;
+
+            ExcitationElectrodeId = 1;
+            GroundElectrodeId = 0;
+            SetDrivePattern(DrivePattern.Adjecent);
         }
 
         public Task<ReconstructionResult?> RunFullReconstructionCycleAsync()
@@ -1202,6 +1190,15 @@ namespace ElectricalImpedanceTomography.ViewModels
             return result;
         }
 
+        public async Task StepReconstructionAsync()
+        {
+            InitializeReconstruction();
+            BeginReconstructionMetrics();
+            await _reconstructionService.StepReconstructionAsync();
+            StopElapsedTimer();
+        }
+
+        // Event handlers wired to the service
         private void OnServiceReconstructionUpdated(object? sender, ReconstructionResult result)
         {
             Residual = CalculateResidual(result.ReconstructedConductivityDistribution,
@@ -1214,7 +1211,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             UpdateResidualTrendMetrics();
             RequestMetricUpdate(result, null);
 
-            if(IterationCount % 10 == 0)
+            if (IterationCount % 10 == 0)
             {
                 MainThread.BeginInvokeOnMainThread(() =>
                 {
@@ -1392,8 +1389,9 @@ namespace ElectricalImpedanceTomography.ViewModels
 
                         cancellationToken.ThrowIfCancellationRequested();
 
-                        progress?.Report(new VideoExportProgressReport(Math.Min(0.98, frames.Count / (frames.Count + 1.0)),
-                                                                        "Encoding video stream..."));
+                        progress?.Report(new VideoExportProgressReport(
+                            Math.Min(0.98, frames.Count / (frames.Count + 1.0)),
+                            "Encoding video stream..."));
 
                         bool mp4Created = false;
 
@@ -1658,7 +1656,9 @@ namespace ElectricalImpedanceTomography.ViewModels
             foreach (var r in AvailableReconstructions.Where(r =>
                          string.IsNullOrWhiteSpace(ReconstructionSearchText) ||
                          r.Name.Contains(ReconstructionSearchText, StringComparison.OrdinalIgnoreCase)))
+            {
                 FilteredReconstructions.Add(r);
+            }
         }
 
         private ReconstructionRunSignature CreateCurrentRunSignature(IDiscretization mesh)
@@ -1673,9 +1673,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 parameters.InitialDistributionType,
                 parameters.MeasurementNoiseType,
                 parameters.MeasurementNoiseAmplitude,
-                //StepSize,
                 RegularizationWeight,
-                //MaxIterationCount,
                 ExcitationCurrentAmplitude,
                 ExcitationElectrodeId,
                 GroundElectrodeId,
@@ -1694,9 +1692,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             InitialDistributionTypes InitialDistributionType,
             MeasurementNoiseType MeasurementNoiseType,
             double MeasurementNoiseAmplitude,
-            //double StepSize,
             double RegularizationWeight,
-            //int MaxIterationCount,
             double ExcitationCurrentAmplitude,
             int ExcitationElectrodeId,
             int GroundElectrodeId,

@@ -5,12 +5,10 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:local="clr-namespace:ElectricalImpedanceTomography"
     xmlns:views="clr-namespace:ElectricalImpedanceTomography.Views"
-    Title="ElectricalImpedanceTomography">
+    Title="ElectricalImpedanceTomography"
+    IsVisible="False">
 
     <TabBar>
-        <ShellContent Title="Theme" Route="ThemeGalleryPage">
-            <views:ThemeGalleryPage />
-        </ShellContent>
         <ShellContent Title="Home" Route="MainPage">
             <views:MainPage />
         </ShellContent>

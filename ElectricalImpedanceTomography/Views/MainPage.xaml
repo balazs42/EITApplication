@@ -73,17 +73,17 @@
                                    Text="Hardware Info"
                                    FontAttributes="Italic"
                                    FontSize="Medium"
-                                   TextColor="{AppThemeBinding Light=#C9D7F2, Dark=Black}"/>
+                                   TextColor="{AppThemeBinding Light=#C9D7F2, Dark=White}"/>
                         </Grid>
                         <Label Text="{Binding CurrentAmplitude, StringFormat='Current amplitude: {0:F2} mA'}"
-                               TextColor="{AppThemeBinding Light=#C9D7F2, Dark=Black}"/>
+                               TextColor="{AppThemeBinding Light=#C9D7F2, Dark=White}"/>
                         <Label Text="{Binding ExcitationFrequency, StringFormat='Excitation frequency: {0:F0} kHz'}"
-                               TextColor="{AppThemeBinding Light=#C9D7F2, Dark=Black}"/>
+                               TextColor="{AppThemeBinding Light=#C9D7F2, Dark=White}"/>
                         <Grid ColumnDefinitions="Auto, Auto, *"
                               ColumnSpacing="8"
                               VerticalOptions="Center">
                             <Label Text="Connection Status: "
-                                   TextColor="{AppThemeBinding Light=#C9D7F2, Dark=Black}"
+                                   TextColor="{AppThemeBinding Light=#C9D7F2, Dark=White}"
                                    FontAttributes="None"/>
                             <Image Grid.Column="1"
                                    HeightRequest="16">
@@ -143,7 +143,7 @@
                                    Text="Navigation"
                                    FontAttributes="Italic"
                                    FontSize="Medium"
-                                   TextColor="{AppThemeBinding Light=#F7FBFF, Dark=Black}"/>
+                                   TextColor="{AppThemeBinding Light=#F7FBFF, Dark=White}"/>
                         </Grid>
 
                         <Border Style="{StaticResource PanelSectionBorderStyle}"
@@ -228,22 +228,32 @@
                                    Text="Configuration"
                                    FontAttributes="Italic"
                                    FontSize="Medium"
-                                   TextColor="{AppThemeBinding Light=#F7FBFF, Dark=Black}"/>
+                                   TextColor="{AppThemeBinding Light=#F7FBFF, Dark=White}"/>
                         </Grid>
                         <Picker Title="Solver"
                                 ItemsSource="{Binding Solvers}"
+                                TextColor="{AppThemeBinding Light=#F7FBFF, Dark=White}"
+                                TitleColor="{AppThemeBinding Light=#F7FBFF, Dark=White}"
                                 SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}"/>
                         <Picker Title="Regularization"
                                 ItemsSource="{Binding Regularizations}"
+                                TextColor="{AppThemeBinding Light=#F7FBFF, Dark=White}"
+                                TitleColor="{AppThemeBinding Light=#F7FBFF, Dark=White}"
                                 SelectedItem="{Binding ReconstructionParameters.RegularizationTechnique}"/>
                         <Picker Title="Error Metric"
                                 ItemsSource="{Binding ErrorMetrics}"
+                                TextColor="{AppThemeBinding Light=#F7FBFF, Dark=White}"
+                                TitleColor="{AppThemeBinding Light=#F7FBFF, Dark=White}"                                
                                 SelectedItem="{Binding ReconstructionParameters.ErrorMetric}"/>
                         <Picker Title="Numeric Optimizer"
                                 ItemsSource="{Binding NumericOptimizers}"
+                                TextColor="{AppThemeBinding Light=#F7FBFF, Dark=White}"
+                                TitleColor="{AppThemeBinding Light=#F7FBFF, Dark=White}"                                
                                 SelectedItem="{Binding ReconstructionParameters.NumericOptimizer}"/>
                         <Picker Title="Numeric Solver"
                                 ItemsSource="{Binding NumericSolvers}"
+                                TextColor="{AppThemeBinding Light=#F7FBFF, Dark=White}"
+                                TitleColor="{AppThemeBinding Light=#F7FBFF, Dark=White}"                                
                                 SelectedItem="{Binding ReconstructionParameters.NumericSolver}"/>
                     </VerticalStackLayout>
                 </Border>

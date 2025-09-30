@@ -158,17 +158,19 @@
   </LinearGradientBrush>
 
   <!-- 2) TYPOGRAPHY -->
-  <Style TargetType="Label">
+  <!-- Base style for Label with a key so others can reference it -->
+  <Style x:Key="BaseLabel" TargetType="Label">
     <Setter Property="TextColor">
       <Setter.Value>
         <AppThemeBinding Light="{StaticResource ColorTextLight}"
                          Dark="{StaticResource ColorTextDark}" />
       </Setter.Value>
     </Setter>
-
     <Setter Property="FontSize" Value="14" />
     <Setter Property="LineBreakMode" Value="WordWrap" />
   </Style>
+  <!-- Implicit Label style based on BaseLabel -->
+  <Style TargetType="Label" BasedOn="{StaticResource BaseLabel}" />
 
   <Style x:Key="LabelMuted" TargetType="Label">
     <Setter Property="TextColor">
@@ -177,7 +179,6 @@
                          Dark="{StaticResource ColorTextMutedDark}" />
       </Setter.Value>
     </Setter>
-
   </Style>
 
   <!-- 3) PAGES & SHELL -->
@@ -290,11 +291,7 @@
         <Setter Property="StrokeShape" Value="RoundRectangle 16" />
         <Setter Property="Shadow">
       <Setter.Value>
-        <Shadow Radius="18" Opacity="0.35" Offset="0,6">
-            <Shadow.Brush>
-                <SolidColorBrush Color="{StaticResource BrushBorder}"/>
-            </Shadow.Brush>
-        </Shadow>
+        <Shadow Radius="18" Opacity="0.35" Offset="0,6" Brush="{StaticResource BrushBorder}" />
       </Setter.Value>
     </Setter>
     <Setter Property="Padding" Value="20" />
@@ -310,11 +307,7 @@
     <Setter Property="Padding" Value="20" />
     <Setter Property="Shadow">
       <Setter.Value>
-        <Shadow Radius="18" Opacity="0.35" Offset="0,6">
-            <Shadow.Brush>
-                <SolidColorBrush Color="{StaticResource BrushBorder}"/>
-            </Shadow.Brush>
-        </Shadow>
+        <Shadow Radius="18" Opacity="0.35" Offset="0,6" Brush="{StaticResource BrushBorder}" />
       </Setter.Value>
     </Setter>
   </Style>
@@ -449,12 +442,6 @@
                          Dark="{StaticResource ColorTextMutedDark}" />
       </Setter.Value>
     </Setter>
-    <Setter Property="BackgroundColor">
-      <Setter.Value>
-        <AppThemeBinding Light="{StaticResource ColorInputBorderLight}"
-                         Dark="{StaticResource ColorInputBorderDark}" />
-      </Setter.Value>
-    </Setter>
       <!--
     <Setter Property="BorderWidth" Value="1" />
     <Setter Property="CornerRadius" Value="10" />
@@ -499,12 +486,6 @@
                          Dark="{StaticResource ColorTextMutedDark}" />
       </Setter.Value>
     </Setter>
-    <Setter Property="BackgroundColor">
-      <Setter.Value>
-        <AppThemeBinding Light="{StaticResource ColorInputBorderLight}"
-                         Dark="{StaticResource ColorInputBorderDark}" />
-      </Setter.Value>
-    </Setter>
       <!--
     <Setter Property="BorderWidth" Value="1" />
     <Setter Property="CornerRadius" Value="10" />
@@ -543,12 +524,6 @@
                          Dark="{StaticResource ColorTextMutedDark}" />
       </Setter.Value>
     </Setter>
-    <Setter Property="BackgroundColor">
-      <Setter.Value>
-        <AppThemeBinding Light="{StaticResource ColorInputBorderLight}"
-                         Dark="{StaticResource ColorInputBorderDark}" />
-      </Setter.Value>
-    </Setter>
       <!--
     <Setter Property="BorderWidth" Value="1" />
     <Setter Property="CornerRadius" Value="10" />
@@ -570,11 +545,11 @@
   <Style x:Key="ConsoleFrame" TargetType="Border" BasedOn="{StaticResource Card}">
     <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource ColorCardAltLight}, Dark={StaticResource ColorCardAltDark}}" />
   </Style>
-  <Style x:Key="LogError" TargetType="Label" BasedOn="{StaticResource Label}">
+  <Style x:Key="LogError" TargetType="Label" BasedOn="{StaticResource BaseLabel}">
     <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource ColorDangerLight}, Dark={StaticResource ColorDangerDark}}" />
     <Setter Property="FontFamily" Value="Consolas" />
   </Style>
-  <Style x:Key="LogInfo" TargetType="Label" BasedOn="{StaticResource Label}">
+  <Style x:Key="LogInfo" TargetType="Label" BasedOn="{StaticResource BaseLabel}">
     <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource ColorTextMutedLight}, Dark={StaticResource ColorTextMutedDark}}" />
     <Setter Property="FontFamily" Value="Consolas" />
   </Style>

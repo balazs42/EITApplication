@@ -74,12 +74,13 @@
         </Style>
     </ContentPage.Resources>
 
-    <Grid RowDefinitions="Auto, *">
+    <Grid RowDefinitions="*">
+        <!--
         <controls:NavBarControl x:Name="NavBar"
                                 Grid.Row="0"
                                 Grid.ColumnSpan="1"
                                 CurrentPageName="MeshingPage"/>
-
+        -->
         <Grid Grid.Row="1"
               Margin="5"
               ColumnDefinitions="Auto, *, Auto"
@@ -101,10 +102,10 @@
                                Text="Mesh Type:"
                                VerticalOptions="Center"
                                FontAttributes="Bold"
-                               TextColor="{AppThemeBinding Light=#9DAAD3, Dark=#262E38}"/>
+                               TextColor="{AppThemeBinding Light=#9DAAD3, Dark=White}"/>
                         <Picker Grid.Column="1"
                                 Margin="5"
-                                TextColor="{AppThemeBinding Light=White, Dark=#262E38}"
+                                TextColor="{AppThemeBinding Light=White, Dark=White}"
                                 ItemsSource="{Binding MeshTypes}"
                                 SelectedItem="{Binding SelectedMeshType}"/>
                     </Grid>
@@ -135,11 +136,11 @@
                                VerticalOptions="Center"
                                Text="Geometry"
                                FontAttributes="None"
-                               TextColor="{AppThemeBinding Light=#9DAAD3, Dark=#262E38}"/>
+                               TextColor="{AppThemeBinding Light=#9DAAD3, Dark=White}"/>
                         <Picker Grid.Column="1"
                                 HorizontalTextAlignment="End"
                                 WidthRequest="100"
-                                TextColor="{AppThemeBinding Light=#9DAAD3, Dark=#262E38}"
+                                TextColor="{AppThemeBinding Light=#9DAAD3, Dark=White}"
                                 ItemsSource="{Binding GeometryTypes}"
                                 SelectedItem="{Binding SelectedGeometry}"/>
                     </Grid>
@@ -282,6 +283,7 @@
                   RowSpacing="10">
                 <Border Grid.Row="0"
                         Style="{StaticResource PanelBorderStyle}"
+                        Padding="5"
                         Background="{StaticResource ControlPanelBrush}">
                     <VerticalStackLayout Margin="5"
                                          Spacing="10">
@@ -296,7 +298,7 @@
                                            VerticalOptions="Center"
                                            HorizontalOptions="Center"
                                            FontSize="Medium"
-                                           TextColor="{AppThemeBinding Light=#F7FBFF, Dark=#262E38}"/>
+                                           TextColor="{AppThemeBinding Light=#F7FBFF, Dark=White}"/>
                                     <HorizontalStackLayout Spacing="14"
                                                            HorizontalOptions="Center">
                                         <Border Style="{StaticResource PanelSectionBorderStyle}"
@@ -307,10 +309,11 @@
                                                 <Image Grid.Column="0"
                                                    Source="icon_save.png"
                                                    HeightRequest="30"/>
-                                                <Label Grid.Column="1"
-                                                   Text="Save"
-                                                   FontAttributes="None"
-                                                   FontSize="Medium"/>
+                                                <Label Grid.Column="1"                                                    
+                                                       Text="Save"
+                                                       FontAttributes="None"
+                                                       VerticalOptions="Center"
+                                                       FontSize="Small"/>
                                             </Grid>
                                             <Border.GestureRecognizers>
                                                 <TapGestureRecognizer Tapped="OnSaveClicked" />
@@ -327,7 +330,8 @@
                                                 <Label Grid.Column="1"
                                                        Text="Load"
                                                        FontAttributes="None"
-                                                       FontSize="Medium"/>
+                                                       VerticalOptions="Center"
+                                                       FontSize="Small"/>
                                             </Grid>
                                             <Border.GestureRecognizers>
                                                 <TapGestureRecognizer Tapped="OnLoadClicked" />
@@ -345,7 +349,8 @@
                                                 <Label Grid.Column="1"
                                                        Text="Generate"
                                                        FontAttributes="None"
-                                                       FontSize="Medium"/>
+                                                       VerticalOptions="Center"
+                                                       FontSize="Small"/>
                                             </Grid>
                                             <Border.GestureRecognizers>
                                                 <TapGestureRecognizer Tapped="OnGenerateClicked" />
@@ -363,7 +368,8 @@
                                                 <Label Grid.Column="1"
                                                        Text="Clear"
                                                        FontAttributes="None"
-                                                       FontSize="Medium"/>
+                                                       VerticalOptions="Center"
+                                                       FontSize="Small"/>
                                             </Grid>
                                             <Border.GestureRecognizers>
                                                 <TapGestureRecognizer Tapped="OnClearClicked" />
@@ -380,7 +386,7 @@
                                            Margin="0,0,0,5"
                                            HorizontalOptions="Center"
                                            FontSize="Medium"
-                                           TextColor="{AppThemeBinding Light=#F7FBFF, Dark=#262E38}"/>
+                                           TextColor="{AppThemeBinding Light=#F7FBFF, Dark=White}"/>
                                     <HorizontalStackLayout Spacing="14"
                                                            VerticalOptions="Center"
                                                            HorizontalOptions="Center">
@@ -395,7 +401,7 @@
                                                        VerticalOptions="Center"
                                                        Text="Add Noise"
                                                        FontAttributes="None"
-                                                       FontSize="Medium"/>
+                                                       FontSize="Small"/>
                                             </Grid>
                                             <Border.GestureRecognizers>
                                                 <TapGestureRecognizer Tapped="OnAddNoiseTapped" />
@@ -413,7 +419,7 @@
                                                        VerticalOptions="Center"
                                                        Text="Undo"
                                                        FontAttributes="None"
-                                                       FontSize="Medium"/>
+                                                       FontSize="Small"/>
                                             </Grid>
                                             <Border.GestureRecognizers>
                                                 <TapGestureRecognizer Tapped="OnUndoClicked" />
@@ -430,7 +436,7 @@
                                                        Text="Redo"
                                                        VerticalOptions="Center"
                                                        FontAttributes="None"
-                                                       FontSize="Medium"/>
+                                                       FontSize="Small"/>
                                             </Grid>
                                             <Border.GestureRecognizers>
                                                 <TapGestureRecognizer Tapped="OnRedoClicked" />
@@ -450,7 +456,7 @@
                                                        VerticalOptions="Center"
                                                        Text="Edit"
                                                        FontAttributes="None"
-                                                       FontSize="Medium"/>
+                                                       FontSize="Small"/>
                                                 <CheckBox x:Name="EditingCheckbox"
                                                           WidthRequest="25"
                                                           HeightRequest="25"
@@ -497,7 +503,7 @@
                     <Label Text="Saved Meshes"
                            FontSize="Medium"
                            HorizontalOptions="Center"
-                           TextColor="{AppThemeBinding Light=#F7FBFF, Dark=#262E38}"/>
+                           TextColor="{AppThemeBinding Light=#F7FBFF, Dark=White}"/>
                     <SearchBar Placeholder="Search"
                                Text="{Binding MeshSearchText}"/>
                     <Border Style="{StaticResource PanelSectionBorderStyle}"
