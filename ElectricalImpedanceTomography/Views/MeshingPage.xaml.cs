@@ -40,6 +40,10 @@ public partial class MeshingPage : ContentPage
     private LBMElement? _draggedLbmElectrode;
     private FEMVertex? _draggedFemVertex;
 
+    private DateTime _lastLbmTapTime = DateTime.MinValue;
+    private int? _lastLbmTappedElementId;
+    private const int DoubleTapThresholdMs = 400;
+
     public MeshingPage()
     {
         InitializeComponent();
@@ -315,17 +319,28 @@ public partial class MeshingPage : ContentPage
                 return;
             }
 
-            if (e.MouseButton == SKMouseButton.Right && e.ActionType == SKTouchAction.Pressed)
+            if (e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed)
             {
+                var now = DateTime.UtcNow;
+                bool isDoubleTap = _lastLbmTappedElementId == el.Id &&
+                                   (now - _lastLbmTapTime).TotalMilliseconds <= DoubleTapThresholdMs;
+
+                _lastLbmTapTime = now;
+                _lastLbmTappedElementId = el.Id;
+
                 _viewModel.PushState();
-                el.Conductivity = _viewModel.InhomogenityValue;
-                _viewModel.RefreshConductivity();
-            }
-            else if (e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed)
-            {
-                _viewModel.PushState();
-                el.IsWall = !el.IsWall;
-                if (el.IsWall) el.IsElectrode = false;
+                if (isDoubleTap)
+                {
+                    el.IsWall = !el.IsWall;
+                    if (el.IsWall)
+                        el.IsElectrode = false;
+                    _viewModel.RefreshConductivity();
+                }
+                else
+                {
+                    el.Conductivity = _viewModel.InhomogenityValue;
+                    _viewModel.RefreshConductivity();
+                }
             }
 
             if (e.ActionType == SKTouchAction.Moved || e.ActionType == SKTouchAction.Entered)
