@@ -463,16 +463,30 @@
                                                           Grid.Column="2"
                                                           IsChecked="{Binding InhomogenityEditing}"/>
                                             </Grid>
-                                            <Border.GestureRecognizers>
-                                                <TapGestureRecognizer Tapped="OnEditClicked" />
-                                            </Border.GestureRecognizers>
-                                        </Border>
-                                    </HorizontalStackLayout>
-                                </VerticalStackLayout>
-                            </Border>
-                        </Grid>
-                    </VerticalStackLayout>
-                </Border>
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer Tapped="OnEditClicked" />
+                                        </Border.GestureRecognizers>
+                                    </Border>
+                                </HorizontalStackLayout>
+                                <HorizontalStackLayout Margin="0,10,0,0"
+                                                       Spacing="8"
+                                                       HorizontalOptions="Center"
+                                                       IsVisible="{Binding ShowLbmConductivityEntry}">
+                                    <Label Text="Conductivity"
+                                           FontAttributes="None"
+                                           FontSize="Small"
+                                           VerticalOptions="Center"
+                                           TextColor="{AppThemeBinding Light=#F7FBFF, Dark=White}"/>
+                                    <Entry WidthRequest="80"
+                                           HorizontalTextAlignment="End"
+                                           Keyboard="Numeric"
+                                           Text="{Binding InhomogenityValue}"/>
+                                </HorizontalStackLayout>
+                            </VerticalStackLayout>
+                        </Border>
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
 
                 <Border Grid.Row="1"
                         Margin="5, 5, 5, 5"

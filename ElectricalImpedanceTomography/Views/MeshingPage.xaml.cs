@@ -5,6 +5,7 @@ using SkiaSharp.Views.Maui;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Discretizer;
+using System.Linq;
 
 namespace ElectricalImpedanceTomography.Views;
 
@@ -13,11 +14,12 @@ public partial class MeshingPage : ContentPage
     private readonly MeshingPageViewModel _viewModel;
 
     // paints for LBM drawing
-    private readonly SKPaint _lbmFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.Black };
-    private readonly SKPaint _lbmWall = new() { Style = SKPaintStyle.Fill, Color = SKColors.White };
+    private readonly SKPaint _lbmDefault = new() { Style = SKPaintStyle.Fill, Color = SKColors.White };
+    private readonly SKPaint _lbmWall = new() { Style = SKPaintStyle.Fill, Color = SKColors.Black };
     private readonly SKPaint _lbmElectrode = new() { Style = SKPaintStyle.Fill, Color = SKColors.Orange };
     private readonly SKPaint _lbmStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.LightGray, StrokeWidth = 1 };
     private readonly SKPaint _lbmSelected = new() { Style = SKPaintStyle.Fill, Color = SKColors.LimeGreen };
+    private readonly SKPaint _lbmGradientFill = new() { Style = SKPaintStyle.Fill };
 
     // stroke for FEM
     private readonly SKPaint _femStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1 };
@@ -124,6 +126,14 @@ public partial class MeshingPage : ContentPage
     {
         _cellW = (float)info.Width / grid.Nx;
         _cellH = (float)info.Height / grid.Ny;
+        const double defaultConductivity = 1.0;
+        var conductiveElements = grid.ElementsTyped
+            .Where(el => !el.IsWall && !el.IsElectrode)
+            .ToList();
+        double maxConductivity = conductiveElements.Count > 0
+            ? Math.Max(defaultConductivity, conductiveElements.Max(el => el.Conductivity))
+            : defaultConductivity;
+
         for (int y = 0; y < grid.Ny; y++)
         {
             for (int x = 0; x < grid.Nx; x++)
@@ -136,8 +146,13 @@ public partial class MeshingPage : ContentPage
                     fill = _lbmElectrode;
                 else if (el.IsWall)
                     fill = _lbmWall;
+                else if (Math.Abs(el.Conductivity - defaultConductivity) > 1e-6)
+                {
+                    _lbmGradientFill.Color = ColorForValue(el.Conductivity, maxConductivity);
+                    fill = _lbmGradientFill;
+                }
                 else
-                    fill = _lbmFill;
+                    fill = _lbmDefault;
                 var r = SKRect.Create(x * _cellW, y * _cellH, _cellW, _cellH);
                 canvas.DrawRect(r, fill);
                 canvas.DrawRect(r, _lbmStroke);
@@ -216,6 +231,7 @@ public partial class MeshingPage : ContentPage
             _viewModel.InhomogenityEditing = true;
         }
 
+        MeshCanvas.InvalidateSurface();
     }
 
     private async void OnUndoClicked(object sender, TappedEventArgs e)
