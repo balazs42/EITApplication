@@ -15,10 +15,11 @@ namespace Utility.Classes.Factories
         public static IDifferentialEquationSolver Create(IDiscretization discretization,
                                                          DifferentialEquationSolver des,
                                                          INumericSolver numericSolver,
-                                                         bool useOmpParallelization = false) => des switch
+                                                         bool useOmpParallelization = false,
+                                                         bool useCudaAcceleration = false) => des switch
         {
             DifferentialEquationSolver.FEM => CreateFiniteElementSolver((FEMMesh)discretization, numericSolver, useOmpParallelization),
-            DifferentialEquationSolver.LBM => CreateLatticeBoltzmannSolver(),
+            DifferentialEquationSolver.LBM => CreateLatticeBoltzmannSolver(useCudaAcceleration),
             DifferentialEquationSolver.Graph => CreateGraphBasedSolver((FEMMesh)discretization, numericSolver),
             _ => throw new NotSupportedException()
         };
@@ -32,9 +33,9 @@ namespace Utility.Classes.Factories
             return deSolver;
         }
 
-        private static LatticeBoltzmannDESolver CreateLatticeBoltzmannSolver()
+        private static LatticeBoltzmannDESolver CreateLatticeBoltzmannSolver(bool useCudaAcceleration)
         {
-            var deSolver = new LatticeBoltzmannDESolver();
+            var deSolver = new LatticeBoltzmannDESolver(useCudaAcceleration: useCudaAcceleration);
 
             Workspace.AddLogMessage("DifferentialEquationSolverFactory", "Created Lattice Boltzmann solver object.");
 

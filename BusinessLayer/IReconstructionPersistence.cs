@@ -19,13 +19,16 @@ namespace BusinessLayer
         // --- Forward Solve Functions ---
         public PotentialDistribution ForwardSolveStepFem();
         public PotentialDistribution ForwardSolveStepLbm();
+        public PotentialDistribution ForwardSolveStepLbmCuda();
 
         // --- Inverse Solve Functions ---
         public ReconstructionFrame InverseSolveStepFem(FEMMesh mesh, FEMBoundaryCondition bc, double[] currentMeasurement, double gradientStepSize);
         public ReconstructionFrame InverseSolveStepLbm(LBMGrid mesh, LBMBoundaryCondition bc, double[] currentMeasurement);
+        public ReconstructionFrame InverseSolveStepLbmCuda(LBMGrid mesh, LBMBoundaryCondition bc, double[] currentMeasurement);
 
         public ReconstructionResult InverseSolveFem(int maxIterationCount, double gradientStepSize, double redularizationStepSize, double excitationAmplitude, double tolerance = 1e-6);
         public ReconstructionResult InverseSolveLbm(int maxIterationCount, double gradientStepSize, double redularizationStepSize, double excitationAmplitude, double tolerance = 1e-6);
+        public ReconstructionResult InverseSolveLbmCuda(int maxIterationCount, double gradientStepSize, double redularizationStepSize, double excitationAmplitude, double tolerance = 1e-6);
 
 
         public List<double[]> SimulateFemMeasurements(FEMMesh mesh, double excitationAmplitude, DrivePattern drivePattern);

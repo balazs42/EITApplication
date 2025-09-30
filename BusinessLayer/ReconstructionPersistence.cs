@@ -1,5 +1,6 @@
 ﻿using DataAccessLayer;
 using System.Diagnostics;
+using System.Linq;
 using System.Numerics;
 using Utility.Classes;
 using Utility.Classes.Application;
@@ -33,6 +34,7 @@ namespace BusinessLayer
         private double _regularizationWeight = 0.001;
         private InitialDistributionTypes _initialDistributionType = InitialDistributionTypes.SlightlyDiffering;
         private bool _useOmpParallelization = false;
+        private bool _useCudaParallelization = false;
 
         private ConductivityDistribution? _originalSigma = null;
         private ConductivityDistribution? _initialSigma = null;
@@ -71,14 +73,26 @@ namespace BusinessLayer
 
                 _numericSolver = NumericSolverFactory.Create(parameters.NumericSolver);
                 _useOmpParallelization = parameters.UseOmpParallelization;
-                Workspace.AddLogMessage("Reconstruction", _useOmpParallelization
-                    ? "Using OMP-accelerated finite element assembly."
-                    : "Using standard finite element assembly.");
+                _useCudaParallelization = parameters.UseCudaAcceleration;
+
+                if (parameters.DifferentialEquationSolver == DifferentialEquationSolver.FEM)
+                {
+                    Workspace.AddLogMessage("Reconstruction", _useOmpParallelization
+                        ? "Using OMP-accelerated finite element assembly."
+                        : "Using standard finite element assembly.");
+                }
+                else if (parameters.DifferentialEquationSolver == DifferentialEquationSolver.LBM)
+                {
+                    Workspace.AddLogMessage("Reconstruction", _useCudaParallelization
+                        ? "Using CUDA-accelerated Lattice Boltzmann solver."
+                        : "Using standard Lattice Boltzmann solver.");
+                }
 
                 _differentialEquationSolver = DifferentialEquationSolverFactory.Create(discretization,
                                                                                       parameters.DifferentialEquationSolver,
                                                                                       _numericSolver,
-                                                                                      _useOmpParallelization);
+                                                                                      _useOmpParallelization,
+                                                                                      _useCudaParallelization);
                 _regularizer = RegularisationFactory.Create(parameters.RegularizationTechnique, _discretization);
                 _errorMetric = ErrorMetricFactory.Create(parameters.ErrorMetric);
                 _initialDistributionType = parameters.InitialDistributionType;
@@ -224,6 +238,22 @@ namespace BusinessLayer
             return _differentialEquationSolver.Solve(lbmGrid, boundaryConditions, null);
         }
 
+        public PotentialDistribution ForwardSolveStepLbmCuda()
+        {
+            if (_discretization is not LBMGrid lbmGrid)
+                throw new TypeInitializationException("Mesh should be of type LBMGrid to use LBM solver!", new Exception("Invalid type in solver!"));
+
+            if (_differentialEquationSolver is not LatticeBoltzmannDESolver lbmSolver)
+                throw new InvalidOperationException("CUDA forward solve requested, but LBM solver is not initialised.");
+
+            Workspace.UpdateCurrentGlobalLbmElectrodes(lbmGrid);
+            var electrodes = Workspace.GetCurrentGlobalLbmElectrodes();
+            var boundaryConditions = new LBMBoundaryCondition(electrodes);
+            Workspace.SetCurrentGlobalLbmBoundaryCondition(boundaryConditions);
+
+            return lbmSolver.CUDASolveForward(lbmGrid, boundaryConditions);
+        }
+
         public ReconstructionFrame InverseSolveStepFem(FEMMesh mesh, FEMBoundaryCondition bc, double[] currentMeasurement, double _)
         {
             if (_differentialEquationSolver == null)
@@ -242,7 +272,11 @@ namespace BusinessLayer
             var elements = Workspace.GetCurrentGlobalFemElements();
 
             // Solve Forward to extract simulated potentials
-            PotentialDistribution phi = _differentialEquationSolver.Solve(mesh, bc, null);
+            var lbmSolver = _differentialEquationSolver as LatticeBoltzmannDESolver;
+
+            PotentialDistribution phi = _useCudaParallelization && lbmSolver != null
+                ? lbmSolver.CUDASolveForward(mesh, bc)
+                : _differentialEquationSolver.Solve(mesh, bc, null);
 
             // Extract simulated potentials
             double[] simulatedPotentials = mesh.GetElectrodePotentials();
@@ -258,7 +292,9 @@ namespace BusinessLayer
             // Solve the adjoint equation with the new boundary condition
             var adjointBoundaryCondition = new FEMBoundaryCondition(electrodes);
             Workspace.SetCurrentGlobalFemBoundaryCondition(adjointBoundaryCondition);
-            PotentialDistribution mu = _differentialEquationSolver.Solve(mesh, adjointBoundaryCondition, adjointSource);
+            PotentialDistribution mu = _useCudaParallelization && lbmSolver != null
+                ? lbmSolver.CUDASolveAdjoint(mesh, adjointBoundaryCondition, adjointSource)
+                : _differentialEquationSolver.Solve(mesh, adjointBoundaryCondition, adjointSource);
 
             // Gradient expression for the conductivity field
             var phiGradient = FiniteElementOperators.CalculateElementWiseGradient(mesh, phi);
@@ -301,7 +337,11 @@ namespace BusinessLayer
             var elements = Workspace.GetCurrentGlobalLbmElements();
 
             // Solve Forward to extract simulated potentials
-            PotentialDistribution phi = _differentialEquationSolver.Solve(mesh, bc, null);
+            var lbmSolver = _differentialEquationSolver as LatticeBoltzmannDESolver;
+
+            PotentialDistribution phi = _useCudaParallelization && lbmSolver != null
+                ? lbmSolver.CUDASolveForward(mesh, bc)
+                : _differentialEquationSolver.Solve(mesh, bc, null);
 
             // Extract simulated potentials
             double[] simulatedPotentials = mesh.GetElectrodePotentials();
@@ -317,21 +357,43 @@ namespace BusinessLayer
 
             var adjointBoundaryCondition = new LBMBoundaryCondition(electrodes);
             Workspace.SetCurrentGlobalLbmBoundaryCondition(adjointBoundaryCondition);
-            PotentialDistribution mu = _differentialEquationSolver.Solve(mesh, adjointBoundaryCondition, adjointSource);
+            PotentialDistribution mu = _useCudaParallelization && lbmSolver != null
+                ? lbmSolver.CUDASolveAdjoint(mesh, adjointBoundaryCondition, adjointSource)
+                : _differentialEquationSolver.Solve(mesh, adjointBoundaryCondition, adjointSource);
+
+            var phiGradientField = _useCudaParallelization
+                ? LatticeBoltzmannOperators.CalculateGradientCuda(mesh, phi)
+                : LatticeBoltzmannOperators.CalculateGradient(mesh, phi);
+            var muGradientField = _useCudaParallelization
+                ? LatticeBoltzmannOperators.CalculateGradientCuda(mesh, mu)
+                : LatticeBoltzmannOperators.CalculateGradient(mesh, mu);
 
             ConductivityDistribution dataGrad = new ConductivityDistribution(
                 elements.ToDictionary(
                     el => el.Id,
                     el => {
-                        // compute <∇φ, ∇μ> on this element
-                        var gPhi = LatticeBoltzmannOperators.CalculateGradient(mesh, phi).GetVector(el.Id);
-                        var gMu = LatticeBoltzmannOperators.CalculateGradient(mesh, mu).GetVector(el.Id);
+                        var gPhi = phiGradientField.GetVector(el.Id);
+                        var gMu = muGradientField.GetVector(el.Id);
                         return -(gMu.X * gPhi.X + gMu.Y * gPhi.Y);
                     }
                 )
             );
 
             return new ReconstructionFrame(dataGrad, phi, mu, new ConductivityDistribution([]));
+        }
+
+        public ReconstructionFrame InverseSolveStepLbmCuda(LBMGrid mesh, LBMBoundaryCondition bc, double[] currentMeasurement)
+        {
+            bool previous = _useCudaParallelization;
+            _useCudaParallelization = true;
+            try
+            {
+                return InverseSolveStepLbm(mesh, bc, currentMeasurement);
+            }
+            finally
+            {
+                _useCudaParallelization = previous;
+            }
         }
 
         // ------------------------------------------------------------------
@@ -714,6 +776,24 @@ namespace BusinessLayer
             return RunLbmReconstruction(lbmGrid, maxIterationCount);
         }
 
+        public ReconstructionResult InverseSolveLbmCuda(int maxIterationCount,
+                                                        double gradientStepSize,
+                                                        double redularizationStepSize,
+                                                        double excitationAmplitude,
+                                                        double tolerance = 1e-6)
+        {
+            bool previous = _useCudaParallelization;
+            _useCudaParallelization = true;
+            try
+            {
+                return InverseSolveLbm(maxIterationCount, gradientStepSize, redularizationStepSize, excitationAmplitude, tolerance);
+            }
+            finally
+            {
+                _useCudaParallelization = previous;
+            }
+        }
+
         private double CalculateTotalMisiftFem(FEMMesh mesh, List<double[]> simulatedMeasurements, FEMBoundaryCondition bc, double excitationAmplitude)
         {
             if (_differentialEquationSolver == null)
@@ -794,13 +874,19 @@ namespace BusinessLayer
             Workspace.SetCurrentGlobalLbmBoundaryCondition(adjointBoundaryCondition);
             PotentialDistribution mu = _differentialEquationSolver.Solve(mesh, adjointBoundaryCondition, adjointSource);
 
+            var phiGradientField = _useCudaParallelization
+                ? LatticeBoltzmannOperators.CalculateGradientCuda(mesh, phi)
+                : LatticeBoltzmannOperators.CalculateGradient(mesh, phi);
+            var muGradientField = _useCudaParallelization
+                ? LatticeBoltzmannOperators.CalculateGradientCuda(mesh, mu)
+                : LatticeBoltzmannOperators.CalculateGradient(mesh, mu);
+
             ConductivityDistribution dataGrad = new ConductivityDistribution(
                 elements.ToDictionary(
                     el => el.Id,
                     el => {
-                        // compute <∇φ, ∇μ> on this element
-                        var gPhi = LatticeBoltzmannOperators.CalculateGradient(mesh, phi).GetVector(el.Id);
-                        var gMu = LatticeBoltzmannOperators.CalculateGradient(mesh, mu).GetVector(el.Id);
+                        var gPhi = phiGradientField.GetVector(el.Id);
+                        var gMu = muGradientField.GetVector(el.Id);
                         return (gMu.X * gPhi.X + gMu.Y * gPhi.Y);
                     }
                 )

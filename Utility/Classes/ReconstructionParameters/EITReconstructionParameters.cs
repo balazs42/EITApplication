@@ -36,6 +36,9 @@ namespace Utility.Classes.ReconstructionParameters
         [ObservableProperty]
         private bool useOmpParallelization = false;
 
+        [ObservableProperty]
+        private bool useCudaAcceleration = false;
+
         public DiscretizationType Mesh = DiscretizationType.FEM;
 
         /// <summary>
@@ -53,6 +56,7 @@ namespace Utility.Classes.ReconstructionParameters
             MeasurementNoiseAmplitude = 0.0;
             DrivePattern = DrivePattern.Adjecent;
             UseOmpParallelization = false;
+            UseCudaAcceleration = false;
             Mesh = DiscretizationType.FEM;
         }
 
@@ -80,6 +84,7 @@ namespace Utility.Classes.ReconstructionParameters
             MeasurementNoiseAmplitude = measurementNoiseAmplitude;
             DrivePattern = drivePattern;
             UseOmpParallelization = false;
+            UseCudaAcceleration = false;
 
             Mesh = (differentialEquationSolver == DifferentialEquationSolver.FEM) ? DiscretizationType.FEM : DiscretizationType.LBM;
         }

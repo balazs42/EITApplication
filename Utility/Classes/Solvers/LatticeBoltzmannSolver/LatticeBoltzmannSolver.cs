@@ -1,5 +1,7 @@
-﻿using Google.OrTools.ConstraintSolver;
+using System.Collections.Generic;
 using System.Numerics;
+using System.Linq;
+using System.Threading.Tasks;
 using Utility.Classes.Measurement;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
@@ -33,15 +35,17 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         private int MaxIterationCount = 250;
         private double SolutionTolerance = 1e-6;
         private int ConvergenceCheckFrequency = 100;
+        private readonly bool _useCuda;
 
         /// <summary>
         /// Configures the LBM solver with iteration limits and convergence criteria.
         /// </summary>
-        public LatticeBoltzmannSolver(int maxIterationCount, double solutionTolerance, int convergenceCheckFrequency)
+        public LatticeBoltzmannSolver(int maxIterationCount, double solutionTolerance, int convergenceCheckFrequency, bool useCuda = false)
         {
             MaxIterationCount = maxIterationCount;
             SolutionTolerance = solutionTolerance;
             ConvergenceCheckFrequency = convergenceCheckFrequency;
+            _useCuda = useCuda;
         }
 
         /// <summary>
@@ -52,7 +56,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             var lbmGrid = discretization as LBMGrid ?? throw new InvalidCastException();
             var bc = boundaryCondition as LBMBoundaryCondition ?? throw new InvalidCastException();
 
-            return RunForward(lbmGrid, bc);
+            return _useCuda ? RunForwardCuda(lbmGrid, bc) : RunForward(lbmGrid, bc);
         }
 
         /// <summary>
@@ -62,8 +66,8 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         {
             var lbmGrid = discretization as LBMGrid ?? throw new InvalidCastException();
             var bc = boundaryCondition as LBMBoundaryCondition ?? throw new InvalidCastException();
-            var electrodes = lbmGrid.GetElectrodes();
-            var bcElectrodes = bc.GetElectrodes();
+            var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
+            var bcElectrodes = bc.GetElectrodes().ToList();
             int bcElectrodeCount = bcElectrodes.Count();
 
             for(int i = 0; i < bcElectrodeCount; i++)
@@ -75,7 +79,35 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 electrodes[i].Current = adjointSource[i].Real;
             }
 
-            return RunForward(lbmGrid, bc);
+            return _useCuda ? RunForwardCuda(lbmGrid, bc) : RunForward(lbmGrid, bc);
+        }
+
+        public PotentialDistribution CUDASolveForward(IDiscretization discretization, BoundaryCondition boundaryCondition)
+        {
+            var lbmGrid = discretization as LBMGrid ?? throw new InvalidCastException();
+            var bc = boundaryCondition as LBMBoundaryCondition ?? throw new InvalidCastException();
+
+            return RunForwardCuda(lbmGrid, bc);
+        }
+
+        public PotentialDistribution CUDASolveAdjoint(IDiscretization discretization, BoundaryCondition boundaryCondition, Complex[] adjointSource)
+        {
+            var lbmGrid = discretization as LBMGrid ?? throw new InvalidCastException();
+            var bc = boundaryCondition as LBMBoundaryCondition ?? throw new InvalidCastException();
+            var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
+            var bcElectrodes = bc.GetElectrodes().ToList();
+            int bcElectrodeCount = bcElectrodes.Count();
+
+            for (int i = 0; i < bcElectrodeCount; i++)
+            {
+                bcElectrodes[i].Potential = 0.0;
+                electrodes[i].Potential = 0.0;
+
+                bcElectrodes[i].Current = adjointSource[i].Real;
+                electrodes[i].Current = adjointSource[i].Real;
+            }
+
+            return RunForwardCuda(lbmGrid, bc);
         }
 
         /// <summary>
@@ -112,7 +144,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                             for (int i = 0; i < 9; i++)
                                 el.Fi[i] = W[i] * current;
 
-                            // Reverse the directions which would go into walls 
+                            // Reverse the directions which would go into walls
                             // TODO: Ground electrode should point outsidde?,
                             var neighbors = el.Neighbors;
                             for (int i = 0; i < 9; i++)
@@ -186,7 +218,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     for (int k = 0; k < 9; k++)
                     {
                         var nb = el.Neighbors[k];
-                        
+
                         // send to the same direction slot in neighbor
                         if (!nb.IsWall)
                             nb.Fi_next[k] = el.Fi[k];
@@ -200,7 +232,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 // 4c) Update and enforce pins
                 foreach (var el in elements)
                 {
-                    if (el.IsWall) 
+                    if (el.IsWall)
                         continue;
 
                     // copy next to current
@@ -270,6 +302,187 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
             lbmGrid.SetPotentialDistribution(pd);
 
+            return pd;
+        }
+
+        private PotentialDistribution RunForwardCuda(LBMGrid lbmGrid, LBMBoundaryCondition bc)
+        {
+            int maxIter = MaxIterationCount;
+            double tol = SolutionTolerance;
+            int checkFreq = ConvergenceCheckFrequency;
+
+            var elements = lbmGrid.GetElements().Cast<LBMElement>().ToArray();
+            var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToArray();
+            var bcElectrodes = bc.GetElectrodes().ToArray();
+
+            var electrodeByGridId = electrodes.ToDictionary(e => e.GridId);
+            var bcElectrodeById = bcElectrodes.ToDictionary(e => e.Id);
+
+            Parallel.For(0, elements.Length, idx =>
+            {
+                var el = elements[idx];
+
+                for (int k = 0; k < 9; k++)
+                {
+                    el.Fi[k] = W[k];
+                    el.Fi_next[k] = 0.0;
+                }
+
+                if (el.IsElectrode && electrodeByGridId.TryGetValue(el.Id, out var electrode))
+                {
+                    if (electrode.IsExcitation || electrode.IsGround)
+                    {
+                        double current = electrode.Current;
+                        for (int i = 0; i < 9; i++)
+                            el.Fi[i] = W[i] * current;
+
+                        var neighbors = el.Neighbors;
+                        for (int i = 0; i < 9; i++)
+                        {
+                            var neighbor = neighbors[i];
+                            if (neighbor != null && neighbor.IsWall)
+                            {
+                                el.Fi[Opposite[i]] += el.Fi[i];
+                                el.Fi[i] = 0.0;
+                            }
+                        }
+                    }
+                    else if (bcElectrodeById.TryGetValue(electrode.Id, out var bcElectrode))
+                    {
+                        double potential = bcElectrode.Potential;
+                        for (int i = 0; i < 9; i++)
+                            el.Fi[i] = W[i] * potential;
+                    }
+                }
+            });
+
+            var sigmaDist = lbmGrid.GetConductivityDistribution();
+            Parallel.For(0, elements.Length, idx =>
+            {
+                var el = elements[idx];
+                el.Conductivity = sigmaDist.GetConductivity(el.Id);
+            });
+
+            foreach (var electrode in bcElectrodes)
+            {
+                var cell = elements.FirstOrDefault(e => e.Id == electrode.GridId);
+                if (cell != null)
+                    cell.IsElectrode = true;
+            }
+
+            double[] prevPhi = new double[elements.Length];
+            for (int t = 0; t < maxIter; t++)
+            {
+                Parallel.For(0, elements.Length, idx =>
+                {
+                    var el = elements[idx];
+                    if (el.IsWall)
+                        return;
+
+                    double phi = 0.0;
+                    for (int k = 0; k < 9; k++)
+                        phi += el.Fi[k];
+
+                    double tau = el.Conductivity / csSquared + 0.5;
+                    if (tau <= 0.5)
+                        throw new InvalidOperationException("Nonphysical tau <= 0.5");
+                    double omega = 1.0 / tau;
+
+                    for (int k = 0; k < 9; k++)
+                    {
+                        double geq = W[k] * phi;
+                        el.Fi[k] += -omega * (el.Fi[k] - geq);
+                    }
+                });
+
+                Parallel.For(0, elements.Length, idx =>
+                {
+                    var el = elements[idx];
+                    if (el.IsWall)
+                        return;
+
+                    for (int k = 0; k < 9; k++)
+                    {
+                        var nb = el.Neighbors[k];
+                        if (nb != null && !nb.IsWall)
+                        {
+                            nb.Fi_next[k] = el.Fi[k];
+                        }
+                        else if (nb != null)
+                        {
+                            el.Fi_next[Opposite[k]] = el.Fi[k];
+                        }
+                    }
+                });
+
+                Parallel.For(0, elements.Length, idx =>
+                {
+                    var el = elements[idx];
+                    if (el.IsWall)
+                        return;
+
+                    for (int k = 0; k < 9; k++)
+                    {
+                        el.Fi[k] = el.Fi_next[k];
+                        el.Fi_next[k] = 0.0;
+                    }
+
+                    if (el.IsElectrode && electrodeByGridId.TryGetValue(el.Id, out var electrode))
+                    {
+                        if (electrode.IsExcitation || electrode.IsGround)
+                        {
+                            double current = electrode.Current;
+                            for (int i = 0; i < 9; i++)
+                                el.Fi[i] = W[i] * current;
+
+                            var neighbors = el.Neighbors;
+                            for (int i = 0; i < 9; i++)
+                            {
+                                var neighbor = neighbors[i];
+                                if (neighbor != null && neighbor.IsWall)
+                                {
+                                    el.Fi[Opposite[i]] += el.Fi[i];
+                                    el.Fi[i] = 0.0;
+                                }
+                            }
+                        }
+                        else if (bcElectrodeById.TryGetValue(electrode.Id, out var bcElectrode))
+                        {
+                            double potential = bcElectrode.Potential;
+                            for (int k = 0; k < 9; k++)
+                                el.Fi[k] = W[k] * potential;
+                        }
+                    }
+                });
+
+                if (t % checkFreq == 0)
+                {
+                    double[] phi = new double[elements.Length];
+                    for (int i = 0; i < elements.Length; i++)
+                        phi[i] = elements[i].Fi.Sum();
+
+                    double num = 0.0;
+                    double den = 0.0;
+
+                    for (int i = 0; i < phi.Length; i++)
+                    {
+                        double d = phi[i] - prevPhi[i];
+                        num += d * d;
+                        den += phi[i] * phi[i];
+                    }
+
+                    if (den > 0 && Math.Sqrt(num / den) < tol)
+                        break;
+                    Array.Copy(phi, prevPhi, phi.Length);
+                }
+            }
+
+            var dict = new Dictionary<int, double>(elements.Length);
+            foreach (var element in elements)
+                dict[element.Id] = element.Fi.Sum();
+
+            var pd = new PotentialDistribution(dict);
+            lbmGrid.SetPotentialDistribution(pd);
             return pd;
         }
     }

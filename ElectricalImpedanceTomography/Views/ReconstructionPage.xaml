@@ -157,8 +157,8 @@
                                 <Picker Grid.Row="8" ItemsSource="{Binding NumericOptimizerOptions}" SelectedItem="{Binding ReconstructionParameters.NumericOptimizer}"/>
                                 <Label Grid.Row="9" HorizontalOptions="Start" Text="Linear Solver" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Picker Grid.Row="10" ItemsSource="{Binding NumericSolverOptions}" SelectedItem="{Binding ReconstructionParameters.NumericSolver}"/>
-                                <Label Grid.Row="11" HorizontalOptions="Start" Text="Use OMP Parallelization" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Switch Grid.Row="12" IsToggled="{Binding ReconstructionParameters.UseOmpParallelization}" HorizontalOptions="Start"/>
+                                <Label Grid.Row="11" HorizontalOptions="Start" Text="{Binding ParallelizationToggleLabel}" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Switch Grid.Row="12" IsToggled="{Binding UseParallelizationToggle}" HorizontalOptions="Start"/>
                             </Grid>
                         </Border>
                         <!-- Parameter Configuration -->
