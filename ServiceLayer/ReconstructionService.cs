@@ -757,8 +757,6 @@ namespace ServiceLayer
                 throw;
             }
         }
-    }
-}
         public ReconstructionResult InverseSolveLbmCuda(int maxIterationCount,
                                                         double gradientStepSize,
                                                         double regularizationWeight,
@@ -786,3 +784,5 @@ namespace ServiceLayer
                 throw;
             }
         }
+    }
+}
