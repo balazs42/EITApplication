@@ -1,4 +1,6 @@
-﻿namespace Utility.Classes.Discretizer.FiniteElementMesh
+﻿using System;
+
+namespace Utility.Classes.Discretizer.FiniteElementMesh
 {
     public sealed class FEMElement : DiscretizationElement
     {
@@ -61,6 +63,9 @@
             Area = 0.5 *  Math.Abs(V1.X * (V2.Y - V3.Y) +
                                     V2.X * (V3.Y - V1.Y) +
                                     V3.X * (V1.Y - V2.Y));
+
+            if (!double.IsFinite(Area) || Area <= 1e-12)
+                throw new InvalidOperationException($"Degenerate FEM element (Id={Id}) detected while computing area. Custom meshes must avoid overlapping or colinear vertices.");
         }
 
         // Calculate gradients of spahe functions beforehand

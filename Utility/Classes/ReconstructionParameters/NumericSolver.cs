@@ -1,4 +1,6 @@
-﻿using MathNet.Numerics.LinearAlgebra;
+﻿using System;
+using System.Linq;
+using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Double;
 
 namespace Utility.Classes.ReconstructionParameters
@@ -56,6 +58,10 @@ namespace Utility.Classes.ReconstructionParameters
     {
         public double[] SolveLinearSystem(double[,] A, double[] b)
         {
+            if (A.Cast<double>().Any(d => double.IsNaN(d) || double.IsInfinity(d)) ||
+                b.Any(d => double.IsNaN(d) || double.IsInfinity(d)))
+                throw new InvalidOperationException("SVD solver received non-finite entries. This typically indicates a degenerate FEM element (zero area) in the mesh assembly.");
+
             Matrix<double> matrixA = DenseMatrix.OfArray(A);
             Vector<double> vectorB = DenseVector.OfArray(b);
 
@@ -88,6 +94,10 @@ namespace Utility.Classes.ReconstructionParameters
 
         public double[] SolveLinearSystem(double[,] A, double[] b)
         {
+            if (A.Cast<double>().Any(d => double.IsNaN(d) || double.IsInfinity(d)) ||
+                b.Any(d => double.IsNaN(d) || double.IsInfinity(d)))
+                throw new InvalidOperationException("tSVD solver received non-finite entries. Check the FEM mesh for degenerate elements that yield NaN/Inf stiffness coefficients.");
+
             var M = DenseMatrix.OfArray(A);
             var y = DenseVector.OfArray(b);
             var svd = M.Svd(computeVectors: true);
