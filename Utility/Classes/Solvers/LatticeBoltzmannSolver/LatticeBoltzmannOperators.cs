@@ -1,4 +1,8 @@
-﻿using System.Numerics;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
+using System.Numerics;
+using System.Threading.Tasks;
 using Utility.Classes.Measurement;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 
@@ -16,88 +20,183 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         /// Central‐difference gradient of a scalar field φ on D2Q9 mesh.
         /// </summary>
         public static VectorField CalculateGradient(LBMGrid mesh, ScalarField φ)
+            => CalculateGradientInternal(mesh, φ, parallel: false);
+
+        public static VectorField CalculateGradientCuda(LBMGrid mesh, ScalarField φ)
+            => CalculateGradientInternal(mesh, φ, parallel: true);
+
+        private static VectorField CalculateGradientInternal(LBMGrid mesh, ScalarField φ, bool parallel)
         {
-            var grad = new Dictionary<int, (double X, double Y)>();
-            var elements = mesh.GetElements().Cast<LBMElement>();
-
-            foreach (LBMElement el in elements)
+            if (parallel)
             {
-                // cardinal neighbors
-                var R = el.Neighbors[1];
-                var U = el.Neighbors[2];
-                var L = el.Neighbors[3];
-                var D = el.Neighbors[4];
+                var concurrent = new ConcurrentDictionary<int, (double X, double Y)>();
+                var elements = mesh.GetElements().Cast<LBMElement>().ToArray();
+                Parallel.ForEach(elements, el =>
+                {
+                    var R = el.Neighbors[1];
+                    var U = el.Neighbors[2];
+                    var L = el.Neighbors[3];
+                    var D = el.Neighbors[4];
 
-                double φ0 = φ.GetValue(el.Id);
-                double φr = (R != null && !R.IsWall) ? φ.GetValue(R.Id) : φ0;
-                double φl = (L != null && !L.IsWall) ? φ.GetValue(L.Id) : φ0;
-                double φu = (U != null && !U.IsWall) ? φ.GetValue(U.Id) : φ0;
-                double φd = (D != null && !D.IsWall) ? φ.GetValue(D.Id) : φ0;
+                    double φ0 = φ.GetValue(el.Id);
+                    double φr = (R != null && !R.IsWall) ? φ.GetValue(R.Id) : φ0;
+                    double φl = (L != null && !L.IsWall) ? φ.GetValue(L.Id) : φ0;
+                    double φu = (U != null && !U.IsWall) ? φ.GetValue(U.Id) : φ0;
+                    double φd = (D != null && !D.IsWall) ? φ.GetValue(D.Id) : φ0;
 
-                // h=1 → central if both exist, else one-sided
-                double dx = (φr - φl) / ((R != null && L != null) ? 2.0 : 1.0);
-                double dy = (φu - φd) / ((U != null && D != null) ? 2.0 : 1.0);
+                    double dx = (φr - φl) / ((R != null && L != null) ? 2.0 : 1.0);
+                    double dy = (φu - φd) / ((U != null && D != null) ? 2.0 : 1.0);
 
-                grad[el.Id] = (dx, dy);
+                    concurrent[el.Id] = (dx, dy);
+                });
+
+                return new VectorField(concurrent.ToDictionary(kvp => kvp.Key, kvp => kvp.Value));
             }
-            return new VectorField(grad);
+            else
+            {
+                var grad = new Dictionary<int, (double X, double Y)>();
+                var elements = mesh.GetElements().Cast<LBMElement>();
+
+                foreach (LBMElement el in elements)
+                {
+                    var R = el.Neighbors[1];
+                    var U = el.Neighbors[2];
+                    var L = el.Neighbors[3];
+                    var D = el.Neighbors[4];
+
+                    double φ0 = φ.GetValue(el.Id);
+                    double φr = (R != null && !R.IsWall) ? φ.GetValue(R.Id) : φ0;
+                    double φl = (L != null && !L.IsWall) ? φ.GetValue(L.Id) : φ0;
+                    double φu = (U != null && !U.IsWall) ? φ.GetValue(U.Id) : φ0;
+                    double φd = (D != null && !D.IsWall) ? φ.GetValue(D.Id) : φ0;
+
+                    double dx = (φr - φl) / ((R != null && L != null) ? 2.0 : 1.0);
+                    double dy = (φu - φd) / ((U != null && D != null) ? 2.0 : 1.0);
+
+                    grad[el.Id] = (dx, dy);
+                }
+                return new VectorField(grad);
+            }
         }
 
         /// <summary>
         /// Standard 5-point Laplacian Δφ = φ_r+φ_l+φ_u+φ_d - 4φ0.
         /// </summary>
         public static ScalarField CalculateLaplacian(LBMGrid mesh, ScalarField φ)
+            => CalculateLaplacianInternal(mesh, φ, parallel: false);
+
+        public static ScalarField CalculateLaplacianCuda(LBMGrid mesh, ScalarField φ)
+            => CalculateLaplacianInternal(mesh, φ, parallel: true);
+
+        private static ScalarField CalculateLaplacianInternal(LBMGrid mesh, ScalarField φ, bool parallel)
         {
-            var lap = new Dictionary<int, double>();
-            var elements = mesh.GetElements();
-
-            foreach (LBMElement el in elements)
+            if (parallel)
             {
-                var R = el.Neighbors[1];
-                var U = el.Neighbors[2];
-                var L = el.Neighbors[3];
-                var D = el.Neighbors[4];
+                var concurrent = new ConcurrentDictionary<int, double>();
+                var elements = mesh.GetElements().Cast<LBMElement>().ToArray();
+                Parallel.ForEach(elements, el =>
+                {
+                    var R = el.Neighbors[1];
+                    var U = el.Neighbors[2];
+                    var L = el.Neighbors[3];
+                    var D = el.Neighbors[4];
 
-                double φ0 = φ.GetValue(el.Id);
-                double φr = (R != null && !R.IsWall) ? φ.GetValue(R.Id) : φ0;
-                double φl = (L != null && !L.IsWall) ? φ.GetValue(L.Id) : φ0;
-                double φu = (U != null && !U.IsWall) ? φ.GetValue(U.Id) : φ0;
-                double φd = (D != null && !D.IsWall) ? φ.GetValue(D.Id) : φ0;
+                    double φ0 = φ.GetValue(el.Id);
+                    double φr = (R != null && !R.IsWall) ? φ.GetValue(R.Id) : φ0;
+                    double φl = (L != null && !L.IsWall) ? φ.GetValue(L.Id) : φ0;
+                    double φu = (U != null && !U.IsWall) ? φ.GetValue(U.Id) : φ0;
+                    double φd = (D != null && !D.IsWall) ? φ.GetValue(D.Id) : φ0;
 
-                lap[el.Id] = φr + φl + φu + φd - 4 * φ0;
+                    concurrent[el.Id] = φr + φl + φu + φd - 4 * φ0;
+                });
+
+                return new PotentialDistribution(concurrent.ToDictionary(kvp => kvp.Key, kvp => kvp.Value));
             }
-            var laplacian = new PotentialDistribution(lap);
+            else
+            {
+                var lap = new Dictionary<int, double>();
+                var elements = mesh.GetElements();
 
-            return laplacian;
+                foreach (LBMElement el in elements)
+                {
+                    var R = el.Neighbors[1];
+                    var U = el.Neighbors[2];
+                    var L = el.Neighbors[3];
+                    var D = el.Neighbors[4];
+
+                    double φ0 = φ.GetValue(el.Id);
+                    double φr = (R != null && !R.IsWall) ? φ.GetValue(R.Id) : φ0;
+                    double φl = (L != null && !L.IsWall) ? φ.GetValue(L.Id) : φ0;
+                    double φu = (U != null && !U.IsWall) ? φ.GetValue(U.Id) : φ0;
+                    double φd = (D != null && !D.IsWall) ? φ.GetValue(D.Id) : φ0;
+
+                    lap[el.Id] = φr + φl + φu + φd - 4 * φ0;
+                }
+                return new PotentialDistribution(lap);
+            }
         }
 
         /// <summary>
         /// ∇·F = ∂Fx/∂x + ∂Fy/∂y, using neighbor-based differences.
         /// </summary>
         public static ScalarField CalculateDivergence(LBMGrid mesh, VectorField F)
+            => CalculateDivergenceInternal(mesh, F, parallel: false);
+
+        public static ScalarField CalculateDivergenceCuda(LBMGrid mesh, VectorField F)
+            => CalculateDivergenceInternal(mesh, F, parallel: true);
+
+        private static ScalarField CalculateDivergenceInternal(LBMGrid mesh, VectorField F, bool parallel)
         {
-            var div = new Dictionary<int, double>();
-            var elements = mesh.GetElements().Cast<LBMElement>();
-
-            foreach (LBMElement el in elements)
+            if (parallel)
             {
-                var R = el.Neighbors[1];
-                var U = el.Neighbors[2];
-                var L = el.Neighbors[3];
-                var D = el.Neighbors[4];
+                var concurrent = new ConcurrentDictionary<int, double>();
+                var elements = mesh.GetElements().Cast<LBMElement>().ToArray();
+                Parallel.ForEach(elements, el =>
+                {
+                    var R = el.Neighbors[1];
+                    var U = el.Neighbors[2];
+                    var L = el.Neighbors[3];
+                    var D = el.Neighbors[4];
 
-                var (Fx0, Fy0) = F.GetVector(el.Id);
-                var (Fxr, Fyr) = (R != null) ? F.GetVector(R.Id) : (Fx0, Fy0);
-                var (Fxl, Fyl) = (L != null) ? F.GetVector(L.Id) : (Fx0, Fy0);
-                var (Fxu, Fyu) = (U != null) ? F.GetVector(U.Id) : (Fx0, Fy0);
-                var (Fxd, Fyd) = (D != null) ? F.GetVector(D.Id) : (Fx0, Fy0);
+                    var (Fx0, Fy0) = F.GetVector(el.Id);
+                    var (Fxr, Fyr) = (R != null) ? F.GetVector(R.Id) : (Fx0, Fy0);
+                    var (Fxl, Fyl) = (L != null) ? F.GetVector(L.Id) : (Fx0, Fy0);
+                    var (Fxu, Fyu) = (U != null) ? F.GetVector(U.Id) : (Fx0, Fy0);
+                    var (Fxd, Fyd) = (D != null) ? F.GetVector(D.Id) : (Fx0, Fy0);
 
-                double dFx = (Fxr - Fxl) / ((R != null && L != null) ? 2.0 : 1.0);
-                double dFy = (Fyu - Fyd) / ((U != null && D != null) ? 2.0 : 1.0);
+                    double dFx = (Fxr - Fxl) / ((R != null && L != null) ? 2.0 : 1.0);
+                    double dFy = (Fyu - Fyd) / ((U != null && D != null) ? 2.0 : 1.0);
 
-                div[el.Id] = dFx + dFy;
+                    concurrent[el.Id] = dFx + dFy;
+                });
+
+                return new PotentialDistribution(concurrent.ToDictionary(kvp => kvp.Key, kvp => kvp.Value));
             }
-            return new PotentialDistribution(div);
+            else
+            {
+                var div = new Dictionary<int, double>();
+                var elements = mesh.GetElements().Cast<LBMElement>();
+
+                foreach (LBMElement el in elements)
+                {
+                    var R = el.Neighbors[1];
+                    var U = el.Neighbors[2];
+                    var L = el.Neighbors[3];
+                    var D = el.Neighbors[4];
+
+                    var (Fx0, Fy0) = F.GetVector(el.Id);
+                    var (Fxr, Fyr) = (R != null) ? F.GetVector(R.Id) : (Fx0, Fy0);
+                    var (Fxl, Fyl) = (L != null) ? F.GetVector(L.Id) : (Fx0, Fy0);
+                    var (Fxu, Fyu) = (U != null) ? F.GetVector(U.Id) : (Fx0, Fy0);
+                    var (Fxd, Fyd) = (D != null) ? F.GetVector(D.Id) : (Fx0, Fy0);
+
+                    double dFx = (Fxr - Fxl) / ((R != null && L != null) ? 2.0 : 1.0);
+                    double dFy = (Fyu - Fyd) / ((U != null && D != null) ? 2.0 : 1.0);
+
+                    div[el.Id] = dFx + dFy;
+                }
+                return new PotentialDistribution(div);
+            }
         }
 
         /// <summary>

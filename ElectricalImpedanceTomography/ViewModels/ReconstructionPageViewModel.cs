@@ -40,7 +40,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         private ReconstructionRunSignature? _lastRunSignature;
         private bool _resetMetricsOnStart = true;
         private bool _updatingDrivePatternSelection;
-        private EITReconstructionParameters? _trackedDrivePatternParameters;
+        private EITReconstructionParameters? _trackedParameters;
 
         [ObservableProperty]
         private int iterationCount = 0;
@@ -59,6 +59,35 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         [ObservableProperty]
         private bool oppositeDrivePattern = false;
+
+        [ObservableProperty]
+        private string parallelizationToggleLabel = "Use OMP Parallelization";
+
+        public bool UseParallelizationToggle
+        {
+            get
+            {
+                var parameters = ReconstructionParameters;
+                if (parameters == null)
+                    return false;
+
+                return parameters.DifferentialEquationSolver == DifferentialEquationSolver.LBM
+                    ? parameters.UseCudaAcceleration
+                    : parameters.UseOmpParallelization;
+            }
+            set
+            {
+                if (ReconstructionParameters == null)
+                    return;
+
+                if (ReconstructionParameters.DifferentialEquationSolver == DifferentialEquationSolver.LBM)
+                    ReconstructionParameters.UseCudaAcceleration = value;
+                else
+                    ReconstructionParameters.UseOmpParallelization = value;
+
+                OnPropertyChanged(nameof(UseParallelizationToggle));
+            }
+        }
 
         [ObservableProperty]
         private string name = string.Empty;
@@ -174,8 +203,9 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             InitializeMetricGroups();
             PropertyChanged += OnViewModelPropertyChanged;
-            TrackDrivePatternParameters(ReconstructionParameters);
+            TrackReconstructionParameters(ReconstructionParameters);
             SyncDrivePatternSelection();
+            UpdateParallelizationToggleState();
 
             //UpdateMetric(MetricKeys.ErrorMetric, ReconstructionParameters.ErrorMetric.ToString());
             //UpdateMetric(MetricKeys.RegularizationWeight, FormatDouble(RegularizationWeight, "G3"));
@@ -217,20 +247,24 @@ namespace ElectricalImpedanceTomography.ViewModels
             _lastRunSignature = signature;
         }
 
-        private void TrackDrivePatternParameters(EITReconstructionParameters parameters)
+        private void TrackReconstructionParameters(EITReconstructionParameters parameters)
         {
-            if (_trackedDrivePatternParameters != null)
-                _trackedDrivePatternParameters.PropertyChanged -= OnReconstructionParametersDrivePatternChanged;
+            if (_trackedParameters != null)
+                _trackedParameters.PropertyChanged -= OnTrackedParametersPropertyChanged;
 
-            _trackedDrivePatternParameters = parameters;
-            if (_trackedDrivePatternParameters != null)
-                _trackedDrivePatternParameters.PropertyChanged += OnReconstructionParametersDrivePatternChanged;
+            _trackedParameters = parameters;
+            if (_trackedParameters != null)
+                _trackedParameters.PropertyChanged += OnTrackedParametersPropertyChanged;
         }
 
-        private void OnReconstructionParametersDrivePatternChanged(object? sender, PropertyChangedEventArgs e)
+        private void OnTrackedParametersPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(EITReconstructionParameters.DrivePattern))
                 SyncDrivePatternSelection();
+            else if (e.PropertyName == nameof(EITReconstructionParameters.DifferentialEquationSolver)
+                     || e.PropertyName == nameof(EITReconstructionParameters.UseOmpParallelization)
+                     || e.PropertyName == nameof(EITReconstructionParameters.UseCudaAcceleration))
+                UpdateParallelizationToggleState();
         }
 
         private void SyncDrivePatternSelection()
@@ -239,6 +273,18 @@ namespace ElectricalImpedanceTomography.ViewModels
                 return;
 
             SetDrivePattern(ReconstructionParameters.DrivePattern);
+        }
+
+        private void UpdateParallelizationToggleState()
+        {
+            if (ReconstructionParameters == null)
+                return;
+
+            ParallelizationToggleLabel = ReconstructionParameters.DifferentialEquationSolver == DifferentialEquationSolver.LBM
+                ? "Use CUDA Parallelization"
+                : "Use OMP Parallelization";
+
+            OnPropertyChanged(nameof(UseParallelizationToggle));
         }
 
         public void SetDrivePattern(DrivePattern pattern)
@@ -402,8 +448,9 @@ namespace ElectricalImpedanceTomography.ViewModels
             //    UpdateMetric(MetricKeys.ErrorMetric, ReconstructionParameters.ErrorMetric.ToString());
             if (e.PropertyName == nameof(ReconstructionParameters))
             {
-                TrackDrivePatternParameters(ReconstructionParameters);
+                TrackReconstructionParameters(ReconstructionParameters);
                 SyncDrivePatternSelection();
+                UpdateParallelizationToggleState();
             }
         }
 
@@ -1678,7 +1725,8 @@ namespace ElectricalImpedanceTomography.ViewModels
                 ExcitationElectrodeId,
                 GroundElectrodeId,
                 parameters.DrivePattern,
-                parameters.UseOmpParallelization);
+                parameters.UseOmpParallelization,
+                parameters.UseCudaAcceleration);
 
             return new ReconstructionRunSignature(mesh, snapshot);
         }
@@ -1697,7 +1745,8 @@ namespace ElectricalImpedanceTomography.ViewModels
             int ExcitationElectrodeId,
             int GroundElectrodeId,
             DrivePattern DrivePattern,
-            bool UseOmpParallelization);
+            bool UseOmpParallelization,
+            bool UseCudaAcceleration);
 
         private record ReconstructionRunSignature(IDiscretization Mesh, ReconstructionParametersSnapshot Parameters);
     }

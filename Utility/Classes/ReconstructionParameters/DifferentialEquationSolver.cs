@@ -65,23 +65,40 @@ namespace Utility.Classes.ReconstructionParameters
         private readonly int _maxIterations;
         private readonly double _convergenceThreshold;
         private readonly int _checkInterval;
+        private readonly bool _useCuda;
 
-        public LatticeBoltzmannDESolver(int maxIterations = 2000, double convergenceThreshold = 1e-7, int checkInterval = 200)
+        public LatticeBoltzmannDESolver(int maxIterations = 2000,
+                                        double convergenceThreshold = 1e-7,
+                                        int checkInterval = 200,
+                                        bool useCudaAcceleration = false)
         {
             _maxIterations = maxIterations;
             _convergenceThreshold = convergenceThreshold;
             _checkInterval = checkInterval;
+            _useCuda = useCudaAcceleration;
 
-            _solver = new LatticeBoltzmannSolver(_maxIterations, _convergenceThreshold, _checkInterval);
+            _solver = new LatticeBoltzmannSolver(_maxIterations, _convergenceThreshold, _checkInterval, _useCuda);
         }
 
         public PotentialDistribution Solve(IDiscretization discretization, BoundaryCondition bc, Complex[]? adjointSource)
         {
-            if (adjointSource == null)
-                return _solver.SolveForward(discretization, bc);
-            else
-                return _solver.SolveAdjoint(discretization, bc, adjointSource);
+            if (_useCuda)
+            {
+                return adjointSource == null
+                    ? _solver.CUDASolveForward(discretization, bc)
+                    : _solver.CUDASolveAdjoint(discretization, bc, adjointSource);
+            }
+
+            return adjointSource == null
+                ? _solver.SolveForward(discretization, bc)
+                : _solver.SolveAdjoint(discretization, bc, adjointSource);
         }
+
+        public PotentialDistribution CUDASolveForward(IDiscretization discretization, BoundaryCondition bc)
+            => _solver.CUDASolveForward(discretization, bc);
+
+        public PotentialDistribution CUDASolveAdjoint(IDiscretization discretization, BoundaryCondition bc, Complex[] adjointSource)
+            => _solver.CUDASolveAdjoint(discretization, bc, adjointSource);
     }
 
     public sealed class GraphSolver : IDifferentialEquationSolver

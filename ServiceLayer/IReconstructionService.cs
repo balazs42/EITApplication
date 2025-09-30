@@ -26,11 +26,18 @@ namespace ServiceLayer
 
         // --- LBM Reconstruction ---
         PotentialDistribution ForwardSolveStepLbm();
+        PotentialDistribution ForwardSolveStepLbmCuda();
         ReconstructionResult InverseSolveLbm(int maxIterationCount,
                                              double gradientStepSize,
                                              double regularizationWeight,
                                              double excitationAmplitude,
                                              double tolerance = 1e-6);
+        ReconstructionResult InverseSolveLbmCuda(int maxIterationCount,
+                                                 double gradientStepSize,
+                                                 double regularizationWeight,
+                                                 double excitationAmplitude,
+                                                 double tolerance = 1e-6);
+        ReconstructionFrame InverseSolveStepLbmCuda(LBMGrid mesh, double[] measurement, LBMBoundaryCondition boundaryCondition);
         EITMeasurement SimulateLbmMeasurements(LBMGrid mesh, double excitaionAmplitude);
 
         // --- FEM Reconstruction

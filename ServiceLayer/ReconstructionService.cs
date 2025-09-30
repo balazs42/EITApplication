@@ -69,6 +69,24 @@ namespace ServiceLayer
             }
         }
 
+        public PotentialDistribution ForwardSolveStepLbmCuda()
+        {
+            try
+            {
+                Workspace.AddLogMessage("Reconstruction Service", "Performing LBM Forward Solve (CUDA).");
+
+                return _reconstructionPersistence.ForwardSolveStepLbmCuda();
+            }
+            catch (Exception ex)
+            {
+                Workspace.AddErrorMessage(ex.Message);
+                _logger.LogError(ex.Message);
+                Console.WriteLine(ex.Message);
+                Debug.WriteLine(ex.Message);
+                throw;
+            }
+        }
+
         public ReconstructionResult InverseSolveLbm(int maxIterationCount,
                                                     double gradientStepSize,
                                                     double regularizationWeight,
@@ -234,6 +252,25 @@ namespace ServiceLayer
                              ?? throw new ArgumentException("Boundary condition must be FEMBoundaryCondition", nameof(boundaryCondition));
 
                 ReconstructionFrame frame = _reconstructionPersistence.InverseSolveStepFem(mesh, femBc, measurement, stepSize);
+
+                Workspace.AddReconstructionFrameToWorkspace(frame);
+
+                return frame;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                Console.WriteLine(ex.Message);
+                Debug.WriteLine(ex.Message);
+                throw;
+            }
+        }
+
+        public ReconstructionFrame InverseSolveStepLbmCuda(LBMGrid mesh, double[] measurement, LBMBoundaryCondition boundaryCondition)
+        {
+            try
+            {
+                var frame = _reconstructionPersistence.InverseSolveStepLbmCuda(mesh, boundaryCondition, measurement);
 
                 Workspace.AddReconstructionFrameToWorkspace(frame);
 
@@ -722,3 +759,30 @@ namespace ServiceLayer
         }
     }
 }
+        public ReconstructionResult InverseSolveLbmCuda(int maxIterationCount,
+                                                        double gradientStepSize,
+                                                        double regularizationWeight,
+                                                        double excitationAmplitude,
+                                                        double tolerance = 1e-6)
+        {
+            try
+            {
+                ReconstructionResult reconstructionResult =
+                    _reconstructionPersistence.InverseSolveLbmCuda(maxIterationCount,
+                                                                    gradientStepSize,
+                                                                    regularizationWeight,
+                                                                    excitationAmplitude,
+                                                                    tolerance);
+
+                Workspace.AddReconstructionResultToWorkspace(reconstructionResult);
+
+                return reconstructionResult;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                Console.WriteLine(ex.Message);
+                Debug.WriteLine(ex.Message);
+                throw;
+            }
+        }
