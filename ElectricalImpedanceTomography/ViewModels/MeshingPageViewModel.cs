@@ -302,11 +302,13 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public bool IsFEM => SelectedMeshType == DiscretizationType.FEM;
         public bool IsLBM => SelectedMeshType == DiscretizationType.LBM;
+        public bool ShowLbmConductivityEntry => IsLBM && InhomogenityEditing;
 
         partial void OnSelectedMeshTypeChanged(DiscretizationType value)
         {
             OnPropertyChanged(nameof(IsFEM));
             OnPropertyChanged(nameof(IsLBM));
+            OnPropertyChanged(nameof(ShowLbmConductivityEntry));
 
             var reconstructionParameters = Workspace.GetReconstructionParameters();
 
@@ -314,6 +316,11 @@ namespace ElectricalImpedanceTomography.ViewModels
             else if (IsLBM) reconstructionParameters.DifferentialEquationSolver = Utility.Classes.ReconstructionParameters.DifferentialEquationSolver.LBM;
 
             AutoGenerateMesh();
+        }
+
+        partial void OnInhomogenityEditingChanged(bool value)
+        {
+            OnPropertyChanged(nameof(ShowLbmConductivityEntry));
         }
 
         partial void OnSelectedGeometryChanged(GeometryType value)
