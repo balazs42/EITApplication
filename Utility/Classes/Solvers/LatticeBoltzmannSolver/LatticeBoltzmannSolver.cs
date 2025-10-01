@@ -405,14 +405,17 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             using var neighborIsWallBuffer = accelerator.Allocate1D<int>(elementCount * 9);
             using var phiBuffer = accelerator.Allocate1D<double>(elementCount);
 
-            isWallBuffer.CopyFrom(isWallHost, 0, Index1D.Zero, isWallBuffer.Length);
-            isElectrodeBuffer.CopyFrom(isElectrodeHost, 0, Index1D.Zero, isElectrodeBuffer.Length);
-            electrodeIsSourceBuffer.CopyFrom(electrodeIsSourceHost, 0, Index1D.Zero, electrodeIsSourceBuffer.Length);
-            electrodeCurrentBuffer.CopyFrom(electrodeCurrentHost, 0, Index1D.Zero, electrodeCurrentBuffer.Length);
-            electrodePotentialBuffer.CopyFrom(electrodePotentialHost, 0, Index1D.Zero, electrodePotentialBuffer.Length);
-            conductivityBuffer.CopyFrom(conductivityHost, 0, Index1D.Zero, conductivityBuffer.Length);
-            neighborIndexBuffer.CopyFrom(neighborIndicesHost, 0, Index1D.Zero, neighborIndexBuffer.Length);
-            neighborIsWallBuffer.CopyFrom(neighborIsWallHost, 0, Index1D.Zero, neighborIsWallBuffer.Length);
+            isWallBuffer.CopyFromCPU(isWallHost);
+            isElectrodeBuffer.CopyFromCPU(isElectrodeHost);
+            electrodeIsSourceBuffer.CopyFromCPU(electrodeIsSourceHost);
+            electrodeCurrentBuffer.CopyFromCPU(electrodeCurrentHost);
+            electrodePotentialBuffer.CopyFromCPU(electrodePotentialHost);
+            conductivityBuffer.CopyFromCPU(conductivityHost);
+            neighborIndexBuffer.CopyFromCPU(neighborIndicesHost);
+            neighborIsWallBuffer.CopyFromCPU(neighborIsWallHost);
+
+            if (_initializeKernel == null)
+                throw new NullReferenceException();
 
             _initializeKernel(elementCount,
                 fiBuffer.View,
@@ -429,6 +432,9 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
             double[] prevPhi = new double[elementCount];
 
+            if (_collisionKernel == null || _streamKernel == null || _updateKernel == null || _phiKernel == null)
+                throw new NullReferenceException();
+            
             for (int t = 0; t < maxIter; t++)
             {
                 _collisionKernel(elementCount,

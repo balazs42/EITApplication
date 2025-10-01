@@ -166,7 +166,7 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                     return Math.Atan2(by - cy, bx - cx);
                 })];
 
-            int count = boundary.Count;
+            int count = (boundary.Count > 0) ? boundary.Count : 1;
             double step = count / (double)numElectrodes;
             double pos = 0.0;
             for (int i = 0; i < numElectrodes; i++)

@@ -49,7 +49,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 if (_accelerator != null)
                     return;
 
-                _context = Context.Create(builder => builder.Cuda().Math(MathMode.DoublePrecision));
+                _context = Context.Create(builder => builder.Cuda().Math(MathMode.Default));
                 var device = _context.GetPreferredDevice(preferCPU: false);
                 if (device.AcceleratorType != AcceleratorType.Cuda)
                     throw new InvalidOperationException("No CUDA accelerator available for Lattice Boltzmann solver.");

@@ -1,9 +1,6 @@
-using System.Collections.Generic;
-using System.Linq;
 using ILGPU;
 using ILGPU.Runtime;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
-using Utility.Classes.Measurement;
 
 namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 {
@@ -67,9 +64,12 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             using var neighborIndexBuffer = accelerator.Allocate1D<int>(count * 9);
             using var neighborIsWallBuffer = accelerator.Allocate1D<int>(count * 9);
 
-            fieldBuffer.CopyFrom(fieldValues, 0, Index1D.Zero, fieldBuffer.Length);
-            neighborIndexBuffer.CopyFrom(topology.NeighborIndices, 0, Index1D.Zero, neighborIndexBuffer.Length);
-            neighborIsWallBuffer.CopyFrom(topology.NeighborIsWall, 0, Index1D.Zero, neighborIsWallBuffer.Length);
+            fieldBuffer.CopyFromCPU(fieldValues);
+            neighborIndexBuffer.CopyFromCPU(topology.NeighborIndices);
+            neighborIsWallBuffer.CopyFromCPU(topology.NeighborIsWall);
+
+            if (_gradientKernel == null)
+                throw new NullReferenceException();
 
             _gradientKernel(count,
                 fieldBuffer.View,
@@ -134,9 +134,12 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             using var neighborIndexBuffer = accelerator.Allocate1D<int>(count * 9);
             using var neighborIsWallBuffer = accelerator.Allocate1D<int>(count * 9);
 
-            fieldBuffer.CopyFrom(fieldValues, 0, Index1D.Zero, fieldBuffer.Length);
-            neighborIndexBuffer.CopyFrom(topology.NeighborIndices, 0, Index1D.Zero, neighborIndexBuffer.Length);
-            neighborIsWallBuffer.CopyFrom(topology.NeighborIsWall, 0, Index1D.Zero, neighborIsWallBuffer.Length);
+            fieldBuffer.CopyFromCPU(fieldValues);
+            neighborIndexBuffer.CopyFromCPU(topology.NeighborIndices);
+            neighborIsWallBuffer.CopyFromCPU(topology.NeighborIsWall);
+
+            if (_laplacianKernel == null)
+                throw new NullReferenceException();
 
             _laplacianKernel(count,
                 fieldBuffer.View,
@@ -207,10 +210,13 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             using var neighborIsWallBuffer = accelerator.Allocate1D<int>(count * 9);
             using var resultBuffer = accelerator.Allocate1D<double>(count);
 
-            fxBuffer.CopyFrom(fxHost, 0, Index1D.Zero, fxBuffer.Length);
-            fyBuffer.CopyFrom(fyHost, 0, Index1D.Zero, fyBuffer.Length);
-            neighborIndexBuffer.CopyFrom(topology.NeighborIndices, 0, Index1D.Zero, neighborIndexBuffer.Length);
-            neighborIsWallBuffer.CopyFrom(topology.NeighborIsWall, 0, Index1D.Zero, neighborIsWallBuffer.Length);
+            fxBuffer.CopyFromCPU(fxHost);
+            fyBuffer.CopyFromCPU(fyHost);
+            neighborIndexBuffer.CopyFromCPU(topology.NeighborIndices);
+            neighborIsWallBuffer.CopyFromCPU(topology.NeighborIsWall);
+
+            if(_divergenceKernel == null)
+                throw new NullReferenceException(); 
 
             _divergenceKernel(count,
                 fxBuffer.View,
