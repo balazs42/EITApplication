@@ -1,252 +1,358 @@
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Numerics;
-using System.Threading.Tasks;
-using Utility.Classes.Measurement;
+using ILGPU;
+using ILGPU.Runtime;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
+using Utility.Classes.Measurement;
 
 namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 {
     /// <summary>
     /// Contains helper methods for applying discrete differential operators to fields
     /// defined on a structured Lattice-Boltzmann grid.
-    /// This implementation is "element-centric", meaning it uses the neighbor-linking
-    /// of the LBMElement class rather than coordinate-based lookups.
     /// </summary>
     public static class LatticeBoltzmannOperators
     {
+        private static readonly object _cudaKernelLock = new();
+        private static Action<Index1D, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>>? _gradientKernel;
+        private static Action<Index1D, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>>? _laplacianKernel;
+        private static Action<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>>? _divergenceKernel;
+
         /// <summary>
-        /// Central‐difference gradient of a scalar field φ on D2Q9 mesh.
+        /// Central‐difference gradient of a scalar field φ on D2Q9 mesh (CPU implementation).
         /// </summary>
         public static VectorField CalculateGradient(LBMGrid mesh, ScalarField φ)
-            => CalculateGradientInternal(mesh, φ, parallel: false);
+        {
+            var grad = new Dictionary<int, (double X, double Y)>();
+            foreach (LBMElement el in mesh.GetElements().Cast<LBMElement>())
+            {
+                var R = el.Neighbors[1];
+                var U = el.Neighbors[2];
+                var L = el.Neighbors[3];
+                var D = el.Neighbors[4];
+
+                double φ0 = φ.GetValue(el.Id);
+                double φr = (R != null && !R.IsWall) ? φ.GetValue(R.Id) : φ0;
+                double φl = (L != null && !L.IsWall) ? φ.GetValue(L.Id) : φ0;
+                double φu = (U != null && !U.IsWall) ? φ.GetValue(U.Id) : φ0;
+                double φd = (D != null && !D.IsWall) ? φ.GetValue(D.Id) : φ0;
+
+                double dx = (φr - φl) / ((R != null && L != null) ? 2.0 : 1.0);
+                double dy = (φu - φd) / ((U != null && D != null) ? 2.0 : 1.0);
+
+                grad[el.Id] = (dx, dy);
+            }
+
+            return new VectorField(grad);
+        }
 
         public static VectorField CalculateGradientCuda(LBMGrid mesh, ScalarField φ)
-            => CalculateGradientInternal(mesh, φ, parallel: true);
-
-        private static VectorField CalculateGradientInternal(LBMGrid mesh, ScalarField φ, bool parallel)
         {
-            if (parallel)
-            {
-                var concurrent = new ConcurrentDictionary<int, (double X, double Y)>();
-                var elements = mesh.GetElements().Cast<LBMElement>().ToArray();
-                Parallel.ForEach(elements, el =>
-                {
-                    var R = el.Neighbors[1];
-                    var U = el.Neighbors[2];
-                    var L = el.Neighbors[3];
-                    var D = el.Neighbors[4];
+            var topology = LatticeBoltzmannCudaHelper.BuildTopology(mesh);
+            int count = topology.ElementCount;
+            if (count == 0)
+                return new VectorField(new Dictionary<int, (double, double)>());
 
-                    double φ0 = φ.GetValue(el.Id);
-                    double φr = (R != null && !R.IsWall) ? φ.GetValue(R.Id) : φ0;
-                    double φl = (L != null && !L.IsWall) ? φ.GetValue(L.Id) : φ0;
-                    double φu = (U != null && !U.IsWall) ? φ.GetValue(U.Id) : φ0;
-                    double φd = (D != null && !D.IsWall) ? φ.GetValue(D.Id) : φ0;
+            EnsureCudaKernels();
 
-                    double dx = (φr - φl) / ((R != null && L != null) ? 2.0 : 1.0);
-                    double dy = (φu - φd) / ((U != null && D != null) ? 2.0 : 1.0);
+            var fieldValues = new double[count];
+            for (int i = 0; i < count; i++)
+                fieldValues[i] = φ.GetValue(topology.ElementIds[i]);
 
-                    concurrent[el.Id] = (dx, dy);
-                });
+            var accelerator = LatticeBoltzmannCudaContext.Accelerator;
 
-                return new VectorField(concurrent.ToDictionary(kvp => kvp.Key, kvp => kvp.Value));
-            }
-            else
-            {
-                var grad = new Dictionary<int, (double X, double Y)>();
-                var elements = mesh.GetElements().Cast<LBMElement>();
+            using var fieldBuffer = accelerator.Allocate1D<double>(count);
+            using var gradXBuffer = accelerator.Allocate1D<double>(count);
+            using var gradYBuffer = accelerator.Allocate1D<double>(count);
+            using var neighborIndexBuffer = accelerator.Allocate1D<int>(count * 9);
+            using var neighborIsWallBuffer = accelerator.Allocate1D<int>(count * 9);
 
-                foreach (LBMElement el in elements)
-                {
-                    var R = el.Neighbors[1];
-                    var U = el.Neighbors[2];
-                    var L = el.Neighbors[3];
-                    var D = el.Neighbors[4];
+            fieldBuffer.CopyFrom(fieldValues, 0, Index1D.Zero, fieldBuffer.Length);
+            neighborIndexBuffer.CopyFrom(topology.NeighborIndices, 0, Index1D.Zero, neighborIndexBuffer.Length);
+            neighborIsWallBuffer.CopyFrom(topology.NeighborIsWall, 0, Index1D.Zero, neighborIsWallBuffer.Length);
 
-                    double φ0 = φ.GetValue(el.Id);
-                    double φr = (R != null && !R.IsWall) ? φ.GetValue(R.Id) : φ0;
-                    double φl = (L != null && !L.IsWall) ? φ.GetValue(L.Id) : φ0;
-                    double φu = (U != null && !U.IsWall) ? φ.GetValue(U.Id) : φ0;
-                    double φd = (D != null && !D.IsWall) ? φ.GetValue(D.Id) : φ0;
+            _gradientKernel(count,
+                fieldBuffer.View,
+                neighborIndexBuffer.View,
+                neighborIsWallBuffer.View,
+                gradXBuffer.View,
+                gradYBuffer.View);
 
-                    double dx = (φr - φl) / ((R != null && L != null) ? 2.0 : 1.0);
-                    double dy = (φu - φd) / ((U != null && D != null) ? 2.0 : 1.0);
+            accelerator.Synchronize();
+            var gradXHost = gradXBuffer.GetAsArray1D();
+            var gradYHost = gradYBuffer.GetAsArray1D();
 
-                    grad[el.Id] = (dx, dy);
-                }
-                return new VectorField(grad);
-            }
+            var dict = new Dictionary<int, (double X, double Y)>(count);
+            for (int i = 0; i < count; i++)
+                dict[topology.ElementIds[i]] = (gradXHost[i], gradYHost[i]);
+
+            return new VectorField(dict);
         }
 
         /// <summary>
-        /// Standard 5-point Laplacian Δφ = φ_r+φ_l+φ_u+φ_d - 4φ0.
+        /// Standard 5-point Laplacian Δφ = φ_r+φ_l+φ_u+φ_d - 4φ0 (CPU implementation).
         /// </summary>
         public static ScalarField CalculateLaplacian(LBMGrid mesh, ScalarField φ)
-            => CalculateLaplacianInternal(mesh, φ, parallel: false);
+        {
+            var lap = new Dictionary<int, double>();
+            foreach (LBMElement el in mesh.GetElements().Cast<LBMElement>())
+            {
+                var R = el.Neighbors[1];
+                var U = el.Neighbors[2];
+                var L = el.Neighbors[3];
+                var D = el.Neighbors[4];
+
+                double φ0 = φ.GetValue(el.Id);
+                double φr = (R != null && !R.IsWall) ? φ.GetValue(R.Id) : φ0;
+                double φl = (L != null && !L.IsWall) ? φ.GetValue(L.Id) : φ0;
+                double φu = (U != null && !U.IsWall) ? φ.GetValue(U.Id) : φ0;
+                double φd = (D != null && !D.IsWall) ? φ.GetValue(D.Id) : φ0;
+
+                lap[el.Id] = φr + φl + φu + φd - 4 * φ0;
+            }
+
+            return new PotentialDistribution(lap);
+        }
 
         public static ScalarField CalculateLaplacianCuda(LBMGrid mesh, ScalarField φ)
-            => CalculateLaplacianInternal(mesh, φ, parallel: true);
-
-        private static ScalarField CalculateLaplacianInternal(LBMGrid mesh, ScalarField φ, bool parallel)
         {
-            if (parallel)
-            {
-                var concurrent = new ConcurrentDictionary<int, double>();
-                var elements = mesh.GetElements().Cast<LBMElement>().ToArray();
-                Parallel.ForEach(elements, el =>
-                {
-                    var R = el.Neighbors[1];
-                    var U = el.Neighbors[2];
-                    var L = el.Neighbors[3];
-                    var D = el.Neighbors[4];
+            var topology = LatticeBoltzmannCudaHelper.BuildTopology(mesh);
+            int count = topology.ElementCount;
+            if (count == 0)
+                return new PotentialDistribution(new Dictionary<int, double>());
 
-                    double φ0 = φ.GetValue(el.Id);
-                    double φr = (R != null && !R.IsWall) ? φ.GetValue(R.Id) : φ0;
-                    double φl = (L != null && !L.IsWall) ? φ.GetValue(L.Id) : φ0;
-                    double φu = (U != null && !U.IsWall) ? φ.GetValue(U.Id) : φ0;
-                    double φd = (D != null && !D.IsWall) ? φ.GetValue(D.Id) : φ0;
+            EnsureCudaKernels();
 
-                    concurrent[el.Id] = φr + φl + φu + φd - 4 * φ0;
-                });
+            var fieldValues = new double[count];
+            for (int i = 0; i < count; i++)
+                fieldValues[i] = φ.GetValue(topology.ElementIds[i]);
 
-                return new PotentialDistribution(concurrent.ToDictionary(kvp => kvp.Key, kvp => kvp.Value));
-            }
-            else
-            {
-                var lap = new Dictionary<int, double>();
-                var elements = mesh.GetElements();
+            var accelerator = LatticeBoltzmannCudaContext.Accelerator;
 
-                foreach (LBMElement el in elements)
-                {
-                    var R = el.Neighbors[1];
-                    var U = el.Neighbors[2];
-                    var L = el.Neighbors[3];
-                    var D = el.Neighbors[4];
+            using var fieldBuffer = accelerator.Allocate1D<double>(count);
+            using var laplacianBuffer = accelerator.Allocate1D<double>(count);
+            using var neighborIndexBuffer = accelerator.Allocate1D<int>(count * 9);
+            using var neighborIsWallBuffer = accelerator.Allocate1D<int>(count * 9);
 
-                    double φ0 = φ.GetValue(el.Id);
-                    double φr = (R != null && !R.IsWall) ? φ.GetValue(R.Id) : φ0;
-                    double φl = (L != null && !L.IsWall) ? φ.GetValue(L.Id) : φ0;
-                    double φu = (U != null && !U.IsWall) ? φ.GetValue(U.Id) : φ0;
-                    double φd = (D != null && !D.IsWall) ? φ.GetValue(D.Id) : φ0;
+            fieldBuffer.CopyFrom(fieldValues, 0, Index1D.Zero, fieldBuffer.Length);
+            neighborIndexBuffer.CopyFrom(topology.NeighborIndices, 0, Index1D.Zero, neighborIndexBuffer.Length);
+            neighborIsWallBuffer.CopyFrom(topology.NeighborIsWall, 0, Index1D.Zero, neighborIsWallBuffer.Length);
 
-                    lap[el.Id] = φr + φl + φu + φd - 4 * φ0;
-                }
-                return new PotentialDistribution(lap);
-            }
+            _laplacianKernel(count,
+                fieldBuffer.View,
+                neighborIndexBuffer.View,
+                neighborIsWallBuffer.View,
+                laplacianBuffer.View);
+
+            accelerator.Synchronize();
+            var lapHost = laplacianBuffer.GetAsArray1D();
+            var dict = new Dictionary<int, double>(count);
+            for (int i = 0; i < count; i++)
+                dict[topology.ElementIds[i]] = lapHost[i];
+
+            return new PotentialDistribution(dict);
         }
 
         /// <summary>
-        /// ∇·F = ∂Fx/∂x + ∂Fy/∂y, using neighbor-based differences.
+        /// Divergence ∇·F using neighbor-based differences (CPU implementation).
         /// </summary>
         public static ScalarField CalculateDivergence(LBMGrid mesh, VectorField F)
-            => CalculateDivergenceInternal(mesh, F, parallel: false);
+        {
+            var div = new Dictionary<int, double>();
+            foreach (LBMElement el in mesh.GetElements().Cast<LBMElement>())
+            {
+                var R = el.Neighbors[1];
+                var U = el.Neighbors[2];
+                var L = el.Neighbors[3];
+                var D = el.Neighbors[4];
+
+                var (Fx0, Fy0) = F.GetVector(el.Id);
+                var (Fxr, Fyr) = (R != null) ? F.GetVector(R.Id) : (Fx0, Fy0);
+                var (Fxl, Fyl) = (L != null) ? F.GetVector(L.Id) : (Fx0, Fy0);
+                var (Fxu, Fyu) = (U != null) ? F.GetVector(U.Id) : (Fx0, Fy0);
+                var (Fxd, Fyd) = (D != null) ? F.GetVector(D.Id) : (Fx0, Fy0);
+
+                double dFx = (Fxr - Fxl) / ((R != null && L != null) ? 2.0 : 1.0);
+                double dFy = (Fyu - Fyd) / ((U != null && D != null) ? 2.0 : 1.0);
+
+                div[el.Id] = dFx + dFy;
+            }
+
+            return new PotentialDistribution(div);
+        }
 
         public static ScalarField CalculateDivergenceCuda(LBMGrid mesh, VectorField F)
-            => CalculateDivergenceInternal(mesh, F, parallel: true);
-
-        private static ScalarField CalculateDivergenceInternal(LBMGrid mesh, VectorField F, bool parallel)
         {
-            if (parallel)
+            var topology = LatticeBoltzmannCudaHelper.BuildTopology(mesh);
+            int count = topology.ElementCount;
+            if (count == 0)
+                return new PotentialDistribution(new Dictionary<int, double>());
+
+            EnsureCudaKernels();
+
+            var fxHost = new double[count];
+            var fyHost = new double[count];
+            for (int i = 0; i < count; i++)
             {
-                var concurrent = new ConcurrentDictionary<int, double>();
-                var elements = mesh.GetElements().Cast<LBMElement>().ToArray();
-                Parallel.ForEach(elements, el =>
-                {
-                    var R = el.Neighbors[1];
-                    var U = el.Neighbors[2];
-                    var L = el.Neighbors[3];
-                    var D = el.Neighbors[4];
-
-                    var (Fx0, Fy0) = F.GetVector(el.Id);
-                    var (Fxr, Fyr) = (R != null) ? F.GetVector(R.Id) : (Fx0, Fy0);
-                    var (Fxl, Fyl) = (L != null) ? F.GetVector(L.Id) : (Fx0, Fy0);
-                    var (Fxu, Fyu) = (U != null) ? F.GetVector(U.Id) : (Fx0, Fy0);
-                    var (Fxd, Fyd) = (D != null) ? F.GetVector(D.Id) : (Fx0, Fy0);
-
-                    double dFx = (Fxr - Fxl) / ((R != null && L != null) ? 2.0 : 1.0);
-                    double dFy = (Fyu - Fyd) / ((U != null && D != null) ? 2.0 : 1.0);
-
-                    concurrent[el.Id] = dFx + dFy;
-                });
-
-                return new PotentialDistribution(concurrent.ToDictionary(kvp => kvp.Key, kvp => kvp.Value));
+                var (fx, fy) = F.GetVector(topology.ElementIds[i]);
+                fxHost[i] = fx;
+                fyHost[i] = fy;
             }
-            else
+
+            var accelerator = LatticeBoltzmannCudaContext.Accelerator;
+
+            using var fxBuffer = accelerator.Allocate1D<double>(count);
+            using var fyBuffer = accelerator.Allocate1D<double>(count);
+            using var neighborIndexBuffer = accelerator.Allocate1D<int>(count * 9);
+            using var neighborIsWallBuffer = accelerator.Allocate1D<int>(count * 9);
+            using var resultBuffer = accelerator.Allocate1D<double>(count);
+
+            fxBuffer.CopyFrom(fxHost, 0, Index1D.Zero, fxBuffer.Length);
+            fyBuffer.CopyFrom(fyHost, 0, Index1D.Zero, fyBuffer.Length);
+            neighborIndexBuffer.CopyFrom(topology.NeighborIndices, 0, Index1D.Zero, neighborIndexBuffer.Length);
+            neighborIsWallBuffer.CopyFrom(topology.NeighborIsWall, 0, Index1D.Zero, neighborIsWallBuffer.Length);
+
+            _divergenceKernel(count,
+                fxBuffer.View,
+                fyBuffer.View,
+                neighborIndexBuffer.View,
+                neighborIsWallBuffer.View,
+                resultBuffer.View);
+
+            accelerator.Synchronize();
+            var divHost = resultBuffer.GetAsArray1D();
+            var dict = new Dictionary<int, double>(count);
+            for (int i = 0; i < count; i++)
+                dict[topology.ElementIds[i]] = divHost[i];
+
+            return new PotentialDistribution(dict);
+        }
+
+        private static void EnsureCudaKernels()
+        {
+            LatticeBoltzmannCudaContext.EnsureInitialized();
+            if (_gradientKernel != null)
+                return;
+
+            lock (_cudaKernelLock)
             {
-                var div = new Dictionary<int, double>();
-                var elements = mesh.GetElements().Cast<LBMElement>();
+                if (_gradientKernel != null)
+                    return;
 
-                foreach (LBMElement el in elements)
-                {
-                    var R = el.Neighbors[1];
-                    var U = el.Neighbors[2];
-                    var L = el.Neighbors[3];
-                    var D = el.Neighbors[4];
-
-                    var (Fx0, Fy0) = F.GetVector(el.Id);
-                    var (Fxr, Fyr) = (R != null) ? F.GetVector(R.Id) : (Fx0, Fy0);
-                    var (Fxl, Fyl) = (L != null) ? F.GetVector(L.Id) : (Fx0, Fy0);
-                    var (Fxu, Fyu) = (U != null) ? F.GetVector(U.Id) : (Fx0, Fy0);
-                    var (Fxd, Fyd) = (D != null) ? F.GetVector(D.Id) : (Fx0, Fy0);
-
-                    double dFx = (Fxr - Fxl) / ((R != null && L != null) ? 2.0 : 1.0);
-                    double dFy = (Fyu - Fyd) / ((U != null && D != null) ? 2.0 : 1.0);
-
-                    div[el.Id] = dFx + dFy;
-                }
-                return new PotentialDistribution(div);
+                var accelerator = LatticeBoltzmannCudaContext.Accelerator;
+                _gradientKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>>(GradientKernel);
+                _laplacianKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>>(LaplacianKernel);
+                _divergenceKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>>(DivergenceKernel);
             }
         }
 
-        /// <summary>
-        /// Finite‐difference gradient of J wrt σ: dJ/dσ_i ≈ [J(σ+δ) - J(σ-δ)]/(2δ).
-        /// </summary>
-        public static ScalarField ComputeFiniteDifferenceGradient(
-            LBMGrid mesh,
-            LBMBoundaryCondition bc,
-            Complex[] observed,
-            LatticeBoltzmannSolver solver,
-            double δ)
+        private static void GradientKernel(
+            Index1D index,
+            ArrayView<double> field,
+            ArrayView<int> neighborIndices,
+            ArrayView<int> neighborIsWall,
+            ArrayView<double> gradX,
+            ArrayView<double> gradY)
         {
-            var baseσ = mesh.GetConductivityDistribution().Conductivities;
-            var grad = new Dictionary<int, double>();
+            int baseIndex = index * 9;
+            double center = field[index];
 
-            // baseline
-            var φ0 = solver.SolveForward(mesh, bc);
-            var u0 = mesh.GetElectrodePotentials();
-            double J0 = 0;
-            for (int e = 0; e < observed.Length; e++)
-                J0 += 0.5 * Math.Pow(u0[e] - observed[e].Real, 2);
+            int rightIndex = neighborIndices[baseIndex + 1];
+            double rightValue = center;
+            if (rightIndex >= 0 && neighborIsWall[baseIndex + 1] == 0)
+                rightValue = field[rightIndex];
 
-            foreach (var kv in baseσ)
-            {
-                int id = kv.Key;
-                double σi = kv.Value;
+            int leftIndex = neighborIndices[baseIndex + 3];
+            double leftValue = center;
+            if (leftIndex >= 0 && neighborIsWall[baseIndex + 3] == 0)
+                leftValue = field[leftIndex];
 
-                // σ+δ
-                mesh.SetConductivity(id, σi + δ);
-                solver.SolveForward(mesh, bc);
-                var uPlus = mesh.GetElectrodePotentials();
-                double Jplus = 0;
-                for (int e = 0; e < observed.Length; e++)
-                    Jplus += 0.5 * Math.Pow(uPlus[e] - observed[e].Real, 2);
+            int upIndex = neighborIndices[baseIndex + 2];
+            double upValue = center;
+            if (upIndex >= 0 && neighborIsWall[baseIndex + 2] == 0)
+                upValue = field[upIndex];
 
-                // σ-δ
-                mesh.SetConductivity(id, σi - δ);
-                solver.SolveForward(mesh, bc);
-                var uMinus = mesh.GetElectrodePotentials();
-                double Jminus = 0;
-                for (int e = 0; e < observed.Length; e++)
-                    Jminus += 0.5 * Math.Pow(uMinus[e] - observed[e].Real, 2);
+            int downIndex = neighborIndices[baseIndex + 4];
+            double downValue = center;
+            if (downIndex >= 0 && neighborIsWall[baseIndex + 4] == 0)
+                downValue = field[downIndex];
 
-                // restore
-                mesh.SetConductivity(id, σi);
+            double denomX = (rightIndex >= 0 && leftIndex >= 0) ? 2.0 : 1.0;
+            double denomY = (upIndex >= 0 && downIndex >= 0) ? 2.0 : 1.0;
 
-                grad[id] = (Jplus - Jminus) / (2 * δ);
-            }
+            gradX[index] = (rightValue - leftValue) / denomX;
+            gradY[index] = (upValue - downValue) / denomY;
+        }
 
-            return new ConductivityDistribution(grad);
+        private static void LaplacianKernel(
+            Index1D index,
+            ArrayView<double> field,
+            ArrayView<int> neighborIndices,
+            ArrayView<int> neighborIsWall,
+            ArrayView<double> result)
+        {
+            int baseIndex = index * 9;
+            double center = field[index];
+
+            int rightIndex = neighborIndices[baseIndex + 1];
+            double rightValue = center;
+            if (rightIndex >= 0 && neighborIsWall[baseIndex + 1] == 0)
+                rightValue = field[rightIndex];
+
+            int leftIndex = neighborIndices[baseIndex + 3];
+            double leftValue = center;
+            if (leftIndex >= 0 && neighborIsWall[baseIndex + 3] == 0)
+                leftValue = field[leftIndex];
+
+            int upIndex = neighborIndices[baseIndex + 2];
+            double upValue = center;
+            if (upIndex >= 0 && neighborIsWall[baseIndex + 2] == 0)
+                upValue = field[upIndex];
+
+            int downIndex = neighborIndices[baseIndex + 4];
+            double downValue = center;
+            if (downIndex >= 0 && neighborIsWall[baseIndex + 4] == 0)
+                downValue = field[downIndex];
+
+            result[index] = rightValue + leftValue + upValue + downValue - 4.0 * center;
+        }
+
+        private static void DivergenceKernel(
+            Index1D index,
+            ArrayView<double> fx,
+            ArrayView<double> fy,
+            ArrayView<int> neighborIndices,
+            ArrayView<int> neighborIsWall,
+            ArrayView<double> result)
+        {
+            int baseIndex = index * 9;
+            double fx0 = fx[index];
+            double fy0 = fy[index];
+
+            int rightIndex = neighborIndices[baseIndex + 1];
+            double fxr = fx0;
+            if (rightIndex >= 0 && neighborIsWall[baseIndex + 1] == 0)
+                fxr = fx[rightIndex];
+
+            int leftIndex = neighborIndices[baseIndex + 3];
+            double fxl = fx0;
+            if (leftIndex >= 0 && neighborIsWall[baseIndex + 3] == 0)
+                fxl = fx[leftIndex];
+
+            int upIndex = neighborIndices[baseIndex + 2];
+            double fyu = fy0;
+            if (upIndex >= 0 && neighborIsWall[baseIndex + 2] == 0)
+                fyu = fy[upIndex];
+
+            int downIndex = neighborIndices[baseIndex + 4];
+            double fyd = fy0;
+            if (downIndex >= 0 && neighborIsWall[baseIndex + 4] == 0)
+                fyd = fy[downIndex];
+
+            double denomX = (rightIndex >= 0 && leftIndex >= 0) ? 2.0 : 1.0;
+            double denomY = (upIndex >= 0 && downIndex >= 0) ? 2.0 : 1.0;
+
+            result[index] = (fxr - fxl) / denomX + (fyu - fyd) / denomY;
         }
     }
 }
