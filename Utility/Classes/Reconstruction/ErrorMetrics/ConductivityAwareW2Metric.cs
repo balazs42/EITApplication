@@ -94,15 +94,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             public double Sum { get; }
         }
 
-        internal sealed record EdgeInfo(int Index,
-                                        int U,
-                                        int V,
-                                        double PhysicalLength,
-                                        double NormalizedLength,
-                                        int ElementU,
-                                        int ElementV,
-                                        double Sigma,
-                                        double Cost);
+        internal sealed record EdgeInfo(int Index, int U, int V, double Length, int ElementU, int ElementV, double Sigma, double Cost);
 
         private sealed record DirectedEdge(int EdgeIndex, int From, int To, double Cost);
 
@@ -140,7 +132,6 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             public required Dictionary<int, double> GradientCostTerm;
             public required double[] Measured;
             public required double[] Simulated;
-            public required double SpatialScale;
 
             public ConductivityDistribution? Gradient;
         }
@@ -206,12 +197,11 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             // Determine electrode spatial positions.
             var electrodePositions = GetElectrodePositions(fem);
             var electrodeNodes = MapElectrodesToGraphNodes(fem, electrodePositions);
-            double spatialScale = ComputeSpatialScale(electrodePositions);
 
             // Build both geometric and conductivity-aware cost matrices.
-            var geodesics = ComputeSoftDistancesAndOccupancies(fem, electrodeNodes, spatialScale);
+            var geodesics = ComputeSoftDistancesAndOccupancies(fem, electrodeNodes);
             var costConductive = BuildCostMatrix(geodesics.Distances);
-            var costGeometric = BuildGeometricCost(electrodePositions, spatialScale);
+            var costGeometric = BuildGeometricCost(electrodePositions);
 
             bool physicsOnly = _config.UsePhysicsAwareOnly || _config.Alpha >= 1.0 - 1e-12;
             double alpha = physicsOnly ? 1.0 : Math.Clamp(_config.Alpha, 0.0, 1.0);
@@ -230,26 +220,21 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 value = 0.5 * ((1.0 - alpha) * 2.0 * geoTerm + alpha * 2.0 * physTerm);
             }
 
-            double scaleSquared = spatialScale * spatialScale;
-            value *= scaleSquared; // undo geometric normalisation to keep physical units
-
             // Average Kantorovich potentials according to the blend.
-            var alphaPhysics = ScalePotentials(otPhysics.SourcePotential, scaleSquared);
-            double[]? alphaGeo = otGeo != null ? ScalePotentials(otGeo.SourcePotential, scaleSquared) : null;
-            var gMu = BlendPotentials(alpha, alphaPhysics, alphaGeo);
+            var gMu = BlendPotentials(alpha, otPhysics.SourcePotential, otGeo?.SourcePotential);
 
             // R^T g_μ for the adjoint RHS (Eq. (1) VJP).
             var adjointSource = ApplyNormalizationVjp(simNorm, gMu);
             // OT physics-cost correction (Eq. (5)-(7)).
-            var costTerm = ComputeCostGradient(fem, geodesics, otPhysics.Plan, spatialScale);
+            var costTerm = ComputeCostGradient(fem, geodesics, otPhysics.Plan);
             _last = new EvaluationCache
             {
                 Mu = mu,
                 Nu = nu,
                 GammaPhysics = otPhysics.Plan,
                 GammaGeo = otGeo?.Plan,
-                AlphaPhysics = alphaPhysics,
-                AlphaGeo = alphaGeo,
+                AlphaPhysics = otPhysics.SourcePotential,
+                AlphaGeo = otGeo?.SourcePotential,
                 SimNormalization = simNorm,
                 Geodesics = geodesics,
                 GMu = gMu,
@@ -258,7 +243,6 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 GradientCostTerm = costTerm,
                 Measured = (double[])measured.Clone(),
                 Simulated = (double[])simulated.Clone(),
-                SpatialScale = spatialScale,
                 Gradient = null
             };
 
@@ -334,7 +318,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                       throw new InvalidOperationException("Forward potential distribution is missing on the FEM mesh.");
 
             var adjointTerm = ComputeAdjointConductivityGradient(fem, phi, adjointPotential);
-            var costTerm = _last.GradientCostTerm ?? ComputeCostGradient(fem, _last.Geodesics, _last.GammaPhysics, _last.SpatialScale);
+            var costTerm = _last.GradientCostTerm ?? ComputeCostGradient(fem, _last.Geodesics, _last.GammaPhysics);
 
             _last.GradientAdjointTerm = adjointTerm;
 
@@ -518,7 +502,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         /// </summary>
         /// <param name="electrodePositions">Electrode centroid coordinates.</param>
         /// <returns>Squared Euclidean distance matrix.</returns>
-        private static double[,] BuildGeometricCost(IReadOnlyList<(double x, double y)> electrodePositions, double spatialScale)
+        private static double[,] BuildGeometricCost(IReadOnlyList<(double x, double y)> electrodePositions)
         {
             int m = electrodePositions.Count;
             var cost = new double[m, m];
@@ -529,8 +513,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                     double dx = electrodePositions[i].x - electrodePositions[j].x;
                     double dy = electrodePositions[i].y - electrodePositions[j].y;
                     double d = Math.Sqrt(dx * dx + dy * dy);
-                    double normalized = d / spatialScale;
-                    cost[i, j] = normalized * normalized;
+                    cost[i, j] = d * d;
                 }
             }
             return cost;
@@ -668,14 +651,6 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             return result;
         }
 
-        private static double[] ScalePotentials(double[] sourcePotential, double scaleSquared)
-        {
-            var scaled = (double[])sourcePotential.Clone();
-            for (int i = 0; i < scaled.Length; i++)
-                scaled[i] *= scaleSquared;
-            return scaled;
-        }
-
         private static IReadOnlyList<(double x, double y)> GetElectrodePositions(FEMMesh mesh)
         {
             var vertices = mesh.GetVertices().ToDictionary(v => v.GlobalId);
@@ -721,10 +696,8 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         /// </summary>
         internal SoftGeodesicResult DebugComputeSoftGeodesics(FEMMesh mesh)
         {
-            var positions = GetElectrodePositions(mesh);
-            double scale = ComputeSpatialScale(positions);
-            var nodes = MapElectrodesToGraphNodes(mesh, positions);
-            return ComputeSoftDistancesAndOccupancies(mesh, nodes, scale);
+            var nodes = DebugElectrodeNodeMapping(mesh);
+            return ComputeSoftDistancesAndOccupancies(mesh, nodes);
         }
 
         /// <summary>
@@ -767,36 +740,6 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         }
 
         /// <summary>
-        /// Estimates a characteristic length scale from electrode positions so that
-        /// geometries with vastly different units yield comparable adjoint magnitudes.
-        /// </summary>
-        /// <param name="positions">Electrode centroid coordinates.</param>
-        /// <returns>Maximum pairwise electrode distance (fallbacks to 1 when degenerate).</returns>
-        private static double ComputeSpatialScale(IReadOnlyList<(double x, double y)> positions)
-        {
-            if (positions == null || positions.Count < 2)
-                return 1.0;
-
-            double maxDistance = 0.0;
-            for (int i = 0; i < positions.Count; i++)
-            {
-                for (int j = i + 1; j < positions.Count; j++)
-                {
-                    double dx = positions[i].x - positions[j].x;
-                    double dy = positions[i].y - positions[j].y;
-                    double dist = Math.Sqrt(dx * dx + dy * dy);
-                    if (dist > maxDistance)
-                        maxDistance = dist;
-                }
-            }
-
-            if (maxDistance <= 0.0 || double.IsNaN(maxDistance) || double.IsInfinity(maxDistance))
-                return 1.0;
-
-            return maxDistance;
-        }
-
-        /// <summary>
         /// Runs the conductivity-aware soft geodesic solver for every
         /// electrode pair and stores the resulting distances and edge
         /// occupancies.  The occupancies enable efficient reuse during
@@ -805,7 +748,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         /// <param name="mesh">Finite-element mesh providing the conductivity graph.</param>
         /// <param name="electrodeNodes">Indices of graph nodes attached to electrodes.</param>
         /// <returns>Distances and edge metadata for subsequent computations.</returns>
-        private SoftGeodesicResult ComputeSoftDistancesAndOccupancies(FEMMesh mesh, int[] electrodeNodes, double spatialScale)
+        private SoftGeodesicResult ComputeSoftDistancesAndOccupancies(FEMMesh mesh, int[] electrodeNodes)
         {
             // Build graph data from the discretization.
             var graph = mesh.ToGraph();
@@ -827,26 +770,17 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 if (u == v) continue;
                 double dx = e.Vertices[0].X - e.Vertices[1].X;
                 double dy = e.Vertices[0].Y - e.Vertices[1].Y;
-                double lengthPhysical = Math.Sqrt(dx * dx + dy * dy);
-                if (lengthPhysical <= 0.0)
-                    lengthPhysical = 1e-12;
-                double lengthNormalized = lengthPhysical / spatialScale;
+                double length = Math.Sqrt(dx * dx + dy * dy);
+                if (length <= 0.0)
+                    length = 1e-12;
 
                 double sigU = sigmaField.TryGetValue(e.Vertices[0].GlobalId, out var sU) ? sU : 1.0;
                 double sigV = sigmaField.TryGetValue(e.Vertices[1].GlobalId, out var sV) ? sV : 1.0;
                 double sigmaEdge = 0.5 * (Math.Clamp(sigU, _config.SigmaFloor, _config.SigmaCeiling) +
                                           Math.Clamp(sigV, _config.SigmaFloor, _config.SigmaCeiling));
-                double cost = lengthNormalized * Math.Pow(sigmaEdge, -_config.Beta);
+                double cost = length * Math.Pow(sigmaEdge, -_config.Beta);
 
-                edges.Add(new EdgeInfo(ei,
-                                       u,
-                                       v,
-                                       lengthPhysical,
-                                       lengthNormalized,
-                                       e.Vertices[0].GlobalId,
-                                       e.Vertices[1].GlobalId,
-                                       sigmaEdge,
-                                       cost));
+                edges.Add(new EdgeInfo(ei, u, v, length, e.Vertices[0].GlobalId, e.Vertices[1].GlobalId, sigmaEdge, cost));
                 adjacency[u].Add(new DirectedEdge(ei, u, v, cost));
                 adjacency[v].Add(new DirectedEdge(ei, v, u, cost));
             }
@@ -1069,10 +1003,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         /// <param name="geodesics">Soft geodesic cache.</param>
         /// <param name="gamma">Optimal transport plan Γ.</param>
         /// <returns>Element-indexed gradient contribution.</returns>
-        private Dictionary<int, double> ComputeCostGradient(FEMMesh mesh,
-                                                             SoftGeodesicResult geodesics,
-                                                             double[,] gamma,
-                                                             double spatialScale)
+        private Dictionary<int, double> ComputeCostGradient(FEMMesh mesh, SoftGeodesicResult geodesics, double[,] gamma)
         {
             var gradient = new Dictionary<int, double>();
 
@@ -1098,17 +1029,13 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                     if (occupancy == 0.0) continue;
                     var edge = geodesics.EdgeInfos[ei];
                     double sigma = Math.Max(edge.Sigma, 1e-12);
-                    double factor = -_config.Beta * edge.NormalizedLength * Math.Pow(sigma, -_config.Beta - 1);
+                    double factor = -_config.Beta * edge.Length * Math.Pow(sigma, -_config.Beta - 1);
                     double contribution = 0.5 * gammaWeight * distance * occupancy * factor;
 
                     gradient[edge.ElementU] += contribution;
                     gradient[edge.ElementV] += contribution;
                 }
             }
-
-            double scaleSquared = spatialScale * spatialScale;
-            foreach (var key in gradient.Keys.ToList())
-                gradient[key] *= scaleSquared;
 
             return gradient;
         }
