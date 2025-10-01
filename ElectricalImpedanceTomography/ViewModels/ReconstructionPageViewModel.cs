@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using ElectricalImpedanceTomography.Helpers;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Storage;
@@ -141,7 +142,10 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public ObservableCollection<ReconstructionInfo> AvailableReconstructions { get; } = [];
         public ObservableCollection<ReconstructionInfo> FilteredReconstructions { get; } = [];
-        public ObservableCollection<double> ResidualHistory { get; } = [];
+
+        private readonly Dictionary<string, ObservableCollection<double>> _metricTrendHistories = new();
+
+        public ObservableCollection<double> ResidualHistory => GetTrendHistory(MetricKeys.Residual);
 
         public event EventHandler<ReconstructionResult>? ReconstructionUpdated;
         public event EventHandler<ReconstructionFrame>? ReconstructionFrameUpdated;
@@ -158,6 +162,11 @@ namespace ElectricalImpedanceTomography.ViewModels
         private Dictionary<int, double>? _previousGradientSnapshot;
         private IErrorMetric? _cachedErrorMetric;
         private ErrorMetric _cachedErrorMetricChoice;
+
+        public event EventHandler? SelectedTrendMetricHistoryChanged;
+
+        [ObservableProperty]
+        private string selectedTrendMetricKey = MetricKeys.Residual;
 
         private SKSizeI _videoExportDistributionSize;
         private SKSizeI _videoExportColorbarSize;
@@ -318,15 +327,15 @@ namespace ElectricalImpedanceTomography.ViewModels
             RegisterMetric("Progress & Timing", MetricKeys.IterationsPerSecond, "Iterations / Second");
             RegisterMetric("Progress & Timing", MetricKeys.TimePerIteration, "Seconds / Iteration");
 
-            RegisterMetric("Error Norms", MetricKeys.Residual, "Residual L2 Norm");
-            RegisterMetric("Error Norms", MetricKeys.Rmse, "RMSE (σ)");
-            RegisterMetric("Error Norms", MetricKeys.Mae, "MAE (σ)");
-            RegisterMetric("Error Norms", MetricKeys.Mape, "MAPE (σ)");
+            RegisterMetric("Error Norms", MetricKeys.Residual, "Residual L2 Norm", TrendMetricCategory.Residual);
+            RegisterMetric("Error Norms", MetricKeys.Rmse, "RMSE (σ)", TrendMetricCategory.ErrorNorm);
+            RegisterMetric("Error Norms", MetricKeys.Mae, "MAE (σ)", TrendMetricCategory.ErrorNorm);
+            RegisterMetric("Error Norms", MetricKeys.Mape, "MAPE (σ)", TrendMetricCategory.ErrorNorm);
             RegisterMetric("Error Norms", MetricKeys.ResidualDropPerIteration, "Residual Drop / Iteration");
 
-            RegisterMetric("Similarity Scores", MetricKeys.Correlation, "Pearson Correlation");
-            RegisterMetric("Similarity Scores", MetricKeys.Psnr, "PSNR (dB)");
-            RegisterMetric("Similarity Scores", MetricKeys.Ssim, "SSIM");
+            RegisterMetric("Similarity Scores", MetricKeys.Correlation, "Pearson Correlation", TrendMetricCategory.Similarity);
+            RegisterMetric("Similarity Scores", MetricKeys.Psnr, "PSNR (dB)", TrendMetricCategory.Similarity);
+            RegisterMetric("Similarity Scores", MetricKeys.Ssim, "SSIM", TrendMetricCategory.Similarity);
 
             RegisterMetric("Improvement", MetricKeys.RmseImprovement, "RMSE Improvement vs. Initial");
             RegisterMetric("Improvement", MetricKeys.MaeImprovement, "MAE Improvement vs. Initial");
@@ -345,9 +354,11 @@ namespace ElectricalImpedanceTomography.ViewModels
             //RegisterMetric("Electrode Measurements", MetricKeys.ElectrodeRmse, "Electrode RMSE");
             //RegisterMetric("Electrode Measurements", MetricKeys.ElectrodeMae, "Electrode MAE");
             //RegisterMetric("Electrode Measurements", MetricKeys.ElectrodeMape, "Electrode MAPE");
+
+            UpdateTrendSelectionStates();
         }
 
-        private void RegisterMetric(string groupTitle, string key, string name)
+        private void RegisterMetric(string groupTitle, string key, string name, TrendMetricCategory trendCategory = TrendMetricCategory.None)
         {
             var group = MetricGroups.FirstOrDefault(g => g.Title == groupTitle);
             if (group is null)
@@ -356,9 +367,12 @@ namespace ElectricalImpedanceTomography.ViewModels
                 MetricGroups.Add(group);
             }
 
-            var metricVm = new ReconstructionMetricViewModel(key, name);
+            var metricVm = new ReconstructionMetricViewModel(key, name, trendCategory);
             group.Metrics.Add(metricVm);
             _metricsByKey[key] = metricVm;
+
+            if (metricVm.IsTrendSelectable)
+                _ = GetTrendHistory(key);
         }
 
         private void UpdateMetric(string key, string value)
@@ -366,6 +380,18 @@ namespace ElectricalImpedanceTomography.ViewModels
             if (_metricsByKey.TryGetValue(key, out var metric))
                 metric.Value = value;
         }
+
+        public ReconstructionMetricViewModel? GetMetricByKey(string key)
+            => _metricsByKey.TryGetValue(key, out var metric) ? metric : null;
+
+        public IReadOnlyList<double> GetTrendHistorySnapshot(string key)
+        {
+            var history = GetTrendHistory(key);
+            return history.ToArray();
+        }
+
+        public IReadOnlyList<double> GetSelectedTrendHistorySnapshot()
+            => GetTrendHistorySnapshot(SelectedTrendMetricKey);
 
         public void ResetReconstructionMetrics()
         {
@@ -406,12 +432,15 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         private void ResetMetricsCore()
         {
-            ResidualHistory.Clear();
+            foreach (var history in _metricTrendHistories.Values)
+                history.Clear();
             Residual = 0.0;
             Correlation = 0.0;
             ElapsedTime = TimeSpan.Zero;
             IterationCount = 0;
             _reconstructionStopwatch.Reset();
+
+            RaiseSelectedTrendMetricHistoryChanged();
 
             lock (_metricUpdateLock)
             {
@@ -667,6 +696,12 @@ namespace ElectricalImpedanceTomography.ViewModels
                         UpdateMetric(MetricKeys.Ssim, FormatDouble(metrics.Ssim, "F3"));
                         UpdateMetric(MetricKeys.RmseImprovement, FormatPercent(metrics.RmseImprovement));
                         UpdateMetric(MetricKeys.MaeImprovement, FormatPercent(metrics.MaeImprovement));
+
+                        AddTrendSample(MetricKeys.Rmse, metrics.Rmse);
+                        AddTrendSample(MetricKeys.Mae, metrics.Mae);
+                        AddTrendSample(MetricKeys.Mape, metrics.Mape);
+                        AddTrendSample(MetricKeys.Psnr, metrics.Psnr);
+                        AddTrendSample(MetricKeys.Ssim, metrics.Ssim);
                     }
 
                     //if (measurementMetrics.HasValue)
@@ -1032,6 +1067,17 @@ namespace ElectricalImpedanceTomography.ViewModels
             return $"{range.Min.Value.ToString("F3", CultureInfo.InvariantCulture)} to {range.Max.Value.ToString("F3", CultureInfo.InvariantCulture)} (Δ {delta.ToString("F3", CultureInfo.InvariantCulture)})";
         }
 
+        public string FormatTrendValue(string metricKey, double value)
+            => metricKey switch
+            {
+                MetricKeys.Mape => FormatPercent(value),
+                MetricKeys.RmseImprovement => FormatPercent(value),
+                MetricKeys.MaeImprovement => FormatPercent(value),
+                MetricKeys.Psnr => FormatDouble(value, "F2"),
+                MetricKeys.Ssim => FormatDouble(value, "F3"),
+                _ => FormatDouble(value)
+            };
+
         private IErrorMetric GetErrorMetric(ErrorMetric choice)
         {
             lock (_errorMetricLock)
@@ -1254,7 +1300,8 @@ namespace ElectricalImpedanceTomography.ViewModels
                                                result.OriginalConductivityDistribution);
             ElapsedTime = _reconstructionStopwatch.Elapsed;
             IterationCount++;
-            ResidualHistory.Add(Residual);
+            AddTrendSample(MetricKeys.Residual, Residual);
+            AddTrendSample(MetricKeys.Correlation, Correlation);
             UpdateResidualTrendMetrics();
             RequestMetricUpdate(result, null);
 
@@ -1731,6 +1778,61 @@ namespace ElectricalImpedanceTomography.ViewModels
             return new ReconstructionRunSignature(mesh, snapshot);
         }
 
+        private ObservableCollection<double> GetTrendHistory(string key)
+        {
+            if (!_metricTrendHistories.TryGetValue(key, out var history))
+            {
+                history = new ObservableCollection<double>();
+                _metricTrendHistories[key] = history;
+            }
+
+            return history;
+        }
+
+        private void AddTrendSample(string key, double value)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value))
+                return;
+
+            var history = GetTrendHistory(key);
+            history.Add(value);
+            NotifyTrendHistoryChanged(key);
+        }
+
+        private void NotifyTrendHistoryChanged(string key)
+        {
+            if (key != SelectedTrendMetricKey)
+                return;
+
+            RaiseSelectedTrendMetricHistoryChanged();
+        }
+
+        private void RaiseSelectedTrendMetricHistoryChanged()
+        {
+            MainThread.BeginInvokeOnMainThread(() => SelectedTrendMetricHistoryChanged?.Invoke(this, EventArgs.Empty));
+        }
+
+        private void UpdateTrendSelectionStates()
+        {
+            foreach (var metric in _metricsByKey.Values)
+                metric.IsTrendSelected = metric.Key == SelectedTrendMetricKey;
+        }
+
+        partial void OnSelectedTrendMetricKeyChanged(string value)
+        {
+            UpdateTrendSelectionStates();
+            RaiseSelectedTrendMetricHistoryChanged();
+        }
+
+        [RelayCommand]
+        private void SelectTrendMetric(string metricKey)
+        {
+            if (!_metricsByKey.TryGetValue(metricKey, out var metric) || !metric.IsTrendSelectable)
+                return;
+
+            SelectedTrendMetricKey = metricKey;
+        }
+
         private readonly record struct ReconstructionParametersSnapshot(
             DifferentialEquationSolver DifferentialEquationSolver,
             RegularizationTechnique RegularizationTechnique,
@@ -1765,16 +1867,31 @@ namespace ElectricalImpedanceTomography.ViewModels
 
     public sealed partial class ReconstructionMetricViewModel : ObservableObject
     {
-        public ReconstructionMetricViewModel(string key, string name)
+        public ReconstructionMetricViewModel(string key, string name, TrendMetricCategory trendCategory)
         {
             Key = key;
             Name = name;
+            TrendCategory = trendCategory;
+            IsTrendSelectable = trendCategory != TrendMetricCategory.None;
         }
 
         public string Key { get; }
         public string Name { get; }
+        public TrendMetricCategory TrendCategory { get; }
+        public bool IsTrendSelectable { get; }
 
         [ObservableProperty]
         private string value = "—";
+
+        [ObservableProperty]
+        private bool isTrendSelected;
+    }
+
+    public enum TrendMetricCategory
+    {
+        None,
+        Residual,
+        ErrorNorm,
+        Similarity
     }
 }

@@ -6,6 +6,7 @@
              xmlns:skia="clr-namespace:SkiaSharp.Views.Maui.Controls;assembly=SkiaSharp.Views.Maui.Controls"
              xmlns:models="clr-namespace:Utility.Classes;assembly=Utility"
              x:Class="ElectricalImpedanceTomography.Views.ReconstructionPage"
+             x:Name="ReconstructionPageRoot"
              Title="ReconstructionPage"
              Shell.NavBarIsVisible="False"
              BackgroundColor="{AppThemeBinding Dark=#1B1A13, Light=#F2E7D8}"
@@ -490,10 +491,49 @@
                                             <VerticalStackLayout BindableLayout.ItemsSource="{Binding Metrics}" Spacing="6">
                                                 <BindableLayout.ItemTemplate>
                                                     <DataTemplate x:DataType="viewmodels:ReconstructionMetricViewModel">
-                                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                                                            <Label Text="{Binding Name}" FontAttributes="None" FontSize="12" TextColor="#9DAAD3"/>
-                                                            <Label Grid.Column="1" Text="{Binding Value}" FontSize="10" TextColor="#F0F4FF" HorizontalOptions="End"/>
-                                                        </Grid>
+                                                        <Border Padding="8"
+                                                                StrokeThickness="0"
+                                                                BackgroundColor="Transparent"
+                                                                StrokeShape="RoundRectangle 6">
+                                                            <Border.Triggers>
+                                                                <DataTrigger TargetType="Border" Binding="{Binding IsTrendSelected}" Value="True">
+                                                                    <Setter Property="StrokeThickness" Value="1.5"/>
+                                                                    <Setter Property="Stroke">
+                                                                        <Setter.Value>
+                                                                            <SolidColorBrush Color="{AppThemeBinding Light=#3A9CED, Dark=#8FD3FF}"/>
+                                                                        </Setter.Value>
+                                                                    </Setter>
+                                                                    <Setter Property="BackgroundColor" Value="{AppThemeBinding Light=#2A354C, Dark=#465268}"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger TargetType="Border" Binding="{Binding IsTrendSelectable}" Value="False">
+                                                                    <Setter Property="Opacity" Value="0.75"/>
+                                                                </DataTrigger>
+                                                            </Border.Triggers>
+                                                            <Border.GestureRecognizers>
+                                                                <TapGestureRecognizer Command="{Binding Source={x:Reference ReconstructionPageRoot}, Path=BindingContext.SelectTrendMetricCommand}"
+                                                                                      CommandParameter="{Binding Key}"/>
+                                                            </Border.GestureRecognizers>
+                                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                                                <Label Text="{Binding Name}" FontAttributes="None" FontSize="12" TextColor="#9DAAD3">
+                                                                    <Label.Triggers>
+                                                                        <DataTrigger TargetType="Label" Binding="{Binding IsTrendSelected}" Value="True">
+                                                                            <Setter Property="TextColor" Value="#E3EDFF"/>
+                                                                        </DataTrigger>
+                                                                    </Label.Triggers>
+                                                                </Label>
+                                                                <Label Grid.Column="1"
+                                                                       Text="{Binding Value}"
+                                                                       FontSize="10"
+                                                                       TextColor="#F0F4FF"
+                                                                       HorizontalOptions="End">
+                                                                    <Label.Triggers>
+                                                                        <DataTrigger TargetType="Label" Binding="{Binding IsTrendSelected}" Value="True">
+                                                                            <Setter Property="TextColor" Value="#FFFFFF"/>
+                                                                        </DataTrigger>
+                                                                    </Label.Triggers>
+                                                                </Label>
+                                                            </Grid>
+                                                        </Border>
                                                     </DataTemplate>
                                                 </BindableLayout.ItemTemplate>
                                             </VerticalStackLayout>
@@ -502,9 +542,9 @@
                                 </DataTemplate>
                             </BindableLayout.ItemTemplate>
                         </VerticalStackLayout>
-                        <skia:SKCanvasView x:Name="ResidualTrendCanvas"
+                        <skia:SKCanvasView x:Name="MetricTrendCanvas"
                                                   HeightRequest="170"
-                                                  PaintSurface="OnResidualTrendCanvasPaintSurface"/>
+                                                  PaintSurface="OnMetricTrendCanvasPaintSurface"/>
                     </VerticalStackLayout>
                 </Border>
             </Grid>
