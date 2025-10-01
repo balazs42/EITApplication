@@ -271,11 +271,7 @@ namespace BusinessLayer
             var elements = Workspace.GetCurrentGlobalFemElements();
 
             // Solve Forward to extract simulated potentials
-            var lbmSolver = _differentialEquationSolver as LatticeBoltzmannDESolver;
-
-            PotentialDistribution phi = _useCudaParallelization && lbmSolver != null
-                ? lbmSolver.CUDASolveForward(mesh, bc)
-                : _differentialEquationSolver.Solve(mesh, bc, null);
+            PotentialDistribution phi = _differentialEquationSolver.Solve(mesh, bc, null);
 
             // Extract simulated potentials
             double[] simulatedPotentials = mesh.GetElectrodePotentials();
@@ -291,9 +287,7 @@ namespace BusinessLayer
             // Solve the adjoint equation with the new boundary condition
             var adjointBoundaryCondition = new FEMBoundaryCondition(electrodes);
             Workspace.SetCurrentGlobalFemBoundaryCondition(adjointBoundaryCondition);
-            PotentialDistribution mu = _useCudaParallelization && lbmSolver != null
-                ? lbmSolver.CUDASolveAdjoint(mesh, adjointBoundaryCondition, adjointSource)
-                : _differentialEquationSolver.Solve(mesh, adjointBoundaryCondition, adjointSource);
+            PotentialDistribution mu = _differentialEquationSolver.Solve(mesh, adjointBoundaryCondition, adjointSource);
 
             // Gradient expression for the conductivity field
             var phiGradient = FiniteElementOperators.CalculateElementWiseGradient(mesh, phi);
