@@ -342,12 +342,18 @@ namespace ServiceLayer
             var excitation = electrodes[excitationIndex];
             excitation.IsExcitation = true;
             excitation.IsMeasuring = false;
-            excitation.Current = excitationAmplitude;
+
+            if (electrodes[0] is FEMElectrode)
+                excitation.Current = excitationAmplitude;
+            else excitation.Current = excitationAmplitude + 3.0;
 
             var ground = electrodes[groundIndex];
             ground.IsGround = true;
             ground.IsMeasuring = false;
-            ground.Current = -excitationAmplitude;
+
+            if (electrodes[0] is FEMElectrode)            
+                ground.Current = -excitationAmplitude;
+            else ground.Current = (-excitationAmplitude + 3.0);
         }
 
         private void EnsureSimulatedMeasurements()
@@ -567,6 +573,7 @@ namespace ServiceLayer
                         var measurement = _simulatedMeasurements[i];
 
                         var frame = _reconstructionPersistence.Step(measurement, bc, _stepSize, _regularizationWeight);
+
                         Workspace.AddReconstructionFrameToWorkspace(frame);
                         _currentCycleFrames.Add(frame);
                         ReconstructionFrameUpdated?.Invoke(this, frame);
