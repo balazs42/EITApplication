@@ -1,7 +1,9 @@
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Linq;
 using ILGPU;
+using ILGPU.Algorithms;
 using ILGPU.Runtime;
 using Utility.Classes.Measurement;
 using Utility.Classes.Discretizer;
@@ -21,9 +23,12 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         private int ConvergenceCheckFrequency = 100;
         private readonly bool _useCuda;
 
+        private const double TauSafetyEpsilon = 1e-6;
+        private const double MinTau = 0.5 + TauSafetyEpsilon;
+
         private static readonly object _cudaKernelLock = new();
         private static Action<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>>? _initializeKernel;
-        private static Action<Index1D, ArrayView<double>, ArrayView<int>, ArrayView<double>, double, ArrayView<double>>? _collisionKernel;
+        private static Action<Index1D, ArrayView<double>, ArrayView<int>, ArrayView<double>, double, double, ArrayView<double>>? _collisionKernel;
         private static Action<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>>? _streamKernel;
         private static Action<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>>? _updateKernel;
         private static Action<Index1D, ArrayView<double>, ArrayView<double>>? _phiKernel;
@@ -37,6 +42,20 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             SolutionTolerance = solutionTolerance;
             ConvergenceCheckFrequency = convergenceCheckFrequency;
             _useCuda = useCuda;
+        }
+
+        private static double SanitizeConductivity(double conductivity)
+        {
+            if (double.IsNaN(conductivity) || double.IsInfinity(conductivity))
+                return 0.0;
+
+            return Math.Max(0.0, conductivity);
+        }
+
+        private static double ComputeRelaxationTime(double conductivity, double csSquared)
+        {
+            double tau = conductivity / csSquared + 0.5;
+            return tau < MinTau ? MinTau : tau;
         }
 
         /// <summary>
@@ -165,7 +184,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             // 2) Load conductivity γ into each element
             var sigmaDist = lbmGrid.GetConductivityDistribution();
             foreach (var el in elements)
-                el.Conductivity = sigmaDist.GetConductivity(el.Id);
+                el.Conductivity = SanitizeConductivity(sigmaDist.GetConductivity(el.Id));
 
             // 3) Mark electrodes as pinned Dirichlet
             foreach (var electrode in bcElectrodes)
@@ -191,9 +210,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                         phi += el.Fi[k];
 
                     // Relaxation time τ = D / cs^2 + 0.5, D = γ
-                    double tau = el.Conductivity / csSquared + 0.5;
-                    if (tau <= 0.5)
-                        throw new InvalidOperationException("Nonphysical tau <= 0.5");
+                    double tau = ComputeRelaxationTime(el.Conductivity, csSquared);
                     double omega = 1.0 / tau;
 
                     // BGK collision towards equilibrium geq = W[k]*phi (thesis eq. 4.3.1)
@@ -343,7 +360,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             for (int idx = 0; idx < elementCount; idx++)
             {
                 var element = elements[idx];
-                double conductivity = sigmaDist.GetConductivity(element.Id);
+                double conductivity = SanitizeConductivity(sigmaDist.GetConductivity(element.Id));
                 element.Conductivity = conductivity;
                 conductivityHost[idx] = conductivity;
 
@@ -386,9 +403,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
             for (int idx = 0; idx < elementCount; idx++)
             {
-                double tau = conductivityHost[idx] / LatticeBoltzmannConstants.CsSquared + 0.5;
-                if (tau <= 0.5)
-                    throw new InvalidOperationException("Nonphysical tau <= 0.5");
+                conductivityHost[idx] = SanitizeConductivity(conductivityHost[idx]);
             }
 
             var accelerator = LatticeBoltzmannCudaContext.Accelerator;
@@ -434,7 +449,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
             if (_collisionKernel == null || _streamKernel == null || _updateKernel == null || _phiKernel == null)
                 throw new NullReferenceException();
-            
+
             for (int t = 0; t < maxIter; t++)
             {
                 _collisionKernel(elementCount,
@@ -442,6 +457,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     isWallBuffer.View,
                     conductivityBuffer.View,
                     LatticeBoltzmannConstants.CsSquared,
+                    MinTau,
                     LatticeBoltzmannCudaContext.WeightsView);
 
                 _streamKernel(elementCount,
@@ -525,7 +541,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
                 var accelerator = LatticeBoltzmannCudaContext.Accelerator;
                 _initializeKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>>(InitializeKernel);
-                _collisionKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<int>, ArrayView<double>, double, ArrayView<double>>(CollisionKernel);
+                _collisionKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<int>, ArrayView<double>, double, double, ArrayView<double>>(CollisionKernel);
                 _streamKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>>(StreamingKernel);
                 _updateKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>>(UpdateKernel);
                 _phiKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<double>>(PhiKernel);
@@ -593,6 +609,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             ArrayView<int> isWall,
             ArrayView<double> conductivity,
             double csSquared,
+            double minTau,
             ArrayView<double> weights)
         {
             if (isWall[index] == 1)
@@ -604,6 +621,8 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 phi += fi[baseIndex + k];
 
             double tau = conductivity[index] / csSquared + 0.5;
+            if (tau < minTau)
+                tau = minTau;
             double omega = 1.0 / tau;
 
             for (int k = 0; k < 9; k++)
@@ -634,12 +653,14 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
                 if (neighborIndex >= 0 && neighborIsWall[baseIndex + k] == 0)
                 {
-                    fiNext[neighborIndex * 9 + k] = value;
+                    ref double destination = ref fiNext[neighborIndex * 9 + k];
+                    Atomic.Exchange(ref destination, value);
                 }
                 else if (neighborIndex >= 0)
                 {
                     int opp = opposite[k];
-                    fiNext[baseIndex + opp] = value;
+                    ref double bounceDestination = ref fiNext[baseIndex + opp];
+                    Atomic.Exchange(ref bounceDestination, value);
                 }
             }
         }
