@@ -53,9 +53,9 @@ namespace Utility.Tests
             var coords = new (double, double)[] { (0,0), (1,0) };
             var r1 = Wasserstein2ErrorMetric.w2_misfit_and_grad(m1, d, coords, coords);
             var r2 = Wasserstein2ErrorMetric.w2_misfit_and_grad(m2, d, coords, coords);
-            Assert.Equal(r1.Cost, r2.Cost, 9);
-            Assert.Equal(r1.Grad[0], r2.Grad[0], 6);
-            Assert.Equal(r1.Grad[1], r2.Grad[1], 6);
+            Assert.Equal(r1.Cost, r2.Cost, 12);
+            Assert.Equal(r1.Grad[0], r2.Grad[0], 9);
+            Assert.Equal(r1.Grad[1], r2.Grad[1], 9);
         }
 
         [Fact]

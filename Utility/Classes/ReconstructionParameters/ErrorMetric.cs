@@ -99,8 +99,6 @@ namespace Utility.Classes.ReconstructionParameters
     public sealed class Wasserstein2ErrorMetric : IErrorMetric
     {
         private const double Tiny = 1e-12;
-        private const double SmoothKappa = 8.0;
-        private const double MassFloor = 1e-6;
 
         // Cache last result to reuse gradient when EvaluateAdjointSource() follows Evaluate().
         private OptimalTransportResult? _last;
@@ -108,11 +106,8 @@ namespace Utility.Classes.ReconstructionParameters
         /// <summary>
         /// Standalone W₂ routine used both by the error metric and unit tests.
         /// Inputs are raw (unnormalized, possibly signed) masses and the
-        /// corresponding support coordinates.  The masses are mapped to a
-        /// strictly-positive histogram through a smooth normalisation before
-        /// solving the primal LP.  This avoids the vanishing-mass degeneracy that
-        /// produced extremely large adjoint values when electrode data became
-        /// nearly uniform, which is common with bespoke FEM geometries.
+        /// corresponding support coordinates.  The masses are shifted to be
+        /// nonnegative, normalized to unit sum, and the primal LP is solved.
         /// </summary>
         public static OTResult w2_misfit_and_grad(double[] mPred, double[] dObs,
             (double x, double y)[] x, (double x, double y)[] y)
@@ -120,13 +115,27 @@ namespace Utility.Classes.ReconstructionParameters
             if (mPred.Length != x.Length || dObs.Length != y.Length)
                 throw new ArgumentException("Mass and coordinate arrays must align.");
 
-            var normPred = Normalize(mPred);
-            var normObs = Normalize(dObs);
-            double[] a = normPred.Normalized;
-            double[] b = normObs.Normalized;
+            // Stable nonnegativity: shift by minimum and clamp.
+            double[] a = (double[])mPred.Clone();
+            double[] b = (double[])dObs.Clone();
 
-            if (a.Length == 0 || b.Length == 0 || normPred.Sum <= Tiny || normObs.Sum <= Tiny)
+            double minA = a.Length > 0 ? a.Min() : 0.0;
+            double minB = b.Length > 0 ? b.Min() : 0.0;
+            if (minA < 0) for (int i = 0; i < a.Length; i++) a[i] -= minA;
+            if (minB < 0) for (int j = 0; j < b.Length; j++) b[j] -= minB;
+            for (int i = 0; i < a.Length; i++) if (a[i] < 0) a[i] = 0.0;
+            for (int j = 0; j < b.Length; j++) if (b[j] < 0) b[j] = 0.0;
+
+            double sumA = a.Sum();
+            double sumB = b.Sum();
+            if (sumA <= Tiny || sumB <= Tiny)
             {
+                // Degenerate case: all masses are identical (or arrays are empty),
+                // so after shifting the total mass collapses to ~0.  In this
+                // situation the Wasserstein distance is zero and the gradient
+                // should vanish.  Returning a zero-cost result avoids propagating
+                // an exception to callers which is observed in LBM based
+                // reconstructions where electrodes may carry uniform potentials.
                 int me = a.Length, ne = b.Length;
                 return new OTResult(0.0,
                     new double[me],
@@ -134,6 +143,9 @@ namespace Utility.Classes.ReconstructionParameters
                     new double[me],
                     new double[ne]);
             }
+
+            for (int i = 0; i < a.Length; i++) a[i] /= sumA;
+            for (int j = 0; j < b.Length; j++) b[j] /= sumB;
 
             int m = a.Length, n = b.Length;
             var solver = Solver.CreateSolver("GLOP") ?? throw new InvalidOperationException("OR-Tools LP solver 'GLOP' not available.");
@@ -184,11 +196,9 @@ namespace Utility.Classes.ReconstructionParameters
             for (int i = 0; i < m; i++) mean += grad[i] * a[i];
             for (int i = 0; i < m; i++) grad[i] -= mean;
 
-            // Chain rule back to raw (unnormalized) masses via the smooth
-            // normalisation Jacobian.  This mirrors the conductivity-aware W₂
-            // metric and prevents divisions by tiny totals when the electrode
-            // potentials are almost constant.
-            double[] gradRaw = ApplyNormalizationVjp(normPred, grad);
+            // Chain rule back to raw (unnormalized) masses
+            double[] gradRaw = new double[m];
+            for (int i = 0; i < m; i++) gradRaw[i] = grad[i] / sumA;
 
             return new OTResult(cost, gradRaw, P, phi, psi);
         }
@@ -243,142 +253,6 @@ namespace Utility.Classes.ReconstructionParameters
                 gradFull[electrodeIdx] = res.Grad[srcIdx];
 
             return new OptimalTransportResult(measured, simulated, res.Cost, gradFull);
-        }
-
-        private sealed class NormalizationCache
-        {
-            public NormalizationCache(double[] normalized, double[] sigmoid, int minIndex, double sum)
-            {
-                Normalized = normalized;
-                Sigmoid = sigmoid;
-                MinIndex = minIndex;
-                Sum = sum;
-            }
-
-            public double[] Normalized { get; }
-            public double[] Sigmoid { get; }
-            public int MinIndex { get; }
-            public double Sum { get; }
-        }
-
-        private static NormalizationCache Normalize(double[] raw)
-        {
-            if (raw == null) throw new ArgumentNullException(nameof(raw));
-            if (raw.Length == 0)
-                return new NormalizationCache(Array.Empty<double>(), Array.Empty<double>(), 0, 0.0);
-
-            double min = raw[0];
-            int minIdx = 0;
-            for (int i = 1; i < raw.Length; i++)
-            {
-                if (raw[i] < min)
-                {
-                    min = raw[i];
-                    minIdx = i;
-                }
-            }
-
-            double[] normalized = new double[raw.Length];
-            double[] sigmoid = new double[raw.Length];
-            double sum = 0.0;
-            double softplusZero = Softplus(0.0) / SmoothKappa;
-
-            for (int i = 0; i < raw.Length; i++)
-            {
-                double shifted = raw[i] - min;
-                double kx = SmoothKappa * shifted;
-                double sp = Softplus(kx) / SmoothKappa;
-                double sig = Sigmoid(kx);
-                double mass = sp - softplusZero + MassFloor;
-                if (mass < MassFloor)
-                    mass = MassFloor;
-                normalized[i] = mass;
-                sigmoid[i] = sig;
-                sum += mass;
-            }
-
-            if (sum <= Tiny)
-                return new NormalizationCache(normalized, sigmoid, minIdx, sum);
-
-            for (int i = 0; i < normalized.Length; i++)
-                normalized[i] /= sum;
-
-            return new NormalizationCache(normalized, sigmoid, minIdx, sum);
-        }
-
-        private static double[] ApplyNormalizationVjp(NormalizationCache cache, double[] gMu)
-        {
-            if (gMu == null) throw new ArgumentNullException(nameof(gMu));
-            if (cache.Normalized.Length != gMu.Length)
-                throw new ArgumentException("Gradient vector length mismatch.");
-
-            int n = gMu.Length;
-            double[] result = new double[n];
-
-            if (n == 0 || cache.Sum <= Tiny)
-                return result;
-
-            double sumSigmoid = 0.0;
-            double sumSigmoidWeighted = 0.0;
-            double meanWeighted = 0.0;
-            for (int i = 0; i < n; i++)
-            {
-                sumSigmoid += cache.Sigmoid[i];
-                sumSigmoidWeighted += gMu[i] * cache.Sigmoid[i];
-                meanWeighted += gMu[i] * cache.Normalized[i];
-            }
-            double sum = cache.Sum;
-            meanWeighted *= sum;
-            double scale = sum < 1.0 ? sum : 1.0;
-            int minIdx = cache.MinIndex;
-
-            for (int k = 0; k < n; k++)
-            {
-                double a = gMu[k] * cache.Sigmoid[k];
-                if (k == minIdx)
-                    a -= sumSigmoidWeighted;
-
-                double b = cache.Sigmoid[k];
-                if (k == minIdx)
-                    b -= sumSigmoid;
-
-                double term1 = sum * a;
-                double term2 = meanWeighted * b;
-                result[k] = (term1 - term2) / (sum * sum);
-                result[k] *= scale;
-            }
-
-            return result;
-        }
-
-        private static double Softplus(double x)
-        {
-            if (x > 50)
-                return x;
-            if (x < -50)
-                return Math.Exp(x);
-            return Log1p(Math.Exp(x));
-        }
-
-        private static double Sigmoid(double x)
-        {
-            if (x >= 0)
-            {
-                double expNeg = Math.Exp(-x);
-                return 1.0 / (1.0 + expNeg);
-            }
-            else
-            {
-                double expPos = Math.Exp(x);
-                return expPos / (1.0 + expPos);
-            }
-        }
-
-        private static double Log1p(double x)
-        {
-            double y = 1.0 + x;
-            double z = y - 1.0;
-            return Math.Abs(z) < double.Epsilon ? x : Math.Log(y) * (x / z);
         }
 
         private static (double[] raw, (double x, double y)[] loc, List<(int srcIdx, int electrodeIdx)> indexMap)
