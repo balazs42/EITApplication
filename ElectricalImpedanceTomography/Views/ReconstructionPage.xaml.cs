@@ -6,7 +6,7 @@ using SkiaSharp;
 using SkiaSharp.Views.Maui;
 using SkiaSharp.Views.Maui.Controls;
 using System.Collections.Generic;
-using System.Collections.Specialized;
+using System.Globalization;
 using System.Linq;
 using Utility.Classes;
 using Utility.Classes.Measurement;
@@ -36,7 +36,6 @@ public partial class ReconstructionPage : ContentPage
     private string[]? _hoverAdjointLines; private SKPoint? _hoverAdjointPt;
     private string[]? _hoverInitialLines; private SKPoint? _hoverInitialPt;
     private string[]? _hoverGradientLines; private SKPoint? _hoverGradientPt;
-    private int _lastResidualRenderCount;
 
     private PotentialDisplayMode _potMode = PotentialDisplayMode.Default;
 
@@ -46,14 +45,53 @@ public partial class ReconstructionPage : ContentPage
     private static readonly SKColor DistributionCanvasBackgroundColor = SKColor.Parse("#1A2436");
     private static readonly SKColor ChartGradientTopColor = SKColor.Parse("#23354D");
     private static readonly SKColor ChartGradientBottomColor = SKColor.Parse("#151E2D");
-    private static readonly SKColor ChartLineColor = SKColor.Parse("#3A9CED");
-    private static readonly SKColor ChartAreaFillColor = new SKColor(58, 156, 237, 90);
     private static readonly SKColor ChartAxisColor = SKColor.Parse("#5B6F94");
     private static readonly SKColor ChartGridColor = new SKColor(255, 255, 255, 50);
-    private static readonly SKColor ChartPointColor = SKColor.Parse("#A7D2FF");
-    private static readonly SKColor ChartPointOutlineColor = SKColor.Parse("#0B1C2F");
     private static readonly SKColor ChartPrimaryTextColor = new SKColor(198, 212, 245);
     private static readonly SKColor ChartSecondaryTextColor = new SKColor(157, 170, 211);
+
+    private static readonly TrendVisualizationStyle ResidualTrendStyle = new(
+        SKColor.Parse("#3A9CED"),
+        new SKColor(58, 156, 237, 90),
+        SKColor.Parse("#A7D2FF"),
+        SKColor.Parse("#0B1C2F"));
+
+    private static readonly TrendVisualizationStyle ErrorTrendStyle = new(
+        SKColor.Parse("#F4A261"),
+        new SKColor(244, 162, 97, 90),
+        SKColor.Parse("#FFD8B5"),
+        SKColor.Parse("#3B2A1A"));
+
+    private static readonly TrendVisualizationStyle SimilarityTrendStyle = new(
+        SKColor.Parse("#2A9D8F"),
+        new SKColor(42, 157, 143, 90),
+        SKColor.Parse("#9ADBD2"),
+        SKColor.Parse("#103A35"));
+
+    private readonly struct TrendVisualizationStyle
+    {
+        public TrendVisualizationStyle(SKColor lineColor, SKColor areaColor, SKColor pointColor, SKColor pointOutlineColor)
+        {
+            LineColor = lineColor;
+            AreaColor = areaColor;
+            PointColor = pointColor;
+            PointOutlineColor = pointOutlineColor;
+        }
+
+        public SKColor LineColor { get; }
+        public SKColor AreaColor { get; }
+        public SKColor PointColor { get; }
+        public SKColor PointOutlineColor { get; }
+    }
+
+    private static TrendVisualizationStyle ResolveTrendStyle(TrendMetricCategory category)
+        => category switch
+        {
+            TrendMetricCategory.ErrorNorm => ErrorTrendStyle,
+            TrendMetricCategory.Similarity => SimilarityTrendStyle,
+            TrendMetricCategory.Residual => ResidualTrendStyle,
+            _ => ResidualTrendStyle
+        };
 
     public ReconstructionPage()
     {
@@ -72,7 +110,7 @@ public partial class ReconstructionPage : ContentPage
 
         _viewModel.ReconstructionUpdated += OnReconstructionUpdated;
         _viewModel.ReconstructionFrameUpdated += OnReconstructionFrameUpdated;
-        _viewModel.ResidualHistory.CollectionChanged += OnResidualHistoryChanged;
+        _viewModel.SelectedTrendMetricHistoryChanged += OnSelectedTrendMetricHistoryChanged;
 
         StepButton.IsEnabled = false;
         PlayButton.IsVisible = true;
@@ -81,6 +119,8 @@ public partial class ReconstructionPage : ContentPage
         PlayerForwardButton.IsEnabled = false;
 
         UpdateExportButtonState();
+
+        MetricTrendCanvas.InvalidateSurface();
     }
 
     protected override void OnAppearing()
@@ -277,44 +317,8 @@ public partial class ReconstructionPage : ContentPage
         });
     }
 
-    private void OnResidualHistoryChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-        bool shouldInvalidate = false;
-
-        switch (e.Action)
-        {
-            case NotifyCollectionChangedAction.Reset:
-                _lastResidualRenderCount = 0;
-                shouldInvalidate = true;
-                break;
-
-            case NotifyCollectionChangedAction.Add:
-                int count = _viewModel.ResidualHistory.Count;
-                if (count == 0)
-                {
-                    _lastResidualRenderCount = 0;
-                    shouldInvalidate = true;
-                }
-                else if (count % 10 == 0 && count != _lastResidualRenderCount)
-                {
-                    _lastResidualRenderCount = count;
-                    shouldInvalidate = true;
-                }
-                break;
-
-            case NotifyCollectionChangedAction.Remove:
-            case NotifyCollectionChangedAction.Replace:
-            case NotifyCollectionChangedAction.Move:
-                _lastResidualRenderCount = _viewModel.ResidualHistory.Count;
-                shouldInvalidate = true;
-                break;
-        }
-
-        if (shouldInvalidate)
-        {
-            MainThread.BeginInvokeOnMainThread(() => ResidualTrendCanvas.InvalidateSurface());
-        }
-    }
+    private void OnSelectedTrendMetricHistoryChanged(object? sender, EventArgs e)
+        => MainThread.BeginInvokeOnMainThread(() => MetricTrendCanvas.InvalidateSurface());
 
     #region Drawing helpers
     private void ComputeFemTransform(FEMMesh mesh, SKImageInfo info)
@@ -584,15 +588,52 @@ public partial class ReconstructionPage : ContentPage
     #endregion
 
     #region Canvas paint
-    private void OnResidualTrendCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
-        => DrawResidualTrend(e.Surface.Canvas, e.Info, _viewModel.ResidualHistory);
+    private void OnMetricTrendCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
+    {
+        var key = _viewModel.SelectedTrendMetricKey;
+        var history = _viewModel.GetTrendHistorySnapshot(key);
+        var metric = _viewModel.GetMetricByKey(key);
+        string metricName = metric?.Name ?? "Metric";
+        var style = ResolveTrendStyle(metric?.TrendCategory ?? TrendMetricCategory.Residual);
 
-    [Obsolete]
-    private void DrawResidualTrend(SKCanvas canvas, SKImageInfo info, IReadOnlyList<double> history)
+        string lastFormattedValue = "—";
+        int lastIteration = history.Count;
+        for (int i = history.Count - 1; i >= 0; i--)
+        {
+            double value = history[i];
+            if (double.IsNaN(value) || double.IsInfinity(value))
+                continue;
+
+            lastFormattedValue = _viewModel.FormatTrendValue(key, value);
+            lastIteration = i + 1;
+            break;
+        }
+
+        DrawMetricTrend(e.Surface.Canvas, e.Info, history, metricName, lastFormattedValue, lastIteration, style);
+    }
+
+    private void DrawMetricTrend(SKCanvas canvas,
+                                 SKImageInfo info,
+                                 IReadOnlyList<double> history,
+                                 string metricName,
+                                 string lastFormattedValue,
+                                 int lastIteration,
+                                 TrendVisualizationStyle style)
     {
         canvas.Clear(DistributionCanvasBackgroundColor);
 
-        if (history.Count == 0)
+        double minValue = double.PositiveInfinity;
+        double maxValue = double.NegativeInfinity;
+        foreach (double value in history)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value))
+                continue;
+
+            if (value < minValue) minValue = value;
+            if (value > maxValue) maxValue = value;
+        }
+
+        if (double.IsPositiveInfinity(minValue) || double.IsNegativeInfinity(maxValue))
         {
             using var emptyPaint = new SKPaint
             {
@@ -601,20 +642,12 @@ public partial class ReconstructionPage : ContentPage
                 IsAntialias = true,
                 TextAlign = SKTextAlign.Center
             };
-            canvas.DrawText("No residual data", info.Width / 2f, info.Height / 2f, emptyPaint);
+            canvas.DrawText($"No data for {metricName}", info.Width / 2f, info.Height / 2f, emptyPaint);
             return;
         }
 
-        double minResidual = double.MaxValue;
-        double maxResidual = double.MinValue;
-        foreach (double value in history)
-        {
-            if (value < minResidual) minResidual = value;
-            if (value > maxResidual) maxResidual = value;
-        }
-
-        if (Math.Abs(maxResidual - minResidual) < 1e-12)
-            maxResidual = minResidual + 1e-12;
+        if (Math.Abs(maxValue - minValue) < 1e-12)
+            maxValue = minValue + 1e-12;
 
         const float leftPadding = 64f;
         const float rightPadding = 28f;
@@ -693,8 +726,11 @@ public partial class ReconstructionPage : ContentPage
             float y = chartRect.Top + chartRect.Height * t;
             canvas.DrawLine(chartRect.Left, y, chartRect.Right, y, gridPaint);
 
-            double value = maxResidual - (maxResidual - minResidual) * t;
-            canvas.DrawText(value.ToString("F3"), chartRect.Left - 10f, y + valuePaint.TextSize / 3f, valuePaint);
+            double value = maxValue - (maxValue - minValue) * t;
+            canvas.DrawText(value.ToString("G4", CultureInfo.InvariantCulture),
+                            chartRect.Left - 10f,
+                            y + valuePaint.TextSize / 3f,
+                            valuePaint);
         }
 
         int count = history.Count;
@@ -725,7 +761,7 @@ public partial class ReconstructionPage : ContentPage
 
         using var linePaint = new SKPaint
         {
-            Color = ChartLineColor,
+            Color = style.LineColor,
             StrokeWidth = 3,
             IsAntialias = true,
             Style = SKPaintStyle.Stroke,
@@ -735,21 +771,21 @@ public partial class ReconstructionPage : ContentPage
 
         using var areaPaint = new SKPaint
         {
-            Color = ChartAreaFillColor,
+            Color = style.AreaColor,
             Style = SKPaintStyle.Fill,
             IsAntialias = true
         };
 
         using var pointPaint = new SKPaint
         {
-            Color = ChartPointColor,
+            Color = style.PointColor,
             Style = SKPaintStyle.Fill,
             IsAntialias = true
         };
 
         using var pointOutlinePaint = new SKPaint
         {
-            Color = ChartPointOutlineColor,
+            Color = style.PointOutlineColor,
             Style = SKPaintStyle.Stroke,
             StrokeWidth = 1.5f,
             IsAntialias = true
@@ -761,16 +797,23 @@ public partial class ReconstructionPage : ContentPage
 
         float step = count > 1 ? chartRect.Width / (count - 1) : 0f;
         SKPoint lastPoint = origin;
+        bool hasStarted = false;
 
         for (int i = 0; i < count; i++)
         {
-            double residual = history[i];
+            double metricValue = history[i];
+            if (double.IsNaN(metricValue) || double.IsInfinity(metricValue))
+                continue;
+
             float x = chartRect.Left + (count > 1 ? step * i : chartRect.Width / 2f);
-            double normalized = (residual - minResidual) / (maxResidual - minResidual);
+            double normalized = (metricValue - minValue) / (maxValue - minValue);
             float y = chartRect.Top + chartRect.Height * (float)(1 - normalized);
 
-            if (i == 0)
+            if (!hasStarted)
+            {
                 linePath.MoveTo(x, y);
+                hasStarted = true;
+            }
             else
                 linePath.LineTo(x, y);
 
@@ -781,6 +824,9 @@ public partial class ReconstructionPage : ContentPage
 
             lastPoint = new SKPoint(x, y);
         }
+
+        if (!hasStarted)
+            return;
 
         areaPath.LineTo(lastPoint.X, origin.Y);
         areaPath.Close();
@@ -793,7 +839,7 @@ public partial class ReconstructionPage : ContentPage
         canvas.Save();
         canvas.Translate(chartRect.Left - 44f, chartRect.MidY);
         canvas.RotateDegrees(-90);
-        canvas.DrawText("Residual", 0, 0, axisLabelPaint);
+        canvas.DrawText(metricName, 0, 0, axisLabelPaint);
         canvas.Restore();
 
         using var annotationPaint = new SKPaint
@@ -809,13 +855,15 @@ public partial class ReconstructionPage : ContentPage
         };
         using var annotationBorderPaint = new SKPaint
         {
-            Color = ChartLineColor,
+            Color = style.LineColor,
             Style = SKPaintStyle.Stroke,
             StrokeWidth = 1.2f,
             IsAntialias = true
         };
 
-        string lastLabel = $"Iter {count}: {history[count - 1]:F3}";
+        string lastLabel = lastIteration > 0
+            ? $"Iter {lastIteration}: {lastFormattedValue}"
+            : $"Iter {count}: {lastFormattedValue}";
         float labelWidth = annotationPaint.MeasureText(lastLabel);
         const float annotationMargin = 16f;
         const float annotationPaddingX = 10f;
@@ -1320,7 +1368,7 @@ public partial class ReconstructionPage : ContentPage
         var popup = new VideoExportProgressPopup(_viewModel,
             PotentialDistributionCanvas.CanvasSize,
             PotentialColorbarCanvas.CanvasSize,
-            ResidualTrendCanvas.CanvasSize,
+            MetricTrendCanvas.CanvasSize,
             _potMode);
 
         var popupResult = await this.ShowPopupAsync(popup) as VideoExportPopupResult;
