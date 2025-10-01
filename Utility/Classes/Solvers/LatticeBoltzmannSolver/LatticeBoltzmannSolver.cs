@@ -1,9 +1,5 @@
-using System;
-using System.Collections.Generic;
 using System.Numerics;
-using System.Linq;
 using ILGPU;
-using ILGPU.Algorithms;
 using ILGPU.Runtime;
 using Utility.Classes.Measurement;
 using Utility.Classes.Discretizer;
