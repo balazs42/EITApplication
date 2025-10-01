@@ -8,6 +8,9 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="ILGPU" Version="1.1.0" />
+    <PackageReference Include="ILGPU.Runtime" Version="1.1.0" />
+    <PackageReference Include="ILGPU.Runtime.Cuda" Version="1.1.0" />
     <PackageReference Include="Google.OrTools" Version="9.12.4544" />
     <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
     <PackageReference Include="MIConvexHull" Version="1.1.19.1019" />
