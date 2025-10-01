@@ -136,11 +136,17 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             // 1) Initialize distributions Fi and Fi_next to zero
             foreach (var el in elements)
             {
+                bool isWall = el.IsWall;
+
                 for (int k = 0; k < 9; k++)
                 {
-                    el.Fi[k] = weights[k];        // equilibrium with φ=1
                     el.Fi_next[k] = 0.0;
+                    el.Fi[k] = isWall ? 0.0 : weights[k];        // equilibrium with φ=1
                 }
+
+                if (isWall)
+                    continue;
+
                 if(el.IsElectrode)
                 {
                     var correspondingElectrode = electrodes.Find(x => x.GridId == el.Id);
@@ -180,7 +186,15 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             // 2) Load conductivity γ into each element
             var sigmaDist = lbmGrid.GetConductivityDistribution();
             foreach (var el in elements)
+            {
+                if (el.IsWall)
+                {
+                    el.Conductivity = 0.0;
+                    continue;
+                }
+
                 el.Conductivity = SanitizeConductivity(sigmaDist.GetConductivity(el.Id));
+            }
 
             // 3) Mark electrodes as pinned Dirichlet
             foreach (var electrode in bcElectrodes)
@@ -559,13 +573,15 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         {
             int baseIndex = index * 9;
 
+            bool wall = isWall[index] == 1;
+
             for (int k = 0; k < 9; k++)
             {
-                fi[baseIndex + k] = weights[k];
                 fiNext[baseIndex + k] = 0.0;
+                fi[baseIndex + k] = wall ? 0.0 : weights[k];
             }
 
-            if (isWall[index] == 1)
+            if (wall)
                 return;
 
             if (isElectrode[index] == 1)

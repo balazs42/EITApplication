@@ -5,7 +5,9 @@ using ElectricalImpedanceTomography.ViewModels;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
 using SkiaSharp.Views.Maui.Controls;
+using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.Linq;
 using Utility.Classes;
 using Utility.Classes.Measurement;
 using Utility.Classes.Discretizer;
@@ -484,15 +486,13 @@ public partial class ReconstructionPage : ContentPage
         canvas.Clear(DistributionCanvasBackgroundColor);
         float cw = info.Width / mesh.Nx;
         float ch = info.Height / mesh.Ny;
-        double minVal = values.Values.Min();
-        double maxVal = values.Values.Max();
-        if (Math.Abs(maxVal - minVal) < 1e-12) maxVal = minVal + 1e-12;
+        var (minVal, maxVal) = GetLbmValueRange(mesh, values);
         for (int y = 0; y < mesh.Ny; y++)
         {
             for (int x = 0; x < mesh.Nx; x++)
             {
                 var el = mesh.GetElementAt(x, y);
-                double val = values[el.Id];
+                double val = values.TryGetValue(el.Id, out double v) ? v : minVal;
                 SKColor col = el.IsWall
                     ? SKColors.Black
                     : isPotential
@@ -505,6 +505,44 @@ public partial class ReconstructionPage : ContentPage
             }
         }
         DrawHoverInfo(canvas, info, lines, pt);
+    }
+
+    private static (double Min, double Max) GetLbmValueRange(LBMGrid mesh, IReadOnlyDictionary<int, double> values)
+    {
+        bool hasValue = false;
+        double min = 0.0;
+        double max = 0.0;
+
+        foreach (var element in mesh.GetElements().Cast<LBMElement>())
+        {
+            if (element.IsWall)
+                continue;
+
+            if (!values.TryGetValue(element.Id, out double value))
+                continue;
+
+            if (double.IsNaN(value) || double.IsInfinity(value))
+                continue;
+
+            if (!hasValue)
+            {
+                min = max = value;
+                hasValue = true;
+            }
+            else
+            {
+                if (value < min) min = value;
+                if (value > max) max = value;
+            }
+        }
+
+        if (!hasValue)
+            return (0.0, 1e-12);
+
+        if (Math.Abs(max - min) < 1e-12)
+            max = min + 1e-12;
+
+        return (min, max);
     }
 
     [Obsolete]
@@ -881,9 +919,7 @@ public partial class ReconstructionPage : ContentPage
         else if (discretization is LBMGrid lbm)
         {
             var cd = _currentResult?.OriginalConductivityDistribution ?? Workspace.GetOriginalConductivityDistribution() ?? lbm.GetConductivityDistribution();
-            double min = cd.Conductivities.Values.Min();
-            double max = cd.Conductivities.Values.Max();
-            if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
+            var (min, max) = GetLbmValueRange(lbm, cd.Conductivities);
             DrawColorBar(e.Surface.Canvas, e.Info, min, max, false);
         }
     }
@@ -892,7 +928,12 @@ public partial class ReconstructionPage : ContentPage
     {
         var discretization = GetDiscretization();
         var pd = _currentFrame?.CalculatedPotentialDistribution ?? discretization?.GetPotentialDistribution();
-        if (pd != null)
+        if (discretization is LBMGrid lbm && pd != null)
+        {
+            var (min, max) = GetLbmValueRange(lbm, pd.Potentials);
+            DrawColorBar(e.Surface.Canvas, e.Info, min, max, true);
+        }
+        else if (pd != null)
         {
             double min = pd.Potentials.Values.Min();
             double max = pd.Potentials.Values.Max();
@@ -915,9 +956,7 @@ public partial class ReconstructionPage : ContentPage
         else if (discretization is LBMGrid lbm)
         {
             var cd = _currentResult?.ReconstructedConductivityDistribution ?? lbm.GetConductivityDistribution();
-            double min = cd.Conductivities.Values.Min();
-            double max = cd.Conductivities.Values.Max();
-            if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
+            var (min, max) = GetLbmValueRange(lbm, cd.Conductivities);
             DrawColorBar(e.Surface.Canvas, e.Info, min, max, false);
         }
     }
@@ -926,7 +965,12 @@ public partial class ReconstructionPage : ContentPage
     {
         var discretization = GetDiscretization();
         var pd = _currentFrame?.CalculatedAdjointDistribution ?? discretization?.GetPotentialDistribution();
-        if (pd != null)
+        if (discretization is LBMGrid lbm && pd != null)
+        {
+            var (min, max) = GetLbmValueRange(lbm, pd.Potentials);
+            DrawColorBar(e.Surface.Canvas, e.Info, min, max, true);
+        }
+        else if (pd != null)
         {
             double min = pd.Potentials.Values.Min();
             double max = pd.Potentials.Values.Max();
@@ -949,9 +993,7 @@ public partial class ReconstructionPage : ContentPage
         else if (discretization is LBMGrid lbm)
         {
             var cd = _currentResult?.InitialConductivitiyDistribution ?? lbm.GetConductivityDistribution();
-            double min = cd.Conductivities.Values.Min();
-            double max = cd.Conductivities.Values.Max();
-            if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
+            var (min, max) = GetLbmValueRange(lbm, cd.Conductivities);
             DrawColorBar(e.Surface.Canvas, e.Info, min, max, false);
         }
     }
@@ -961,10 +1003,19 @@ public partial class ReconstructionPage : ContentPage
         var cd = _currentFrame?.ConductivityGradient;
         if (cd != null)
         {
-            double min = cd.Conductivities.Values.Min();
-            double max = cd.Conductivities.Values.Max();
-            if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
-            DrawColorBar(e.Surface.Canvas, e.Info, min, max, false);
+            var discretization = GetDiscretization();
+            if (discretization is LBMGrid lbm)
+            {
+                var (min, max) = GetLbmValueRange(lbm, cd.Conductivities);
+                DrawColorBar(e.Surface.Canvas, e.Info, min, max, false);
+            }
+            else
+            {
+                double min = cd.Conductivities.Values.Min();
+                double max = cd.Conductivities.Values.Max();
+                if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
+                DrawColorBar(e.Surface.Canvas, e.Info, min, max, false);
+            }
         }
     }
     #endregion
