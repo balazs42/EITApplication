@@ -1,4 +1,7 @@
-﻿using Utility.Classes.Factories;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using Utility.Classes.Factories;
 
 namespace Utility.Classes.Discretizer.FiniteElementMesh
 {
@@ -15,9 +18,10 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
                 Vertices.AddRange(vertices);
             if (elements != null)
                 _elements.AddRange(elements);
-            if (electrodes != null) 
+            if (electrodes != null)
                 _electrodes.AddRange(electrodes);
 
+            NormalizeCoordinates();
             Initialize();
         }
 
@@ -27,6 +31,49 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
         }
 
         public List<FEMVertex> GetVertices() => Vertices;
+
+        public void NormalizeCoordinates(double minValue = 0.0, double maxValue = 1.0)
+        {
+            if (Vertices.Count == 0)
+                return;
+
+            double targetRange = maxValue - minValue;
+            if (targetRange <= 0.0)
+                targetRange = 1.0;
+
+            double minX = Vertices.Min(v => v.X);
+            double maxX = Vertices.Max(v => v.X);
+            double minY = Vertices.Min(v => v.Y);
+            double maxY = Vertices.Max(v => v.Y);
+
+            double rangeX = maxX - minX;
+            double rangeY = maxY - minY;
+
+            double midpoint = minValue + (targetRange * 0.5);
+
+            foreach (var vertex in Vertices)
+            {
+                if (rangeX < 1e-12)
+                {
+                    vertex.X = midpoint;
+                }
+                else
+                {
+                    double normalizedX = (vertex.X - minX) / rangeX;
+                    vertex.X = minValue + normalizedX * targetRange;
+                }
+
+                if (rangeY < 1e-12)
+                {
+                    vertex.Y = midpoint;
+                }
+                else
+                {
+                    double normalizedY = (vertex.Y - minY) / rangeY;
+                    vertex.Y = minValue + normalizedY * targetRange;
+                }
+            }
+        }
 
         public void Initialize()
         {
