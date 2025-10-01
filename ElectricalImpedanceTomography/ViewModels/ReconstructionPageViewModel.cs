@@ -159,6 +159,8 @@ namespace ElectricalImpedanceTomography.ViewModels
         private readonly object _gradientLock = new();
         private readonly object _errorMetricLock = new();
         private CancellationTokenSource? _metricUpdateCts;
+        private readonly object _statisticsUpdateLock = new();
+        private CancellationTokenSource? _statisticsUpdateCts;
         private ReconstructionResult? _latestResult;
         private ReconstructionFrame? _latestFrame;
         private Dictionary<int, double>? _previousGradientSnapshot;
@@ -1299,24 +1301,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         // Event handlers wired to the service
         private void OnServiceReconstructionUpdated(object? sender, ReconstructionResult result)
         {
-            Residual = CalculateResidual(result.ReconstructedConductivityDistribution,
-                                         result.OriginalConductivityDistribution);
-            Correlation = CalculateCorrelation(result.ReconstructedConductivityDistribution,
-                                               result.OriginalConductivityDistribution);
-            ElapsedTime = _reconstructionStopwatch.Elapsed;
-            IterationCount++;
-            AddTrendSample(MetricKeys.Residual, Residual);
-            AddTrendSample(MetricKeys.Correlation, Correlation);
-            UpdateResidualTrendMetrics();
-            RequestMetricUpdate(result, null);
-
-            if (IterationCount % 10 == 0)
-            {
-                MainThread.BeginInvokeOnMainThread(() =>
-                {
-                    ReconstructionUpdated?.Invoke(this, result);
-                });
-            }
+            ScheduleReconstructionStatisticsUpdate(result);
         }
 
         private void OnServiceFrameUpdated(object? sender, ReconstructionFrame frame)
@@ -1802,6 +1787,68 @@ namespace ElectricalImpedanceTomography.ViewModels
             var history = GetTrendHistory(key);
             history.Add(value);
             NotifyTrendHistoryChanged(key);
+        }
+
+        private void ScheduleReconstructionStatisticsUpdate(ReconstructionResult result)
+        {
+            CancellationTokenSource cts;
+            lock (_statisticsUpdateLock)
+            {
+                _statisticsUpdateCts?.Cancel();
+                _statisticsUpdateCts?.Dispose();
+                _statisticsUpdateCts = new CancellationTokenSource();
+                cts = _statisticsUpdateCts;
+            }
+
+            _ = Task.Run(() => ProcessReconstructionStatisticsAsync(result, cts), cts.Token);
+        }
+
+        private async Task ProcessReconstructionStatisticsAsync(ReconstructionResult result, CancellationTokenSource cts)
+        {
+            try
+            {
+                var token = cts.Token;
+                double residual = CalculateResidual(result.ReconstructedConductivityDistribution,
+                                                    result.OriginalConductivityDistribution);
+                token.ThrowIfCancellationRequested();
+
+                double correlation = CalculateCorrelation(result.ReconstructedConductivityDistribution,
+                                                          result.OriginalConductivityDistribution);
+                token.ThrowIfCancellationRequested();
+
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    Residual = residual;
+                    Correlation = correlation;
+                    ElapsedTime = _reconstructionStopwatch.Elapsed;
+                    IterationCount++;
+                    AddTrendSample(MetricKeys.Residual, Residual);
+                    AddTrendSample(MetricKeys.Correlation, Correlation);
+                    UpdateResidualTrendMetrics();
+                    RequestMetricUpdate(result, null);
+
+                    if (IterationCount % 10 == 0)
+                        MainThread.BeginInvokeOnMainThread(() => ReconstructionUpdated?.Invoke(this, result));
+                });
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Reconstruction statistics computation failed: {ex}");
+            }
+            finally
+            {
+                lock (_statisticsUpdateLock)
+                {
+                    if (ReferenceEquals(_statisticsUpdateCts, cts))
+                    {
+                        _statisticsUpdateCts.Dispose();
+                        _statisticsUpdateCts = null;
+                    }
+                }
+            }
         }
 
         private void NotifyTrendHistoryChanged(string key)
