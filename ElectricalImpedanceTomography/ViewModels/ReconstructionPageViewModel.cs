@@ -144,6 +144,8 @@ namespace ElectricalImpedanceTomography.ViewModels
         public ObservableCollection<ReconstructionInfo> FilteredReconstructions { get; } = [];
 
         private readonly Dictionary<string, ObservableCollection<double>> _metricTrendHistories = new();
+        private const int TrendCanvasUpdateInterval = 10;
+        private bool _hasPendingTrendUpdate;
 
         public ObservableCollection<double> ResidualHistory => GetTrendHistory(MetricKeys.Residual);
 
@@ -421,6 +423,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 ElapsedTime = _reconstructionStopwatch.Elapsed;
             }
 
+            FlushPendingTrendUpdates();
             StopElapsedTimer();
         }
 
@@ -438,6 +441,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             Correlation = 0.0;
             ElapsedTime = TimeSpan.Zero;
             IterationCount = 0;
+            _hasPendingTrendUpdate = false;
             _reconstructionStopwatch.Reset();
 
             RaiseSelectedTrendMetricHistoryChanged();
@@ -1289,6 +1293,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             BeginReconstructionMetrics();
             await _reconstructionService.StepReconstructionAsync();
             StopElapsedTimer();
+            FlushPendingTrendUpdates();
         }
 
         // Event handlers wired to the service
@@ -1804,12 +1809,29 @@ namespace ElectricalImpedanceTomography.ViewModels
             if (key != SelectedTrendMetricKey)
                 return;
 
-            RaiseSelectedTrendMetricHistoryChanged();
+            if (IterationCount == 0 || IterationCount % TrendCanvasUpdateInterval == 0)
+            {
+                _hasPendingTrendUpdate = false;
+                RaiseSelectedTrendMetricHistoryChanged();
+            }
+            else
+            {
+                _hasPendingTrendUpdate = true;
+            }
         }
 
         private void RaiseSelectedTrendMetricHistoryChanged()
         {
             MainThread.BeginInvokeOnMainThread(() => SelectedTrendMetricHistoryChanged?.Invoke(this, EventArgs.Empty));
+        }
+
+        private void FlushPendingTrendUpdates()
+        {
+            if (!_hasPendingTrendUpdate)
+                return;
+
+            _hasPendingTrendUpdate = false;
+            RaiseSelectedTrendMetricHistoryChanged();
         }
 
         private void UpdateTrendSelectionStates()
@@ -1821,6 +1843,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         partial void OnSelectedTrendMetricKeyChanged(string value)
         {
             UpdateTrendSelectionStates();
+            _hasPendingTrendUpdate = false;
             RaiseSelectedTrendMetricHistoryChanged();
         }
 
