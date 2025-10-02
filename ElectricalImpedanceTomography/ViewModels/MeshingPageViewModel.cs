@@ -7,6 +7,7 @@ using Utility.Classes.Factories;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
+using Utility.Classes.Measurement;
 
 using Workspace = Utility.Classes.Application.Workspace;
 
@@ -28,6 +29,12 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         [ObservableProperty]
         private DiscretizationType selectedMeshType = DiscretizationType.FEM;
+
+        private static readonly DrivePattern[] DrivePatternValues = Enum.GetValues<DrivePattern>();
+        public IEnumerable<DrivePattern> DrivePatterns => DrivePatternValues;
+
+        [ObservableProperty]
+        private DrivePattern selectedDrivePattern = DrivePattern.Adjecent;
 
         private static readonly GeometryType[] GeometryTypeValues = Enum.GetValues<GeometryType>();
         public IEnumerable<GeometryType> GeometryTypes => GeometryTypeValues;
@@ -109,6 +116,11 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             Workspace.SetDiscretization(_currentDiscretization);
             Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
+
+            SelectedMeshType = _currentDiscretization is FEMMesh ? DiscretizationType.FEM : DiscretizationType.LBM;
+            OnPropertyChanged(nameof(IsFEM));
+            OnPropertyChanged(nameof(IsLBM));
+            OnPropertyChanged(nameof(SelectedDrivePattern));
         }
 
         public void LoadMeshFromWorkspace()
@@ -121,6 +133,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             OnPropertyChanged(nameof(SelectedMeshType));
             OnPropertyChanged(nameof(IsFEM));
             OnPropertyChanged(nameof(IsLBM));
+            OnPropertyChanged(nameof(SelectedDrivePattern));
         }
 
         public void PushState()
@@ -196,6 +209,18 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             Workspace.SetDiscretization(_currentDiscretization);
             Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
+        }
+
+        public MatlabExportResult? ExportCurrentMeshForMatlab()
+        {
+            if (_currentDiscretization is not FEMMesh fem)
+                return null;
+
+            string exportName = string.IsNullOrWhiteSpace(Name)
+                ? (string.IsNullOrWhiteSpace(fem.Metadata?.Name) ? "mesh" : fem.Metadata.Name)
+                : Name;
+
+            return _daqService.ExportFemMeshForMatlab(fem, exportName, SelectedDrivePattern);
         }
 
         private FEMMesh GenerateFEMMesh()

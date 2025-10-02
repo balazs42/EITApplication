@@ -1,4 +1,5 @@
 using System.Numerics;
+using Utility.Classes;
 using Utility.Classes.Measurement;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
@@ -22,6 +23,7 @@ namespace BusinessLayer
         LBMGrid LoadLBMGrid(string filePath);
         IEnumerable<DiscretizationInfo> GetDiscretizationInfos();
         void DeleteMesh(string filePath);
+        MatlabExportResult ExportFemMeshForMatlab(FEMMesh mesh, string name, DrivePattern drivePattern);
         bool ConnectHardware();
         bool DisconnectHardware();
         bool ChangeHardwarePort(string portName);

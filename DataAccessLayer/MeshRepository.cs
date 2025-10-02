@@ -1,10 +1,12 @@
 using System.Globalization;
+using System.Text.Json;
 using System.Xml.Linq;
 using Utility.Classes;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Factories;
+using Utility.Classes.Measurement;
 
 namespace DataAccessLayer
 {
@@ -42,6 +44,55 @@ namespace DataAccessLayer
             var timestamp = DateTime.UtcNow;
             var doc = BuildLbmDocument(grid, name);
             SaveDocument(doc, name, "lbm", timestamp);
+        }
+
+        public MatlabExportResult ExportFemMeshForMatlab(FEMMesh mesh, string name, DrivePattern drivePattern)
+        {
+            if (mesh == null) throw new ArgumentNullException(nameof(mesh));
+            if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Name required.", nameof(name));
+
+            var timestamp = DateTime.UtcNow;
+            string stlPath = SaveFemMeshAsStl(mesh, name, "matlab", timestamp);
+
+            var electrodes = mesh.ElectrodesTyped.OrderBy(e => e.Id).ToList();
+            var electrodeVertices = new List<int>();
+            foreach (var electrode in electrodes)
+            {
+                if (electrode == null)
+                    continue;
+
+                if (electrode.FEMVertexIds != null && electrode.FEMVertexIds.Count > 0)
+                    electrodeVertices.AddRange(electrode.FEMVertexIds);
+                else if (electrode.MeshId >= 0)
+                    electrodeVertices.Add(electrode.MeshId);
+            }
+
+            var strategy = DrivePatternStrategyProvider.GetStrategy(drivePattern);
+            var drivePatternPairs = new List<int[]>();
+            if (electrodes.Count > 0)
+            {
+                int cycleLength = Math.Max(1, strategy.GetCycleLength(electrodes.Count));
+                for (int step = 0; step < cycleLength; step++)
+                {
+                    var pair = strategy.GetElectrodePair(electrodes.Count, step);
+                    drivePatternPairs.Add(new[] { pair.Excitation, pair.Ground });
+                }
+            }
+
+            var export = new
+            {
+                stlPath,
+                electrodeVertices,
+                drivePatternPairs
+            };
+
+            string jsonFile = Path.ChangeExtension(stlPath, ".json")
+                ?? throw new InvalidOperationException("Unable to determine Matlab export JSON path.");
+
+            var json = JsonSerializer.Serialize(export, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(jsonFile, json);
+
+            return new MatlabExportResult(stlPath, jsonFile);
         }
 
         public IEnumerable<DiscretizationInfo> GetDiscretizationInfos()
@@ -267,7 +318,7 @@ namespace DataAccessLayer
             doc.Save(file);
         }
 
-        private static void SaveFemMeshAsStl(FEMMesh mesh, string name, string suffix, DateTime timestamp)
+        private static string SaveFemMeshAsStl(FEMMesh mesh, string name, string suffix, DateTime timestamp)
         {
             Directory.CreateDirectory(MeshDir);
             string safeName = string.Join("_", name.Split(Path.GetInvalidFileNameChars()));
@@ -327,6 +378,8 @@ namespace DataAccessLayer
                 writer.WriteLine(string.Format(CultureInfo.InvariantCulture,
                     "      vertex {0:G17} {1:G17} 0", vertex.X, vertex.Y));
             }
+
+            return file;
         }
 
         private static XDocument BuildFemDocument(FEMMesh mesh, string name)
