@@ -1,6 +1,7 @@
 using System.Numerics;
 using BusinessLayer;
 using System.Diagnostics;
+using Utility.Classes;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
@@ -160,6 +161,21 @@ namespace ServiceLayer
             try
             {
                 _daqPersistence.SaveLBMGrid(grid, name);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                Debug.WriteLine(ex.Message);
+                Console.WriteLine(ex.Message);
+                throw;
+            }
+        }
+
+        public MatlabExportResult ExportFemMeshForMatlab(FEMMesh mesh, string name, DrivePattern drivePattern)
+        {
+            try
+            {
+                return _daqPersistence.ExportFemMeshForMatlab(mesh, name, drivePattern);
             }
             catch (Exception ex)
             {

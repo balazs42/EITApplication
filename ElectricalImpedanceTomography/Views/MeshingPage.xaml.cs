@@ -657,4 +657,37 @@ public partial class MeshingPage : ContentPage
         _viewModel.InvokeMeshChanged();
         MeshCanvas.InvalidateSurface();
     }
+
+    private async void OnMatlabExportClicked(object sender, EventArgs e)
+    {
+        if (sender is VisualElement v) await ShrinkViewAsync(v);
+
+        if (_viewModel.GetCurrentMesh() is not FEMMesh)
+        {
+            await DisplayAlert("Matlab Export", "Matlab export is only available for FEM meshes.", "OK");
+            return;
+        }
+
+        var exportName = await DisplayPromptAsync("Matlab Export", "Export name", initialValue: _viewModel.Name);
+        if (string.IsNullOrWhiteSpace(exportName))
+            return;
+
+        _viewModel.Name = exportName;
+
+        try
+        {
+            var result = _viewModel.ExportCurrentMeshForMatlab();
+            if (result == null)
+            {
+                await DisplayAlert("Matlab Export", "No FEM mesh available for export.", "OK");
+                return;
+            }
+
+            await DisplayAlert("Matlab Export", $"STL saved to:\n{result.StlFilePath}\n\nJSON saved to:\n{result.JsonFilePath}", "OK");
+        }
+        catch (Exception ex)
+        {
+            await DisplayAlert("Matlab Export Failed", ex.Message, "OK");
+        }
+    }
 }
