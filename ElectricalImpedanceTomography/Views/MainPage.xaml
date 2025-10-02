@@ -44,11 +44,12 @@
         <converters:MessageTypeToColorConverter x:Key="MessageTypeToColorConverter"/>
     </ContentPage.Resources>
 
-    <Grid RowDefinitions="Auto, *">
+    <Grid RowDefinitions="*">
+        <!--
         <controls:NavBarControl x:Name="NavBar"
                                 Grid.Row="0"
                                 CurrentPageName="MainPage"/>
-
+        -->
         <Grid Grid.Row="1"
               Margin="5"
               ColumnDefinitions="450, *, Auto"

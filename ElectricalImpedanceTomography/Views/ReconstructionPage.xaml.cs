@@ -141,7 +141,7 @@ public partial class ReconstructionPage : ContentPage
     {
         var theme = Application.Current?.RequestedTheme ?? AppTheme.Light;
         return theme == AppTheme.Dark
-            ? (Color.FromArgb("#1B1A13"), Color.FromArgb("#2A281E"))
+            ? (Color.FromArgb("#101B2B"), Color.FromArgb("#1A2F45"))
             : (Color.FromArgb("#F2E7D8"), Color.FromArgb("#E6DAC9"));
     }
 
