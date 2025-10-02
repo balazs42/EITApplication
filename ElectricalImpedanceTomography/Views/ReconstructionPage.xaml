@@ -491,7 +491,7 @@
                                             <VerticalStackLayout BindableLayout.ItemsSource="{Binding Metrics}" Spacing="6">
                                                 <BindableLayout.ItemTemplate>
                                                     <DataTemplate x:DataType="viewmodels:ReconstructionMetricViewModel">
-                                                        <Border Padding="8"
+                                                        <Border Padding="2"
                                                                 StrokeThickness="0"
                                                                 BackgroundColor="Transparent"
                                                                 StrokeShape="RoundRectangle 6">
