@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Xml.Linq;
+using System.Linq;
 using Utility.Classes;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
@@ -54,17 +55,34 @@ namespace DataAccessLayer
             var timestamp = DateTime.UtcNow;
             string stlPath = SaveFemMeshAsStl(mesh, name, "matlab", timestamp);
 
-            var electrodes = mesh.ElectrodesTyped.OrderBy(e => e.Id).ToList();
-            var electrodeVertices = new List<int>();
+            var vertexById = mesh.Vertices.ToDictionary(v => v.GlobalId);
+            var electrodes = mesh.ElectrodesTyped
+                .Where(e => e != null)
+                .OrderBy(e => e.Id)
+                .ToList();
+            var electrodeVertices = new List<int>(electrodes.Count);
             foreach (var electrode in electrodes)
             {
-                if (electrode == null)
-                    continue;
+                int? vertexId = null;
 
                 if (electrode.FEMVertexIds != null && electrode.FEMVertexIds.Count > 0)
-                    electrodeVertices.AddRange(electrode.FEMVertexIds);
-                else if (electrode.MeshId >= 0)
-                    electrodeVertices.Add(electrode.MeshId);
+                {
+                    foreach (var candidate in electrode.FEMVertexIds)
+                    {
+                        if (vertexById.TryGetValue(candidate, out var vertex))
+                        {
+                            vertexId = vertex.GlobalId;
+                            break;
+                        }
+                    }
+                }
+
+                if (!vertexId.HasValue && electrode.MeshId >= 0 && vertexById.TryGetValue(electrode.MeshId, out var meshVertex))
+                {
+                    vertexId = meshVertex.GlobalId;
+                }
+
+                electrodeVertices.Add(vertexId ?? -1);
             }
 
             var strategy = DrivePatternStrategyProvider.GetStrategy(drivePattern);
@@ -81,7 +99,7 @@ namespace DataAccessLayer
 
             var export = new
             {
-                stlPath,
+                stlPath = Path.GetFileName(stlPath),
                 electrodeVertices,
                 drivePatternPairs
             };
