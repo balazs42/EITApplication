@@ -12,7 +12,8 @@ namespace Utility.Classes.ReconstructionParameters
     {
         L2 = 1,
         Wasserstein2 = 2,
-        ConductivityAwareW2 = 3
+        ConductivityAwareW2 = 3,
+        EnergyBasedWasserstein2 = 4
     }
 
     /// <summary>
