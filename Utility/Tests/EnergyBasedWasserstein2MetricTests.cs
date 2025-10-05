@@ -39,7 +39,39 @@ namespace Utility.Tests
 
             var adjoint = metric.EvaluateAdjointSource(mesh, measured, simulated);
             Assert.Equal(measured.Length, adjoint.Length);
-            Assert.True(Math.Abs(adjoint.Sum()) < 1e-10);
+
+            double dot = 0.0;
+            for (int i = 0; i < simulated.Length; i++)
+            {
+                double mass = simulated[i];
+                if (!double.IsFinite(mass) || mass < 0.0)
+                    mass = 0.0;
+                dot += adjoint[i] * mass;
+            }
+
+            Assert.True(Math.Abs(dot) < 1e-10, "Adjoint must be orthogonal to the sanitized simulated histogram.");
+        }
+
+        [Fact]
+        public void EvaluateAdjoint_RespectsNormalizationScaling()
+        {
+            var mesh = TinyFEM();
+            var metric = new EnergyBasedWasserstein2Metric();
+
+            double[] measured = { 0.5, 0.5, 0.0, 0.0 };
+            double[] simulated = { 0.8, 0.2, 0.0, 0.0 };
+
+            metric.Evaluate(mesh, measured, simulated);
+            var adjoint = metric.EvaluateAdjointSource(mesh, measured, simulated);
+
+            double scale = 10.0;
+            double[] scaledSimulated = simulated.Select(v => v * scale).ToArray();
+
+            metric.Evaluate(mesh, measured, scaledSimulated);
+            var scaledAdjoint = metric.EvaluateAdjointSource(mesh, measured, scaledSimulated);
+
+            for (int i = 0; i < adjoint.Length; i++)
+                Assert.Equal(adjoint[i] / scale, scaledAdjoint[i], 6);
         }
 
         private static FEMMesh TinyFEM()

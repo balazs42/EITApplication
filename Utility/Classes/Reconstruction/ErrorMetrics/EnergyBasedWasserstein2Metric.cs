@@ -83,16 +83,21 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             var transport = SolveOptimalTransport(cost, mu.Values, nu.Values);
             double loss = transport.Objective;
 
-            var alpha = (double[])transport.Alpha.Clone();
-            double mean = alpha.Average();
-            for (int i = 0; i < alpha.Length; i++)
-                alpha[i] -= mean;
+            var sourcePotential = (double[])transport.Alpha.Clone();
+            double weightedMean = 0.0;
+            for (int i = 0; i < sourcePotential.Length; i++)
+                weightedMean += sourcePotential[i] * mu.Values[i];
+
+            double invMass = 1.0 / mu.TotalMass;
+            var sourceGradient = new double[sourcePotential.Length];
+            for (int i = 0; i < sourceGradient.Length; i++)
+                sourceGradient[i] = (sourcePotential[i] - weightedMean) * invMass;
 
             var adjointFull = new double[measured.Length];
             for (int i = 0; i < include.Count; i++)
-                adjointFull[include[i]] = alpha[i];
+                adjointFull[include[i]] = sourceGradient[i];
 
-            return new CachedResult(measured, simulated, loss, adjointFull, include.ToArray(), alpha, transport.Plan);
+            return new CachedResult(measured, simulated, loss, adjointFull, include.ToArray(), sourcePotential, sourceGradient, transport.Plan);
         }
 
         private static Histogram NormalizeHistogram(double[] raw)
@@ -116,7 +121,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             for (int i = 0; i < values.Length; i++)
                 values[i] /= sum;
 
-            return new Histogram(values, false);
+            return new Histogram(values, false, sum);
         }
 
         private static double[] ExtractHistogram(double[] data, IReadOnlyList<int> include)
@@ -197,29 +202,32 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
 
         private readonly struct Histogram
         {
-            public Histogram(double[] values, bool degenerate)
+            public Histogram(double[] values, bool degenerate, double totalMass)
             {
                 Values = values;
                 IsDegenerate = degenerate;
+                TotalMass = totalMass;
             }
 
             public double[] Values { get; }
             public bool IsDegenerate { get; }
+            public double TotalMass { get; }
 
-            public static Histogram Degenerate(double[] values) => new(values, true);
+            public static Histogram Degenerate(double[] values) => new(values, true, 0.0);
         }
 
         private sealed class CachedResult
         {
             public CachedResult(double[] measured, double[] simulated, double cost, double[] adjoint,
-                                int[] included, double[] alpha, double[,] plan)
+                                int[] included, double[] sourcePotential, double[] sourceGradient, double[,] plan)
             {
                 Measured = measured;
                 Simulated = simulated;
                 Cost = cost;
                 Adjoint = adjoint;
                 Included = included;
-                Alpha = alpha;
+                SourcePotential = sourcePotential;
+                SourceGradient = sourceGradient;
                 Plan = plan;
             }
 
@@ -228,7 +236,8 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             public double Cost { get; }
             public double[] Adjoint { get; }
             public int[] Included { get; }
-            public double[] Alpha { get; }
+            public double[] SourcePotential { get; }
+            public double[] SourceGradient { get; }
             public double[,] Plan { get; }
 
             public bool Matches(double[] measured, double[] simulated)
@@ -237,7 +246,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             public static CachedResult Zero(double[] measured, double[] simulated)
             {
                 var zeros = new double[measured.Length];
-                return new CachedResult(measured, simulated, 0.0, zeros, Array.Empty<int>(), Array.Empty<double>(), new double[0, 0]);
+                return new CachedResult(measured, simulated, 0.0, zeros, Array.Empty<int>(), Array.Empty<double>(), Array.Empty<double>(), new double[0, 0]);
             }
         }
 
