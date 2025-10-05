@@ -184,6 +184,25 @@
                                                     MinusImageSource="icon_minus2.png"
                                                     Value="{Binding ElectrodeSize}"
                                                     Max="100"/>
+
+                    <Border Stroke="Gainsboro" StrokeShape="RoundRectangle 15" Margin="10" Padding="10" HorizontalOptions="Center">
+                        <VerticalStackLayout Spacing="12"                        
+                                             HorizontalOptions="Center"
+                                             VerticalOptions="Center">
+                            <Label Text="Drive Pattern"
+                                   VerticalOptions="Center"
+                                   TextColor="{AppThemeBinding Light=#F7FBFF, Dark=White}"/>
+                            <Picker ItemsSource="{Binding DrivePatterns}"
+                                    SelectedItem="{Binding SelectedDrivePattern}"
+                                    WidthRequest="160"/>
+                            <Button Text="Matlab Export"
+                                    BackgroundColor="#3A7CA5"
+                                    FontSize="Small"
+                                    Clicked="OnMatlabExportClicked"
+                                    IsEnabled="{Binding IsFEM}"/>
+                        </VerticalStackLayout>
+
+                    </Border>
                 </VerticalStackLayout>
             </Border>
 
@@ -287,21 +306,6 @@
                         Background="{StaticResource ControlPanelBrush}">
                     <VerticalStackLayout Margin="5"
                                          Spacing="10">
-                        <HorizontalStackLayout Spacing="12"
-                                               HorizontalOptions="Center"
-                                               VerticalOptions="Center">
-                            <Label Text="Drive Pattern"
-                                   VerticalOptions="Center"
-                                   TextColor="{AppThemeBinding Light=#F7FBFF, Dark=White}"/>
-                            <Picker ItemsSource="{Binding DrivePatterns}"
-                                    SelectedItem="{Binding SelectedDrivePattern}"
-                                    WidthRequest="160"/>
-                            <Button Text="Matlab Export"
-                                    BackgroundColor="#3A7CA5"
-                                    Clicked="OnMatlabExportClicked"
-                                    IsEnabled="{Binding IsFEM}"/>
-                        </HorizontalStackLayout>
-
                         <Grid ColumnDefinitions="Auto, Auto"
                                HorizontalOptions="Center">
                             <Border Grid.Column="0" Stroke="Transparent">

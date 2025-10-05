@@ -217,7 +217,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 return null;
 
             string exportName = string.IsNullOrWhiteSpace(Name)
-                ? (string.IsNullOrWhiteSpace(fem.Metadata?.Name) ? "mesh" : fem.Metadata.Name)
+                ? (string.IsNullOrWhiteSpace(fem.Metadata?.Generator) ? "mesh" : fem.Metadata.Generator)
                 : Name;
 
             return _daqService.ExportFemMeshForMatlab(fem, exportName, SelectedDrivePattern);

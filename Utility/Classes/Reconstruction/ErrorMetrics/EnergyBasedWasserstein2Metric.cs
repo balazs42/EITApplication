@@ -330,8 +330,8 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 var factor = stiffness.Cholesky();
                 var kInvBt = factor.Solve(coupling.Transpose());
                 var schur = diag - coupling * kInvBt;
-                SymmetrizeInPlace(schur);
-                _schur = schur;
+                SymmetrizeInPlace((DenseMatrix)schur);
+                _schur = (DenseMatrix)schur;
 
                 if (_electrodeCount <= 1)
                 {
