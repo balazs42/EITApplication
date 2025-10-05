@@ -84,6 +84,14 @@ namespace Utility.Tests
             Assert.IsType<ConductivityAwareW2Metric>(metric);
         }
 
+        [Fact]
+        public void ErrorMetricFactory_Returns_EnergyBasedWasserstein2Metric()
+        {
+            var metric = ErrorMetricFactory.Create(ErrorMetric.EnergyBasedWasserstein2);
+
+            Assert.IsType<EnergyBasedWasserstein2Metric>(metric);
+        }
+
         private static FEMMesh TinyFEM()
         {
             var v1 = new FEMVertex { GlobalId = 0, X = 0, Y = 0, IsElectrode = true };
