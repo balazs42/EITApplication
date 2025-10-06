@@ -47,10 +47,11 @@ namespace DataAccessLayer
             SaveDocument(doc, name, "lbm", timestamp);
         }
 
-        public MatlabExportResult ExportFemMeshForMatlab(FEMMesh mesh, string name, DrivePattern drivePattern)
+        public MatlabExportResult ExportFemMeshForMatlab(FEMMesh mesh, string name, DrivePattern drivePattern, string modelType)
         {
             if (mesh == null) throw new ArgumentNullException(nameof(mesh));
             if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Name required.", nameof(name));
+            if (string.IsNullOrWhiteSpace(modelType)) throw new ArgumentException("Model type required.", nameof(modelType));
 
             var timestamp = DateTime.UtcNow;
             string stlPath = SaveFemMeshAsStl(mesh, name, "matlab", timestamp);
@@ -100,6 +101,7 @@ namespace DataAccessLayer
             var export = new
             {
                 stlPath = Path.GetFileName(stlPath),
+                modelType,
                 electrodeVertices,
                 drivePatternPairs
             };

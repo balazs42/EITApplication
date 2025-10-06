@@ -171,11 +171,11 @@ namespace ServiceLayer
             }
         }
 
-        public MatlabExportResult ExportFemMeshForMatlab(FEMMesh mesh, string name, DrivePattern drivePattern)
+        public MatlabExportResult ExportFemMeshForMatlab(FEMMesh mesh, string name, DrivePattern drivePattern, string modelType)
         {
             try
             {
-                return _daqPersistence.ExportFemMeshForMatlab(mesh, name, drivePattern);
+                return _daqPersistence.ExportFemMeshForMatlab(mesh, name, drivePattern, modelType);
             }
             catch (Exception ex)
             {
