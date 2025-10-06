@@ -23,7 +23,7 @@ namespace BusinessLayer
         LBMGrid LoadLBMGrid(string filePath);
         IEnumerable<DiscretizationInfo> GetDiscretizationInfos();
         void DeleteMesh(string filePath);
-        MatlabExportResult ExportFemMeshForMatlab(FEMMesh mesh, string name, DrivePattern drivePattern);
+        MatlabExportResult ExportFemMeshForMatlab(FEMMesh mesh, string name, DrivePattern drivePattern, string modelType);
         bool ConnectHardware();
         bool DisconnectHardware();
         bool ChangeHardwarePort(string portName);

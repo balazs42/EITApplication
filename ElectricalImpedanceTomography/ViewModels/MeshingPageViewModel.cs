@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ServiceLayer;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using Utility.Classes;
 using Utility.Classes.Factories;
@@ -35,6 +36,11 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         [ObservableProperty]
         private DrivePattern selectedDrivePattern = DrivePattern.Adjecent;
+
+        public IList<string> MatlabModelTypes { get; } = new List<string> { "c2c2" };
+
+        [ObservableProperty]
+        private string selectedMatlabModelType = "c2c2";
 
         private static readonly GeometryType[] GeometryTypeValues = Enum.GetValues<GeometryType>();
         public IEnumerable<GeometryType> GeometryTypes => GeometryTypeValues;
@@ -220,7 +226,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 ? (string.IsNullOrWhiteSpace(fem.Metadata?.Generator) ? "mesh" : fem.Metadata.Generator)
                 : Name;
 
-            return _daqService.ExportFemMeshForMatlab(fem, exportName, SelectedDrivePattern);
+            return _daqService.ExportFemMeshForMatlab(fem, exportName, SelectedDrivePattern, SelectedMatlabModelType);
         }
 
         private FEMMesh GenerateFEMMesh()

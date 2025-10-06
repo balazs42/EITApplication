@@ -29,8 +29,8 @@ namespace BusinessLayer
         public void DeleteEITMeasurement(string name, DateTime savedAt) => _daqRepository.DeleteEITMeasurement(name, savedAt);        
         public void SaveFEMMesh(FEMMesh mesh, string name) => _meshRepository.SaveFEMMesh(mesh, name);        
         public void SaveLBMGrid(LBMGrid grid, string name) => _meshRepository.SaveLBMGrid(grid, name);
-        public MatlabExportResult ExportFemMeshForMatlab(FEMMesh mesh, string name, DrivePattern drivePattern)
-            => _meshRepository.ExportFemMeshForMatlab(mesh, name, drivePattern);
+        public MatlabExportResult ExportFemMeshForMatlab(FEMMesh mesh, string name, DrivePattern drivePattern, string modelType)
+            => _meshRepository.ExportFemMeshForMatlab(mesh, name, drivePattern, modelType);
         public FEMMesh LoadFEMMesh(string filePath) => _meshRepository.LoadFEMMesh(filePath);
         public LBMGrid LoadLBMGrid(string filePath) => _meshRepository.LoadLBMGrid(filePath);
         public IEnumerable<DiscretizationInfo> GetDiscretizationInfos() => _meshRepository.GetDiscretizationInfos();

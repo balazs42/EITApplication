@@ -674,6 +674,29 @@ public partial class MeshingPage : ContentPage
 
         _viewModel.Name = exportName;
 
+        var modelTypes = _viewModel.MatlabModelTypes;
+        if (modelTypes.Count == 0)
+        {
+            await DisplayAlert("Matlab Export", "No Matlab model types are configured.", "OK");
+            return;
+        }
+
+        string? selectedModelType;
+        if (modelTypes.Count == 1)
+        {
+            selectedModelType = modelTypes[0];
+        }
+        else
+        {
+            var title = $"Select Matlab model type (default: {_viewModel.SelectedMatlabModelType})";
+            selectedModelType = await DisplayActionSheet(title, "Cancel", null, modelTypes.ToArray());
+            if (string.IsNullOrWhiteSpace(selectedModelType) || string.Equals(selectedModelType, "Cancel", StringComparison.Ordinal))
+                return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(selectedModelType))
+            _viewModel.SelectedMatlabModelType = selectedModelType;
+
         try
         {
             var result = _viewModel.ExportCurrentMeshForMatlab();
