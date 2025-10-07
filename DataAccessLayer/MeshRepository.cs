@@ -55,7 +55,8 @@ namespace DataAccessLayer
             if (string.IsNullOrWhiteSpace(modelType)) throw new ArgumentException("Model type required.", nameof(modelType));
 
             var timestamp = DateTime.UtcNow;
-            string stlPath = SaveFemMeshAsStl(mesh, name, "matlab", timestamp);
+            var stlVertexOrder = new List<int>(mesh.Vertices.Count);
+            string stlPath = SaveFemMeshAsStl(mesh, name, "matlab", timestamp, stlVertexOrder);
 
             var matlabVertexOrder = ComputeMatlabVertexOrder(mesh);
             var matlabIndexByVertexId = new Dictionary<int, int>(matlabVertexOrder.Count);
@@ -127,6 +128,7 @@ namespace DataAccessLayer
                 matlabElectrodeVertexIds,
                 drivePatternPairs,
                 stlVertexOrder = matlabVertexOrder
+
             };
 
             string jsonFile = Path.ChangeExtension(stlPath, ".json")
@@ -361,7 +363,7 @@ namespace DataAccessLayer
             doc.Save(file);
         }
 
-        private static string SaveFemMeshAsStl(FEMMesh mesh, string name, string suffix, DateTime timestamp)
+        private static string SaveFemMeshAsStl(FEMMesh mesh, string name, string suffix, DateTime timestamp, IList<int>? stlVertexOrder = null)
         {
             Directory.CreateDirectory(MeshDir);
             string safeName = string.Join("_", name.Split(Path.GetInvalidFileNameChars()));
@@ -420,8 +422,13 @@ namespace DataAccessLayer
                 return (nx / length, ny / length, nz / length);
             }
 
-            static void WriteVertex(StreamWriter writer, FEMVertex vertex)
+            void WriteVertex(StreamWriter writer, FEMVertex vertex)
             {
+                if (stlVertexOrder != null && seenVertices != null && seenVertices.Add(vertex.GlobalId))
+                {
+                    stlVertexOrder.Add(vertex.GlobalId);
+                }
+
                 writer.WriteLine(string.Format(CultureInfo.InvariantCulture,
                     "      vertex {0:G17} {1:G17} 0", vertex.X, vertex.Y));
             }
