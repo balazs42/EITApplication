@@ -124,7 +124,7 @@ namespace DataAccessLayer
             {
                 stlPath = Path.GetFileName(stlPath),
                 modelType,
-                electrodeVertices,
+                //electrodeVertices,
                 matlabElectrodeVertexIds,
                 drivePatternPairs,
                 stlVertexOrder = matlabVertexOrder
@@ -373,6 +373,7 @@ namespace DataAccessLayer
             // XY plane (all vertices have Z = 0).  Each triangular FEM element is written as one
             // STL facet.  The ASCII flavour is deliberately chosen because it is human readable and
             // many downstream tools (for example meshing utilities) accept it directly.
+            HashSet<int>? seenVertices = stlVertexOrder != null ? new HashSet<int>() : null;
             using var writer = new StreamWriter(file, false, new System.Text.UTF8Encoding(false));
 
             writer.WriteLine($"solid {safeName}");
