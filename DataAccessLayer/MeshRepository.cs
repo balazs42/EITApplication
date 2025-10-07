@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Globalization;
 using System.Text.Json;
 using System.Xml.Linq;
@@ -56,12 +57,20 @@ namespace DataAccessLayer
             var timestamp = DateTime.UtcNow;
             string stlPath = SaveFemMeshAsStl(mesh, name, "matlab", timestamp);
 
+            var matlabVertexOrder = ComputeMatlabVertexOrder(mesh);
+            var matlabIndexByVertexId = new Dictionary<int, int>(matlabVertexOrder.Count);
+            for (int i = 0; i < matlabVertexOrder.Count; i++)
+            {
+                matlabIndexByVertexId[matlabVertexOrder[i]] = i;
+            }
+
             var vertexById = mesh.Vertices.ToDictionary(v => v.GlobalId);
             var electrodes = mesh.ElectrodesTyped
                 .Where(e => e != null)
                 .OrderBy(e => e.Id)
                 .ToList();
             var electrodeVertices = new List<int>(electrodes.Count);
+            var matlabElectrodeVertexIds = new List<int>(electrodes.Count);
             foreach (var electrode in electrodes)
             {
                 int? vertexId = null;
@@ -83,7 +92,19 @@ namespace DataAccessLayer
                     vertexId = meshVertex.GlobalId;
                 }
 
-                electrodeVertices.Add(vertexId ?? -1);
+                int globalId = vertexId ?? -1;
+                electrodeVertices.Add(globalId);
+
+                if (globalId >= 0 && matlabIndexByVertexId.TryGetValue(globalId, out var matlabIndex))
+                {
+                    // Matlab exposes vertex indices using one-based numbering; mirror that so the
+                    // exported IDs can be used without further adjustment when the STL is loaded.
+                    matlabElectrodeVertexIds.Add(matlabIndex + 1);
+                }
+                else
+                {
+                    matlabElectrodeVertexIds.Add(-1);
+                }
             }
 
             var strategy = DrivePatternStrategyProvider.GetStrategy(drivePattern);
@@ -103,7 +124,9 @@ namespace DataAccessLayer
                 stlPath = Path.GetFileName(stlPath),
                 modelType,
                 electrodeVertices,
-                drivePatternPairs
+                matlabElectrodeVertexIds,
+                drivePatternPairs,
+                stlVertexOrder = matlabVertexOrder
             };
 
             string jsonFile = Path.ChangeExtension(stlPath, ".json")
@@ -352,7 +375,11 @@ namespace DataAccessLayer
 
             writer.WriteLine($"solid {safeName}");
 
-            foreach (var element in mesh.ElementsTyped)
+            var elements = mesh.ElementsTyped
+                .OrderBy(e => e.Id)
+                .ToList();
+
+            foreach (var element in elements)
             {
                 var a = element.Vertices[0];
                 var b = element.Vertices[1];
@@ -400,6 +427,35 @@ namespace DataAccessLayer
             }
 
             return file;
+        }
+
+        private static List<int> ComputeMatlabVertexOrder(FEMMesh mesh)
+        {
+            if (mesh == null)
+                throw new ArgumentNullException(nameof(mesh));
+
+            var uniqueVertices = mesh.Vertices
+                .Select(v => new { Vertex = v, Key = CreateVertexKey(v.X, v.Y, 0.0) })
+                .GroupBy(v => v.Key)
+                .Select(g => g.OrderBy(v => v.Vertex.GlobalId).First())
+                .ToList();
+
+            uniqueVertices.Sort((a, b) =>
+            {
+                int compare = a.Key.X.CompareTo(b.Key.X);
+                if (compare != 0)
+                    return compare;
+
+                compare = a.Key.Y.CompareTo(b.Key.Y);
+                if (compare != 0)
+                    return compare;
+
+                return a.Key.Z.CompareTo(b.Key.Z);
+            });
+
+            return uniqueVertices
+                .Select(v => v.Vertex.GlobalId)
+                .ToList();
         }
 
         private static XDocument BuildFemDocument(FEMMesh mesh, string name)
