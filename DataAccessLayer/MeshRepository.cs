@@ -71,6 +71,7 @@ namespace DataAccessLayer
                 .OrderBy(e => e.Id)
                 .ToList();
             var electrodeVertices = new List<int>(electrodes.Count);
+            var electrodeVertexCoordinates = new List<double[]?>(electrodes.Count);
             var matlabElectrodeVertexIds = new List<int>(electrodes.Count);
             foreach (var electrode in electrodes)
             {
@@ -95,6 +96,15 @@ namespace DataAccessLayer
 
                 int globalId = vertexId ?? -1;
                 electrodeVertices.Add(globalId);
+
+                if (globalId >= 0 && vertexById.TryGetValue(globalId, out var coordinateVertex))
+                {
+                    electrodeVertexCoordinates.Add(new[] { coordinateVertex.X, coordinateVertex.Y });
+                }
+                else
+                {
+                    electrodeVertexCoordinates.Add(null);
+                }
 
                 if (globalId >= 0 && matlabIndexByVertexId.TryGetValue(globalId, out var matlabIndex))
                 {
@@ -125,6 +135,7 @@ namespace DataAccessLayer
                 stlPath = Path.GetFileName(stlPath),
                 modelType,
                 //electrodeVertices,
+                electrodeVertexCoordinates,
                 matlabElectrodeVertexIds,
                 drivePatternPairs,
                 stlVertexOrder = matlabVertexOrder
