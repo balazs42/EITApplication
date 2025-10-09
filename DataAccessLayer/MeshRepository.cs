@@ -786,6 +786,7 @@ namespace DataAccessLayer
 
             const double CoordinateTolerance = 2e-2;
 
+
             mesh.Metadata.Parameters ??= new Dictionary<string, string>();
             mesh.Metadata.Parameters["matlabJson"] = Path.GetFileName(jsonPath);
             mesh.Metadata.Parameters["electrodeCoordinateTolerance"] = CoordinateTolerance.ToString(CultureInfo.InvariantCulture);
