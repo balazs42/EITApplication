@@ -22,7 +22,8 @@ namespace ServiceLayer
 
         Task<ReconstructionResult?> RunFullReconstructionCycleAsync(double stepSize,
                                                                     double regularizationWeight,
-                                                                    double excitationAmplitude);
+                                                                    double excitationAmplitude,
+                                                                    int iterationCount);
 
         // --- LBM Reconstruction ---
         PotentialDistribution ForwardSolveStepLbm();

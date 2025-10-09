@@ -15,6 +15,7 @@ namespace BusinessLayer
         public ReconstructionFrame Step(double[] measurement, BoundaryCondition boundaryCondition, double gradientStepSize, double redularizationStepSize);
         public void Run(int maxIterationCount, double gradientStepSize, double redularizationStepSize);
         public ReconstructionResult Stop();
+        public ReconstructionResult RunFemIterations(int iterationCount, double gradientStepSize, double redularizationStepSize);
 
         // --- Forward Solve Functions ---
         public PotentialDistribution ForwardSolveStepFem();

@@ -1283,7 +1283,8 @@ namespace ElectricalImpedanceTomography.ViewModels
             BeginReconstructionMetrics();
             var result = _reconstructionService.RunFullReconstructionCycleAsync(StepSize,
                                                                          RegularizationWeight,
-                                                                         ExcitationCurrentAmplitude);
+                                                                         ExcitationCurrentAmplitude,
+                                                                         MaxIterationCount);
             StopElapsedTimer();
 
             return result;
