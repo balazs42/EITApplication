@@ -86,16 +86,48 @@ public partial class MeshingPage : ContentPage
             : (Color.FromArgb("#D4EFE7"), Color.FromArgb("#C2E3DA"));
     }
 
-    private SKColor ColorForValue(double val, double max)
+    private static readonly SKColor LowerHighlight = SKColor.Parse("#1E88E5");
+    private static readonly SKColor NeutralHighlight = SKColor.Parse("#F5F5F5");
+    private static readonly SKColor UpperHighlight = SKColor.Parse("#E53935");
+
+    private SKColor ColorForValue(double val, double min, double max)
     {
-        double range = max - 1;
-        if (range <= 0)
-            return new SKColor(0, 0, 255);
-        double t = (val - 1) / range;
+        const double baseline = 1.0;
+
+        double clampedMin = Math.Min(min, baseline);
+        double clampedMax = Math.Max(max, baseline);
+
+        double lowerRange = baseline - clampedMin;
+        double upperRange = clampedMax - baseline;
+
+        if (lowerRange < 1e-9 && upperRange < 1e-9)
+            return NeutralHighlight;
+
+        if (val <= baseline && lowerRange > 1e-9)
+        {
+            double t = (baseline - val) / lowerRange;
+            t = Math.Clamp(t, 0.0, 1.0);
+            return LerpColor(NeutralHighlight, LowerHighlight, t);
+        }
+
+        if (val >= baseline && upperRange > 1e-9)
+        {
+            double t = (val - baseline) / upperRange;
+            t = Math.Clamp(t, 0.0, 1.0);
+            return LerpColor(NeutralHighlight, UpperHighlight, t);
+        }
+
+        return NeutralHighlight;
+    }
+
+    private static SKColor LerpColor(SKColor from, SKColor to, double t)
+    {
         t = Math.Clamp(t, 0.0, 1.0);
-        byte r = (byte)(255 * t);
-        byte b = (byte)(255 * (1 - t));
-        return new SKColor(r, 0, b);
+        byte r = (byte)Math.Round(from.Red + (to.Red - from.Red) * t);
+        byte g = (byte)Math.Round(from.Green + (to.Green - from.Green) * t);
+        byte b = (byte)Math.Round(from.Blue + (to.Blue - from.Blue) * t);
+        byte a = (byte)Math.Round(from.Alpha + (to.Alpha - from.Alpha) * t);
+        return new SKColor(r, g, b, a);
     }
 
     private static async Task ShrinkViewAsync(VisualElement element)
@@ -130,9 +162,13 @@ public partial class MeshingPage : ContentPage
         var conductiveElements = grid.ElementsTyped
             .Where(el => !el.IsWall && !el.IsElectrode)
             .ToList();
-        double maxConductivity = conductiveElements.Count > 0
-            ? Math.Max(defaultConductivity, conductiveElements.Max(el => el.Conductivity))
-            : defaultConductivity;
+        double maxConductivity = defaultConductivity;
+        double minConductivity = defaultConductivity;
+        if (conductiveElements.Count > 0)
+        {
+            maxConductivity = Math.Max(defaultConductivity, conductiveElements.Max(el => el.Conductivity));
+            minConductivity = Math.Min(defaultConductivity, conductiveElements.Min(el => el.Conductivity));
+        }
 
         for (int y = 0; y < grid.Ny; y++)
         {
@@ -148,7 +184,7 @@ public partial class MeshingPage : ContentPage
                     fill = _lbmWall;
                 else if (Math.Abs(el.Conductivity - defaultConductivity) > 1e-6)
                 {
-                    _lbmGradientFill.Color = ColorForValue(el.Conductivity, maxConductivity);
+                    _lbmGradientFill.Color = ColorForValue(el.Conductivity, minConductivity, maxConductivity);
                     fill = _lbmGradientFill;
                 }
                 else
@@ -183,7 +219,13 @@ public partial class MeshingPage : ContentPage
         _marginY = pad + (availH - usedH) / 2f;
 
         var elements = mesh.ElementsTyped;
-        double max = Math.Max(1.0, elements.Max(el => el.Conductivity));
+        double max = 1.0;
+        double min = 1.0;
+        if (elements.Count > 0)
+        {
+            max = Math.Max(1.0, elements.Max(el => el.Conductivity));
+            min = Math.Min(1.0, elements.Min(el => el.Conductivity));
+        }
 
         using var path = new SKPath();
         foreach (var el in elements)
@@ -193,7 +235,7 @@ public partial class MeshingPage : ContentPage
             var p3 = ToCanvas(el.Vertices[2]);
             path.Reset();
             path.MoveTo(p1); path.LineTo(p2); path.LineTo(p3); path.Close();
-            _femFill.Color = ColorForValue(el.Conductivity, max);
+            _femFill.Color = ColorForValue(el.Conductivity, min, max);
             canvas.DrawPath(path, _femFill);
             canvas.DrawPath(path, _femStroke);
         }

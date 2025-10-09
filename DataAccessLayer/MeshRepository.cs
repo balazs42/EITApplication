@@ -753,7 +753,308 @@ namespace DataAccessLayer
             var potentials = mesh.Vertices.ToDictionary(v => v.GlobalId, v => v.Potential);
             mesh.SetPotentialDistribution(new PotentialDistribution(potentials));
 
+            TryAugmentFemMeshFromMatlabJson(mesh, filePath);
+
             return mesh;
+        }
+
+        private static void TryAugmentFemMeshFromMatlabJson(FEMMesh mesh, string stlFilePath)
+        {
+            if (mesh is null)
+                throw new ArgumentNullException(nameof(mesh));
+
+            string? jsonPath = Path.ChangeExtension(stlFilePath, ".json");
+            if (string.IsNullOrEmpty(jsonPath) || !File.Exists(jsonPath))
+                return;
+
+            MatlabImportDefinition? import;
+            try
+            {
+                var json = File.ReadAllText(jsonPath);
+                import = JsonSerializer.Deserialize<MatlabImportDefinition>(json, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+            }
+            catch
+            {
+                return;
+            }
+
+            if (import == null)
+                return;
+
+            const double CoordinateTolerance = 2e-2;
+
+            mesh.Metadata.Parameters ??= new Dictionary<string, string>();
+            mesh.Metadata.Parameters["matlabJson"] = Path.GetFileName(jsonPath);
+            mesh.Metadata.Parameters["electrodeCoordinateTolerance"] = CoordinateTolerance.ToString(CultureInfo.InvariantCulture);
+
+            if (!string.IsNullOrWhiteSpace(import.ModelType))
+                mesh.Metadata.Parameters["matlabModelType"] = import.ModelType!;
+            if (!string.IsNullOrWhiteSpace(import.EidorsVersion))
+                mesh.Metadata.Parameters["eidorsVersion"] = import.EidorsVersion!;
+
+            if (import.DrivePatternPairs != null && import.DrivePatternPairs.Count > 0)
+            {
+                try
+                {
+                    mesh.Metadata.Parameters["drivePatternPairs"] = JsonSerializer.Serialize(import.DrivePatternPairs);
+                }
+                catch
+                {
+                }
+            }
+
+            if (import.DrivePatternPairAmps != null && import.DrivePatternPairAmps.Count > 0)
+            {
+                try
+                {
+                    mesh.Metadata.Parameters["drivePatternPairAmps"] = JsonSerializer.Serialize(import.DrivePatternPairAmps);
+                }
+                catch
+                {
+                }
+            }
+
+            var vertices = mesh.Vertices;
+            var electrodes = new List<FEMElectrode>();
+            var reassignedElectrodes = new List<int>();
+
+            double meshMinX = vertices.Min(v => v.X);
+            double meshMaxX = vertices.Max(v => v.X);
+            double meshMinY = vertices.Min(v => v.Y);
+            double meshMaxY = vertices.Max(v => v.Y);
+            double meshRangeX = meshMaxX - meshMinX;
+            double meshRangeY = meshMaxY - meshMinY;
+
+            double electrodeMinX = double.PositiveInfinity;
+            double electrodeMaxX = double.NegativeInfinity;
+            double electrodeMinY = double.PositiveInfinity;
+            double electrodeMaxY = double.NegativeInfinity;
+            bool haveElectrodeBounds = false;
+
+            if (import.ElectrodeVertexCoordinates != null && import.ElectrodeVertexCoordinates.Count > 0)
+            {
+                foreach (var coords in import.ElectrodeVertexCoordinates)
+                {
+                    if (coords == null || coords.Length < 2)
+                        continue;
+
+                    double x = coords[0];
+                    double y = coords[1];
+
+                    if (!double.IsFinite(x) || !double.IsFinite(y))
+                        continue;
+
+                    electrodeMinX = Math.Min(electrodeMinX, x);
+                    electrodeMaxX = Math.Max(electrodeMaxX, x);
+                    electrodeMinY = Math.Min(electrodeMinY, y);
+                    electrodeMaxY = Math.Max(electrodeMaxY, y);
+                    haveElectrodeBounds = true;
+                }
+            }
+
+            static double NormalizeCoordinate(double value, double min, double max)
+            {
+                double range = max - min;
+                if (range <= 1e-12)
+                    return 0.5;
+                double normalized = (value - min) / range;
+                return Math.Clamp(normalized, 0.0, 1.0);
+            }
+
+            foreach (var vertex in vertices)
+            {
+                vertex.IsElectrode = false;
+                vertex.ElectrodeId = -1;
+            }
+
+            if (import.ElectrodeVertexCoordinates != null && import.ElectrodeVertexCoordinates.Count > 0)
+            {
+                for (int i = 0; i < import.ElectrodeVertexCoordinates.Count; i++)
+                {
+                    var coords = import.ElectrodeVertexCoordinates[i];
+                    if (coords == null || coords.Length < 2)
+                        continue;
+
+                    double targetX = coords[0];
+                    double targetY = coords[1];
+
+                    if (haveElectrodeBounds)
+                    {
+                        double normalizedX = NormalizeCoordinate(targetX, electrodeMinX, electrodeMaxX);
+                        double normalizedY = NormalizeCoordinate(targetY, electrodeMinY, electrodeMaxY);
+
+                        double scaleX = meshRangeX <= 1e-12 ? 0.0 : meshRangeX;
+                        double scaleY = meshRangeY <= 1e-12 ? 0.0 : meshRangeY;
+
+                        targetX = meshMinX + normalizedX * scaleX;
+                        targetY = meshMinY + normalizedY * scaleY;
+                    }
+
+                    var vertex = FindNearestVertex(
+                        vertices,
+                        targetX,
+                        targetY,
+                        CoordinateTolerance,
+                        out bool withinTolerance,
+                        v => v.IsBoundary);
+                    if (vertex == null)
+                        continue;
+
+                    if (!withinTolerance)
+                        reassignedElectrodes.Add(i);
+
+                    var electrode = new FEMElectrode(i, vertex.GlobalId, 0.0,
+                        GetListValue(import.ElectrodeZContact, i, 0.0), 0.0,
+                        pointElectrode: true)
+                    {
+                        IsMeasuring = true
+                    };
+
+                    electrode.FEMVertexIds.Add(vertex.GlobalId);
+
+                    vertex.IsElectrode = true;
+                    vertex.ElectrodeId = electrode.Id;
+
+                    electrodes.Add(electrode);
+                }
+
+                if (electrodes.Count > 0)
+                    mesh.SetElectrodes(electrodes);
+            }
+
+            if (reassignedElectrodes.Count > 0)
+            {
+                mesh.Metadata.Parameters["electrodeReassignmentIndices"] = string.Join(",", reassignedElectrodes);
+            }
+
+            if (import.DrivePatternPairs != null && import.DrivePatternPairs.Count > 0 && electrodes.Count > 0)
+            {
+                var firstPair = import.DrivePatternPairs[0];
+                if (firstPair != null && firstPair.Length >= 2)
+                {
+                    int excitationId = firstPair[0];
+                    int groundId = firstPair[1];
+
+                    var firstAmps = import.DrivePatternPairAmps != null && import.DrivePatternPairAmps.Count > 0
+                        ? import.DrivePatternPairAmps[0]
+                        : null;
+
+                    if (excitationId >= 0 && excitationId < electrodes.Count)
+                    {
+                        var excitation = electrodes[excitationId];
+                        excitation.IsExcitation = true;
+                        excitation.IsMeasuring = false;
+                        excitation.Current = firstAmps != null && firstAmps.Length > 0 ? firstAmps[0] : excitation.Current;
+                    }
+
+                    if (groundId >= 0 && groundId < electrodes.Count)
+                    {
+                        var ground = electrodes[groundId];
+                        ground.IsGround = true;
+                        ground.IsMeasuring = false;
+                        ground.Current = firstAmps != null && firstAmps.Length > 1 ? firstAmps[1] : ground.Current;
+                    }
+                }
+            }
+
+            if (import.InhomogenousPhantomElemData != null && import.InhomogenousPhantomElemData.Count > 0)
+            {
+                var conductivity = new Dictionary<int, double>(mesh.ElementsTyped.Count);
+                for (int i = 0; i < mesh.ElementsTyped.Count; i++)
+                {
+                    double sigma = GetListValue(import.InhomogenousPhantomElemData, i, 1.0);
+                    var element = mesh.ElementsTyped[i];
+                    element.Conductivity = sigma;
+                    conductivity[element.Id] = sigma;
+                }
+
+                if (conductivity.Count == mesh.ElementsTyped.Count)
+                {
+                    mesh.SetConductivityDistribution(new ConductivityDistribution(conductivity));
+                }
+            }
+        }
+
+        private static FEMVertex? FindNearestVertex(
+            IReadOnlyList<FEMVertex> vertices,
+            double x,
+            double y,
+            double tolerance,
+            out bool withinTolerance,
+            Func<FEMVertex, bool>? predicate = null)
+        {
+            static (FEMVertex? Vertex, double DistanceSquared) FindNearest(
+                IReadOnlyList<FEMVertex> source,
+                double targetX,
+                double targetY,
+                Func<FEMVertex, bool>? filter)
+            {
+                FEMVertex? candidate = null;
+                double best = double.MaxValue;
+
+                foreach (var vertex in source)
+                {
+                    if (filter != null && !filter(vertex))
+                        continue;
+
+                    double dx = vertex.X - targetX;
+                    double dy = vertex.Y - targetY;
+                    double distance = dx * dx + dy * dy;
+
+                    if (distance < best)
+                    {
+                        best = distance;
+                        candidate = vertex;
+                    }
+                }
+
+                return (candidate, best);
+            }
+
+            var (best, bestDistance) = FindNearest(vertices, x, y, predicate);
+
+            if (best == null && predicate != null)
+            {
+                (best, bestDistance) = FindNearest(vertices, x, y, null);
+            }
+
+            if (best == null)
+            {
+                withinTolerance = false;
+                return null;
+            }
+
+            if (tolerance <= 0.0)
+            {
+                withinTolerance = true;
+                return best;
+            }
+
+            withinTolerance = bestDistance <= tolerance * tolerance;
+
+            return best;
+        }
+
+        private static double GetListValue(IReadOnlyList<double>? values, int index, double fallback)
+        {
+            if (values == null || index < 0 || index >= values.Count)
+                return fallback;
+            return values[index];
+        }
+
+        private sealed class MatlabImportDefinition
+        {
+            public string? StlPath { get; set; }
+            public string? ModelType { get; set; }
+            public string? EidorsVersion { get; set; }
+            public List<double[]>? ElectrodeVertexCoordinates { get; set; }
+            public List<double>? ElectrodeZContact { get; set; }
+            public List<int[]>? DrivePatternPairs { get; set; }
+            public List<double[]>? DrivePatternPairAmps { get; set; }
+            public List<double>? InhomogenousPhantomElemData { get; set; }
         }
 
         private static FEMMesh LoadFemMeshFromAsciiStl(string filePath)
@@ -871,6 +1172,8 @@ namespace DataAccessLayer
                 });
             }
 
+            MarkBoundaryVertices(femVertices, triangles);
+
             var femElements = new List<FEMElement>(triangles.Count);
             for (int i = 0; i < triangles.Count; i++)
             {
@@ -887,6 +1190,89 @@ namespace DataAccessLayer
 
             var mesh = new FEMMesh(femVertices, femElements);
             return mesh;
+        }
+
+        private static void MarkBoundaryVertices(
+            List<FEMVertex> vertices,
+            List<(int A, int B, int C)> triangles)
+        {
+            if (vertices.Count == 0 || triangles.Count == 0)
+                return;
+
+            var edgeUses = new Dictionary<(int Min, int Max), BoundaryEdgeInfo>();
+
+            void RegisterEdge(int from, int to)
+            {
+                var key = from < to ? (from, to) : (to, from);
+                if (!edgeUses.TryGetValue(key, out var info))
+                {
+                    info = new BoundaryEdgeInfo();
+                    edgeUses[key] = info;
+                }
+
+                info.Count++;
+                if (info.Count == 1)
+                {
+                    info.Orientation = (from, to);
+                }
+            }
+
+            foreach (var (a, b, c) in triangles)
+            {
+                RegisterEdge(a, b);
+                RegisterEdge(b, c);
+                RegisterEdge(c, a);
+            }
+
+            var boundaryVertexIndices = new HashSet<int>();
+
+            foreach (var kvp in edgeUses)
+            {
+                var info = kvp.Value;
+                if (info.Count == 1)
+                {
+                    boundaryVertexIndices.Add(info.Orientation.From);
+                    boundaryVertexIndices.Add(info.Orientation.To);
+                }
+            }
+
+            if (boundaryVertexIndices.Count == 0)
+                return;
+
+            foreach (int idx in boundaryVertexIndices)
+            {
+                if (idx >= 0 && idx < vertices.Count)
+                {
+                    var vertex = vertices[idx];
+                    vertex.IsBoundary = true;
+                }
+            }
+
+            var boundaryVertices = boundaryVertexIndices
+                .Where(i => i >= 0 && i < vertices.Count)
+                .Select(i => vertices[i])
+                .ToList();
+
+            if (boundaryVertices.Count == 0)
+                return;
+
+            double cx = boundaryVertices.Average(v => v.X);
+            double cy = boundaryVertices.Average(v => v.Y);
+
+            var ordered = boundaryVertices
+                .OrderBy(v => Math.Atan2(v.Y - cy, v.X - cx))
+                .ToList();
+
+            for (int i = 0; i < ordered.Count; i++)
+            {
+                ordered[i].BoundaryId = i + 1;
+            }
+        }
+
+        private sealed class BoundaryEdgeInfo
+        {
+            public int Count { get; set; }
+            public (int From, int To) Orientation { get; set; }
         }
 
         private static bool IsAsciiStl(Stream stream)
