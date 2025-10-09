@@ -753,7 +753,213 @@ namespace DataAccessLayer
             var potentials = mesh.Vertices.ToDictionary(v => v.GlobalId, v => v.Potential);
             mesh.SetPotentialDistribution(new PotentialDistribution(potentials));
 
+            TryAugmentFemMeshFromMatlabJson(mesh, filePath);
+
             return mesh;
+        }
+
+        private static void TryAugmentFemMeshFromMatlabJson(FEMMesh mesh, string stlFilePath)
+        {
+            if (mesh is null)
+                throw new ArgumentNullException(nameof(mesh));
+
+            string? jsonPath = Path.ChangeExtension(stlFilePath, ".json");
+            if (string.IsNullOrEmpty(jsonPath) || !File.Exists(jsonPath))
+                return;
+
+            MatlabImportDefinition? import;
+            try
+            {
+                var json = File.ReadAllText(jsonPath);
+                import = JsonSerializer.Deserialize<MatlabImportDefinition>(json, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+            }
+            catch
+            {
+                return;
+            }
+
+            if (import == null)
+                return;
+
+            const double CoordinateTolerance = 5e-3;
+
+            mesh.Metadata.Parameters ??= new Dictionary<string, string>();
+            mesh.Metadata.Parameters["matlabJson"] = Path.GetFileName(jsonPath);
+            mesh.Metadata.Parameters["electrodeCoordinateTolerance"] = CoordinateTolerance.ToString(CultureInfo.InvariantCulture);
+
+            if (!string.IsNullOrWhiteSpace(import.ModelType))
+                mesh.Metadata.Parameters["matlabModelType"] = import.ModelType!;
+            if (!string.IsNullOrWhiteSpace(import.EidorsVersion))
+                mesh.Metadata.Parameters["eidorsVersion"] = import.EidorsVersion!;
+
+            if (import.DrivePatternPairs != null && import.DrivePatternPairs.Count > 0)
+            {
+                try
+                {
+                    mesh.Metadata.Parameters["drivePatternPairs"] = JsonSerializer.Serialize(import.DrivePatternPairs);
+                }
+                catch
+                {
+                }
+            }
+
+            if (import.DrivePatternPairAmps != null && import.DrivePatternPairAmps.Count > 0)
+            {
+                try
+                {
+                    mesh.Metadata.Parameters["drivePatternPairAmps"] = JsonSerializer.Serialize(import.DrivePatternPairAmps);
+                }
+                catch
+                {
+                }
+            }
+
+            var vertices = mesh.Vertices;
+            var electrodes = new List<FEMElectrode>();
+            var reassignedElectrodes = new List<int>();
+
+            if (import.ElectrodeVertexCoordinates != null && import.ElectrodeVertexCoordinates.Count > 0)
+            {
+                for (int i = 0; i < import.ElectrodeVertexCoordinates.Count; i++)
+                {
+                    var coords = import.ElectrodeVertexCoordinates[i];
+                    if (coords == null || coords.Length < 2)
+                        continue;
+
+                    var vertex = FindNearestVertex(vertices, coords[0], coords[1], CoordinateTolerance, out bool withinTolerance);
+                    if (vertex == null)
+                        continue;
+
+                    if (!withinTolerance)
+                        reassignedElectrodes.Add(i);
+
+                    var electrode = new FEMElectrode(i, vertex.GlobalId, 0.0,
+                        GetListValue(import.ElectrodeZContact, i, 0.0), 0.0,
+                        pointElectrode: true)
+                    {
+                        IsMeasuring = true
+                    };
+
+                    electrode.FEMVertexIds.Add(vertex.GlobalId);
+
+                    vertex.IsElectrode = true;
+                    vertex.ElectrodeId = electrode.Id;
+
+                    electrodes.Add(electrode);
+                }
+
+                if (electrodes.Count > 0)
+                    mesh.SetElectrodes(electrodes);
+            }
+
+            if (reassignedElectrodes.Count > 0)
+            {
+                mesh.Metadata.Parameters["electrodeReassignmentIndices"] = string.Join(",", reassignedElectrodes);
+            }
+
+            if (import.DrivePatternPairs != null && import.DrivePatternPairs.Count > 0 && electrodes.Count > 0)
+            {
+                var firstPair = import.DrivePatternPairs[0];
+                if (firstPair != null && firstPair.Length >= 2)
+                {
+                    int excitationId = firstPair[0];
+                    int groundId = firstPair[1];
+
+                    var firstAmps = import.DrivePatternPairAmps != null && import.DrivePatternPairAmps.Count > 0
+                        ? import.DrivePatternPairAmps[0]
+                        : null;
+
+                    if (excitationId >= 0 && excitationId < electrodes.Count)
+                    {
+                        var excitation = electrodes[excitationId];
+                        excitation.IsExcitation = true;
+                        excitation.IsMeasuring = false;
+                        excitation.Current = firstAmps != null && firstAmps.Length > 0 ? firstAmps[0] : excitation.Current;
+                    }
+
+                    if (groundId >= 0 && groundId < electrodes.Count)
+                    {
+                        var ground = electrodes[groundId];
+                        ground.IsGround = true;
+                        ground.IsMeasuring = false;
+                        ground.Current = firstAmps != null && firstAmps.Length > 1 ? firstAmps[1] : ground.Current;
+                    }
+                }
+            }
+
+            if (import.InhomogenousPhantomElemData != null && import.InhomogenousPhantomElemData.Count > 0)
+            {
+                var conductivity = new Dictionary<int, double>(mesh.ElementsTyped.Count);
+                for (int i = 0; i < mesh.ElementsTyped.Count; i++)
+                {
+                    double sigma = GetListValue(import.InhomogenousPhantomElemData, i, 1.0);
+                    var element = mesh.ElementsTyped[i];
+                    element.Conductivity = sigma;
+                    conductivity[element.Id] = sigma;
+                }
+
+                if (conductivity.Count == mesh.ElementsTyped.Count)
+                {
+                    mesh.SetConductivityDistribution(new ConductivityDistribution(conductivity));
+                }
+            }
+        }
+
+        private static FEMVertex? FindNearestVertex(IReadOnlyList<FEMVertex> vertices, double x, double y, double tolerance, out bool withinTolerance)
+        {
+            FEMVertex? best = null;
+            double bestDistance = double.MaxValue;
+
+            foreach (var vertex in vertices)
+            {
+                double dx = vertex.X - x;
+                double dy = vertex.Y - y;
+                double distance = dx * dx + dy * dy;
+
+                if (distance < bestDistance)
+                {
+                    bestDistance = distance;
+                    best = vertex;
+                }
+            }
+
+            if (best == null)
+            {
+                withinTolerance = false;
+                return null;
+            }
+
+            if (tolerance <= 0.0)
+            {
+                withinTolerance = true;
+                return best;
+            }
+
+            withinTolerance = bestDistance <= tolerance * tolerance;
+
+            return best;
+        }
+
+        private static double GetListValue(IReadOnlyList<double>? values, int index, double fallback)
+        {
+            if (values == null || index < 0 || index >= values.Count)
+                return fallback;
+            return values[index];
+        }
+
+        private sealed class MatlabImportDefinition
+        {
+            public string? StlPath { get; set; }
+            public string? ModelType { get; set; }
+            public string? EidorsVersion { get; set; }
+            public List<double[]>? ElectrodeVertexCoordinates { get; set; }
+            public List<double>? ElectrodeZContact { get; set; }
+            public List<int[]>? DrivePatternPairs { get; set; }
+            public List<double[]>? DrivePatternPairAmps { get; set; }
+            public List<double>? InhomogenousPhantomElemData { get; set; }
         }
 
         private static FEMMesh LoadFemMeshFromAsciiStl(string filePath)
