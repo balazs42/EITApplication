@@ -431,12 +431,6 @@ namespace ServiceLayer
         {
             if (_discretization is FEMMesh femMesh)
             {
-                if (_useOmpParallelization)
-                {
-                    var result = RunFemIterationsWithOmp(1);
-                    return result?.Frames.LastOrDefault();
-                }
-
                 EnsureSimulatedMeasurements();
 
                 // Select the measurement frame corresponding to the current
@@ -468,6 +462,8 @@ namespace ServiceLayer
                                                           [.. _currentCycleFrames]);
                     Workspace.AddReconstructionResultToWorkspace(result);
                     ReconstructionUpdated?.Invoke(this, result);
+                    _initialSigma = result.ReconstructedConductivityDistribution;
+                    _reconstructionPersistence.SetConductivityDistributions(_originalSigma!, _initialSigma!);
                     _currentCycleFrames.Clear();
                     _currentIteration++;
                 }
@@ -568,9 +564,6 @@ namespace ServiceLayer
             {
                 if (_discretization is FEMMesh femMesh)
                 {
-                    if (_useOmpParallelization)
-                        return RunFemIterationsWithOmp(1);
-
                     EnsureSimulatedMeasurements();
 
                     var electrodes = femMesh.GetElectrodes().Cast<FEMElectrode>().ToList();
@@ -620,6 +613,7 @@ namespace ServiceLayer
                     Workspace.AddReconstructionResultToWorkspace(result);
                     ReconstructionUpdated?.Invoke(this, result);
                     _currentCycleFrames.Clear();
+                    _currentIteration++;
                     return result;
                 }
                 else if (_discretization is LBMGrid lbmGrid)
@@ -670,44 +664,6 @@ namespace ServiceLayer
 
                 return null;
             });
-        }
-
-        private ReconstructionResult? RunFemIterationsWithOmp(int iterationCount)
-        {
-            if (iterationCount <= 0)
-                return null;
-
-            _reconstructionPersistence.Run(iterationCount, _stepSize, _regularizationWeight);
-            var result = _reconstructionPersistence.Stop();
-
-            if (result.Frames.Count == 0)
-            {
-                _currentIteration += iterationCount;
-                return result;
-            }
-
-            foreach (var frame in result.Frames)
-            {
-                Workspace.AddReconstructionFrameToWorkspace(frame);
-                ReconstructionFrameUpdated?.Invoke(this, frame);
-            }
-
-            Workspace.AddReconstructionResultToWorkspace(result);
-            ReconstructionUpdated?.Invoke(this, result);
-
-            if (_originalSigma != null)
-            {
-                _initialSigma = result.ReconstructedConductivityDistribution;
-                _reconstructionPersistence.SetConductivityDistributions(_originalSigma, _initialSigma);
-            }
-
-            _discretization?.SetConductivityDistribution(result.ReconstructedConductivityDistribution);
-
-            _currentCycleFrames.Clear();
-            _simMeasurementIndex = 0;
-            _currentIteration += iterationCount;
-
-            return result;
         }
 
         #endregion
