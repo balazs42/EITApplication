@@ -41,6 +41,7 @@ namespace ServiceLayer
         private DrivePattern _drivePattern = DrivePattern.Adjecent;
         private IDrivePatternStrategy _drivePatternStrategy = DrivePatternStrategyProvider.GetStrategy(DrivePattern.Adjecent);
         private readonly Random _noiseRandom = new();
+        private bool _useOmpParallelization;
 
         public event EventHandler<ReconstructionResult>? ReconstructionUpdated;
         public event EventHandler<ReconstructionFrame>? ReconstructionFrameUpdated;
@@ -169,6 +170,7 @@ namespace ServiceLayer
 
                 _drivePattern = parameters.DrivePattern;
                 _drivePatternStrategy = DrivePatternStrategyProvider.GetStrategy(_drivePattern);
+                _useOmpParallelization = parameters.UseOmpParallelization;
 
                 var electrodeCount = discretization.GetElectrodes().Count;
                 _framesPerCycle = electrodeCount > 0 ? Math.Max(1, _drivePatternStrategy.GetCycleLength(electrodeCount)) : 1;
@@ -429,6 +431,12 @@ namespace ServiceLayer
         {
             if (_discretization is FEMMesh femMesh)
             {
+                if (_useOmpParallelization)
+                {
+                    var result = RunFemIterationsWithOmp(1);
+                    return result?.Frames.LastOrDefault();
+                }
+
                 EnsureSimulatedMeasurements();
 
                 // Select the measurement frame corresponding to the current
@@ -560,6 +568,9 @@ namespace ServiceLayer
             {
                 if (_discretization is FEMMesh femMesh)
                 {
+                    if (_useOmpParallelization)
+                        return RunFemIterationsWithOmp(1);
+
                     EnsureSimulatedMeasurements();
 
                     var electrodes = femMesh.GetElectrodes().Cast<FEMElectrode>().ToList();
@@ -659,6 +670,44 @@ namespace ServiceLayer
 
                 return null;
             });
+        }
+
+        private ReconstructionResult? RunFemIterationsWithOmp(int iterationCount)
+        {
+            if (iterationCount <= 0)
+                return null;
+
+            _reconstructionPersistence.Run(iterationCount, _stepSize, _regularizationWeight);
+            var result = _reconstructionPersistence.Stop();
+
+            if (result.Frames.Count == 0)
+            {
+                _currentIteration += iterationCount;
+                return result;
+            }
+
+            foreach (var frame in result.Frames)
+            {
+                Workspace.AddReconstructionFrameToWorkspace(frame);
+                ReconstructionFrameUpdated?.Invoke(this, frame);
+            }
+
+            Workspace.AddReconstructionResultToWorkspace(result);
+            ReconstructionUpdated?.Invoke(this, result);
+
+            if (_originalSigma != null)
+            {
+                _initialSigma = result.ReconstructedConductivityDistribution;
+                _reconstructionPersistence.SetConductivityDistributions(_originalSigma, _initialSigma);
+            }
+
+            _discretization?.SetConductivityDistribution(result.ReconstructedConductivityDistribution);
+
+            _currentCycleFrames.Clear();
+            _simMeasurementIndex = 0;
+            _currentIteration += iterationCount;
+
+            return result;
         }
 
         #endregion
