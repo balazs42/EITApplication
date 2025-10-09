@@ -784,7 +784,8 @@ namespace DataAccessLayer
             if (import == null)
                 return;
 
-            const double CoordinateTolerance = 5e-3;
+            const double CoordinateTolerance = 2e-2;
+
 
             mesh.Metadata.Parameters ??= new Dictionary<string, string>();
             mesh.Metadata.Parameters["matlabJson"] = Path.GetFileName(jsonPath);
@@ -821,6 +822,55 @@ namespace DataAccessLayer
             var electrodes = new List<FEMElectrode>();
             var reassignedElectrodes = new List<int>();
 
+            double meshMinX = vertices.Min(v => v.X);
+            double meshMaxX = vertices.Max(v => v.X);
+            double meshMinY = vertices.Min(v => v.Y);
+            double meshMaxY = vertices.Max(v => v.Y);
+            double meshRangeX = meshMaxX - meshMinX;
+            double meshRangeY = meshMaxY - meshMinY;
+
+            double electrodeMinX = double.PositiveInfinity;
+            double electrodeMaxX = double.NegativeInfinity;
+            double electrodeMinY = double.PositiveInfinity;
+            double electrodeMaxY = double.NegativeInfinity;
+            bool haveElectrodeBounds = false;
+
+            if (import.ElectrodeVertexCoordinates != null && import.ElectrodeVertexCoordinates.Count > 0)
+            {
+                foreach (var coords in import.ElectrodeVertexCoordinates)
+                {
+                    if (coords == null || coords.Length < 2)
+                        continue;
+
+                    double x = coords[0];
+                    double y = coords[1];
+
+                    if (!double.IsFinite(x) || !double.IsFinite(y))
+                        continue;
+
+                    electrodeMinX = Math.Min(electrodeMinX, x);
+                    electrodeMaxX = Math.Max(electrodeMaxX, x);
+                    electrodeMinY = Math.Min(electrodeMinY, y);
+                    electrodeMaxY = Math.Max(electrodeMaxY, y);
+                    haveElectrodeBounds = true;
+                }
+            }
+
+            static double NormalizeCoordinate(double value, double min, double max)
+            {
+                double range = max - min;
+                if (range <= 1e-12)
+                    return 0.5;
+                double normalized = (value - min) / range;
+                return Math.Clamp(normalized, 0.0, 1.0);
+            }
+
+            foreach (var vertex in vertices)
+            {
+                vertex.IsElectrode = false;
+                vertex.ElectrodeId = -1;
+            }
+
             if (import.ElectrodeVertexCoordinates != null && import.ElectrodeVertexCoordinates.Count > 0)
             {
                 for (int i = 0; i < import.ElectrodeVertexCoordinates.Count; i++)
@@ -829,7 +879,28 @@ namespace DataAccessLayer
                     if (coords == null || coords.Length < 2)
                         continue;
 
-                    var vertex = FindNearestVertex(vertices, coords[0], coords[1], CoordinateTolerance, out bool withinTolerance);
+                    double targetX = coords[0];
+                    double targetY = coords[1];
+
+                    if (haveElectrodeBounds)
+                    {
+                        double normalizedX = NormalizeCoordinate(targetX, electrodeMinX, electrodeMaxX);
+                        double normalizedY = NormalizeCoordinate(targetY, electrodeMinY, electrodeMaxY);
+
+                        double scaleX = meshRangeX <= 1e-12 ? 0.0 : meshRangeX;
+                        double scaleY = meshRangeY <= 1e-12 ? 0.0 : meshRangeY;
+
+                        targetX = meshMinX + normalizedX * scaleX;
+                        targetY = meshMinY + normalizedY * scaleY;
+                    }
+
+                    var vertex = FindNearestVertex(
+                        vertices,
+                        targetX,
+                        targetY,
+                        CoordinateTolerance,
+                        out bool withinTolerance,
+                        v => v.IsBoundary);
                     if (vertex == null)
                         continue;
 
@@ -908,22 +979,47 @@ namespace DataAccessLayer
             }
         }
 
-        private static FEMVertex? FindNearestVertex(IReadOnlyList<FEMVertex> vertices, double x, double y, double tolerance, out bool withinTolerance)
+        private static FEMVertex? FindNearestVertex(
+            IReadOnlyList<FEMVertex> vertices,
+            double x,
+            double y,
+            double tolerance,
+            out bool withinTolerance,
+            Func<FEMVertex, bool>? predicate = null)
         {
-            FEMVertex? best = null;
-            double bestDistance = double.MaxValue;
-
-            foreach (var vertex in vertices)
+            static (FEMVertex? Vertex, double DistanceSquared) FindNearest(
+                IReadOnlyList<FEMVertex> source,
+                double targetX,
+                double targetY,
+                Func<FEMVertex, bool>? filter)
             {
-                double dx = vertex.X - x;
-                double dy = vertex.Y - y;
-                double distance = dx * dx + dy * dy;
+                FEMVertex? candidate = null;
+                double best = double.MaxValue;
 
-                if (distance < bestDistance)
+                foreach (var vertex in source)
                 {
-                    bestDistance = distance;
-                    best = vertex;
+                    if (filter != null && !filter(vertex))
+                        continue;
+
+                    double dx = vertex.X - targetX;
+                    double dy = vertex.Y - targetY;
+                    double distance = dx * dx + dy * dy;
+
+                    if (distance < best)
+                    {
+                        best = distance;
+                        candidate = vertex;
+                    }
                 }
+
+                return (candidate, best);
+            }
+
+            var (best, bestDistance) = FindNearest(vertices, x, y, predicate);
+
+            if (best == null && predicate != null)
+            {
+                (best, bestDistance) = FindNearest(vertices, x, y, null);
             }
 
             if (best == null)
@@ -1077,6 +1173,8 @@ namespace DataAccessLayer
                 });
             }
 
+            MarkBoundaryVertices(femVertices, triangles);
+
             var femElements = new List<FEMElement>(triangles.Count);
             for (int i = 0; i < triangles.Count; i++)
             {
@@ -1093,6 +1191,89 @@ namespace DataAccessLayer
 
             var mesh = new FEMMesh(femVertices, femElements);
             return mesh;
+        }
+
+        private static void MarkBoundaryVertices(
+            List<FEMVertex> vertices,
+            List<(int A, int B, int C)> triangles)
+        {
+            if (vertices.Count == 0 || triangles.Count == 0)
+                return;
+
+            var edgeUses = new Dictionary<(int Min, int Max), BoundaryEdgeInfo>();
+
+            void RegisterEdge(int from, int to)
+            {
+                var key = from < to ? (from, to) : (to, from);
+                if (!edgeUses.TryGetValue(key, out var info))
+                {
+                    info = new BoundaryEdgeInfo();
+                    edgeUses[key] = info;
+                }
+
+                info.Count++;
+                if (info.Count == 1)
+                {
+                    info.Orientation = (from, to);
+                }
+            }
+
+            foreach (var (a, b, c) in triangles)
+            {
+                RegisterEdge(a, b);
+                RegisterEdge(b, c);
+                RegisterEdge(c, a);
+            }
+
+            var boundaryVertexIndices = new HashSet<int>();
+
+            foreach (var kvp in edgeUses)
+            {
+                var info = kvp.Value;
+                if (info.Count == 1)
+                {
+                    boundaryVertexIndices.Add(info.Orientation.From);
+                    boundaryVertexIndices.Add(info.Orientation.To);
+                }
+            }
+
+            if (boundaryVertexIndices.Count == 0)
+                return;
+
+            foreach (int idx in boundaryVertexIndices)
+            {
+                if (idx >= 0 && idx < vertices.Count)
+                {
+                    var vertex = vertices[idx];
+                    vertex.IsBoundary = true;
+                }
+            }
+
+            var boundaryVertices = boundaryVertexIndices
+                .Where(i => i >= 0 && i < vertices.Count)
+                .Select(i => vertices[i])
+                .ToList();
+
+            if (boundaryVertices.Count == 0)
+                return;
+
+            double cx = boundaryVertices.Average(v => v.X);
+            double cy = boundaryVertices.Average(v => v.Y);
+
+            var ordered = boundaryVertices
+                .OrderBy(v => Math.Atan2(v.Y - cy, v.X - cx))
+                .ToList();
+
+            for (int i = 0; i < ordered.Count; i++)
+            {
+                ordered[i].BoundaryId = i + 1;
+            }
+        }
+
+        private sealed class BoundaryEdgeInfo
+        {
+            public int Count { get; set; }
+            public (int From, int To) Orientation { get; set; }
         }
 
         private static bool IsAsciiStl(Stream stream)
