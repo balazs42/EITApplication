@@ -412,92 +412,6 @@ namespace BusinessLayer
             return new ReconstructionFrame(dataGrad, phi, mu, regularization);
         }
 
-        private (Dictionary<int, double> Gradient, ReconstructionFrame[] Frames) ComputeFemInverseStepsOmp(
-            FEMMesh mesh,
-            IReadOnlyList<double[]> measurementFrames,
-            int electrodeCount)
-        {
-            if (measurementFrames == null)
-                throw new ArgumentNullException(nameof(measurementFrames));
-            if (measurementFrames.Count == 0)
-                throw new ArgumentException("Measurement frame list cannot be empty.", nameof(measurementFrames));
-            if (_regularizer == null)
-                throw new InvalidOperationException("Regularizer must be initialised before running parallel FEM inverse steps.");
-
-            var elementList = mesh.GetElements().Cast<FEMElement>().ToList();
-            var gradientAccumulator = elementList.ToDictionary(el => el.Id, _ => 0.0);
-            var frames = new ReconstructionFrame[electrodeCount];
-
-            Parallel.For(0, electrodeCount, exc =>
-            {
-                var localMesh = (FEMMesh)mesh.DeepCopy();
-                var localElectrodes = localMesh.GetElectrodes().Cast<FEMElectrode>().ToList();
-
-                foreach (var el in localElectrodes)
-                {
-                    el.Current = 0.0;
-                    el.IsExcitation = false;
-                    el.IsGround = false;
-                    el.IsMeasuring = true;
-                    el.Potential = 0.0;
-                }
-
-                int localExcitationIndex = exc % localElectrodes.Count;
-                int localGroundIndex = (exc + 1) % localElectrodes.Count;
-                localElectrodes[localExcitationIndex].IsExcitation = true;
-                localElectrodes[localExcitationIndex].IsMeasuring = false;
-                localElectrodes[localExcitationIndex].Current = 1.0;
-                localElectrodes[localGroundIndex].IsGround = true;
-                localElectrodes[localGroundIndex].IsMeasuring = false;
-                localElectrodes[localGroundIndex].Current = -1.0;
-
-                var localBc = new FEMBoundaryCondition(localElectrodes);
-                var localSolver = new FiniteElementDESolver(localMesh, CreateNumericSolverInstance(), _useOmpParallelization);
-                var localErrorMetric = CreateErrorMetricInstance();
-
-                int measurementIndex = exc % measurementFrames.Count;
-                var frame = ComputeFemInverseStep(localMesh,
-                                                  localBc,
-                                                  measurementFrames[measurementIndex],
-                                                  1.0,
-                                                  localSolver,
-                                                  localErrorMetric,
-                                                  _regularizer,
-                                                  updateWorkspace: false);
-
-                frames[exc] = frame;
-            });
-
-            foreach (var frame in frames)
-            {
-                if (frame == null)
-                    continue;
-
-                foreach (var kvp in frame.ConductivityGradient.Conductivities)
-                    gradientAccumulator[kvp.Key] += kvp.Value;
-            }
-
-            return (gradientAccumulator, frames);
-        }
-
-        private INumericSolver CreateNumericSolverInstance() => _numericSolverChoice switch
-        {
-            NumericSolver.LU => new LuDecompositionSolver(),
-            NumericSolver.SVD => new SVDSolver(),
-            NumericSolver.tSVD => new tSVDSolver(),
-            NumericSolver.GMRES => new GmresSolver(),
-            _ => throw new NotSupportedException($"Numeric solver {_numericSolverChoice} is not supported for parallel execution.")
-        };
-
-        private IErrorMetric CreateErrorMetricInstance() => _errorMetricChoice switch
-        {
-            ErrorMetric.L2 => new L2ErrorMetric(),
-            ErrorMetric.Wasserstein2 => new Wasserstein2ErrorMetric(),
-            ErrorMetric.ConductivityAwareW2 => new ConductivityAwareW2Metric(),
-            ErrorMetric.EnergyBasedWasserstein2 => new EnergyBasedWasserstein2Metric(),
-            _ => throw new NotSupportedException($"Error metric {_errorMetricChoice} is not supported for parallel execution.")
-        };
-
         public ReconstructionFrame InverseSolveStepLbmCuda(LBMGrid mesh, LBMBoundaryCondition bc, double[] currentMeasurement)
         {
             bool previous = _useCudaParallelization;
@@ -564,61 +478,50 @@ namespace BusinessLayer
             // --- Iterative reconstruction loop -----------------------------------------
             for (int iter = 0; iter < maxIterationCount && !_stopRequested; iter++)
             {
-                Dictionary<int, double> totalGrad;
+                // Initialise an accumulator for the gradient contributions of
+                // all electrode pairs.
+                var totalGrad = elements.ToDictionary(el => el.Id, _ => 0.0);
 
-                if (_useOmpParallelization)
+                for (int exc = 0; exc < electrodeCount; exc++)
                 {
-                    var (parallelGradient, parallelFrames) = ComputeFemInverseStepsOmp(mesh, measurementFrames, electrodeCount);
-                    totalGrad = parallelGradient;
-                    frames.AddRange(parallelFrames);
-                }
-                else
-                {
-                    // Initialise an accumulator for the gradient contributions of
-                    // all electrode pairs.
-                    totalGrad = elements.ToDictionary(el => el.Id, _ => 0.0);
-
-                    for (int exc = 0; exc < electrodeCount; exc++)
+                    // Reset electrode roles before applying a new excitation
+                    // pattern.  The excitation amplitude is set to unity for
+                    // simplicity; the measurement data already includes this
+                    // amplitude.
+                    foreach (var el in electrodes)
                     {
-                        // Reset electrode roles before applying a new excitation
-                        // pattern.  The excitation amplitude is set to unity for
-                        // simplicity; the measurement data already includes this
-                        // amplitude.
-                        foreach (var el in electrodes)
-                        {
-                            el.Current = 0.0;
-                            el.IsExcitation = false;
-                            el.IsGround = false;
-                            el.IsMeasuring = true;
-                            el.Potential = 0.0;
-                        }
-
-                        electrodes[exc % electrodeCount].IsExcitation = true;
-                        electrodes[exc % electrodeCount].IsMeasuring = false;
-                        electrodes[exc % electrodeCount].Current = 1.0;
-                        electrodes[(exc + 1) % electrodeCount].IsGround = true;
-                        electrodes[(exc + 1) % electrodeCount].IsMeasuring = false;
-                        electrodes[(exc + 1) % electrodeCount].Current = -1.0;
-
-                        // Boundary condition reflecting the just configured
-                        // electrode setup.
-                        var bc = new FEMBoundaryCondition(electrodes);
-                        Workspace.SetCurrentGlobalFemBoundaryCondition(bc);
-
-                        // Measurement corresponding to this excitation pattern.
-                        double[] dObs = measurementFrames[exc];
-
-                        // Perform forward/adjoint solve and obtain the gradient
-                        // contribution for this electrode pair.  The gradient step
-                        // size is set to unity so the returned gradient represents
-                        // ∇J_data without any scaling.
-                        var frame = InverseSolveStepFem(mesh, bc, dObs, 1.0);
-
-                        frames.Add(frame);
-
-                        foreach (var kvp in frame.ConductivityGradient.Conductivities)
-                            totalGrad[kvp.Key] += kvp.Value;
+                        el.Current = 0.0;
+                        el.IsExcitation = false;
+                        el.IsGround = false;
+                        el.IsMeasuring = true;
+                        el.Potential = 0.0;
                     }
+
+                    electrodes[exc % electrodeCount].IsExcitation = true;
+                    electrodes[exc % electrodeCount].IsMeasuring = false;
+                    electrodes[exc % electrodeCount].Current = 1.0;
+                    electrodes[(exc + 1) % electrodeCount].IsGround = true;
+                    electrodes[(exc + 1) % electrodeCount].IsMeasuring = false;
+                    electrodes[(exc + 1) % electrodeCount].Current = -1.0;
+
+                    // Boundary condition reflecting the just configured
+                    // electrode setup.
+                    var bc = new FEMBoundaryCondition(electrodes);
+                    Workspace.SetCurrentGlobalFemBoundaryCondition(bc);
+
+                    // Measurement corresponding to this excitation pattern.
+                    double[] dObs = measurementFrames[exc];
+
+                    // Perform forward/adjoint solve and obtain the gradient
+                    // contribution for this electrode pair.  The gradient step
+                    // size is set to unity so the returned gradient represents
+                    // ∇J_data without any scaling.
+                    var frame = InverseSolveStepFem(mesh, bc, dObs, 1.0);
+
+                    frames.Add(frame);
+
+                    foreach (var kvp in frame.ConductivityGradient.Conductivities)
+                        totalGrad[kvp.Key] += kvp.Value;
                 }
 
                 // Add regularisation gradient to the accumulated data
