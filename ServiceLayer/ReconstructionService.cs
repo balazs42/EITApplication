@@ -345,17 +345,15 @@ namespace ServiceLayer
             excitation.IsExcitation = true;
             excitation.IsMeasuring = false;
 
-            if (electrodes[0] is FEMElectrode)
-                excitation.Current = excitationAmplitude;
-            else excitation.Current = excitationAmplitude + 3.0;
+            // Always use the requested excitation amplitude without applying any
+            // additional offsets so that the solver receives the exact drive pattern.
+            excitation.Current = excitationAmplitude;
 
             var ground = electrodes[groundIndex];
             ground.IsGround = true;
             ground.IsMeasuring = false;
 
-            if (electrodes[0] is FEMElectrode)            
-                ground.Current = -excitationAmplitude;
-            else ground.Current = (-excitationAmplitude + 3.0);
+            ground.Current = -excitationAmplitude;
         }
 
         private void EnsureSimulatedMeasurements()
