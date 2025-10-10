@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using ILGPU;
 using ILGPU.Runtime;
@@ -28,10 +30,10 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         private static readonly object _cudaKernelLock = new(); // Thread-safe kernel compilation
         
         // Pre-compiled CUDA kernels for LBM operations
-        private static Action<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>>? _initializeKernel;
+        private static Action<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>>? _initializeKernel;
         private static Action<Index1D, ArrayView<double>, ArrayView<int>, ArrayView<double>, double, double, ArrayView<double>>? _collisionKernel;
         private static Action<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>>? _streamKernel;
-        private static Action<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>>? _updateKernel;
+        private static Action<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<double>>? _updateKernel;
         private static Action<Index1D, ArrayView<double>, ArrayView<double>>? _phiKernel;
 
         /// <summary>
@@ -169,50 +171,51 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
             var bcElectrodes = bc.GetElectrodes().ToList();
 
+            // Build index lookup for fast access during boundary adjustments
+            var elementIndexLookup = elements
+                .Select((element, idx) => new { element.Id, Index = idx })
+                .ToDictionary(entry => entry.Id, entry => entry.Index);
+
+            // Load material properties into elements before applying boundary conditions
+            var sigmaDist = lbmGrid.GetConductivityDistribution();
+            foreach (var el in elements)
+            {
+                if (el.IsWall)
+                {
+                    el.Conductivity = 0.0;
+                    continue;
+                }
+
+                el.Conductivity = SanitizeConductivity(sigmaDist.GetConductivity(el.Id));
+            }
+
             // PHASE 1: Initialize distribution functions with boundary conditions
             foreach (var el in elements)
             {
                 bool isWall = el.IsWall;
 
-                // Initialize all 9 distribution functions
                 for (int k = 0; k < 9; k++)
                 {
-                    el.Fi_next[k] = 0.0;                         // Clear temporary storage
-                    el.Fi[k] = isWall ? 0.0 : weights[k];        // Equilibrium with φ=1 for fluid
+                    el.Fi_next[k] = 0.0;
+                    el.Fi[k] = isWall ? 0.0 : weights[k];
                 }
 
-                // Skip further processing for wall cells
                 if (isWall)
                     continue;
 
-                // Apply electrode boundary conditions
-                if(el.IsElectrode)
+                if (el.IsElectrode)
                 {
                     var correspondingElectrode = electrodes.Find(x => x.GridId == el.Id);
 
                     if (correspondingElectrode != null)
                     {
-                        // Neumann boundary condition: prescribed current (excitation/ground electrodes)
-                        if(correspondingElectrode.IsExcitation || correspondingElectrode.IsGround)
+                        if (correspondingElectrode.IsExcitation || correspondingElectrode.IsGround)
                         {
-                            // Set distribution functions proportional to current
                             double current = correspondingElectrode.Current;
                             for (int i = 0; i < 9; i++)
                                 el.Fi[i] = weights[i] * current;
-
-                            // Implement bounce-back for directions hitting walls
-                            var neighbors = el.Neighbors;
-                            for (int i = 0; i < 9; i++)
-                            {
-                                if (neighbors[i].IsWall)
-                                {
-                                    // Bounce particle back to opposite direction
-                                    el.Fi[opposite[i]] += el.Fi[i];
-                                    el.Fi[i] = 0.0;
-                                }
-                            }
                         }
-                        else // Dirichlet boundary condition: prescribed potential
+                        else
                         {
                             correspondingElectrode.Potential = bcElectrodes[correspondingElectrode.Id].Potential;
                             for (int i = 0; i < 9; i++)
@@ -222,21 +225,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 }
             }
 
-            // PHASE 2: Load material properties into elements
-            var sigmaDist = lbmGrid.GetConductivityDistribution();
-            foreach (var el in elements)
-            {
-                if (el.IsWall)
-                {
-                    el.Conductivity = 0.0; // Walls have zero conductivity
-                    continue;
-                }
-
-                // Load and validate conductivity from distribution
-                el.Conductivity = SanitizeConductivity(sigmaDist.GetConductivity(el.Id));
-            }
-
-            // PHASE 3: Mark electrode cells for boundary condition enforcement
+            // PHASE 2: Mark electrode cells for boundary condition enforcement
             foreach (var electrode in bcElectrodes)
             {
                 var cell = elements.First(e => e.Id == electrode.GridId);
@@ -244,9 +233,11 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     cell.IsElectrode = true;
             }
 
-            // PHASE 4: Main LBM time-stepping loop
-            double[] prevPhi = new double[elements.Count()]; // Previous iteration for convergence check
-            
+            // PHASE 3: Main LBM time-stepping loop
+            int elementCount = elements.Count;
+            double[] prevPhi = new double[elementCount];
+            double[] phiStreamed = new double[elementCount];
+
             for (int t = 0; t < maxIter; t++)
             {
                 // STEP 4a: BGK Collision - relax distributions toward local equilibrium
@@ -295,9 +286,20 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     }
                 }
 
-                // STEP 4c: Update distributions and enforce boundary conditions
-                foreach (var el in elements)
+                // Capture streamed potential field for boundary calculations
+                for (int idx = 0; idx < elementCount; idx++)
                 {
+                    double phi = 0.0;
+                    var el = elements[idx];
+                    for (int k = 0; k < 9; k++)
+                        phi += el.Fi_next[k];
+                    phiStreamed[idx] = phi;
+                }
+
+                // STEP 4c: Update distributions and enforce boundary conditions
+                for (int idx = 0; idx < elementCount; idx++)
+                {
+                    var el = elements[idx];
                     if (el.IsWall)
                         continue;
 
@@ -312,24 +314,14 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     if (el.IsElectrode)
                     {
                         var electrode = electrodes.Find(x => x.GridId == el.Id) ?? throw new ArgumentNullException("Cannot find electrode with specified id!");
-                        
+
                         if(electrode.IsExcitation || electrode.IsGround)
                         {
-                            // Neumann: reset distributions to current value
                             double current = electrode.Current;
                             for (int i = 0; i < 9; i++)
                                 el.Fi[i] = weights[i] * current;
 
-                            // Apply bounce-back for wall neighbors
-                            var neighbors = el.Neighbors;
-                            for(int i = 0; i < 9; i++)
-                            {
-                                if (neighbors[i].IsWall)
-                                {
-                                    el.Fi[opposite[i]] += el.Fi[i];
-                                    el.Fi[i] = 0.0;
-                                }
-                            }
+                            ApplyNeumannBoundaryCondition(el, electrode, phiStreamed, elementIndexLookup, opposite);
                         }
                         else
                         {
@@ -372,6 +364,64 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             var pd = new PotentialDistribution(dict);
             lbmGrid.SetPotentialDistribution(pd); // Update mesh with solution
             return pd;
+        }
+
+        private static int FindOutwardNormalDirection(LBMElement element, int[] opposite)
+        {
+            int outwardDirection = -1;
+
+            for (int dir = 1; dir < 9; dir++)
+            {
+                var neighbor = element.Neighbors[dir];
+                bool neighborIsWall = neighbor == null || neighbor.IsWall;
+                if (!neighborIsWall)
+                    continue;
+
+                int inward = opposite[dir];
+                var interiorNeighbor = element.Neighbors[inward];
+                if (interiorNeighbor == null || interiorNeighbor.IsWall)
+                    continue;
+
+                if (outwardDirection < 0 || (dir < 5 && outwardDirection >= 5))
+                    outwardDirection = dir;
+            }
+
+            return outwardDirection;
+        }
+
+        private static void ApplyNeumannBoundaryCondition(
+            LBMElement element,
+            LBMElectrode electrode,
+            IReadOnlyList<double> phiStreamed,
+            IReadOnlyDictionary<int, int> elementIndexLookup,
+            int[] opposite)
+        {
+            if (!elementIndexLookup.TryGetValue(element.Id, out int elementIndex))
+                return;
+
+            int outwardDirection = FindOutwardNormalDirection(element, opposite);
+            if (outwardDirection < 0)
+                return;
+
+            int inwardDirection = opposite[outwardDirection];
+            var interiorNeighbor = element.Neighbors[inwardDirection];
+            if (interiorNeighbor == null || interiorNeighbor.IsWall)
+                return;
+
+            if (!elementIndexLookup.TryGetValue(interiorNeighbor.Id, out int interiorIndex))
+                return;
+
+            double phiBoundary = phiStreamed[elementIndex];
+            double phiInterior = phiStreamed[interiorIndex];
+            double deltaFi = element.Conductivity * (phiInterior - phiBoundary);
+
+            double current = electrode.Current;
+            element.Fi[inwardDirection] += current;
+
+            if (electrode.IsGround)
+                element.Fi[outwardDirection] += deltaFi;
+            else
+                element.Fi[outwardDirection] -= deltaFi;
         }
 
         /// <summary>
@@ -421,6 +471,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             // Prepare host arrays for GPU transfer
             var isElectrodeHost = new int[elementCount];        // Electrode identification flags
             var electrodeIsSourceHost = new int[elementCount];   // Source (Neumann) vs sink (Dirichlet) flags
+            var electrodeIsGroundHost = new int[elementCount];   // Ground electrode flags for Neumann BCs
             var electrodeCurrentHost = new double[elementCount]; // Current values for source electrodes
             var electrodePotentialHost = new double[elementCount]; // Potential values for sink electrodes
             var conductivityHost = new double[elementCount];     // Material conductivity per element
@@ -443,17 +494,20 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 double electrodeCurrent = 0.0;
                 double electrodePotential = 0.0;
                 int isSource = 0; // 0=Dirichlet (potential), 1=Neumann (current)
+                int isGround = 0;
 
                 // Check if element is an electrode in the main grid
                 if (electrodeByGridId.TryGetValue(element.Id, out var electrode))
                 {
                     isElectrode = true;
                     electrodeCurrent = electrode.Current;
-                    
+
                     // Determine boundary condition type
                     if (electrode.IsExcitation || electrode.IsGround)
                     {
                         isSource = 1; // Neumann boundary condition
+                        if (electrode.IsGround)
+                            isGround = 1;
                     }
                     else
                     {
@@ -477,6 +531,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 element.IsElectrode = isElectrode;
                 isElectrodeHost[idx] = isElectrode ? 1 : 0;
                 electrodeIsSourceHost[idx] = isSource;
+                electrodeIsGroundHost[idx] = isGround;
                 electrodeCurrentHost[idx] = electrodeCurrent;
                 electrodePotentialHost[idx] = electrodePotential;
             }
@@ -497,6 +552,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             using var isWallBuffer = accelerator.Allocate1D<int>(elementCount);          // Wall identification
             using var isElectrodeBuffer = accelerator.Allocate1D<int>(elementCount);     // Electrode identification
             using var electrodeIsSourceBuffer = accelerator.Allocate1D<int>(elementCount); // Boundary type flags
+            using var electrodeIsGroundBuffer = accelerator.Allocate1D<int>(elementCount); // Ground electrode flags
             using var electrodeCurrentBuffer = accelerator.Allocate1D<double>(elementCount); // Current values
             using var electrodePotentialBuffer = accelerator.Allocate1D<double>(elementCount); // Potential values
             using var neighborIndexBuffer = accelerator.Allocate1D<int>(elementCount * 9);     // Neighbor connectivity
@@ -507,6 +563,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             isWallBuffer.CopyFromCPU(isWallHost);
             isElectrodeBuffer.CopyFromCPU(isElectrodeHost);
             electrodeIsSourceBuffer.CopyFromCPU(electrodeIsSourceHost);
+            electrodeIsGroundBuffer.CopyFromCPU(electrodeIsGroundHost);
             electrodeCurrentBuffer.CopyFromCPU(electrodeCurrentHost);
             electrodePotentialBuffer.CopyFromCPU(electrodePotentialHost);
             conductivityBuffer.CopyFromCPU(conductivityHost);
@@ -523,6 +580,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 isWallBuffer.View,                       // Wall identification
                 isElectrodeBuffer.View,                  // Electrode identification
                 electrodeIsSourceBuffer.View,            // Boundary condition types
+                electrodeIsGroundBuffer.View,            // Ground flags for Neumann BCs
                 electrodeCurrentBuffer.View,             // Current values for Neumann BCs
                 electrodePotentialBuffer.View,           // Potential values for Dirichlet BCs
                 neighborIsWallBuffer.View,               // Neighbor wall flags for bounce-back
@@ -559,6 +617,9 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     neighborIsWallBuffer.View,                   // Neighbor wall flags
                     LatticeBoltzmannCudaContext.OppositeView);   // Opposite directions for bounce-back
 
+                // Compute streamed potentials for boundary adjustments
+                _phiKernel(elementCount, fiNextBuffer.View, phiBuffer.View);
+
                 // Execute update kernel: copy streamed values and enforce boundary conditions
                 _updateKernel(elementCount,                       // Number of elements to process
                     fiBuffer.View,                               // Distribution functions (output)
@@ -566,9 +627,13 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     isWallBuffer.View,                           // Wall identification
                     isElectrodeBuffer.View,                      // Electrode identification
                     electrodeIsSourceBuffer.View,                // Boundary condition types
+                    electrodeIsGroundBuffer.View,                // Ground identification
                     electrodeCurrentBuffer.View,                 // Current values for Neumann BCs
                     electrodePotentialBuffer.View,               // Potential values for Dirichlet BCs
                     neighborIsWallBuffer.View,                   // Neighbor wall flags
+                    neighborIndexBuffer.View,                    // Neighbor connectivity
+                    conductivityBuffer.View,                     // Material conductivity
+                    phiBuffer.View,                              // Streamed potentials
                     LatticeBoltzmannCudaContext.OppositeView,    // Opposite directions
                     LatticeBoltzmannCudaContext.WeightsView);    // D2Q9 equilibrium weights
 
@@ -661,10 +726,10 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 
                 // Compile and cache all LBM kernels with automatic optimization
                 // ILGPU handles thread block sizing and register allocation automatically
-                _initializeKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>>(InitializeKernel);
+                _initializeKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>>(InitializeKernel);
                 _collisionKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<int>, ArrayView<double>, double, double, ArrayView<double>>(CollisionKernel);
                 _streamKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>>(StreamingKernel);
-                _updateKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>>(UpdateKernel);
+                _updateKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<double>>(UpdateKernel);
                 _phiKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<double>>(PhiKernel);
             }
         }
@@ -680,6 +745,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         /// <param name="isWall">Input: wall flags [elementCount]</param>
         /// <param name="isElectrode">Input: electrode flags [elementCount]</param>
         /// <param name="electrodeIsSource">Input: boundary type flags [elementCount]</param>
+        /// <param name="electrodeIsGround">Input: ground electrode flags [elementCount]</param>
         /// <param name="electrodeCurrent">Input: current values [elementCount]</param>
         /// <param name="electrodePotential">Input: potential values [elementCount]</param>
         /// <param name="neighborIsWall">Input: neighbor wall flags [elementCount * 9]</param>
@@ -692,6 +758,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             ArrayView<int> isWall,                  // Wall identification per element
             ArrayView<int> isElectrode,             // Electrode identification per element
             ArrayView<int> electrodeIsSource,       // Boundary condition type per element
+            ArrayView<int> electrodeIsGround,       // Ground electrode identification per element
             ArrayView<double> electrodeCurrent,     // Current values for Neumann BCs
             ArrayView<double> electrodePotential,   // Potential values for Dirichlet BCs
             ArrayView<int> neighborIsWall,          // Wall flags for each neighbor
@@ -872,9 +939,13 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         /// <param name="isWall">Input: wall flags [elementCount]</param>
         /// <param name="isElectrode">Input: electrode flags [elementCount]</param>
         /// <param name="electrodeIsSource">Input: boundary type flags [elementCount]</param>
+        /// <param name="electrodeIsGround">Input: ground electrode flags [elementCount]</param>
         /// <param name="electrodeCurrent">Input: current values [elementCount]</param>
         /// <param name="electrodePotential">Input: potential values [elementCount]</param>
         /// <param name="neighborIsWall">Input: neighbor wall flags [elementCount * 9]</param>
+        /// <param name="neighborIndices">Input: neighbor indices [elementCount * 9]</param>
+        /// <param name="conductivity">Input: conductivity values [elementCount]</param>
+        /// <param name="phiStreamed">Input: streamed potentials [elementCount]</param>
         /// <param name="opposite">Input: opposite direction mapping [9]</param>
         /// <param name="weights">Input: D2Q9 equilibrium weights [9]</param>
         private static void UpdateKernel(
@@ -884,9 +955,13 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             ArrayView<int> isWall,              // Wall identification per element
             ArrayView<int> isElectrode,         // Electrode identification per element
             ArrayView<int> electrodeIsSource,   // Boundary condition type per element
+            ArrayView<int> electrodeIsGround,   // Ground electrode identification per element
             ArrayView<double> electrodeCurrent, // Current values for Neumann BCs
             ArrayView<double> electrodePotential, // Potential values for Dirichlet BCs
             ArrayView<int> neighborIsWall,      // Neighbor wall flags
+            ArrayView<int> neighborIndices,     // Neighbor connectivity
+            ArrayView<double> conductivity,     // Conductivity per element
+            ArrayView<double> phiStreamed,      // Streamed potential field
             ArrayView<int> opposite,            // Opposite direction mapping
             ArrayView<double> weights)          // D2Q9 equilibrium weights
         {
@@ -913,23 +988,40 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             {
                 // Neumann boundary condition: prescribed current
                 double current = electrodeCurrent[index];
-                
-                // Reset distribution functions to current value
+
                 for (int k = 0; k < 9; k++)
+                    fi[baseIndex + k] = weights[k] * current;
+
+                int outwardDirection = -1;
+                for (int dir = 1; dir < 9; dir++)
                 {
-                    double value = weights[k] * current;
-                    fi[baseIndex + k] = value;
+                    if (neighborIsWall[baseIndex + dir] != 1)
+                        continue;
+
+                    int inward = opposite[dir];
+                    if (neighborIsWall[baseIndex + inward] == 1)
+                        continue;
+
+                    if (outwardDirection < 0 || (dir < 5 && outwardDirection >= 5))
+                        outwardDirection = dir;
                 }
 
-                // Apply bounce-back for directions pointing into walls
-                for (int k = 0; k < 9; k++)
+                if (outwardDirection >= 0)
                 {
-                    if (neighborIsWall[baseIndex + k] == 1)
+                    int inwardDirection = opposite[outwardDirection];
+                    int interiorIndex = neighborIndices[baseIndex + inwardDirection];
+                    if (interiorIndex >= 0)
                     {
-                        int opp = opposite[k];              // Get opposite direction
-                        double value = fi[baseIndex + k];   // Get distribution value
-                        fi[baseIndex + opp] += value;       // Add to opposite direction
-                        fi[baseIndex + k] = 0.0;           // Remove from original direction
+                        double phiBoundary = phiStreamed[index];
+                        double phiInterior = phiStreamed[interiorIndex];
+                        double deltaFi = conductivity[index] * (phiInterior - phiBoundary);
+
+                        fi[baseIndex + inwardDirection] += current;
+
+                        if (electrodeIsGround[index] == 1)
+                            fi[baseIndex + outwardDirection] += deltaFi;
+                        else
+                            fi[baseIndex + outwardDirection] -= deltaFi;
                     }
                 }
             }
