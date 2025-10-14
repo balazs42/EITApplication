@@ -110,6 +110,16 @@ namespace Utility.Classes.ReconstructionParameters
         /// corresponding support coordinates.  The masses are shifted to be
         /// nonnegative, normalized to unit sum, and the primal LP is solved.
         /// </summary>
+        private static double Sanitize(double value) => double.IsFinite(value) ? value : 0.0;
+
+        private static void SanitizeInPlace(double[] values)
+        {
+            for (int i = 0; i < values.Length; i++)
+            {
+                values[i] = Sanitize(values[i]);
+            }
+        }
+
         public static OTResult w2_misfit_and_grad(double[] mPred, double[] dObs,
             (double x, double y)[] x, (double x, double y)[] y)
         {
@@ -182,7 +192,7 @@ namespace Utility.Classes.ReconstructionParameters
                 for (int j = 0; j < n; j++)
                     P[i, j] = plan[i, j].SolutionValue();
 
-            double cost = 0.5 * obj.Value();
+            double cost = Sanitize(0.5 * obj.Value());
 
             // Dual potentials from row/column constraints
             double[] phi = new double[m];
@@ -199,7 +209,10 @@ namespace Utility.Classes.ReconstructionParameters
 
             // Chain rule back to raw (unnormalized) masses
             double[] gradRaw = new double[m];
-            for (int i = 0; i < m; i++) gradRaw[i] = grad[i] / sumA;
+            for (int i = 0; i < m; i++)
+            {
+                gradRaw[i] = Sanitize(grad[i] / sumA);
+            }
 
             return new OTResult(cost, gradRaw, P, phi, psi);
         }
@@ -251,7 +264,11 @@ namespace Utility.Classes.ReconstructionParameters
             var res = w2_misfit_and_grad(aRaw, bRaw, aLoc, bLoc);
             var gradFull = new double[all.Count];
             foreach (var (srcIdx, electrodeIdx) in aMap)
-                gradFull[electrodeIdx] = res.Grad[srcIdx];
+            {
+                gradFull[electrodeIdx] = Sanitize(res.Grad[srcIdx]);
+            }
+
+            SanitizeInPlace(gradFull);
 
             return new OptimalTransportResult(measured, simulated, res.Cost, gradFull);
         }

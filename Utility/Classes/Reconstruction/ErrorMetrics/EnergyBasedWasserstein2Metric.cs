@@ -30,6 +30,14 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         /// Small numerical tolerance to avoid division by zero and handle degenerate cases
         /// </summary>
         private const double Tiny = 1e-12;
+
+        private static double Sanitize(double value) => double.IsFinite(value) ? value : 0.0;
+
+        private static void SanitizeInPlace(double[] values)
+        {
+            for (int i = 0; i < values.Length; i++)
+                values[i] = Sanitize(values[i]);
+        }
         
         /// <summary>
         /// Cache for the last computation to avoid redundant calculations when 
@@ -147,11 +155,12 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             // min_{P} sum_{i,j} cost[i,j] * P[i,j]
             // subject to: sum_j P[i,j] = mu[i], sum_i P[i,j] = nu[j], P[i,j] >= 0
             var transport = SolveOptimalTransport(cost, mu.Values, nu.Values);
-            double loss = transport.Objective;
+            double loss = Sanitize(transport.Objective);
 
             // === ADJOINT SOURCE COMPUTATION ===
             // Extract Kantorovich potential (dual variable alpha) from transport solution
             var sourcePotential = (double[])transport.Alpha.Clone();
+            SanitizeInPlace(sourcePotential);
             
             // Compute weighted mean of potential (needed for gauge fixing)
             double weightedMean = 0.0;
@@ -162,7 +171,9 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             double invMass = 1.0 / mu.TotalMass;
             var sourceGradient = new double[sourcePotential.Length];
             for (int i = 0; i < sourceGradient.Length; i++)
-                sourceGradient[i] = (sourcePotential[i] - weightedMean) * invMass;
+                sourceGradient[i] = Sanitize((sourcePotential[i] - weightedMean) * invMass);
+
+            SanitizeInPlace(sourceGradient);
 
             // Map back to full electrode array (including NaN entries)
             var adjointFull = new double[measured.Length];
@@ -489,7 +500,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
 
                 // === ELEMENT STIFFNESS ASSEMBLY ===
                 // Sum contributions from all finite elements
-                // Each element contributes: sigma * area * grad_phi_i · grad_phi_j
+                // Each element contributes: sigma * area * grad_phi_i  grad_phi_j
                 foreach (var element in mesh.ElementsTyped.Cast<FEMElement>())
                 {
                     double sigma = element.Conductivity;  // Local conductivity
