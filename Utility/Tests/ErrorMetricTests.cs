@@ -77,6 +77,25 @@ namespace Utility.Tests
         }
 
         [Fact]
+        public void Wasserstein2_FEM_Allows_More_Boundary_Vertices_Than_Electrodes()
+        {
+            var mesh = MeshFactory.CreateCircularFEMMesh(layers: 2, boundaryFEMVertexCount: 64, electrodeCount: 16);
+
+            var electrodes = mesh.GetElectrodes();
+            Assert.Equal(16, electrodes.Count);
+
+            var meas = new double[electrodes.Count];
+            var sim = new double[electrodes.Count];
+            meas[0] = 1.0;
+            sim[1] = 1.0;
+
+            var metric = new Wasserstein2ErrorMetric();
+            double value = metric.Evaluate(mesh, meas, sim);
+
+            Assert.True(value >= 0.0);
+        }
+
+        [Fact]
         public void ErrorMetricFactory_Returns_ConductivityAwareW2Metric()
         {
             var metric = ErrorMetricFactory.Create(ErrorMetric.ConductivityAwareW2);

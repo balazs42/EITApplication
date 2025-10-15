@@ -42,6 +42,19 @@ namespace Utility.Tests
         }
 
         [Fact]
+        public void NormalizeIgnoresNonFiniteEntries()
+        {
+            double[] raw = { double.NaN, double.PositiveInfinity, -1.0, 0.0 };
+            double kappa = 4.0;
+            double epsilon = 1e-6;
+
+            var cache = ConductivityAwareW2Metric.Normalize(raw, kappa, epsilon);
+
+            Assert.All(cache.Normalized, v => Assert.True(double.IsFinite(v)));
+            Assert.Equal(1.0, cache.Normalized.Sum(), 8);
+        }
+
+        [Fact]
         public void OptimalTransportPrimalMatchesMarginals()
         {
             double[,] cost =

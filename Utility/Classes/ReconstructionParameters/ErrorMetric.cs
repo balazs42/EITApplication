@@ -120,6 +120,13 @@ namespace Utility.Classes.ReconstructionParameters
             double[] a = (double[])mPred.Clone();
             double[] b = (double[])dObs.Clone();
 
+            for (int i = 0; i < a.Length; i++)
+                if (!double.IsFinite(a[i]))
+                    a[i] = 0.0;
+            for (int j = 0; j < b.Length; j++)
+                if (!double.IsFinite(b[j]))
+                    b[j] = 0.0;
+
             double minA = a.Length > 0 ? a.Min() : 0.0;
             double minB = b.Length > 0 ? b.Min() : 0.0;
             if (minA < 0) for (int i = 0; i < a.Length; i++) a[i] -= minA;
@@ -239,7 +246,7 @@ namespace Utility.Classes.ReconstructionParameters
             // also provide measurements.
             var include = new List<int>();
             for (int i = 0; i < measured.Length; i++)
-                if (!double.IsNaN(measured[i]))
+                if (double.IsFinite(measured[i]))
                     include.Add(i);
 
             var (aRaw, aLoc, aMap) = BuildDistribution(simulated, all, coord, include);
@@ -267,7 +274,7 @@ namespace Utility.Classes.ReconstructionParameters
             foreach (int i in include)
             {
                 double v = raw[i];
-                if (double.IsNaN(v))
+                if (!double.IsFinite(v))
                     continue;
 
                 var e = electrodes[i];

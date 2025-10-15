@@ -342,21 +342,33 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             double[] sigmoid = new double[raw.Length];
             double[] normalized = new double[raw.Length];
 
-            double min = raw[0];
+            double min = double.PositiveInfinity;
             int minIdx = 0;
-            for (int i = 1; i < raw.Length; i++)
+            for (int i = 0; i < raw.Length; i++)
             {
-                if (raw[i] < min)
+                double value = raw[i];
+                if (!double.IsFinite(value))
+                    continue;
+                if (value < min)
                 {
-                    min = raw[i];
+                    min = value;
                     minIdx = i;
                 }
+            }
+
+            if (!double.IsFinite(min))
+            {
+                min = 0.0;
+                minIdx = 0;
             }
 
             double sum = 0.0;
             for (int i = 0; i < raw.Length; i++)
             {
-                double val = raw[i] - min;
+                double rawVal = raw[i];
+                if (!double.IsFinite(rawVal))
+                    rawVal = min;
+                double val = rawVal - min;
                 shifted[i] = val;
                 double kx = kappa * val;
                 double sp = Softplus(kx) / kappa;
