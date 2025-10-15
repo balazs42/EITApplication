@@ -1,6 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using ElectricalImpedanceTomography.Helpers;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Storage;
 using ServiceLayer;
@@ -13,6 +12,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -23,6 +23,8 @@ using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Factories;
 using Utility.Classes.Measurement;
 using Utility.Classes.ReconstructionParameters;
+using Utility.Exports;
+using Utility.Rendering;
 
 using Workspace = Utility.Classes.Application.Workspace;
 using Timer = System.Timers.Timer;
@@ -32,6 +34,7 @@ namespace ElectricalImpedanceTomography.ViewModels
     public partial class ReconstructionPageViewModel : BaseReconstructionPageViewModel
     {
         private readonly IReconstructionService _reconstructionService;
+        private readonly IReconstructionExportService _exportService;
 
         private readonly Stopwatch _reconstructionStopwatch = new();
         private readonly Timer _elapsedTimer;
@@ -193,9 +196,11 @@ namespace ElectricalImpedanceTomography.ViewModels
             UpdateVideoExportPhase();
         }
 
-        public ReconstructionPageViewModel(IReconstructionService reconstructionService)
+        public ReconstructionPageViewModel(IReconstructionService reconstructionService,
+                                           IReconstructionExportService exportService)
         {
             _reconstructionService = reconstructionService;
+            _exportService = exportService;
 
             _elapsedTimer = new Timer(200)
             {
@@ -1148,6 +1153,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             public double MaeImprovement { get; }
         }
 
+
         private readonly struct MeasurementMetrics
         {
             public MeasurementMetrics(double rmse, double mae, double mape, double? misfit)
@@ -1604,6 +1610,24 @@ namespace ElectricalImpedanceTomography.ViewModels
                 return VideoExportResult.CreateFailure("Export Failed", ex.Message);
             }
         }
+
+        public Task<DataExportResult> ExportReconstructionDataAsync(PotentialDisplayMode mode)
+        {
+            string rootDirectory = FileSystem.Current.AppDataDirectory;
+            return _exportService.ExportAsync(rootDirectory, mode);
+        }
+
+        private static DistributionMetrics? ComputeInitialDistributionMetrics(ReconstructionResult snapshot)
+        {
+            var initialResult = new ReconstructionResult(snapshot.OriginalConductivityDistribution,
+                                                         snapshot.InitialConductivitiyDistribution,
+                                                         snapshot.InitialConductivitiyDistribution,
+                                                         snapshot.Frames);
+            return ComputeDistributionMetrics(initialResult, CancellationToken.None);
+        }
+
+        private static ReconstructionFrame GetFrameForResult(ReconstructionResult result, ReconstructionFrame fallback)
+            => result.Frames.LastOrDefault() ?? fallback;
 
         public void BeginVideoExportProgress()
         {

@@ -1,4 +1,4 @@
-namespace ElectricalImpedanceTomography.Helpers;
+namespace Utility.Rendering;
 
 public enum PotentialDisplayMode
 {

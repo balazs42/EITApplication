@@ -10,6 +10,7 @@ namespace ServiceLayer
             return BusinessLayer.Settings.ApplyContainerRegistration()
                 .RegisterType<IDAQService, DAQService>()
                 .RegisterType<IReconstructionService, ReconstructionService>()
+                .RegisterType<IReconstructionExportService, ReconstructionExportService>()
                 .RegisterType<ILogger, WorkspaceLogger>();
         }
     }

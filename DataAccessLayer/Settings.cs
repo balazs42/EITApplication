@@ -9,7 +9,8 @@ namespace DataAccessLayer
             return Utility.Composition.Settings.ApplyContainerRegistration()
                 .RegisterType<IDAQRepository, DAQRepository>()
                 .RegisterType<IMeshRepository, MeshRepository>()
-                .RegisterType<IReconstructionRepository, ReconstructionRepository>();
+                .RegisterType<IReconstructionRepository, ReconstructionRepository>()
+                .RegisterType<IReconstructionExportRepository, ReconstructionExportRepository>();
 
         }
     }
