@@ -1,18 +1,20 @@
 using CommunityToolkit.Maui.Views;
 using ElectricalImpedanceTomography.Extensions;
-using ElectricalImpedanceTomography.Helpers;
 using ElectricalImpedanceTomography.ViewModels;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
 using SkiaSharp.Views.Maui.Controls;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Threading.Tasks;
 using Utility.Classes;
 using Utility.Classes.Measurement;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
+using Utility.Rendering;
 
 using Workspace = Utility.Classes.Application.Workspace;
 
@@ -1359,12 +1361,30 @@ public partial class ReconstructionPage : ContentPage
         return Math.Sqrt(sum);
     }
 
-    private async void OnExportVideoClicked(object sender, EventArgs e)
+    private async void OnExportClicked(object sender, EventArgs e)
     {
         await AnimateButtonAsync(sender);
 
         ExportVideoButton.IsEnabled = false;
 
+        var choice = await this.ShowPopupAsync(new ExportOptionsPopup());
+
+        switch (choice)
+        {
+            case ExportMode.Video:
+                await HandleVideoExportAsync();
+                break;
+            case ExportMode.Csv:
+                await HandleCsvExportAsync();
+                break;
+            default:
+                UpdateExportButtonState();
+                break;
+        }
+    }
+
+    private async Task HandleVideoExportAsync()
+    {
         var popup = new VideoExportProgressPopup(_viewModel,
             PotentialDistributionCanvas.CanvasSize,
             PotentialColorbarCanvas.CanvasSize,
@@ -1387,6 +1407,33 @@ public partial class ReconstructionPage : ContentPage
             string title = failure.ErrorTitle ?? "Export Failed";
             string message = failure.ErrorMessage ?? "Unknown error.";
             await DisplayAlert(title, message, "OK");
+        }
+    }
+
+    private async Task HandleCsvExportAsync()
+    {
+        try
+        {
+            var exportResult = await _viewModel.ExportReconstructionDataAsync(_potMode);
+
+            UpdateExportButtonState();
+
+            if (exportResult.Success)
+            {
+                string message = $"Data saved to:\n{exportResult.DirectoryPath}";
+                await DisplayAlert("Export Complete", message, "OK");
+            }
+            else
+            {
+                string title = exportResult.ErrorTitle ?? "Export Failed";
+                string message = exportResult.ErrorMessage ?? "Unknown error.";
+                await DisplayAlert(title, message, "OK");
+            }
+        }
+        catch (Exception ex)
+        {
+            UpdateExportButtonState();
+            await DisplayAlert("Export Failed", ex.Message, "OK");
         }
     }
 

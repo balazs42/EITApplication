@@ -310,12 +310,12 @@
                         </Picker>
                         <Border Grid.Column="7" Grid.Row="1"  Background="Transparent" Stroke="Transparent">
                             <Button x:Name="ExportVideoButton"
-                                    Text="Export Video"
+                                    Text="Export"
                                     Margin="10"
                                     BackgroundColor="#3A7CA5"
                                     TextColor="White"
                                     FontAttributes="Bold"
-                                    Clicked="OnExportVideoClicked"
+                                    Clicked="OnExportClicked"
                                     IsEnabled="False"/>
                         </Border>
                         <Slider x:Name="PlaybackSlider"

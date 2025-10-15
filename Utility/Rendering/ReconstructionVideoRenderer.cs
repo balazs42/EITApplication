@@ -9,7 +9,7 @@ using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Measurement;
 
-namespace ElectricalImpedanceTomography.Helpers;
+namespace Utility.Rendering;
 
 internal static class ReconstructionVideoRenderer
 {

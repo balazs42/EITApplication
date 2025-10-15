@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<toolkit:Popup
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:toolkit="clr-namespace:CommunityToolkit.Maui.Views;assembly=CommunityToolkit.Maui"
+    x:Class="ElectricalImpedanceTomography.Views.ExportOptionsPopup"
+    CanBeDismissedByTappingOutsideOfPopup="True"
+    Color="Transparent">
+
+    <Border
+        StrokeShape="RoundRectangle 18"
+        StrokeThickness="0"
+        Padding="24"
+        WidthRequest="360"
+        BackgroundColor="{AppThemeBinding Light=#F8FAFC, Dark=#111827}">
+        <Border.Shadow>
+            <Shadow
+                Brush="{AppThemeBinding Light=#1F2937, Dark=#000000}"
+                Radius="20"
+                Opacity="0.25" />
+        </Border.Shadow>
+
+        <VerticalStackLayout Spacing="18">
+            <Label
+                Text="Export Reconstruction"
+                FontSize="20"
+                FontAttributes="Bold"
+                HorizontalOptions="Center"
+                TextColor="{AppThemeBinding Light=#0F172A, Dark=#E2E8F0}" />
+
+            <Label
+                Text="Choose the export format for your reconstruction data."
+                FontSize="14"
+                TextColor="{AppThemeBinding Light=#334155, Dark=#CBD5F5}"
+                LineBreakMode="WordWrap" />
+
+            <VerticalStackLayout Spacing="12">
+                <Button
+                    Text="Export Video"
+                    Clicked="OnExportVideoClicked"
+                    BackgroundColor="{AppThemeBinding Light=#2563EB, Dark=#1D4ED8}"
+                    TextColor="White"
+                    CornerRadius="10"
+                    Padding="18,10"
+                    FontAttributes="Bold" />
+                <Button
+                    Text="Export CSV Bundle"
+                    Clicked="OnExportCsvClicked"
+                    BackgroundColor="{AppThemeBinding Light=#10B981, Dark=#047857}"
+                    TextColor="White"
+                    CornerRadius="10"
+                    Padding="18,10"
+                    FontAttributes="Bold" />
+            </VerticalStackLayout>
+
+            <Button
+                Text="Cancel"
+                Clicked="OnCancelClicked"
+                BackgroundColor="{AppThemeBinding Light=#E2E8F0, Dark=#1F2A3A}"
+                TextColor="{AppThemeBinding Light=#1E293B, Dark=#E2E8F0}"
+                CornerRadius="10"
+                Padding="18,10" />
+        </VerticalStackLayout>
+    </Border>
+</toolkit:Popup>
