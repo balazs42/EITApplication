@@ -68,6 +68,59 @@ namespace Utility.Tests
         }
 
         [Fact]
+        public void OptimalTransportPrimalBalancesFloatingPointMismatch()
+        {
+            double[,] cost =
+            {
+                { 0.0, 1.0, 2.0 },
+                { 1.0, 0.0, 1.0 },
+                { 2.0, 1.0, 0.0 }
+            };
+
+            double[] mu =
+            {
+                0.20000000000000004,
+                0.29999999999999993,
+                0.50000000000000011
+            };
+
+            double[] nu =
+            {
+                0.25,
+                0.35,
+                0.4000000001
+            };
+
+            double muTotal = mu.Sum();
+            double nuTotal = nu.Sum();
+            double expectedMass = 0.5 * (muTotal + nuTotal);
+            var plan = ConductivityAwareW2Metric.SolveOptimalTransportPrimal(cost, mu, nu);
+
+            for (int i = 0; i < mu.Length; i++)
+            {
+                double row = 0.0;
+                for (int j = 0; j < nu.Length; j++)
+                    row += plan[i, j];
+                Assert.Equal(expectedMass * mu[i] / muTotal, row, 9);
+            }
+
+            for (int j = 0; j < nu.Length; j++)
+            {
+                double col = 0.0;
+                for (int i = 0; i < mu.Length; i++)
+                    col += plan[i, j];
+                Assert.Equal(expectedMass * nu[j] / nuTotal, col, 9);
+            }
+
+            double total = 0.0;
+            for (int i = 0; i < mu.Length; i++)
+                for (int j = 0; j < nu.Length; j++)
+                    total += plan[i, j];
+
+            Assert.Equal(expectedMass, total, 12);
+        }
+
+        [Fact]
         public void SoftGeodesicConvergesToShortestPathForSmallTau()
         {
             var mesh = TinyFEM();

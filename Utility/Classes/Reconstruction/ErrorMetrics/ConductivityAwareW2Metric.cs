@@ -559,6 +559,20 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         {
             int m = mu.Length;
             int n = nu.Length;
+
+            if (m == 0 || n == 0)
+            {
+                sourcePotential = Array.Empty<double>();
+                targetPotential = Array.Empty<double>();
+                return new double[m, n];
+            }
+
+            double sumMu = mu.Sum();
+            double sumNu = nu.Sum();
+            double targetMass = 0.5 * (sumMu + sumNu);
+            var balancedMu = BalanceHistogram(mu, sumMu, targetMass);
+            var balancedNu = BalanceHistogram(nu, sumNu, targetMass);
+
             var solver = Solver.CreateSolver("GLOP") ?? throw new InvalidOperationException("OR-Tools GLOP solver unavailable.");
 
             var planVar = new Variable[m, n];
@@ -569,7 +583,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             var row = new Constraint[m];
             for (int i = 0; i < m; i++)
             {
-                row[i] = solver.MakeConstraint(mu[i], mu[i], $"row[{i}]");
+                row[i] = solver.MakeConstraint(balancedMu[i], balancedMu[i], $"row[{i}]");
                 for (int j = 0; j < n; j++)
                     row[i].SetCoefficient(planVar[i, j], 1.0);
             }
@@ -577,7 +591,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             var col = new Constraint[n];
             for (int j = 0; j < n; j++)
             {
-                col[j] = solver.MakeConstraint(nu[j], nu[j], $"col[{j}]");
+                col[j] = solver.MakeConstraint(balancedNu[j], balancedNu[j], $"col[{j}]");
                 for (int i = 0; i < m; i++)
                     col[j].SetCoefficient(planVar[i, j], 1.0);
             }
@@ -605,6 +619,63 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 targetPotential[j] = col[j].DualValue();
 
             return planMatrix;
+        }
+
+        private static double[] BalanceHistogram(double[] values, double originalMass, double targetMass)
+        {
+            if (values == null) throw new ArgumentNullException(nameof(values));
+            int length = values.Length;
+            if (length == 0)
+                return Array.Empty<double>();
+
+            var balanced = (double[])values.Clone();
+            EnsureHistogramMass(balanced, originalMass, targetMass);
+            return balanced;
+        }
+
+        private static void EnsureHistogramMass(double[] histogram, double originalMass, double targetMass)
+        {
+            if (histogram.Length == 0)
+                return;
+
+            double sum = originalMass;
+            if (!(sum > 0.0))
+                throw new InvalidOperationException("Histogram must have positive total mass.");
+
+            double effectiveTarget = targetMass;
+            if (!(effectiveTarget > 0.0))
+                effectiveTarget = sum;
+
+            double scale = effectiveTarget / sum;
+            double accum = 0.0;
+            for (int i = 0; i < histogram.Length; i++)
+            {
+                double scaled = histogram[i] * scale;
+                histogram[i] = scaled;
+                accum += scaled;
+            }
+
+            double correction = effectiveTarget - accum;
+            histogram[^1] += correction;
+
+            if (histogram[^1] < 0.0)
+            {
+                double deficit = -histogram[^1];
+                histogram[^1] = 0.0;
+                for (int i = histogram.Length - 2; i >= 0 && deficit > 0.0; i--)
+                {
+                    double available = Math.Min(histogram[i], deficit);
+                    histogram[i] -= available;
+                    deficit -= available;
+                }
+
+                if (deficit > 1e-12)
+                    throw new InvalidOperationException("Unable to balance histogram without negative entries.");
+
+                double finalSum = histogram.Sum();
+                double finalCorrection = effectiveTarget - finalSum;
+                histogram[^1] += finalCorrection;
+            }
         }
 
         /// <summary>
