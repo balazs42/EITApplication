@@ -2,6 +2,7 @@ using SkiaSharp;
 using System.Globalization;
 using System.Text;
 using Utility.Classes;
+using Utility.Classes.Discretizer;
 using Utility.Classes.Measurement;
 using Utility.Exports;
 using Utility.Rendering;
@@ -23,7 +24,7 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
             var firstSnapshot = snapshots.First();
             var latestSnapshot = snapshots.Last();
 
-            SaveDistributionSnapshot(request.TargetDirectory,
+            ReconstructionVideoRenderer.SaveDistributionSnapshot(request.TargetDirectory,
                                      "original_distribution.png",
                                      request.Discretization,
                                      GetFrameForResult(latestSnapshot.Result, request.RenderFrame),
@@ -45,7 +46,7 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
                 initialMetadata.Add(("RMSE", FormatDouble(initialMetrics.Value.Rmse)));
             }
 
-            SaveDistributionSnapshot(request.TargetDirectory,
+            ReconstructionVideoRenderer.SaveDistributionSnapshot(request.TargetDirectory,
                                      "initial_distribution.png",
                                      request.Discretization,
                                      GetFrameForResult(firstSnapshot.Result, request.RenderFrame),
@@ -62,12 +63,12 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
             {
                 var metrics = latestSnapshot.Metrics.Value;
                 finalMetadata.Add(("MAE", FormatDouble(metrics.Mae)));
-                finalMetadata.Add(("RMSE", FormatDouble(metrics.Rmse)));
+                finalMetadata.Add(($"RMSE", FormatDouble(metrics.Rmse)));
                 finalMetadata.Add(("SSIM", FormatDouble(metrics.Ssim)));
             }
             finalMetadata.Add(("Correlation", FormatDouble(latestSnapshot.Correlation)));
 
-            SaveDistributionSnapshot(request.TargetDirectory,
+            ReconstructionVideoRenderer.SaveDistributionSnapshot(request.TargetDirectory,
                                      "reconstructed_distribution_latest.png",
                                      request.Discretization,
                                      GetFrameForResult(latestSnapshot.Result, request.RenderFrame),
@@ -139,7 +140,7 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
                     ("Correlation", FormatDouble(maeSnapshot.Correlation))
                 };
 
-                SaveDistributionSnapshot(directory,
+                ReconstructionVideoRenderer.SaveDistributionSnapshot(directory,
                                          "best_mae_distribution.png",
                                          discretization,
                                          GetFrameForResult(maeSnapshot.Result, fallbackFrame),
@@ -168,7 +169,7 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
                     ("Correlation", FormatDouble(ssimSnapshot.Correlation))
                 };
 
-                SaveDistributionSnapshot(directory,
+                ReconstructionVideoRenderer.SaveDistributionSnapshot(directory,
                                          "best_ssim_distribution.png",
                                          discretization,
                                          GetFrameForResult(ssimSnapshot.Result, fallbackFrame),
@@ -201,7 +202,7 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
                 metadata.Add(("SSIM", FormatDouble(metrics.Ssim)));
             }
 
-            SaveDistributionSnapshot(directory,
+            ReconstructionVideoRenderer.SaveDistributionSnapshot(directory,
                                      "best_residual_distribution.png",
                                      discretization,
                                      GetFrameForResult(residualSnapshot.Result, fallbackFrame),
@@ -234,7 +235,7 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
                 metadata.Add(("SSIM", FormatDouble(metrics.Ssim)));
             }
 
-            SaveDistributionSnapshot(directory,
+            ReconstructionVideoRenderer.SaveDistributionSnapshot(directory,
                                      "best_correlation_distribution.png",
                                      discretization,
                                      GetFrameForResult(correlationSnapshot.Result, fallbackFrame),

@@ -2,6 +2,7 @@ using DataAccessLayer;
 using Utility.Classes;
 using Utility.Exports;
 using Utility.Rendering;
+using Workspace = Utility.Classes.Application.Workspace;
 
 namespace ServiceLayer;
 

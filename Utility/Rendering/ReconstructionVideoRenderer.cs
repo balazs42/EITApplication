@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.IO;
 using SkiaSharp;
 using Utility.Classes;
 
@@ -11,7 +12,7 @@ using Utility.Classes.Measurement;
 
 namespace Utility.Rendering;
 
-internal static class ReconstructionVideoRenderer
+public static class ReconstructionVideoRenderer
 {
     private static readonly SKColor DistributionCanvasBackgroundColor = SKColor.Parse("#1A2436");
     private static readonly SKColor ChartGradientTopColor = SKColor.Parse("#23354D");
@@ -24,6 +25,13 @@ internal static class ReconstructionVideoRenderer
     private static readonly SKColor ChartPointOutlineColor = SKColor.Parse("#0B1C2F");
     private static readonly SKColor ChartPrimaryTextColor = new SKColor(198, 212, 245);
     private static readonly SKColor ChartSecondaryTextColor = new SKColor(157, 170, 211);
+
+    public enum DistributionSnapshotType
+    {
+        Original,
+        Initial,
+        Reconstructed
+    }
 
     private enum DistributionSection
     {
@@ -103,6 +111,95 @@ internal static class ReconstructionVideoRenderer
 
         resultIndex = results.Count - 1;
         return results.Count > 0 ? results[^1] : null;
+    }
+
+    public static void SaveDistributionSnapshot(
+        string directory,
+        string fileName,
+        IDiscretization discretization,
+        ReconstructionFrame frame,
+        ReconstructionResult? context,
+        DistributionSnapshotType snapshotType,
+        string title,
+        IReadOnlyList<(string Label, string Value)> metadata,
+        PotentialDisplayMode mode)
+    {
+        // Layout constants
+        const int outerMargin = 24;
+        const int spacing = 24;
+        const int rightPanelWidth = 320;
+        const int titleHeight = 40;
+        const int colorbarHeight = 52;
+
+        var contentSize = new SKSizeI(800, 600);
+        var colorbarSize = new SKSizeI(contentSize.Width, colorbarHeight);
+
+        var section = snapshotType switch
+        {
+            DistributionSnapshotType.Original => DistributionSection.Original,
+            DistributionSnapshotType.Initial => DistributionSection.Initial,
+            _ => DistributionSection.Reconstructed
+        };
+
+        using var contentImage = RenderDistributionImage(section, discretization, frame, context, contentSize, mode);
+        using var colorbarImage = RenderColorbarImage(section, discretization, frame, context, colorbarSize, mode);
+
+        int width = outerMargin + contentSize.Width + spacing + rightPanelWidth + outerMargin;
+        int height = outerMargin + titleHeight + spacing + contentSize.Height + spacing + colorbarHeight + outerMargin;
+
+        using var surface = SKSurface.Create(new SKImageInfo(width, height));
+        var canvas = surface.Canvas;
+        canvas.Clear(new SKColor(21, 30, 45));
+
+        // Title
+        using (var titlePaint = new SKPaint
+        {
+            Color = new SKColor(240, 244, 255),
+            TextSize = 28,
+            IsAntialias = true,
+            TextAlign = SKTextAlign.Left,
+            FakeBoldText = true
+        })
+        {
+            canvas.DrawText(title, outerMargin, outerMargin + titlePaint.TextSize, titlePaint);
+        }
+
+        float contentX = outerMargin;
+        float contentY = outerMargin + titleHeight + spacing;
+        canvas.DrawImage(contentImage, new SKRect(contentX, contentY, contentX + contentSize.Width, contentY + contentSize.Height));
+
+        float colorbarY = contentY + contentSize.Height + spacing;
+        canvas.DrawImage(colorbarImage, new SKRect(contentX, colorbarY, contentX + contentSize.Width, colorbarY + colorbarHeight));
+
+        // Right metadata panel
+        var panelX = contentX + contentSize.Width + spacing;
+        var panelY = contentY;
+        var panelRect = new SKRect(panelX, panelY, panelX + rightPanelWidth, colorbarY + colorbarHeight - panelY);
+        using var panelBg = new SKPaint { Color = new SKColor(26, 36, 54), IsAntialias = true };
+        using var panelBorder = new SKPaint { Color = new SKColor(58, 124, 165), Style = SKPaintStyle.Stroke, StrokeWidth = 2, IsAntialias = true };
+        canvas.DrawRoundRect(panelRect, 12, 12, panelBg);
+        canvas.DrawRoundRect(panelRect, 12, 12, panelBorder);
+
+        using var labelPaint = new SKPaint { Color = ChartSecondaryTextColor, TextSize = 20, IsAntialias = true, TextAlign = SKTextAlign.Left };
+        using var valuePaint = new SKPaint { Color = ChartPrimaryTextColor, TextSize = 22, IsAntialias = true, TextAlign = SKTextAlign.Left };
+
+        float textX = panelX + 16;
+        float textY = panelY + 28;
+        float lineGap = 8;
+        foreach (var (Label, Value) in metadata)
+        {
+            canvas.DrawText(Label + ":", textX, textY, labelPaint);
+            textY += labelPaint.TextSize + 2;
+            canvas.DrawText(Value, textX, textY, valuePaint);
+            textY += valuePaint.TextSize + lineGap;
+        }
+
+        // Save PNG
+        string path = Path.Combine(directory, fileName);
+        using var image = surface.Snapshot();
+        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+        using var fs = File.Open(path, FileMode.Create, FileAccess.Write, FileShare.Read);
+        data.SaveTo(fs);
     }
 
     [Obsolete]
@@ -224,7 +321,7 @@ internal static class ReconstructionVideoRenderer
         var residualRect = new SKRect(residualX,
                                       residualY,
                                       residualX + residualWidth,
-                                      residualY + residualChartHeight + residualLabelHeight + residualPadding);
+                                      residualY + residualLabelHeight + residualPadding);
         canvas.DrawRoundRect(residualRect, 12, 12, residualBackgroundPaint);
         canvas.DrawRoundRect(residualRect, 12, 12, residualBorderPaint);
 
@@ -244,7 +341,7 @@ internal static class ReconstructionVideoRenderer
         var residualChartRect = new SKRect(residualX + residualPadding,
                                            residualY + residualLabelHeight,
                                            residualX + residualWidth - residualPadding,
-                                           residualY + residualLabelHeight + residualChartHeight);
+                                           residualY + residualLabelHeight + 0);
 
         DrawResidualTrend(canvas,
                           residualChartRect,

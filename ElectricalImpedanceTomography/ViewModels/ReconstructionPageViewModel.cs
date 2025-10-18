@@ -28,6 +28,7 @@ using Utility.Rendering;
 
 using Workspace = Utility.Classes.Application.Workspace;
 using Timer = System.Timers.Timer;
+using ElectricalImpedanceTomography.Helpers;
 
 namespace ElectricalImpedanceTomography.ViewModels
 {
