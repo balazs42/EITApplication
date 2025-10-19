@@ -42,6 +42,9 @@ public partial class MeshingPage : ContentPage
     private LBMElement? _draggedLbmElectrode;
     private FEMVertex? _draggedFemVertex;
 
+    private bool _isConductivityPainting;
+    private int? _lastPaintedElementId;
+
     private DateTime _lastLbmTapTime = DateTime.MinValue;
     private int? _lastLbmTappedElementId;
     private const int DoubleTapThresholdMs = 400;
@@ -329,6 +332,13 @@ public partial class MeshingPage : ContentPage
             return;
         }
 
+        if (e.ActionType == SKTouchAction.Released ||
+            e.ActionType == SKTouchAction.Cancelled ||
+            e.ActionType == SKTouchAction.Exited)
+        {
+            EndConductivityPainting();
+        }
+
         if (mesh is LBMGrid lbm)
         {
             int x = (int)(e.Location.X / _cellW);
@@ -343,6 +353,7 @@ public partial class MeshingPage : ContentPage
 
             if (!_viewModel.InhomogenityEditing)
             {
+                EndConductivityPainting();
                 if (e.ActionType == SKTouchAction.Moved || e.ActionType == SKTouchAction.Entered)
                     _viewModel.HoveredElementInfo = $"ID: {el.Id} \u03C3: {el.Conductivity:F2}, Wall: {el.IsWall}, Electrode: {el.IsElectrode}";
                 e.Handled = true;
@@ -351,6 +362,7 @@ public partial class MeshingPage : ContentPage
 
             if (_draggedLbmElectrode != null)
             {
+                EndConductivityPainting();
                 if (e.ActionType == SKTouchAction.Moved)
                 {
                     if (el != _draggedLbmElectrode && !el.IsWall)
@@ -372,10 +384,13 @@ public partial class MeshingPage : ContentPage
 
             if (e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed && el.IsElectrode)
             {
+                EndConductivityPainting();
                 _draggedLbmElectrode = el;
                 e.Handled = true;
                 return;
             }
+
+            bool conductivityChanged = false;
 
             if (e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed)
             {
@@ -386,31 +401,45 @@ public partial class MeshingPage : ContentPage
                 _lastLbmTapTime = now;
                 _lastLbmTappedElementId = el.Id;
 
-                _viewModel.PushState();
                 if (isDoubleTap)
                 {
+                    _viewModel.PushState();
+                    EndConductivityPainting();
                     el.IsWall = !el.IsWall;
                     if (el.IsWall)
                         el.IsElectrode = false;
                     _viewModel.RefreshConductivity();
+                    conductivityChanged = true;
                 }
                 else
                 {
-                    el.Conductivity = _viewModel.InhomogenityValue;
-                    _viewModel.RefreshConductivity();
+                    BeginConductivityPainting();
+                    conductivityChanged = TryApplyConductivity(el.Id, () => el.Conductivity = _viewModel.InhomogenityValue);
                 }
+            }
+
+            if (_isConductivityPainting && e.ActionType == SKTouchAction.Moved && e.InContact)
+            {
+                conductivityChanged |= TryApplyConductivity(el.Id, () => el.Conductivity = _viewModel.InhomogenityValue);
+            }
+
+            if ((e.ActionType == SKTouchAction.Released || e.ActionType == SKTouchAction.Cancelled) && _isConductivityPainting)
+            {
+                EndConductivityPainting();
             }
 
             if (e.ActionType == SKTouchAction.Moved || e.ActionType == SKTouchAction.Entered)
                 _viewModel.HoveredElementInfo = $"ID: {el.Id} \u03C3: {el.Conductivity:F2}, Wall: {el.IsWall}, Electrode: {el.IsElectrode}";
 
-            MeshCanvas.InvalidateSurface();
+            if (conductivityChanged)
+                MeshCanvas.InvalidateSurface();
         }
 
         else if (mesh is FEMMesh fem)
         {
             if (_draggedFemVertex != null)
             {
+                EndConductivityPainting();
                 if (e.ActionType == SKTouchAction.Moved)
                 {
                     var target = FindNearestBoundaryVertex(e.Location, fem);
@@ -433,6 +462,7 @@ public partial class MeshingPage : ContentPage
 
             if (e.ActionType == SKTouchAction.Pressed && e.MouseButton == SKMouseButton.Left)
             {
+                EndConductivityPainting();
                 var hit = FindElectrodeAt(e.Location, fem);
                 if (hit != null)
                 {
@@ -444,6 +474,7 @@ public partial class MeshingPage : ContentPage
 
             var pt = e.Location;
             bool found = false;
+            bool conductivityChanged = false;
             foreach (var el in fem.ElementsTyped)
             {
                 var a = ToCanvas(el.Vertices[0]);
@@ -452,12 +483,21 @@ public partial class MeshingPage : ContentPage
                 if (PointInTriangle(pt, a, b, c))
                 {
                     found = true;
-                    if (_viewModel.InhomogenityEditing && e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed)
+                    if (_viewModel.InhomogenityEditing && e.MouseButton == SKMouseButton.Left)
                     {
-                        _viewModel.PushState();
-                        el.Conductivity = _viewModel.InhomogenityValue;
-                        _viewModel.RefreshConductivity();
-                        MeshCanvas.InvalidateSurface();
+                        if (e.ActionType == SKTouchAction.Pressed)
+                        {
+                            BeginConductivityPainting();
+                            conductivityChanged = TryApplyConductivity(el.Id, () => el.Conductivity = _viewModel.InhomogenityValue);
+                        }
+                        else if (_isConductivityPainting && e.ActionType == SKTouchAction.Moved && e.InContact)
+                        {
+                            conductivityChanged |= TryApplyConductivity(el.Id, () => el.Conductivity = _viewModel.InhomogenityValue);
+                        }
+                        else if ((e.ActionType == SKTouchAction.Released || e.ActionType == SKTouchAction.Cancelled) && _isConductivityPainting)
+                        {
+                            EndConductivityPainting();
+                        }
                     }
                     else if (e.ActionType == SKTouchAction.Moved || e.ActionType == SKTouchAction.Entered)
                     {
@@ -466,6 +506,8 @@ public partial class MeshingPage : ContentPage
                     break;
                 }
             }
+            if (conductivityChanged)
+                MeshCanvas.InvalidateSurface();
             if (!found)
                 _viewModel.HoveredElementInfo = string.Empty;
         }
@@ -474,6 +516,33 @@ public partial class MeshingPage : ContentPage
             _viewModel.HoveredElementInfo = string.Empty;
         }
         e.Handled = true;
+    }
+
+    private void BeginConductivityPainting()
+    {
+        if (_isConductivityPainting)
+            return;
+
+        _viewModel.PushState();
+        _isConductivityPainting = true;
+        _lastPaintedElementId = null;
+    }
+
+    private void EndConductivityPainting()
+    {
+        _isConductivityPainting = false;
+        _lastPaintedElementId = null;
+    }
+
+    private bool TryApplyConductivity(int elementId, Action apply)
+    {
+        if (_lastPaintedElementId == elementId)
+            return false;
+
+        apply();
+        _lastPaintedElementId = elementId;
+        _viewModel.RefreshConductivity();
+        return true;
     }
 
     private void ApplySelectionConductivity()
