@@ -80,7 +80,7 @@ namespace Utility.Classes.ReconstructionParameters
                 // so the boundary‐current we feed into our forward‐solver adjoint is
                 //    Iℓ = - (ϕℓ - d_obs,ℓ) = d_obs,ℓ – ϕℓ
                 else
-                    residual[i] = measured[i] - simulated[i];
+                    residual[i] = simulated[i] - measured[i];
             }
             return residual;
         }

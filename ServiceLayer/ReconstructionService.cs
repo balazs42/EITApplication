@@ -177,8 +177,10 @@ namespace ServiceLayer
 
                 _measurementNoiseType = parameters.MeasurementNoiseType;
                 _measurementNoiseAmplitude = parameters.MeasurementNoiseAmplitude;
+
                 if (_measurementNoiseType == MeasurementNoiseType.None || Math.Abs(_measurementNoiseAmplitude) <= double.Epsilon)
                     Workspace.AddLogMessage("Reconstruction Service", "Measurement noise disabled.");
+
                 else
                 {
                     double linearAmplitude = _measurementNoiseAmplitude < 0.0
