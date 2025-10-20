@@ -253,12 +253,18 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
                 if (el.ZContact <= 0.0)
                     continue;
 
+                var contactVertexIds = GetContactVertexIds(mesh, el);
                 double invZ = 1.0 / el.ZContact;
-                if (!el.PointElectrode && el.FEMVertexIds != null && el.FEMVertexIds.Count >= 2)
+                if (!el.PointElectrode && contactVertexIds.Count >= 2)
                 {
-                    var segments = BuildElectrodeSegments(mesh, el);
+                    var segments = BuildElectrodeSegments(mesh, contactVertexIds);
+                    double totalLength = 0.0;
                     foreach (var (a, b, length) in segments)
                     {
+                        if (length <= 0.0)
+                            continue;
+
+                        totalLength += length;
                         var diag = new Complex(invZ * length / 3.0, 0.0);
                         var off = new Complex(invZ * length / 6.0, 0.0);
                         M[a, a] += diag;
@@ -266,22 +272,19 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
                         M[a, b] += off;
                         M[b, a] += off;
                     }
-                }
-                else
-                {
-                    int count = Math.Max(1, el.FEMVertexIds?.Count ?? 1);
-                    double share = invZ * (el.Length / count);
-                    var diag = new Complex(share, 0.0);
-                    if (el.FEMVertexIds != null && el.FEMVertexIds.Count > 0)
+
+                    if (totalLength > 0.0)
                     {
-                        foreach (int vid in el.FEMVertexIds)
-                            M[vid, vid] += diag;
-                    }
-                    else
-                    {
-                        M[el.MeshId, el.MeshId] += diag;
+                        el.Length = totalLength;
+                        continue;
                     }
                 }
+
+                double length = ResolveElectrodeLength(mesh, el, contactVertexIds);
+                int count = contactVertexIds.Count;
+                var diagValue = new Complex(invZ * (length / count), 0.0);
+                foreach (int vid in contactVertexIds)
+                    M[vid, vid] += diagValue;
             }
             //Debug.WriteLine("M:\n" + FormatComplexMatrix(M));
         }
@@ -296,13 +299,19 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
                 if (el.ZContact <= 0.0)
                     return;
 
+                var contactVertexIds = GetContactVertexIds(mesh, el);
                 double invZ = 1.0 / el.ZContact;
 
-                if (!el.PointElectrode && el.FEMVertexIds != null && el.FEMVertexIds.Count >= 2)
+                if (!el.PointElectrode && contactVertexIds.Count >= 2)
                 {
-                    var segments = BuildElectrodeSegments(mesh, el);
+                    var segments = BuildElectrodeSegments(mesh, contactVertexIds);
+                    double totalLength = 0.0;
                     foreach (var (a, b, length) in segments)
                     {
+                        if (length <= 0.0)
+                            continue;
+
+                        totalLength += length;
                         var diag = new Complex(invZ * length / 3.0, 0.0);
                         var off = new Complex(invZ * length / 6.0, 0.0);
                         AddToNodeMatrixThreadSafe(M, a, a, diag);
@@ -310,21 +319,19 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
                         AddToNodeMatrixThreadSafe(M, a, b, off);
                         AddToNodeMatrixThreadSafe(M, b, a, off);
                     }
-                }
-                else
-                {
-                    int count = Math.Max(1, el.FEMVertexIds?.Count ?? 1);
-                    var diag = new Complex(invZ * (el.Length / count), 0.0);
-                    if (el.FEMVertexIds != null && el.FEMVertexIds.Count > 0)
+
+                    if (totalLength > 0.0)
                     {
-                        foreach (int vid in el.FEMVertexIds)
-                            AddToNodeMatrixThreadSafe(M, vid, vid, diag);
-                    }
-                    else
-                    {
-                        AddToNodeMatrixThreadSafe(M, el.MeshId, el.MeshId, diag);
+                        el.Length = totalLength;
+                        return;
                     }
                 }
+
+                double length = ResolveElectrodeLength(mesh, el, contactVertexIds);
+                int count = contactVertexIds.Count;
+                var diagValue = new Complex(invZ * (length / count), 0.0);
+                foreach (int vid in contactVertexIds)
+                    AddToNodeMatrixThreadSafe(M, vid, vid, diagValue);
             });
         }
 
@@ -342,31 +349,34 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
                 if (el.ZContact <= 0.0)
                     continue;
 
+                var contactVertexIds = GetContactVertexIds(mesh, el);
                 double invZ = 1.0 / el.ZContact;
-                if (!el.PointElectrode && el.FEMVertexIds != null && el.FEMVertexIds.Count >= 2)
+                if (!el.PointElectrode && contactVertexIds.Count >= 2)
                 {
-                    var segments = BuildElectrodeSegments(mesh, el);
+                    var segments = BuildElectrodeSegments(mesh, contactVertexIds);
+                    double totalLength = 0.0;
                     foreach (var (a, b, length) in segments)
                     {
+                        if (length <= 0.0)
+                            continue;
+
+                        totalLength += length;
                         var value = new Complex(invZ * length / 2.0, 0.0);
                         A_coup[a, el.Id] += value;
                         A_coup[b, el.Id] += value;
                     }
-                }
-                else
-                {
-                    int count = Math.Max(1, el.FEMVertexIds?.Count ?? 1);
-                    var value = new Complex(invZ * (el.Length / count), 0.0);
-                    if (el.FEMVertexIds != null && el.FEMVertexIds.Count > 0)
+
+                    if (totalLength > 0.0)
                     {
-                        foreach (int vid in el.FEMVertexIds)
-                            A_coup[vid, el.Id] += value;
-                    }
-                    else
-                    {
-                        A_coup[el.MeshId, el.Id] += value;
+                        el.Length = totalLength;
+                        continue;
                     }
                 }
+
+                double length = ResolveElectrodeLength(mesh, el, contactVertexIds);
+                var valuePoint = new Complex(invZ * (length / contactVertexIds.Count), 0.0);
+                foreach (int vid in contactVertexIds)
+                    A_coup[vid, el.Id] += valuePoint;
             }
             //Debug.WriteLine("A_coup:\n" + FormatComplexMatrix(A_coup));
         }
@@ -381,31 +391,34 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
                 if (el.ZContact <= 0.0)
                     return;
 
+                var contactVertexIds = GetContactVertexIds(mesh, el);
                 double invZ = 1.0 / el.ZContact;
-                if (!el.PointElectrode && el.FEMVertexIds != null && el.FEMVertexIds.Count >= 2)
+                if (!el.PointElectrode && contactVertexIds.Count >= 2)
                 {
-                    var segments = BuildElectrodeSegments(mesh, el);
+                    var segments = BuildElectrodeSegments(mesh, contactVertexIds);
+                    double totalLength = 0.0;
                     foreach (var (a, b, length) in segments)
                     {
+                        if (length <= 0.0)
+                            continue;
+
+                        totalLength += length;
                         var value = new Complex(invZ * length / 2.0, 0.0);
                         AddToCouplingMatrixThreadSafe(a, el.Id, value);
                         AddToCouplingMatrixThreadSafe(b, el.Id, value);
                     }
-                }
-                else
-                {
-                    int count = Math.Max(1, el.FEMVertexIds?.Count ?? 1);
-                    var value = new Complex(invZ * (el.Length / count), 0.0);
-                    if (el.FEMVertexIds != null && el.FEMVertexIds.Count > 0)
+
+                    if (totalLength > 0.0)
                     {
-                        foreach (int vid in el.FEMVertexIds)
-                            AddToCouplingMatrixThreadSafe(vid, el.Id, value);
-                    }
-                    else
-                    {
-                        AddToCouplingMatrixThreadSafe(el.MeshId, el.Id, value);
+                        el.Length = totalLength;
+                        return;
                     }
                 }
+
+                double length = ResolveElectrodeLength(mesh, el, contactVertexIds);
+                var valuePoint = new Complex(invZ * (length / contactVertexIds.Count), 0.0);
+                foreach (int vid in contactVertexIds)
+                    AddToCouplingMatrixThreadSafe(vid, el.Id, valuePoint);
             });
         }
 
@@ -426,17 +439,29 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
                     continue;
                 }
 
+                var contactVertexIds = GetContactVertexIds(mesh, el);
                 double invZ = 1.0 / el.ZContact;
-                if (!el.PointElectrode && el.FEMVertexIds != null && el.FEMVertexIds.Count >= 2)
+                if (!el.PointElectrode && contactVertexIds.Count >= 2)
                 {
                     double total = 0.0;
-                    foreach (var segment in BuildElectrodeSegments(mesh, el))
+                    foreach (var segment in BuildElectrodeSegments(mesh, contactVertexIds))
                         total += segment.Length;
-                    D[el.Id, el.Id] = total * invZ;
+
+                    if (total <= 0.0)
+                    {
+                        double lengthFallback = ResolveElectrodeLength(mesh, el, contactVertexIds);
+                        D[el.Id, el.Id] = lengthFallback * invZ;
+                    }
+                    else
+                    {
+                        el.Length = total;
+                        D[el.Id, el.Id] = total * invZ;
+                    }
                 }
                 else
                 {
-                    D[el.Id, el.Id] = el.Length * invZ;
+                    double length = ResolveElectrodeLength(mesh, el, contactVertexIds);
+                    D[el.Id, el.Id] = length * invZ;
                 }
             }
 
@@ -453,32 +478,43 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
                 if (el.ZContact <= 0.0)
                     return;
 
+                var contactVertexIds = GetContactVertexIds(mesh, el);
                 double invZ = 1.0 / el.ZContact;
-                if (!el.PointElectrode && el.FEMVertexIds != null && el.FEMVertexIds.Count >= 2)
+                if (!el.PointElectrode && contactVertexIds.Count >= 2)
                 {
                     double total = 0.0;
-                    foreach (var segment in BuildElectrodeSegments(mesh, el))
+                    foreach (var segment in BuildElectrodeSegments(mesh, contactVertexIds))
                         total += segment.Length;
-                    AddToElectrodeMatrixThreadSafe(el.Id, new Complex(total * invZ, 0.0));
+
+                    if (total <= 0.0)
+                    {
+                        double lengthFallback = ResolveElectrodeLength(mesh, el, contactVertexIds);
+                        AddToElectrodeMatrixThreadSafe(el.Id, new Complex(lengthFallback * invZ, 0.0));
+                    }
+                    else
+                    {
+                        el.Length = total;
+                        AddToElectrodeMatrixThreadSafe(el.Id, new Complex(total * invZ, 0.0));
+                    }
                 }
                 else
                 {
-                    AddToElectrodeMatrixThreadSafe(el.Id, new Complex(el.Length * invZ, 0.0));
+                    double length = ResolveElectrodeLength(mesh, el, contactVertexIds);
+                    AddToElectrodeMatrixThreadSafe(el.Id, new Complex(length * invZ, 0.0));
                 }
             });
         }
 
-        private static List<(int StartId, int EndId, double Length)> BuildElectrodeSegments(FEMMesh mesh, FEMElectrode electrode)
+        private List<(int StartId, int EndId, double Length)> BuildElectrodeSegments(FEMMesh mesh, List<int> orderedVertexIds)
         {
             var segments = new List<(int, int, double)>();
-            if (electrode.FEMVertexIds == null || electrode.FEMVertexIds.Count < 2)
+            if (orderedVertexIds == null || orderedVertexIds.Count < 2)
                 return segments;
 
-            var ids = electrode.FEMVertexIds;
-            for (int i = 0; i < ids.Count - 1; i++)
+            for (int i = 0; i < orderedVertexIds.Count - 1; i++)
             {
-                var start = mesh.GetVertexById(ids[i]);
-                var end = mesh.GetVertexById(ids[i + 1]);
+                var start = mesh.GetVertexById(orderedVertexIds[i]);
+                var end = mesh.GetVertexById(orderedVertexIds[i + 1]);
                 double dx = start.X - end.X;
                 double dy = start.Y - end.Y;
                 double length = Math.Sqrt(dx * dx + dy * dy);
@@ -602,6 +638,89 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         #endregion
 
         #region Utils
+        private List<int> GetContactVertexIds(FEMMesh mesh, FEMElectrode electrode)
+        {
+            if (mesh == null)
+                throw new ArgumentNullException(nameof(mesh));
+            if (electrode == null)
+                throw new ArgumentNullException(nameof(electrode));
+
+            List<int> ids;
+            if (electrode.FEMVertexIds != null && electrode.FEMVertexIds.Count > 0)
+            {
+                ids = mesh.OrderVerticesAlongBoundary(electrode.FEMVertexIds);
+            }
+            else if (electrode.MeshId >= 0)
+            {
+                ids = new List<int> { electrode.MeshId };
+            }
+            else
+            {
+                throw new InvalidOperationException($"Electrode {electrode.Id} does not reference any FEM vertex.");
+            }
+
+            if (ids.Count == 0)
+                throw new InvalidOperationException($"Electrode {electrode.Id} does not reference any FEM vertex.");
+
+            var unique = new List<int>(ids.Count);
+            var seen = new HashSet<int>();
+            foreach (int id in ids)
+            {
+                if (id < 0 || id >= N_phi)
+                    throw new InvalidOperationException($"Electrode {electrode.Id} references missing FEM vertex {id}.");
+
+                if (seen.Add(id))
+                    unique.Add(id);
+            }
+
+            if (unique.Count == 0)
+                throw new InvalidOperationException($"Electrode {electrode.Id} does not reference any FEM vertex.");
+
+            return unique;
+        }
+
+        private double ResolveElectrodeLength(FEMMesh mesh, FEMElectrode electrode, List<int> contactVertexIds)
+        {
+            double length = electrode.Length;
+            if (length > 0.0)
+                return length;
+
+            if (contactVertexIds != null && contactVertexIds.Count > 0)
+                length = mesh.ComputeElectrodeLength(contactVertexIds);
+
+            if ((length <= 0.0 || double.IsNaN(length)) && electrode.MeshId >= 0)
+                length = mesh.ComputeElectrodeLength(new List<int> { electrode.MeshId });
+
+            if (length <= 0.0 || double.IsNaN(length))
+                length = ComputeAverageBoundarySpacing(mesh);
+
+            if (length <= 0.0 || double.IsNaN(length))
+                length = 1e-6;
+
+            electrode.Length = length;
+            return length;
+        }
+
+        private static double ComputeAverageBoundarySpacing(FEMMesh mesh)
+        {
+            var boundary = mesh.GetOrderedBoundaryVertices();
+            int count = boundary.Count;
+            if (count < 2)
+                return 0.0;
+
+            double total = 0.0;
+            for (int i = 0; i < count; i++)
+            {
+                var a = boundary[i];
+                var b = boundary[(i + 1) % count];
+                double dx = a.X - b.X;
+                double dy = a.Y - b.Y;
+                total += Math.Sqrt(dx * dx + dy * dy);
+            }
+
+            return total / count;
+        }
+
         private void AddToNodeMatrixThreadSafe(Complex[,] matrix, int row, int col, Complex value)
         {
             if (row == col)
