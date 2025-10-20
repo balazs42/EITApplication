@@ -1,14 +1,8 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using Google.OrTools.LinearSolver;
-using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Double;
 using MathNet.Numerics.LinearAlgebra.Factorization;
-using Utility.Classes;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
-using Utility.Classes.Discretizer.GraphMesh;
 
 using Utility.Classes.ReconstructionParameters;
 
