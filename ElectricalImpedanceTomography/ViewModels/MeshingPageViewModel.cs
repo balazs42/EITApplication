@@ -76,6 +76,9 @@ namespace ElectricalImpedanceTomography.ViewModels
         private double electrodeSize = 0.3;
 
         [ObservableProperty]
+        private int femElectrodeNodeCount = 1;
+
+        [ObservableProperty]
         private string hoveredElementInfo = string.Empty;
 
         [ObservableProperty]
@@ -200,8 +203,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 foreach (var el in _currentDiscretization.GetElectrodes())
                     el.ZContact = ElectrodeContactImpedance;
                 if (_currentDiscretization is FEMMesh fem)
-                    foreach (var el in fem.ElectrodesTyped)
-                        el.Length = ElectrodeSize;
+                    ApplyFemElectrodeLayout(fem);
             }
         }
 
@@ -233,16 +235,21 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             if (_customPerimeter != null && _customPerimeter.Count > 2)
             {
-                var mesh = MeshFactory.CreatePolygonFEMMesh(_customPerimeter, Layers, ElectrodeCount);
+                var mesh = MeshFactory.CreatePolygonFEMMesh(_customPerimeter, Layers, ElectrodeCount, FemElectrodeNodeCount, ElectrodeSize);
                 return mesh;
             }
 
             return SelectedGeometry switch
             {
-                GeometryType.Circular => MeshFactory.CreateCircularFEMMesh(Layers, BoundaryFEMVertexCount, ElectrodeCount),
-                GeometryType.Rectangular => MeshFactory.CreateRectangularFEMMesh(Nx, Ny, ElectrodeCount, Layers),
-                _ => MeshFactory.CreateCircularFEMMesh(Layers, BoundaryFEMVertexCount, ElectrodeCount)
+                GeometryType.Circular => MeshFactory.CreateCircularFEMMesh(Layers, BoundaryFEMVertexCount, ElectrodeCount, FemElectrodeNodeCount, ElectrodeSize),
+                GeometryType.Rectangular => MeshFactory.CreateRectangularFEMMesh(Nx, Ny, ElectrodeCount, Layers, FemElectrodeNodeCount, ElectrodeSize),
+                _ => MeshFactory.CreateCircularFEMMesh(Layers, BoundaryFEMVertexCount, ElectrodeCount, FemElectrodeNodeCount, ElectrodeSize)
             };
+        }
+
+        private void ApplyFemElectrodeLayout(FEMMesh mesh)
+        {
+            mesh.PlaceEquidistantElectrodes(ElectrodeCount, ElectrodeContactImpedance, ElectrodeSize, Math.Max(1, FemElectrodeNodeCount));
         }
 
         private LBMGrid GenerateLBMGrid()
@@ -304,17 +311,40 @@ namespace ElectricalImpedanceTomography.ViewModels
         public void RefreshFemElectrodes()
         {
             if (_currentDiscretization is not FEMMesh mesh) return;
-            var verts = mesh.Vertices.Where(v => v.IsElectrode).ToList();
-            var electrodes = new List<FEMElectrode>();
-            for (int i = 0; i < verts.Count; i++)
+
+            var templates = mesh.ElectrodesTyped.Cast<FEMElectrode>().ToList();
+            var updated = new List<FEMElectrode>(templates.Count);
+
+            foreach (var template in templates)
             {
-                var v = verts[i];
-                v.ElectrodeId = i;
-                var el = new FEMElectrode(i, v.GlobalId, 0.0, ElectrodeContactImpedance, 0.0);
-                el.FEMVertexIds.Add(v.GlobalId);
-                electrodes.Add(el);
+                var group = mesh.Vertices
+                    .Where(v => v.IsElectrode && v.ElectrodeId == template.Id)
+                    .ToList();
+
+                if (group.Count == 0)
+                {
+                    var preserved = new FEMElectrode(template.Id, template.FEMVertexIds ?? new List<int>(), template.Current, template.ZContact, template.Potential, template.IsExcitation, template.IsGround, template.IsMeasuring)
+                    {
+                        PointElectrode = template.PointElectrode,
+                        Length = template.Length
+                    };
+                    updated.Add(preserved);
+                    continue;
+                }
+
+                var orderedIds = mesh.OrderVerticesAlongBoundary(group.Select(v => v.GlobalId));
+                foreach (var vertex in group)
+                    vertex.ElectrodeId = template.Id;
+
+                var electrode = new FEMElectrode(template.Id, orderedIds, template.Current, ElectrodeContactImpedance, template.Potential, template.IsExcitation, template.IsGround, template.IsMeasuring)
+                {
+                    PointElectrode = orderedIds.Count <= 1,
+                    Length = mesh.ComputeElectrodeLength(orderedIds)
+                };
+                updated.Add(electrode);
             }
-            mesh.SetElectrodes(electrodes);
+
+            mesh.SetElectrodes(updated);
 
             Workspace.SetDiscretization(_currentDiscretization);
             Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
@@ -395,13 +425,51 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
             else if (_currentDiscretization is FEMMesh fem)
             {
-                fem.PlaceEquidistantElectrodes(value, ElectrodeContactImpedance, ElectrodeSize);
+                fem.PlaceEquidistantElectrodes(value, ElectrodeContactImpedance, ElectrodeSize, FemElectrodeNodeCount);
             }
 
             _currentDiscretization.Metadata.Parameters["electrodeCount"] = value.ToString();
             Workspace.SetDiscretization(_currentDiscretization);
             Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
             MeshChanged?.Invoke();
+        }
+
+        partial void OnFemElectrodeNodeCountChanged(int value)
+        {
+            if (_currentDiscretization is FEMMesh fem)
+            {
+                ApplyFemElectrodeLayout(fem);
+                Workspace.SetDiscretization(_currentDiscretization);
+                Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
+                MeshChanged?.Invoke();
+            }
+        }
+
+        partial void OnElectrodeSizeChanged(double value)
+        {
+            if (_currentDiscretization is FEMMesh fem)
+            {
+                ApplyFemElectrodeLayout(fem);
+                Workspace.SetDiscretization(_currentDiscretization);
+                Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
+                MeshChanged?.Invoke();
+            }
+        }
+
+        partial void OnElectrodeContactImpedanceChanged(double value)
+        {
+            if (_currentDiscretization is FEMMesh fem)
+            {
+                ApplyFemElectrodeLayout(fem);
+                Workspace.SetDiscretization(_currentDiscretization);
+                Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
+                MeshChanged?.Invoke();
+            }
+            else if (_currentDiscretization != null)
+            {
+                foreach (var electrode in _currentDiscretization.GetElectrodes())
+                    electrode.ZContact = value;
+            }
         }
 
         partial void OnMeshSearchTextChanged(string value) => ApplyMeshFilter();

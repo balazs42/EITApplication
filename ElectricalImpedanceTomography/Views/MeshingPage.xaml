@@ -155,6 +155,13 @@
                                                     Value="{Binding ElectrodeCount}"
                                                     Max="32"/>
 
+                    <controls:PlusMinusEntryControl Margin="0"
+                                                    LabelText="Nodes / Electrode"
+                                                    PlusImageSource="icon_plus2.png"
+                                                    MinusImageSource="icon_minus2.png"
+                                                    Value="{Binding FemElectrodeNodeCount}"
+                                                    Max="{Binding BoundaryFEMVertexCount}"/>
+
                     <Grid ColumnDefinitions="Auto, *"
                           ColumnSpacing="12"
                           IsVisible="{Binding InhomogenityEditing}">
