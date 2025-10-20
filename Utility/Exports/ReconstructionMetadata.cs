@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Utility.Classes
+namespace Utility.Exports
 {
     public class ReconstructionMetadata
     {

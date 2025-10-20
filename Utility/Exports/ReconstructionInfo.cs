@@ -1,6 +1,4 @@
-using System.Linq;
-
-namespace Utility.Classes
+namespace Utility.Exports
 {
     public record ReconstructionInfo(string Name, string FilePath, ReconstructionMetadata Metadata)
     {

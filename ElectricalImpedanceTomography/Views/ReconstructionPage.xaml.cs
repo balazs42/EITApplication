@@ -17,6 +17,7 @@ using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Rendering;
 
 using Workspace = Utility.Classes.Application.Workspace;
+using Utility.Exports;
 
 namespace ElectricalImpedanceTomography.Views;
 
