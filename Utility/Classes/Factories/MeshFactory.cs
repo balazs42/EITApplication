@@ -12,6 +12,9 @@ namespace Utility.Classes.Factories
     /// </summary>
     public static class MeshFactory
     {
+        private const double MinTriangleArea = 1e-10;
+        private const double MinEdgeLengthSquared = 1e-12;
+
         public static IDiscretization Create(DiscretizationParameters parameters, double inhomogenityValue = 1.0) => parameters.MeshType switch
         {
             DiscretizationType.FEM => CreateCircularFEMMesh(layers: parameters.Layers,
@@ -92,37 +95,63 @@ namespace Utility.Classes.Factories
                 }
             }
 
-            // 2) triangulate
-            var triVerts = vertices.Select(v => new TriFEMVertex(v)).ToArray();
-            var delaunay = DelaunayTriangulation<TriFEMVertex, DefaultTriangulationCell<TriFEMVertex>>.Create(triVerts, 1e-3);
+            // 2) build layered triangulation explicitly to avoid sliver elements
+            var rings = new List<List<FEMVertex>>(layers + 1)
+            {
+                new List<FEMVertex> { vertices[0] } // center
+            };
 
-            // 3) create elements with inhomogeneous conductivity
+            for (int layer = 1; layer <= layers; layer++)
+            {
+                var ring = new List<FEMVertex>(boundaryFEMVertexCount);
+                for (int i = 0; i < boundaryFEMVertexCount; i++)
+                {
+                    int index = 1 + (layer - 1) * boundaryFEMVertexCount + i;
+                    ring.Add(vertices[index]);
+                }
+                rings.Add(ring);
+            }
+
             var elements = new List<FEMElement>();
             int eid = 0;
             double innerRadius = 1.0 / (layers + 1e-4); // threshold
 
-            foreach (var cell in delaunay.Cells)
+            if (layers >= 1 && boundaryFEMVertexCount >= 3)
             {
-                var a = cell.Vertices[0].Original;
-                var b = cell.Vertices[1].Original;
-                var c = cell.Vertices[2].Original;
+                var center = rings[0][0];
+                var firstRing = rings[1];
+                for (int i = 0; i < boundaryFEMVertexCount; i++)
+                {
+                    int next = (i + 1) % boundaryFEMVertexCount;
+                    if (TryCreateElement(center, firstRing[i], firstRing[next], eid, innerRadius, inhomogeneityValue, out var element))
+                    {
+                        elements.Add(element);
+                        eid = element.Id + 1;
+                    }
+                }
+            }
 
-                var elem = new FEMElement(eid++, a, b, c);
+            for (int layer = 2; layer <= layers; layer++)
+            {
+                var innerRing = rings[layer - 1];
+                var outerRing = rings[layer];
 
-                // compute average radial distance of element vertices
-                double rA = Math.Sqrt(a.X * a.X + a.Y * a.Y);
-                double rB = Math.Sqrt(b.X * b.X + b.Y * b.Y);
-                double rC = Math.Sqrt(c.X * c.X + c.Y * c.Y);
+                for (int i = 0; i < boundaryFEMVertexCount; i++)
+                {
+                    int next = (i + 1) % boundaryFEMVertexCount;
 
-                double avgRadius = (rA + rB + rC) / 3.0;
+                    if (TryCreateElement(innerRing[i], outerRing[i], outerRing[next], eid, innerRadius, inhomogeneityValue, out var first))
+                    {
+                        elements.Add(first);
+                        eid = first.Id + 1;
+                    }
 
-                // if inside inner circle, scale conductivity
-                if (avgRadius < innerRadius)
-                    elem.Conductivity = inhomogeneityValue;
-                else
-                    elem.Conductivity = 1.0;
-
-                elements.Add(elem);
+                    if (TryCreateElement(innerRing[i], outerRing[next], innerRing[next], eid, innerRadius, inhomogeneityValue, out var second))
+                    {
+                        elements.Add(second);
+                        eid = second.Id + 1;
+                    }
+                }
             }
 
             // 4) assemble mesh
@@ -243,7 +272,11 @@ namespace Utility.Classes.Factories
                 if (!IsPointInPolygon(mx, my, perimeter))
                     continue;
 
-                elements.Add(new FEMElement(eid++, a, b, c));
+                if (TryCreateElement(a, b, c, eid, out var element))
+                {
+                    elements.Add(element);
+                    eid = element.Id + 1;
+                }
             }
 
             var mesh = new FEMMesh(vertices, elements);
@@ -323,6 +356,76 @@ namespace Utility.Classes.Factories
             mesh.Metadata.Parameters["perimeter"] = string.Join(";", perimeter.Select(p => $"{p.x},{p.y}"));
             mesh.Metadata.Parameters["layers"] = layers.ToString();
             return mesh;
+        }
+
+        private static bool TryCreateElement(FEMVertex a,
+                                             FEMVertex b,
+                                             FEMVertex c,
+                                             int elementId,
+                                             double innerRadius,
+                                             double inhomogeneityValue,
+                                             out FEMElement? element)
+        {
+            if (!TryCreateElement(a, b, c, elementId, out element))
+                return false;
+
+            ApplyLayeredConductivity(element, innerRadius, inhomogeneityValue);
+            return true;
+        }
+
+        private static bool TryCreateElement(FEMVertex a,
+                                             FEMVertex b,
+                                             FEMVertex c,
+                                             int elementId,
+                                             out FEMElement? element)
+        {
+            element = null;
+
+            if (!IsTriangleValid(a, b, c))
+                return false;
+
+            element = new FEMElement(elementId, a, b, c);
+            return true;
+        }
+
+        private static void ApplyLayeredConductivity(FEMElement element, double innerRadius, double inhomogeneityValue)
+        {
+            var verts = element.Vertices;
+            double rA = Math.Sqrt(verts[0].X * verts[0].X + verts[0].Y * verts[0].Y);
+            double rB = Math.Sqrt(verts[1].X * verts[1].X + verts[1].Y * verts[1].Y);
+            double rC = Math.Sqrt(verts[2].X * verts[2].X + verts[2].Y * verts[2].Y);
+
+            double avgRadius = (rA + rB + rC) / 3.0;
+            element.Conductivity = avgRadius < innerRadius ? inhomogeneityValue : 1.0;
+        }
+
+        private static bool IsTriangleValid(FEMVertex a, FEMVertex b, FEMVertex c)
+        {
+            if (!double.IsFinite(a.X) || !double.IsFinite(a.Y) ||
+                !double.IsFinite(b.X) || !double.IsFinite(b.Y) ||
+                !double.IsFinite(c.X) || !double.IsFinite(c.Y))
+            {
+                return false;
+            }
+
+            if (HasTinyEdge(a, b) || HasTinyEdge(b, c) || HasTinyEdge(c, a))
+                return false;
+
+            double area = TriangleArea(a, b, c);
+            return double.IsFinite(area) && area > MinTriangleArea;
+        }
+
+        private static double TriangleArea(FEMVertex a, FEMVertex b, FEMVertex c)
+            => 0.5 * Math.Abs(a.X * (b.Y - c.Y)
+                              + b.X * (c.Y - a.Y)
+                              + c.X * (a.Y - b.Y));
+
+        private static bool HasTinyEdge(FEMVertex a, FEMVertex b)
+        {
+            double dx = a.X - b.X;
+            double dy = a.Y - b.Y;
+            double lengthSquared = dx * dx + dy * dy;
+            return lengthSquared < MinEdgeLengthSquared;
         }
 
         private class TriFEMVertex : IVertex
