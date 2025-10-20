@@ -445,6 +445,97 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
             return length;
         }
 
+        /// <summary>
+        ///     Recomputes and assigns the physical surface length of every electrode
+        ///     from the current mesh geometry.  Reconstruction workflows often create
+        ///     electrodes without a reliable <see cref="FEMElectrode.Length"/> value
+        ///     (e.g. during mesh import where only vertex references are available).
+        ///     The solver, the reconstruction metrics and the CEM formulation are all
+        ///     sensitive to the electrode length, therefore it needs to be derived in
+        ///     a systematic way:
+        ///     <list type="number">
+        ///         <item>
+        ///             <description>
+        ///                 Order the contact vertices of each electrode along the mesh
+        ///                 boundary and integrate the polyline arc length.  For single
+        ///                 vertex electrodes the surrounding boundary edges are halved
+        ///                 to obtain a representative contact width.
+        ///             </description>
+        ///         </item>
+        ///         <item>
+        ///             <description>
+        ///                 When an electrode cannot be mapped to boundary vertices
+        ///                 (degenerate import data), fall back to the average spacing of
+        ///                 boundary nodes so the resulting length still scales with the
+        ///                 mesh resolution.
+        ///             </description>
+        ///         </item>
+        ///         <item>
+        ///             <description>
+        ///                 Ensure that a strictly positive value remains – the final
+        ///                 guard of <c>1e-6</c> prevents numerical issues in extreme
+        ///                 degenerate cases.
+        ///             </description>
+        ///         </item>
+        ///     </list>
+        /// </summary>
+        public void UpdateElectrodeLengths()
+        {
+            if (_electrodes.Count == 0)
+                return;
+
+            if (_orderedBoundaryVertices.Count == 0)
+                BuildEdgeTopology();
+
+            double averageBoundarySpacing = EstimateAverageBoundarySpacing();
+
+            foreach (var electrode in ElectrodesTyped.Cast<FEMElectrode>())
+            {
+                double length = 0.0;
+                List<int>? contactVertexIds = null;
+
+                if (electrode.FEMVertexIds != null && electrode.FEMVertexIds.Count > 0)
+                {
+                    // Reorder vertices so the arc length follows the boundary instead
+                    // of the arbitrary order that may have been stored in the file.
+                    contactVertexIds = OrderVerticesAlongBoundary(electrode.FEMVertexIds);
+                }
+                else if (electrode.MeshId >= 0)
+                {
+                    // The electrode references a single representative node.
+                    contactVertexIds = new List<int> { electrode.MeshId };
+                }
+
+                if (contactVertexIds != null && contactVertexIds.Count > 0)
+                    length = ComputeElectrodeLength(contactVertexIds);
+
+                if (length <= 0.0 || double.IsNaN(length))
+                    length = averageBoundarySpacing;
+
+                if (length <= 0.0 || double.IsNaN(length))
+                    length = 1e-6;
+
+                electrode.Length = length;
+            }
+        }
+
+        private double EstimateAverageBoundarySpacing()
+        {
+            int count = _orderedBoundaryVertices.Count;
+            if (count < 2)
+                return 0.0;
+
+            double total = 0.0;
+            for (int i = 0; i < count; i++)
+            {
+                var a = _orderedBoundaryVertices[i];
+                var b = _orderedBoundaryVertices[(i + 1) % count];
+                total += Distance(a, b);
+            }
+
+            return total / count;
+        }
+
         public IEnumerable<(FEMVertex Start, FEMVertex End, FEMElectrode Electrode)> GetElectrodeSegments()
         {
             foreach (var electrode in ElectrodesTyped.Cast<FEMElectrode>())
@@ -550,12 +641,14 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
                         isMeasuring: e.IsMeasuring,
                         pointElectrode: e.PointElectrode
                     );
+                    e2.Length = e.Length;
                     if (e.FEMVertexIds?.Count > 0)
                         e2.FEMVertexIds.AddRange(e.FEMVertexIds);
 
                     electrodeCopies.Add(e2);
                 }
                 copy.SetElectrodes(electrodeCopies);
+                copy.UpdateElectrodeLengths();
             }
             else
             {
@@ -689,6 +782,7 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
                     newEls.Add(e2);
                 }
                 refined.SetElectrodes(newEls);
+                refined.UpdateElectrodeLengths();
             }
 
             // Refresh distributions

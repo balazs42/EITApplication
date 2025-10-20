@@ -288,7 +288,10 @@ namespace DataAccessLayer
                 return el;
             }).ToList() ?? new List<FEMElectrode>();
             if (electrodes.Count > 0)
+            {
                 mesh.SetElectrodes(electrodes);
+                mesh.UpdateElectrodeLengths();
+            }
 
             // distributions
             var cdDict = root.Element("ConductivityDistribution")?.Elements("Value")
@@ -923,7 +926,10 @@ namespace DataAccessLayer
                 }
 
                 if (electrodes.Count > 0)
+                {
                     mesh.SetElectrodes(electrodes);
+                    mesh.UpdateElectrodeLengths();
+                }
             }
 
             if (reassignedElectrodes.Count > 0)
