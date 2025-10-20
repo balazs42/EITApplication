@@ -1,8 +1,7 @@
-﻿using System.Linq;
-using Utility.Classes.Discretizer.FiniteElementMesh;
+﻿using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Factories;
 using Utility.Classes.Measurement;
-using Utility.Classes.ReconstructionParameters;
+using Utility.Classes.Reconstruction.NumericSolvers;
 using Utility.Classes.Solvers.FiniteElementSolver;
 using Xunit;
 

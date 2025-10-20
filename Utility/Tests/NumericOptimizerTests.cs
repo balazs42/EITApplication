@@ -1,6 +1,5 @@
 ﻿using Utility.Classes;
-using Utility.Classes.Factories;
-using Utility.Classes.ReconstructionParameters;
+using Utility.Classes.Reconstruction.NumericOptimizers;
 using Xunit;
 
 namespace Utility.Tests

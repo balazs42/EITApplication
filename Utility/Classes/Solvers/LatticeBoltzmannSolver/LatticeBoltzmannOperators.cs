@@ -1,6 +1,7 @@
 using ILGPU;
 using ILGPU.Runtime;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
+using Utility.Classes.Solvers;
 
 namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 {
@@ -45,15 +46,15 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 double φ0 = φ.GetValue(el.Id);  // Center value
                 
                 // Use neighbor values if available and not wall, otherwise use center value
-                double φr = (R != null && !R.IsWall) ? φ.GetValue(R.Id) : φ0;
-                double φl = (L != null && !L.IsWall) ? φ.GetValue(L.Id) : φ0;
-                double φu = (U != null && !U.IsWall) ? φ.GetValue(U.Id) : φ0;
-                double φd = (D != null && !D.IsWall) ? φ.GetValue(D.Id) : φ0;
+                double φr = R != null && !R.IsWall ? φ.GetValue(R.Id) : φ0;
+                double φl = L != null && !L.IsWall ? φ.GetValue(L.Id) : φ0;
+                double φu = U != null && !U.IsWall ? φ.GetValue(U.Id) : φ0;
+                double φd = D != null && !D.IsWall ? φ.GetValue(D.Id) : φ0;
 
                 // Compute central differences with appropriate normalization
                 // Use central difference if both neighbors exist, otherwise one-sided
-                double dx = (φr - φl) / ((R != null && L != null) ? 2.0 : 1.0);
-                double dy = (φu - φd) / ((U != null && D != null) ? 2.0 : 1.0);
+                double dx = (φr - φl) / (R != null && L != null ? 2.0 : 1.0);
+                double dy = (φu - φd) / (U != null && D != null ? 2.0 : 1.0);
 
                 // Store gradient components for this element
                 grad[el.Id] = (dx, dy);
@@ -151,10 +152,10 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
                 // Get field values (use center value for missing/wall neighbors)
                 double φ0 = φ.GetValue(el.Id);
-                double φr = (R != null && !R.IsWall) ? φ.GetValue(R.Id) : φ0;
-                double φl = (L != null && !L.IsWall) ? φ.GetValue(L.Id) : φ0;
-                double φu = (U != null && !U.IsWall) ? φ.GetValue(U.Id) : φ0;
-                double φd = (D != null && !D.IsWall) ? φ.GetValue(D.Id) : φ0;
+                double φr = R != null && !R.IsWall ? φ.GetValue(R.Id) : φ0;
+                double φl = L != null && !L.IsWall ? φ.GetValue(L.Id) : φ0;
+                double φu = U != null && !U.IsWall ? φ.GetValue(U.Id) : φ0;
+                double φd = D != null && !D.IsWall ? φ.GetValue(D.Id) : φ0;
 
                 // Compute 5-point Laplacian: sum of neighbors minus 4 times center
                 lap[el.Id] = φr + φl + φu + φd - 4 * φ0;
@@ -244,14 +245,14 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 var (Fx0, Fy0) = F.GetVector(el.Id);  // Center values
                 
                 // Get neighbor values (fallback to center if unavailable)
-                var (Fxr, Fyr) = (R != null) ? F.GetVector(R.Id) : (Fx0, Fy0);
-                var (Fxl, Fyl) = (L != null) ? F.GetVector(L.Id) : (Fx0, Fy0);
-                var (Fxu, Fyu) = (U != null) ? F.GetVector(U.Id) : (Fx0, Fy0);
-                var (Fxd, Fyd) = (D != null) ? F.GetVector(D.Id) : (Fx0, Fy0);
+                var (Fxr, Fyr) = R != null ? F.GetVector(R.Id) : (Fx0, Fy0);
+                var (Fxl, Fyl) = L != null ? F.GetVector(L.Id) : (Fx0, Fy0);
+                var (Fxu, Fyu) = U != null ? F.GetVector(U.Id) : (Fx0, Fy0);
+                var (Fxd, Fyd) = D != null ? F.GetVector(D.Id) : (Fx0, Fy0);
 
                 // Compute partial derivatives using central differences
-                double dFx = (Fxr - Fxl) / ((R != null && L != null) ? 2.0 : 1.0);  // ∂Fx/∂x
-                double dFy = (Fyu - Fyd) / ((U != null && D != null) ? 2.0 : 1.0);  // ∂Fy/∂y
+                double dFx = (Fxr - Fxl) / (R != null && L != null ? 2.0 : 1.0);  // ∂Fx/∂x
+                double dFy = (Fyu - Fyd) / (U != null && D != null ? 2.0 : 1.0);  // ∂Fy/∂y
 
                 // Divergence is sum of partial derivatives
                 div[el.Id] = dFx + dFy;
@@ -393,8 +394,8 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 downValue = field[downIndex];
 
             // Compute denominators for finite difference (central vs one-sided)
-            double denomX = (rightIndex >= 0 && leftIndex >= 0) ? 2.0 : 1.0;
-            double denomY = (upIndex >= 0 && downIndex >= 0) ? 2.0 : 1.0;
+            double denomX = rightIndex >= 0 && leftIndex >= 0 ? 2.0 : 1.0;
+            double denomY = upIndex >= 0 && downIndex >= 0 ? 2.0 : 1.0;
 
             // Calculate partial derivatives
             gradX[index] = (rightValue - leftValue) / denomX;  // ∂φ/∂x
@@ -490,8 +491,8 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 fyd = fy[downIndex];
 
             // Compute finite difference denominators
-            double denomX = (rightIndex >= 0 && leftIndex >= 0) ? 2.0 : 1.0;
-            double denomY = (upIndex >= 0 && downIndex >= 0) ? 2.0 : 1.0;
+            double denomX = rightIndex >= 0 && leftIndex >= 0 ? 2.0 : 1.0;
+            double denomY = upIndex >= 0 && downIndex >= 0 ? 2.0 : 1.0;
 
             // Divergence = ∂Fx/∂x + ∂Fy/∂y
             result[index] = (fxr - fxl) / denomX + (fyu - fyd) / denomY;

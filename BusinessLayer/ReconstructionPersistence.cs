@@ -1,7 +1,6 @@
 ﻿using DataAccessLayer;
 using System.Diagnostics;
 using System.Numerics;
-using System.Threading.Tasks;
 using Utility.Classes;
 using Utility.Classes.Application;
 using Utility.Classes.Factories;
@@ -11,10 +10,10 @@ using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Models;
 using Utility.Classes.ReconstructionParameters;
+using Utility.Exports;
 using Utility.Classes.Solvers.FiniteElementSolver;
 using Utility.Classes.Solvers.LatticeBoltzmannSolver;
-using Utility.Classes.Reconstruction.ErrorMetrics;
-using Utility.Exports;
+using Utility.Classes.Reconstruction.DESolvers;
 
 namespace BusinessLayer
 {

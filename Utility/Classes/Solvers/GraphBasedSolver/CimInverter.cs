@@ -141,7 +141,7 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
 
             // Replace any unresolved conductances with a tiny positive value.
             for (int e = 0; e < conductances.Length; e++)
-                conductances[e] = (conductances[e] > 0.0) ? conductances[e] : 1e-12;
+                conductances[e] = conductances[e] > 0.0 ? conductances[e] : 1e-12;
 
             return conductances;
         }

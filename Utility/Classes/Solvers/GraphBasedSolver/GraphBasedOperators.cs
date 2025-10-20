@@ -63,7 +63,7 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
         private static int PickGround(IReadOnlyList<FEMElectrode> el)
         {
             int g = el.ToList().FindIndex(e => e.IsGround);
-            return (g >= 0) ? g : 0;
+            return g >= 0 ? g : 0;
         }
 
         /// <summary>
@@ -134,7 +134,7 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
             for (int ell = 0; ell < L; ell++)
             {
                 var el = electrodes[ell];
-                double beta = (el.ZContact > 0.0) ? 1.0 / el.ZContact : 1e12;
+                double beta = el.ZContact > 0.0 ? 1.0 / el.ZContact : 1e12;
 
                 foreach (var b in emap[ell])
                 {
@@ -166,7 +166,7 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
                 for (int j = 0; j < N; j++)
                     S[i, j] = Kt[i, j];
 
-            int ColU(int ell) => (ell < g) ? (N + ell) : (N + ell - 1);
+            int ColU(int ell) => ell < g ? N + ell : N + ell - 1;
 
             for (int b = 0; b < N; b++)
                 for (int ell = 0; ell < L; ell++)
@@ -178,7 +178,7 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
                 int irow = ColU(ell);
                 for (int b = 0; b < N; b++) S[irow, b] = -A[b, ell];
                 for (int m = 0; m < L; m++)
-                    if (m != g) S[irow, ColU(m)] = (ell == m) ? D[ell, ell] : 0.0;
+                    if (m != g) S[irow, ColU(m)] = ell == m ? D[ell, ell] : 0.0;
             }
 
             for (int ell = 0; ell < L; ell++)
@@ -190,7 +190,7 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
             Array.Copy(x, 0, phi, 0, N);
 
             var U = new double[L];
-            for (int ell = 0; ell < L; ell++) U[ell] = (ell == g) ? 0.0 : x[ColU(ell)];
+            for (int ell = 0; ell < L; ell++) U[ell] = ell == g ? 0.0 : x[ColU(ell)];
 
             return (phi, U, map);
         }

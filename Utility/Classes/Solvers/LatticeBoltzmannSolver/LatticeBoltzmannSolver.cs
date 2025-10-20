@@ -6,6 +6,7 @@ using ILGPU.Runtime;
 using Utility.Classes.Measurement;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
+using Utility.Classes.Solvers;
 
 namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 {
@@ -391,7 +392,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 if (interiorNeighbor == null || interiorNeighbor.IsWall)
                     continue;
 
-                if (outwardDirection < 0 || (dir < 5 && outwardDirection >= 5))
+                if (outwardDirection < 0 || dir < 5 && outwardDirection >= 5)
                     outwardDirection = dir;
             }
 
@@ -1012,7 +1013,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     if (neighborIsWall[baseIndex + inward] == 1)
                         continue;
 
-                    if (outwardDirection < 0 || (dir < 5 && outwardDirection >= 5))
+                    if (outwardDirection < 0 || dir < 5 && outwardDirection >= 5)
                         outwardDirection = dir;
                 }
 

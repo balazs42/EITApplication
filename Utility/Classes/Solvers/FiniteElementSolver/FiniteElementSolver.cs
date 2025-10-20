@@ -7,6 +7,7 @@ using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.ReconstructionParameters;
 using System.Linq;
 using System.Threading.Tasks;
+using Utility.Classes.Solvers;
 
 namespace Utility.Classes.Solvers.FiniteElementSolver
 {
@@ -259,14 +260,14 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
                 {
                     var segments = BuildElectrodeSegments(mesh, contactVertexIds);
                     double totalLength = 0.0;
-                    foreach (var (a, b, length) in segments)
+                    foreach (var (a, b, len) in segments)
                     {
-                        if (length <= 0.0)
+                        if (len <= 0.0)
                             continue;
 
-                        totalLength += length;
-                        var diag = new Complex(invZ * length / 3.0, 0.0);
-                        var off = new Complex(invZ * length / 6.0, 0.0);
+                        totalLength += len;
+                        var diag = new Complex(invZ * len / 3.0, 0.0);
+                        var off = new Complex(invZ * len / 6.0, 0.0);
                         M[a, a] += diag;
                         M[b, b] += diag;
                         M[a, b] += off;
@@ -306,14 +307,14 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
                 {
                     var segments = BuildElectrodeSegments(mesh, contactVertexIds);
                     double totalLength = 0.0;
-                    foreach (var (a, b, length) in segments)
+                    foreach (var (a, b, len) in segments)
                     {
-                        if (length <= 0.0)
+                        if (len <= 0.0)
                             continue;
 
-                        totalLength += length;
-                        var diag = new Complex(invZ * length / 3.0, 0.0);
-                        var off = new Complex(invZ * length / 6.0, 0.0);
+                        totalLength += len;
+                        var diag = new Complex(invZ * len / 3.0, 0.0);
+                        var off = new Complex(invZ * len / 6.0, 0.0);
                         AddToNodeMatrixThreadSafe(M, a, a, diag);
                         AddToNodeMatrixThreadSafe(M, b, b, diag);
                         AddToNodeMatrixThreadSafe(M, a, b, off);
@@ -355,13 +356,13 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
                 {
                     var segments = BuildElectrodeSegments(mesh, contactVertexIds);
                     double totalLength = 0.0;
-                    foreach (var (a, b, length) in segments)
+                    foreach (var (a, b, len) in segments)
                     {
-                        if (length <= 0.0)
+                        if (len <= 0.0)
                             continue;
 
-                        totalLength += length;
-                        var value = new Complex(invZ * length / 2.0, 0.0);
+                        totalLength += len;
+                        var value = new Complex(invZ * len / 2.0, 0.0);
                         A_coup[a, el.Id] += value;
                         A_coup[b, el.Id] += value;
                     }
@@ -397,13 +398,13 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
                 {
                     var segments = BuildElectrodeSegments(mesh, contactVertexIds);
                     double totalLength = 0.0;
-                    foreach (var (a, b, length) in segments)
+                    foreach (var (a, b, len) in segments)
                     {
-                        if (length <= 0.0)
+                        if (len <= 0.0)
                             continue;
 
-                        totalLength += length;
-                        var value = new Complex(invZ * length / 2.0, 0.0);
+                        totalLength += len;
+                        var value = new Complex(invZ * len / 2.0, 0.0);
                         AddToCouplingMatrixThreadSafe(a, el.Id, value);
                         AddToCouplingMatrixThreadSafe(b, el.Id, value);
                     }

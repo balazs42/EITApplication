@@ -1,6 +1,8 @@
 ﻿using System.Diagnostics;
 using Utility.Classes;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
+using Utility.Classes.Reconstruction.ErrorMetrics;
+using Utility.Classes.Reconstruction.Regulizers;
 using Utility.Classes.ReconstructionParameters;
 
 namespace Utility.Tests
