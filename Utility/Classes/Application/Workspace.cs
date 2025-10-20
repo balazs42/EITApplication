@@ -81,7 +81,10 @@ namespace Utility.Classes.Application
             => _currentGlobalFemElements ?? throw new InvalidOperationException("Current FEM elements have not been cached in the workspace.");
 
         public static void UpdateCurrentGlobalFemElectrodes(FEMMesh mesh)
-            => _currentGlobalFemElectrodes = [.. mesh.GetElectrodes().Cast<FEMElectrode>()];
+        {
+            mesh.UpdateElectrodeLengths();
+            _currentGlobalFemElectrodes = [.. mesh.GetElectrodes().Cast<FEMElectrode>()];
+        }
 
         public static void SetCurrentGlobalFemElectrodes(List<FEMElectrode> electrodes)
             => _currentGlobalFemElectrodes = electrodes;
