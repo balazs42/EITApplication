@@ -39,6 +39,12 @@ namespace Utility.Classes.ReconstructionParameters
         [ObservableProperty]
         private bool useCudaAcceleration = false;
 
+        [ObservableProperty]
+        private double conductivityMinimumBound = 0.1;
+
+        [ObservableProperty]
+        private double conductivityMaximumBound = 10.0;
+
         public DiscretizationType Mesh = DiscretizationType.FEM;
 
         /// <summary>

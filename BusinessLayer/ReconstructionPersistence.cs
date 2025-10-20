@@ -1,5 +1,6 @@
 ﻿using DataAccessLayer;
 using System.Diagnostics;
+using System.Linq;
 using System.Numerics;
 using Utility.Classes;
 using Utility.Classes.Application;
@@ -9,6 +10,7 @@ using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Models;
+using Utility.Classes.Reconstruction;
 using Utility.Classes.ReconstructionParameters;
 using Utility.Exports;
 using Utility.Classes.Solvers.FiniteElementSolver;
@@ -39,6 +41,9 @@ namespace BusinessLayer
         private NumericSolver _numericSolverChoice = NumericSolver.LU;
         private ErrorMetric _errorMetricChoice = ErrorMetric.L2;
 
+        private double _conductivityMinimumBound = 0.1;
+        private double _conductivityMaximumBound = 10.0;
+
         private ConductivityDistribution? _originalSigma = null;
         private ConductivityDistribution? _initialSigma = null;
 
@@ -64,8 +69,8 @@ namespace BusinessLayer
 
         public void SetConductivityDistributions(ConductivityDistribution original, ConductivityDistribution initial)
         {
-            _originalSigma = original;
-            _initialSigma = initial;
+            _originalSigma = ConductivityClipper.Clip(original);
+            _initialSigma = ConductivityClipper.Clip(initial);
         }
 
         public void InitializeReconstruction(IDiscretization discretization, EITReconstructionParameters parameters, bool reinit)
@@ -102,6 +107,14 @@ namespace BusinessLayer
                 _errorMetric = ErrorMetricFactory.Create(_errorMetricChoice);
                 _initialDistributionType = parameters.InitialDistributionType;
                 var initSigma = _initialSigma ?? ConductivityDistributionFactory.CreateInitialDistribution(discretization, _initialDistributionType);
+                _conductivityMinimumBound = parameters.ConductivityMinimumBound;
+                _conductivityMaximumBound = parameters.ConductivityMaximumBound;
+                ConductivityClipper.UpdateBounds(_conductivityMinimumBound, _conductivityMaximumBound);
+                if (_initialSigma != null)
+                    _initialSigma = ConductivityClipper.Clip(_initialSigma);
+                if (_originalSigma != null)
+                    _originalSigma = ConductivityClipper.Clip(_originalSigma);
+                initSigma = ConductivityClipper.Clip(initSigma);
                 _numericOptimizer = NumericOptimizerFactory.Create(parameters.NumericOptimizer, initSigma);
                 _drivePattern = parameters.DrivePattern;
 
@@ -131,6 +144,7 @@ namespace BusinessLayer
 
                 var sigma = femMesh.GetConductivityDistribution();
                 var updated = _numericOptimizer.OptimizationStep(sigma, totalGrad, gradientStepSize);
+                updated = ConductivityClipper.Clip(updated);
                 femMesh.SetConductivityDistribution(updated);
 
                 return new ReconstructionFrame(totalGrad,
@@ -151,6 +165,7 @@ namespace BusinessLayer
 
                 var sigma = lbmGrid.GetConductivityDistribution();
                 var updated = _numericOptimizer.OptimizationStep(sigma, totalGrad, gradientStepSize);
+                updated = ConductivityClipper.Clip(updated);
                 lbmGrid.SetConductivityDistribution(updated);
 
                 return new ReconstructionFrame(totalGrad,
@@ -224,7 +239,8 @@ namespace BusinessLayer
             var boundaryConditions = new FEMBoundaryCondition(electrodes);
             Workspace.SetCurrentGlobalFemBoundaryCondition(boundaryConditions);
 
-            return _differentialEquationSolver.Solve(mesh, boundaryConditions, null);
+            var potential = _differentialEquationSolver.Solve(mesh, boundaryConditions, null);
+            return PotentialClipper.Clip(potential);
         }
 
         public PotentialDistribution ForwardSolveStepLbm()
@@ -240,7 +256,8 @@ namespace BusinessLayer
             var boundaryConditions = new LBMBoundaryCondition(electrodes);
             Workspace.SetCurrentGlobalLbmBoundaryCondition(boundaryConditions);
 
-            return _differentialEquationSolver.Solve(lbmGrid, boundaryConditions, null);
+            var potential = _differentialEquationSolver.Solve(lbmGrid, boundaryConditions, null);
+            return PotentialClipper.Clip(potential);
         }
 
         public PotentialDistribution ForwardSolveStepLbmCuda()
@@ -256,7 +273,8 @@ namespace BusinessLayer
             var boundaryConditions = new LBMBoundaryCondition(electrodes);
             Workspace.SetCurrentGlobalLbmBoundaryCondition(boundaryConditions);
 
-            return lbmSolver.CUDASolveForward(lbmGrid, boundaryConditions);
+            var potential = lbmSolver.CUDASolveForward(lbmGrid, boundaryConditions);
+            return PotentialClipper.Clip(potential);
         }
 
         public ReconstructionFrame InverseSolveStepFem(FEMMesh mesh, FEMBoundaryCondition bc, double[] currentMeasurement, double gradientStepSize)
@@ -300,9 +318,10 @@ namespace BusinessLayer
             PotentialDistribution phi = _useCudaParallelization && lbmSolver != null
                 ? lbmSolver.CUDASolveForward(mesh, bc)
                 : _differentialEquationSolver.Solve(mesh, bc, null);
+            phi = PotentialClipper.Clip(phi);
 
             // Extract simulated potentials
-            double[] simulatedPotentials = mesh.GetElectrodePotentials();
+            double[] simulatedPotentials = PotentialClipper.Clip(mesh.GetElectrodePotentials());
 
             double currentError = _errorMetric.Evaluate(mesh, currentMeasurement, simulatedPotentials);
 
@@ -318,6 +337,7 @@ namespace BusinessLayer
             PotentialDistribution mu = _useCudaParallelization && lbmSolver != null
                 ? lbmSolver.CUDASolveAdjoint(mesh, adjointBoundaryCondition, adjointSource)
                 : _differentialEquationSolver.Solve(mesh, adjointBoundaryCondition, adjointSource);
+            mu = PotentialClipper.Clip(mu);
 
             var phiGradientField = _useCudaParallelization
                 ? LatticeBoltzmannOperators.CalculateGradientCuda(mesh, phi)
@@ -376,8 +396,8 @@ namespace BusinessLayer
                 elements = mesh.GetElements().Cast<FEMElement>().ToList();
             }
 
-            PotentialDistribution phi = solver.Solve(mesh, bc, null);
-            double[] simulatedPotentials = mesh.GetElectrodePotentials();
+            PotentialDistribution phi = PotentialClipper.Clip(solver.Solve(mesh, bc, null));
+            double[] simulatedPotentials = PotentialClipper.Clip(mesh.GetElectrodePotentials());
 
             var adjSrc = errorMetric.EvaluateAdjointSource(mesh, currentMeasurement, simulatedPotentials);
             Complex[] adjointSource = new Complex[adjSrc.Length];
@@ -388,7 +408,7 @@ namespace BusinessLayer
             if (updateWorkspace)
                 Workspace.SetCurrentGlobalFemBoundaryCondition(adjointBoundaryCondition);
 
-            PotentialDistribution mu = solver.Solve(mesh, adjointBoundaryCondition, adjointSource);
+            PotentialDistribution mu = PotentialClipper.Clip(solver.Solve(mesh, adjointBoundaryCondition, adjointSource));
 
             var phiGradient = FiniteElementOperators.CalculateElementWiseGradient(mesh, phi);
             var muGradient = FiniteElementOperators.CalculateElementWiseGradient(mesh, mu);
@@ -540,7 +560,8 @@ namespace BusinessLayer
                     kvp => kvp.Key,
                     kvp => kvp.Value + _gradientStepSize * totalGrad[kvp.Key]);
 
-                mesh.SetConductivityDistribution(new ConductivityDistribution(newSigmaDict));
+                var updatedSigma = ConductivityClipper.Clip(new ConductivityDistribution(newSigmaDict));
+                mesh.SetConductivityDistribution(updatedSigma);
             }
 
             // Final reconstructed distribution after termination of the loop.
@@ -577,6 +598,7 @@ namespace BusinessLayer
             }
 
             ConductivityDistribution initialSigma = _initialSigma ?? mesh.GetConductivityDistribution();
+            initialSigma = ConductivityClipper.Clip(initialSigma);
             mesh.SetConductivityDistribution(initialSigma);
 
             Workspace.UpdateCurrentGlobalLbmElectrodes(mesh);
@@ -636,7 +658,8 @@ namespace BusinessLayer
                     kvp => kvp.Key,
                     kvp => kvp.Value + _gradientStepSize * totalGrad[kvp.Key]);
 
-                mesh.SetConductivityDistribution(new ConductivityDistribution(newSigmaDict));
+                var updated = ConductivityClipper.Clip(new ConductivityDistribution(newSigmaDict));
+                mesh.SetConductivityDistribution(updated);
             }
 
             ConductivityDistribution reconstructed = mesh.GetConductivityDistribution();
@@ -673,6 +696,7 @@ namespace BusinessLayer
                 simulatedMeasurements = SimulateFemMeasurements(mesh, excitationAmplitude, _drivePattern);
             
             ConductivityDistribution initialConductivityDistribution = _initialSigma ?? ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType);
+            initialConductivityDistribution = ConductivityClipper.Clip(initialConductivityDistribution);
             mesh.SetConductivityDistribution(initialConductivityDistribution);
 
             Workspace.UpdateCurrentGlobalFemElectrodes(mesh);
@@ -755,6 +779,7 @@ namespace BusinessLayer
 
                 // Apply optimization step
                 var newConductivityDistribution = _numericOptimizer.OptimizationStep(mesh.ConductivityDistribution, grad, gradientStepSize);
+                newConductivityDistribution = ConductivityClipper.Clip(newConductivityDistribution);
 
                 mesh.SetConductivityDistribution(newConductivityDistribution);
 
@@ -886,10 +911,10 @@ namespace BusinessLayer
             var elements = Workspace.GetCurrentGlobalLbmElements();
 
             // Solve Forward to extract simulated potentials
-            PotentialDistribution phi = _differentialEquationSolver.Solve(mesh, bc, null);
+            PotentialDistribution phi = PotentialClipper.Clip(_differentialEquationSolver.Solve(mesh, bc, null));
 
             // Extract simulated potentials
-            double[] simulatedPotentials = mesh.GetElectrodePotentials();
+            double[] simulatedPotentials = PotentialClipper.Clip(mesh.GetElectrodePotentials());
 
             double currentError = _errorMetric.Evaluate(mesh, currentMeasurement, simulatedPotentials);
 
@@ -902,7 +927,7 @@ namespace BusinessLayer
 
             var adjointBoundaryCondition = new LBMBoundaryCondition(electrodes);
             Workspace.SetCurrentGlobalLbmBoundaryCondition(adjointBoundaryCondition);
-            PotentialDistribution mu = _differentialEquationSolver.Solve(mesh, adjointBoundaryCondition, adjointSource);
+            PotentialDistribution mu = PotentialClipper.Clip(_differentialEquationSolver.Solve(mesh, adjointBoundaryCondition, adjointSource));
 
             var phiGradientField = _useCudaParallelization
                 ? LatticeBoltzmannOperators.CalculateGradientCuda(mesh, phi)
@@ -976,13 +1001,11 @@ namespace BusinessLayer
 
                     var newSigmaDict = sigma.Conductivities.ToDictionary(
                         kvp => kvp.Key,
-                        // Clamp conductivites which got below 0
-                        kvp => ((kvp.Value - step * frame.ConductivityGradient.GetConductivity(kvp.Key)) < 0.0) ?
-                                                                1e-1 : kvp.Value - step * frame.ConductivityGradient.GetConductivity(kvp.Key)
+                        _ => kvp.Value - step * frame.ConductivityGradient.GetConductivity(kvp.Key)
                     );
 
-                    sigma = new ConductivityDistribution(newSigmaDict);
-                    lbmGrid.SetConductivityDistribution(sigma);
+                    var updatedSigma = ConductivityClipper.Clip(new ConductivityDistribution(newSigmaDict));
+                    lbmGrid.SetConductivityDistribution(updatedSigma);
 
                     // Add partial results
                     frames.Add(frame);
@@ -1064,7 +1087,7 @@ namespace BusinessLayer
             var boundaryConditions = new FEMBoundaryCondition(electrodes);
             Workspace.SetCurrentGlobalFemBoundaryCondition(boundaryConditions);
 
-            PotentialDistribution potentialDistribution = _differentialEquationSolver.Solve(mesh, boundaryConditions, null);
+            PotentialDistribution potentialDistribution = PotentialClipper.Clip(_differentialEquationSolver.Solve(mesh, boundaryConditions, null));
             mesh.SetPotentialDistribution(potentialDistribution);
 
             return mesh;
@@ -1083,7 +1106,7 @@ namespace BusinessLayer
             List<double[]> simulatedMeasurements = SimulateFemMeasurements(mesh, excitationAmplitude, _drivePattern);
             
             // 2) Initialize conductivity (σ^{(0)}) based on user selection
-            ConductivityDistribution sigma = ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType);
+            ConductivityDistribution sigma = ConductivityClipper.Clip(ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType));
             mesh.SetConductivityDistribution(sigma);
 
             Workspace.UpdateCurrentGlobalFemElectrodes(mesh);
@@ -1133,11 +1156,11 @@ namespace BusinessLayer
                     bc = new FEMBoundaryCondition(electrodes);
 
                     // 4a) Forward solve φ⁽ᵏ⁾ = S(σ⁽ᵏ⁾)   (thesis Eq. 1.1.16)
-                    PotentialDistribution phi = _differentialEquationSolver.Solve(mesh, bc, null);
+                    PotentialDistribution phi = PotentialClipper.Clip(_differentialEquationSolver.Solve(mesh, bc, null));
                     Debug.WriteLine("Forward φ computed.");
 
                     // 4b) Extract simulated boundary data d_sim
-                    double[] dSim = mesh.GetElectrodePotentials();
+                    double[] dSim = PotentialClipper.Clip(mesh.GetElectrodePotentials());
                     Debug.WriteLine("The simulated electrode potentials during iteration:");
                     for (int i = 0; i < dSim.Length; i++)
                         Debug.WriteLine($"{dSim[i]}");
@@ -1145,7 +1168,7 @@ namespace BusinessLayer
                     double[] dObs = simulatedMeasurements[exc];
 
                     // 4e) Build adjoint source s = EvaluateAdjointSource (L2: residual; W2: Kantorovich φ) 
-                    var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, dObs, dSim);
+                    var adjSrc = PotentialClipper.Clip(_errorMetric.EvaluateAdjointSource(mesh, dObs, dSim));
 
                     Complex[] adjointSource = new Complex[adjSrc.Length];
                     for(int i = 0; i < adjSrc.Length; i++)
@@ -1161,7 +1184,7 @@ namespace BusinessLayer
                     // 4f) Adjoint solve μ: same forward‐solver but feed in adjSrc as boundary currents
                     var adjointBoundaryCondition = new FEMBoundaryCondition(electrodes, srcDist);
                     Workspace.SetCurrentGlobalFemBoundaryCondition(adjointBoundaryCondition);
-                    var mu = _differentialEquationSolver.Solve(mesh, adjointBoundaryCondition, adjointSource);
+                    var mu = PotentialClipper.Clip(_differentialEquationSolver.Solve(mesh, adjointBoundaryCondition, adjointSource));
                     Debug.WriteLine("Adjoint μ computed.");
 
                     // 4g) Compute gradient ∇J_data = ∇μ·∇φ elementwise  (thesis Eq. 2.1.20)
@@ -1205,6 +1228,7 @@ namespace BusinessLayer
 
                 // 4i) Apply optimization step
                 var newConductivityDistribution = _numericOptimizer.OptimizationStep(mesh.ConductivityDistribution, grad, stepSize);
+                newConductivityDistribution = ConductivityClipper.Clip(newConductivityDistribution);
 
                 mesh.SetConductivityDistribution(newConductivityDistribution);
 
@@ -1230,8 +1254,8 @@ namespace BusinessLayer
                     electrodes[(exc + 1) % electrodeCount].IsMeasuring = false;
                     electrodes[(exc + 1) % electrodeCount].Current = -excitationAmplitude;
 
-                    var phiNew = _differentialEquationSolver.Solve(mesh, bc, null);
-                    double[] dSimNew = mesh.GetElectrodePotentials();
+                    var phiNew = PotentialClipper.Clip(_differentialEquationSolver.Solve(mesh, bc, null));
+                    double[] dSimNew = PotentialClipper.Clip(mesh.GetElectrodePotentials());
                     double[] dObs = simulatedMeasurements[exc];
                     Jtotal += _errorMetric.Evaluate(mesh, dObs, dSimNew);
                 }
@@ -1295,7 +1319,7 @@ namespace BusinessLayer
 
                 FEMMesh result = SolveFemForward(deepCopy);
 
-                measurements.Add(result.GetElectrodePotentials());
+                measurements.Add(PotentialClipper.Clip(result.GetElectrodePotentials()));
             }
 
             return measurements;
@@ -1320,7 +1344,7 @@ namespace BusinessLayer
             var electrodes = Workspace.GetCurrentGlobalFemElectrodes();
             var bc = new FEMBoundaryCondition(electrodes);
             Workspace.SetCurrentGlobalFemBoundaryCondition(bc);
-            var pd = _differentialEquationSolver.Solve(mesh, bc, null);
+            var pd = PotentialClipper.Clip(_differentialEquationSolver.Solve(mesh, bc, null));
             mesh.SetPotentialDistribution(pd);
             return mesh;
         }
@@ -1341,13 +1365,13 @@ namespace BusinessLayer
             if (_differentialEquationSolver is not GraphSolver graphSolver || _numericSolver == null || _errorMetric == null)
                 throw new NullReferenceException("Graph solver path not initialized.");
 
-            PotentialDistribution phi = _differentialEquationSolver.Solve(mesh, boundaryCondition, null);
-            var dSim = mesh.GetElectrodePotentials();
-            var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, measurement, dSim);
+            PotentialDistribution phi = PotentialClipper.Clip(_differentialEquationSolver.Solve(mesh, boundaryCondition, null));
+            var dSim = PotentialClipper.Clip(mesh.GetElectrodePotentials());
+            var adjSrc = PotentialClipper.Clip(_errorMetric.EvaluateAdjointSource(mesh, measurement, dSim));
             var adjComplex = adjSrc.Select(x => new Complex(x, 0.0)).ToArray();
-            PotentialDistribution mu = graphSolver.SolveAdjoint(mesh, _numericSolver, adjComplex);
+            PotentialDistribution mu = PotentialClipper.Clip(graphSolver.SolveAdjoint(mesh, _numericSolver, adjComplex));
             ConductivityDistribution original = mesh.GetConductivityDistribution();
-            ConductivityDistribution sigma = graphSolver.InverseSolve(mesh, boundaryCondition, adjComplex);
+            ConductivityDistribution sigma = ConductivityClipper.Clip(graphSolver.InverseSolve(mesh, boundaryCondition, adjComplex));
             mesh.SetConductivityDistribution(sigma);
 
             throw new NotImplementedException();
