@@ -2,6 +2,7 @@
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Measurement;
+using Utility.Classes.Reconstruction;
 using Utility.Classes.ReconstructionParameters;
 
 namespace Utility.Classes.Application
@@ -17,6 +18,8 @@ namespace Utility.Classes.Application
         private static int _maxIterationCount = 50;
         private static double _stepSize = 0.001;
         private static double _regularizationWeight = 1e-3;
+        private static double _conductivityMinimumBound = 0.1;
+        private static double _conductivityMaximumBound = 10.0;
 
         public const int ReconstructionVideoFramesPerSecond = 10;
 
@@ -54,7 +57,13 @@ namespace Utility.Classes.Application
         }
 
         public static void SetUser(User user) => _user = user;
-        public static void SetReconstructionParameters(EITReconstructionParameters eITReconstructionParameters) => _reconstructionParameters = eITReconstructionParameters;
+        public static void SetReconstructionParameters(EITReconstructionParameters eITReconstructionParameters)
+        {
+            _reconstructionParameters = eITReconstructionParameters;
+            _conductivityMinimumBound = eITReconstructionParameters.ConductivityMinimumBound;
+            _conductivityMaximumBound = eITReconstructionParameters.ConductivityMaximumBound;
+            ConductivityClipper.UpdateBounds(_conductivityMinimumBound, _conductivityMaximumBound);
+        }
         public static void SetDiscretization(IDiscretization? discretization) => _discretization = discretization;
         public static void SetOriginalDiscretization(IDiscretization? originalDiscretization) => _originalDiscretization = originalDiscretization;
         public static void SetInitialDiscretization(IDiscretization? initialDiscretization) => _initialDiscretization = initialDiscretization;
@@ -138,6 +147,18 @@ namespace Utility.Classes.Application
         {
             get => _regularizationWeight;
             set => _regularizationWeight = value;
+        }
+
+        public static double ConductivityMinimumBound
+        {
+            get => _conductivityMinimumBound;
+            set => _conductivityMinimumBound = value;
+        }
+
+        public static double ConductivityMaximumBound
+        {
+            get => _conductivityMaximumBound;
+            set => _conductivityMaximumBound = value;
         }
 
         public static void AddReconstructionResultToWorkspace(ReconstructionResult reconstructionResult) => _reconstructionResults.Add(reconstructionResult);

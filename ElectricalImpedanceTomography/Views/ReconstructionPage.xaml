@@ -166,7 +166,7 @@
                         <Border Grid.Column="1"
                                 Style="{StaticResource PanelSectionBorderStyle}"
                                 BackgroundColor="{AppThemeBinding Light=#25324A, Dark=#25324A}">
-                            <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
+                            <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
                                 <Label Grid.Row="0" Text="Parameters" FontSize="Medium" FontAttributes="Bold" Margin="0,0,0,12"/>
                                 <Label Grid.Row="1" HorizontalOptions="Start" Text="Initial Distribution" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Picker Grid.Row="2" ItemsSource="{Binding InitialDistributionOptions}" SelectedItem="{Binding ReconstructionParameters.InitialDistributionType}"/>
@@ -183,6 +183,21 @@
                                        Text="{Binding ReconstructionParameters.MeasurementNoiseAmplitude}"
                                        Keyboard="Numeric"
                                        IsEnabled="{Binding IsNoiseAmplitudeEnabled}"/>
+                                <Label Grid.Row="13"
+                                       HorizontalOptions="Start"
+                                       Text="Conductivity Bounds"
+                                       FontFamily="SF Pro Text"
+                                       FontAttributes="None"/>
+                                <Grid Grid.Row="14" ColumnDefinitions="*, *" ColumnSpacing="8">
+                                    <Entry Grid.Column="0"
+                                           Placeholder="Min"
+                                           Keyboard="Numeric"
+                                           Text="{Binding ReconstructionParameters.ConductivityMinimumBound}"/>
+                                    <Entry Grid.Column="1"
+                                           Placeholder="Max"
+                                           Keyboard="Numeric"
+                                           Text="{Binding ReconstructionParameters.ConductivityMaximumBound}"/>
+                                </Grid>
                             </Grid>
                         </Border>
                     </Grid>

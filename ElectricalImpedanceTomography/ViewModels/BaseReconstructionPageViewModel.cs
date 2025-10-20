@@ -1,5 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using System.ComponentModel;
+using Utility.Classes.Reconstruction;
 using Utility.Classes.ReconstructionParameters;
 using Utility.Classes.Factories;
 
@@ -42,6 +43,10 @@ namespace ElectricalImpedanceTomography.ViewModels
             _currentParameters = ReconstructionParameters;
             _currentParameters.PropertyChanged += OnReconstructionParametersPropertyChanged;
             OnPropertyChanged(nameof(IsNoiseAmplitudeEnabled));
+            Workspace.ConductivityMinimumBound = _currentParameters.ConductivityMinimumBound;
+            Workspace.ConductivityMaximumBound = _currentParameters.ConductivityMaximumBound;
+            ConductivityClipper.UpdateBounds(_currentParameters.ConductivityMinimumBound,
+                                             _currentParameters.ConductivityMaximumBound);
         }
 
         partial void OnReconstructionParametersChanged(EITReconstructionParameters value)
@@ -60,6 +65,19 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             if (e.PropertyName == nameof(EITReconstructionParameters.MeasurementNoiseType))
                 OnPropertyChanged(nameof(IsNoiseAmplitudeEnabled));
+
+            if (e.PropertyName == nameof(EITReconstructionParameters.ConductivityMinimumBound)
+                || e.PropertyName == nameof(EITReconstructionParameters.ConductivityMaximumBound))
+            {
+                var parameters = ReconstructionParameters;
+                if (parameters != null)
+                {
+                    Workspace.ConductivityMinimumBound = parameters.ConductivityMinimumBound;
+                    Workspace.ConductivityMaximumBound = parameters.ConductivityMaximumBound;
+                    ConductivityClipper.UpdateBounds(parameters.ConductivityMinimumBound,
+                                                     parameters.ConductivityMaximumBound);
+                }
+            }
         }
 
         [ObservableProperty]
