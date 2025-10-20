@@ -79,7 +79,7 @@ namespace Utility.Tests
         [Fact]
         public void Wasserstein2_FEM_Allows_More_Boundary_Vertices_Than_Electrodes()
         {
-            var mesh = MeshFactory.CreateCircularFEMMesh(layers: 2, boundaryFEMVertexCount: 64, electrodeCount: 16);
+            var mesh = MeshFactory.CreateCircularFEMMesh(layers: 2, boundaryFEMVertexCount: 64, electrodeCount: 16, inhomogeneityValue: 1.0, nodesPerElectrode: 1, electrodeLengthHint: 0.3);
 
             var electrodes = mesh.GetElectrodes();
             Assert.Equal(16, electrodes.Count);

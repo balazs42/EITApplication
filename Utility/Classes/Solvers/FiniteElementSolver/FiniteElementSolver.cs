@@ -58,12 +58,8 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             SystemMatrix = new Complex[N_phi + L, N_phi + L];
             SystemRHS = new Complex[N_phi + L];
 
-            _nodeLocks = Enumerable.Range(0, N_phi)
-                                    .Select(_ => new object())
-                                    .ToArray();
-            _electrodeLocks = Enumerable.Range(0, L)
-                                        .Select(_ => new object())
-                                        .ToArray();
+            _nodeLocks = [.. Enumerable.Range(0, N_phi).Select(_ => new object())];
+            _electrodeLocks = [.. Enumerable.Range(0, L).Select(_ => new object())];
         }
 
         /// <summary>

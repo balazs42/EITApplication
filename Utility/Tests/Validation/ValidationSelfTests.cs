@@ -121,7 +121,7 @@ public static class ValidationSelfTests
         double[] alphas = { 1.0 };
         double[] betas = { 0.0 };
 
-        var mesh = MeshFactory.CreateCircularFEMMesh(layers: 1, boundaryFEMVertexCount: 16, electrodeCount: 0);
+        var mesh = MeshFactory.CreateCircularFEMMesh(layers: 1, boundaryFEMVertexCount: 16, electrodeCount: 0, inhomogeneityValue: 1.0, nodesPerElectrode: 1, electrodeLengthHint: 0.3);
 
         // Populate mesh potentials with analytic solution u(r,θ)
         var potentials = new Dictionary<int, double>();
