@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Numerics;
 using Utility.Classes.Measurement;
 using Utility.Classes.Discretizer;
@@ -24,6 +25,7 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         private readonly INumericSolver _numericSolver;
         private readonly bool _useOmpParallelization;
         private readonly object[] _nodeLocks;
+        private readonly object[] _electrodeLocks;
 
         public int N_phi { get; }
         public int L { get; }
@@ -59,6 +61,9 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             _nodeLocks = Enumerable.Range(0, N_phi)
                                     .Select(_ => new object())
                                     .ToArray();
+            _electrodeLocks = Enumerable.Range(0, L)
+                                        .Select(_ => new object())
+                                        .ToArray();
         }
 
         /// <summary>
@@ -249,12 +254,39 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
 
             foreach (var el in electrodes)
             {
-                double invZ = 1.0 / el.ZContact;
-                double h = el.Length / el.FEMVertexIds.Count;
+                if (el.ZContact <= 0.0)
+                    continue;
 
-                foreach (int vid in el.FEMVertexIds)
-                    M[vid, vid] += invZ * h;
-        }
+                double invZ = 1.0 / el.ZContact;
+                if (!el.PointElectrode && el.FEMVertexIds != null && el.FEMVertexIds.Count >= 2)
+                {
+                    var segments = BuildElectrodeSegments(mesh, el);
+                    foreach (var (a, b, length) in segments)
+                    {
+                        var diag = new Complex(invZ * length / 3.0, 0.0);
+                        var off = new Complex(invZ * length / 6.0, 0.0);
+                        M[a, a] += diag;
+                        M[b, b] += diag;
+                        M[a, b] += off;
+                        M[b, a] += off;
+                    }
+                }
+                else
+                {
+                    int count = Math.Max(1, el.FEMVertexIds?.Count ?? 1);
+                    double share = invZ * (el.Length / count);
+                    var diag = new Complex(share, 0.0);
+                    if (el.FEMVertexIds != null && el.FEMVertexIds.Count > 0)
+                    {
+                        foreach (int vid in el.FEMVertexIds)
+                            M[vid, vid] += diag;
+                    }
+                    else
+                    {
+                        M[el.MeshId, el.MeshId] += diag;
+                    }
+                }
+            }
             //Debug.WriteLine("M:\n" + FormatComplexMatrix(M));
         }
 
@@ -265,15 +297,36 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
 
             Parallel.ForEach(electrodes, el =>
             {
-                double invZ = 1.0 / el.ZContact;
-                double h = el.Length / el.FEMVertexIds.Count;
+                if (el.ZContact <= 0.0)
+                    return;
 
-                foreach (int vid in el.FEMVertexIds)
+                double invZ = 1.0 / el.ZContact;
+
+                if (!el.PointElectrode && el.FEMVertexIds != null && el.FEMVertexIds.Count >= 2)
                 {
-                    var contribution = new Complex(invZ * h, 0);
-                    lock (_nodeLocks[vid])
+                    var segments = BuildElectrodeSegments(mesh, el);
+                    foreach (var (a, b, length) in segments)
                     {
-                        M[vid, vid] += contribution;
+                        var diag = new Complex(invZ * length / 3.0, 0.0);
+                        var off = new Complex(invZ * length / 6.0, 0.0);
+                        AddToNodeMatrixThreadSafe(M, a, a, diag);
+                        AddToNodeMatrixThreadSafe(M, b, b, diag);
+                        AddToNodeMatrixThreadSafe(M, a, b, off);
+                        AddToNodeMatrixThreadSafe(M, b, a, off);
+                    }
+                }
+                else
+                {
+                    int count = Math.Max(1, el.FEMVertexIds?.Count ?? 1);
+                    var diag = new Complex(invZ * (el.Length / count), 0.0);
+                    if (el.FEMVertexIds != null && el.FEMVertexIds.Count > 0)
+                    {
+                        foreach (int vid in el.FEMVertexIds)
+                            AddToNodeMatrixThreadSafe(M, vid, vid, diag);
+                    }
+                    else
+                    {
+                        AddToNodeMatrixThreadSafe(M, el.MeshId, el.MeshId, diag);
                     }
                 }
             });
@@ -290,11 +343,34 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
 
             foreach (var el in electrodes)
             {
-                double invZ = 1.0 / el.ZContact;
-                double h = el.Length / el.FEMVertexIds.Count;
+                if (el.ZContact <= 0.0)
+                    continue;
 
-                foreach (int vid in el.FEMVertexIds)
-                    A_coup[vid, el.Id] += invZ * h;
+                double invZ = 1.0 / el.ZContact;
+                if (!el.PointElectrode && el.FEMVertexIds != null && el.FEMVertexIds.Count >= 2)
+                {
+                    var segments = BuildElectrodeSegments(mesh, el);
+                    foreach (var (a, b, length) in segments)
+                    {
+                        var value = new Complex(invZ * length / 2.0, 0.0);
+                        A_coup[a, el.Id] += value;
+                        A_coup[b, el.Id] += value;
+                    }
+                }
+                else
+                {
+                    int count = Math.Max(1, el.FEMVertexIds?.Count ?? 1);
+                    var value = new Complex(invZ * (el.Length / count), 0.0);
+                    if (el.FEMVertexIds != null && el.FEMVertexIds.Count > 0)
+                    {
+                        foreach (int vid in el.FEMVertexIds)
+                            A_coup[vid, el.Id] += value;
+                    }
+                    else
+                    {
+                        A_coup[el.MeshId, el.Id] += value;
+                    }
+                }
             }
             //Debug.WriteLine("A_coup:\n" + FormatComplexMatrix(A_coup));
         }
@@ -306,15 +382,32 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
 
             Parallel.ForEach(electrodes, el =>
             {
-                double invZ = 1.0 / el.ZContact;
-                double h = el.Length / el.FEMVertexIds.Count;
+                if (el.ZContact <= 0.0)
+                    return;
 
-                foreach (int vid in el.FEMVertexIds)
+                double invZ = 1.0 / el.ZContact;
+                if (!el.PointElectrode && el.FEMVertexIds != null && el.FEMVertexIds.Count >= 2)
                 {
-                    var value = new Complex(invZ * h, 0);
-                    lock (_nodeLocks[vid])
+                    var segments = BuildElectrodeSegments(mesh, el);
+                    foreach (var (a, b, length) in segments)
                     {
-                        A_coup[vid, el.Id] += value;
+                        var value = new Complex(invZ * length / 2.0, 0.0);
+                        AddToCouplingMatrixThreadSafe(a, el.Id, value);
+                        AddToCouplingMatrixThreadSafe(b, el.Id, value);
+                    }
+                }
+                else
+                {
+                    int count = Math.Max(1, el.FEMVertexIds?.Count ?? 1);
+                    var value = new Complex(invZ * (el.Length / count), 0.0);
+                    if (el.FEMVertexIds != null && el.FEMVertexIds.Count > 0)
+                    {
+                        foreach (int vid in el.FEMVertexIds)
+                            AddToCouplingMatrixThreadSafe(vid, el.Id, value);
+                    }
+                    else
+                    {
+                        AddToCouplingMatrixThreadSafe(el.MeshId, el.Id, value);
                     }
                 }
             });
@@ -330,7 +423,26 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>();
 
             foreach (var el in electrodes)
-                D[el.Id, el.Id] = el.Length / el.ZContact;
+            {
+                if (el.ZContact <= 0.0)
+                {
+                    D[el.Id, el.Id] = 0.0;
+                    continue;
+                }
+
+                double invZ = 1.0 / el.ZContact;
+                if (!el.PointElectrode && el.FEMVertexIds != null && el.FEMVertexIds.Count >= 2)
+                {
+                    double total = 0.0;
+                    foreach (var segment in BuildElectrodeSegments(mesh, el))
+                        total += segment.Length;
+                    D[el.Id, el.Id] = total * invZ;
+                }
+                else
+                {
+                    D[el.Id, el.Id] = el.Length * invZ;
+                }
+            }
 
             //Debug.WriteLine("D:\n" + FormatComplexMatrix(D));
         }
@@ -342,8 +454,42 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
 
             Parallel.ForEach(electrodes, el =>
             {
-                D[el.Id, el.Id] = el.Length / el.ZContact;
+                if (el.ZContact <= 0.0)
+                    return;
+
+                double invZ = 1.0 / el.ZContact;
+                if (!el.PointElectrode && el.FEMVertexIds != null && el.FEMVertexIds.Count >= 2)
+                {
+                    double total = 0.0;
+                    foreach (var segment in BuildElectrodeSegments(mesh, el))
+                        total += segment.Length;
+                    AddToElectrodeMatrixThreadSafe(el.Id, new Complex(total * invZ, 0.0));
+                }
+                else
+                {
+                    AddToElectrodeMatrixThreadSafe(el.Id, new Complex(el.Length * invZ, 0.0));
+                }
             });
+        }
+
+        private static List<(int StartId, int EndId, double Length)> BuildElectrodeSegments(FEMMesh mesh, FEMElectrode electrode)
+        {
+            var segments = new List<(int, int, double)>();
+            if (electrode.FEMVertexIds == null || electrode.FEMVertexIds.Count < 2)
+                return segments;
+
+            var ids = electrode.FEMVertexIds;
+            for (int i = 0; i < ids.Count - 1; i++)
+            {
+                var start = mesh.GetVertexById(ids[i]);
+                var end = mesh.GetVertexById(ids[i + 1]);
+                double dx = start.X - end.X;
+                double dy = start.Y - end.Y;
+                double length = Math.Sqrt(dx * dx + dy * dy);
+                if (length > 0.0)
+                    segments.Add((start.GlobalId, end.GlobalId, length));
+            }
+            return segments;
         }
 
         /// <summary>
@@ -460,6 +606,38 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         #endregion
 
         #region Utils
+        private void AddToNodeMatrixThreadSafe(Complex[,] matrix, int row, int col, Complex value)
+        {
+            if (row == col)
+            {
+                lock (_nodeLocks[row])
+                    matrix[row, col] += value;
+                return;
+            }
+
+            int first = Math.Min(row, col);
+            int second = Math.Max(row, col);
+            lock (_nodeLocks[first])
+            {
+                lock (_nodeLocks[second])
+                {
+                    matrix[row, col] += value;
+                }
+            }
+        }
+
+        private void AddToCouplingMatrixThreadSafe(int nodeId, int electrodeId, Complex value)
+        {
+            lock (_nodeLocks[nodeId])
+                A_coup[nodeId, electrodeId] += value;
+        }
+
+        private void AddToElectrodeMatrixThreadSafe(int electrodeId, Complex value)
+        {
+            lock (_electrodeLocks[electrodeId])
+                D[electrodeId, electrodeId] += value;
+        }
+
         /// <summary>
         /// Converts the provided complex 2D array to real 2D array by neglecting the complex parts.
         /// </summary>

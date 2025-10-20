@@ -31,9 +31,9 @@ namespace Utility.Classes.Factories
         /// Builds a circular FEM mesh with given concentric layers and boundary vertices,
         /// then distributes `electrodeCount` electrodes evenly around the outer boundary.
         /// </summary>
-        public static FEMMesh CreateCircularFEMMesh(int layers, int boundaryFEMVertexCount, int electrodeCount = 16)
+        public static FEMMesh CreateCircularFEMMesh(int layers, int boundaryFEMVertexCount, int electrodeCount = 16, int nodesPerElectrode = 1, double electrodeLengthHint = 0.3)
         {
-            var mesh = CreateCircularFEMMeshInternal(layers, boundaryFEMVertexCount, electrodeCount, inhomogeneityValue: 3.0);
+            var mesh = CreateCircularFEMMeshInternal(layers, boundaryFEMVertexCount, electrodeCount, inhomogeneityValue: 3.0, nodesPerElectrode: nodesPerElectrode, electrodeLengthHint: electrodeLengthHint);
 
             mesh.Metadata.Generator = nameof(CreateCircularFEMMesh);
             mesh.Metadata.Parameters["layers"] = layers.ToString();
@@ -47,9 +47,9 @@ namespace Utility.Classes.Factories
         /// Builds an inhomogeneous circular FEM mesh where elements in the inner rings
         /// have conductivity scaled by inhomogeneityValue (default 3.0).
         /// </summary>
-        public static FEMMesh CreateCircularFEMMesh(int layers, int boundaryFEMVertexCount, int electrodeCount = 16, double inhomogeneityValue = 3.0)
+        public static FEMMesh CreateCircularFEMMesh(int layers, int boundaryFEMVertexCount, int electrodeCount = 16, double inhomogeneityValue = 3.0, int nodesPerElectrode = 1, double electrodeLengthHint = 0.3)
         {
-            var mesh = CreateCircularFEMMeshInternal(layers, boundaryFEMVertexCount, electrodeCount, inhomogeneityValue);
+            var mesh = CreateCircularFEMMeshInternal(layers, boundaryFEMVertexCount, electrodeCount, inhomogeneityValue, nodesPerElectrode, electrodeLengthHint);
 
             mesh.Metadata.Generator = nameof(CreateCircularFEMMesh);
             mesh.Metadata.Parameters["layers"] = layers.ToString();
@@ -63,7 +63,7 @@ namespace Utility.Classes.Factories
         }
 
         // common implementation with inhomogeneity scaling
-        private static FEMMesh CreateCircularFEMMeshInternal(int layers, int boundaryFEMVertexCount, int electrodeCount, double inhomogeneityValue)
+        private static FEMMesh CreateCircularFEMMeshInternal(int layers, int boundaryFEMVertexCount, int electrodeCount, double inhomogeneityValue, int nodesPerElectrode, double electrodeLengthHint)
         {
             if (electrodeCount > boundaryFEMVertexCount)
                 electrodeCount = boundaryFEMVertexCount;
@@ -128,52 +128,7 @@ namespace Utility.Classes.Factories
             // 4) assemble mesh
             var mesh = new FEMMesh(vertices, elements);
 
-            // 5) distribute electrodes
-
-            // clear any leftover flags
-            foreach (var v in vertices)
-            {
-                v.IsElectrode = false;
-                v.ElectrodeId = -1;
-            }
-
-            // gather boundary vertices sorted by their BoundaryId
-            var boundaryVerts = vertices
-                .Where(v => v.IsBoundary)
-                .OrderBy(v => v.BoundaryId)
-                .ToList();
-            int boundaryCount = boundaryVerts.Count;
-
-            // use fractional steps so electrodes remain evenly spaced even
-            // when boundaryCount isn't divisible by electrodeCount
-            double step = boundaryCount / (double)electrodeCount;
-            double pos = 0.0;
-
-            var electrodes = new List<FEMElectrode>(electrodeCount);
-            for (int elId = 0; elId < electrodeCount; elId++)
-            {
-                int idx = (int)Math.Round(pos, MidpointRounding.AwayFromZero);
-                if (idx >= boundaryCount)
-                    idx = boundaryCount - 1;
-
-                FEMVertex v = boundaryVerts[idx];
-                v.IsElectrode = true;
-                v.ElectrodeId = elId;
-
-                var el = new FEMElectrode(
-                    id: elId,
-                    meshId: v.GlobalId,
-                    current: 0.0,
-                    zContact: 0.1,
-                    voltage: 1.0);
-
-                el.FEMVertexIds.Add(v.GlobalId);
-                electrodes.Add(el);
-
-                pos += step;
-            }
-
-            mesh.SetElectrodes(electrodes);
+            mesh.PlaceEquidistantElectrodes(electrodeCount, 0.1, electrodeLengthHint, nodesPerElectrode);
 
             // Assing FEMVertex neighbors
             foreach (var element in elements)
@@ -244,7 +199,7 @@ namespace Utility.Classes.Factories
         /// equally spaced boundary vertices. If electrodeCount exceeds the number of boundary
         /// vertices it is clamped accordingly.
         /// </summary>
-        public static FEMMesh CreatePolygonFEMMesh(IList<(double x, double y)> perimeter, int layers, int electrodeCount = 16)
+        public static FEMMesh CreatePolygonFEMMesh(IList<(double x, double y)> perimeter, int layers, int electrodeCount = 16, int nodesPerElectrode = 1, double electrodeLengthHint = 0.3)
         {
             ValidatePerimeter(perimeter);
 
@@ -293,34 +248,7 @@ namespace Utility.Classes.Factories
 
             var mesh = new FEMMesh(vertices, elements);
 
-            var boundaryVerts = vertices.Where(v => v.IsBoundary).OrderBy(v => v.BoundaryId).ToList();
-            electrodeCount = Math.Min(electrodeCount, boundaryVerts.Count);
-            double step = boundaryVerts.Count / (double)electrodeCount;
-            double pos = 0.0;
-
-            var electrodes = new List<FEMElectrode>();
-            for (int e = 0; e < electrodeCount; e++)
-            {
-                int idx = (int)Math.Round(pos, MidpointRounding.AwayFromZero);
-                if (idx >= boundaryVerts.Count)
-                    idx = boundaryVerts.Count - 1;
-                var v = boundaryVerts[idx];
-                v.IsElectrode = true;
-                v.ElectrodeId = e;
-
-                var el = new FEMElectrode(
-                    id: e,
-                    meshId: v.GlobalId,
-                    current: 0.0,
-                    zContact: 0.1,
-                    voltage: 1.0);
-                el.FEMVertexIds.Add(v.GlobalId);
-                electrodes.Add(el);
-
-                pos += step;
-            }
-
-            mesh.SetElectrodes(electrodes);
+            mesh.PlaceEquidistantElectrodes(electrodeCount, 0.1, electrodeLengthHint, nodesPerElectrode);
 
             foreach (var element in elements)
             {
@@ -364,7 +292,7 @@ namespace Utility.Classes.Factories
         /// <summary>
         /// Convenience wrapper that builds a rectangular FEM mesh from corner points.
         /// </summary>
-        public static FEMMesh CreateRectangularFEMMesh(double width, double height, int electrodeCount = 16, int layers = 1)
+        public static FEMMesh CreateRectangularFEMMesh(double width, double height, int electrodeCount = 16, int layers = 1, int nodesPerElectrode = 1, double electrodeLengthHint = 0.3)
         {
             var hw = width / 2.0;
             var hh = height / 2.0;
@@ -375,7 +303,7 @@ namespace Utility.Classes.Factories
                 ( hw,  hh),
                 (-hw,  hh)
             };
-            var mesh = CreatePolygonFEMMesh(pts, layers, electrodeCount);
+            var mesh = CreatePolygonFEMMesh(pts, layers, electrodeCount, nodesPerElectrode, electrodeLengthHint);
             mesh.Metadata.Generator = nameof(CreateRectangularFEMMesh);
             mesh.Metadata.Parameters["width"] = width.ToString();
             mesh.Metadata.Parameters["height"] = height.ToString();
@@ -387,9 +315,9 @@ namespace Utility.Classes.Factories
         /// <summary>
         /// Create a FEM mesh from an arbitrary thorax-shaped perimeter.
         /// </summary>
-        public static FEMMesh CreateThoraxFEMMesh(IList<(double x, double y)> perimeter, int electrodeCount = 16, int layers = 1)
+        public static FEMMesh CreateThoraxFEMMesh(IList<(double x, double y)> perimeter, int electrodeCount = 16, int layers = 1, int nodesPerElectrode = 1, double electrodeLengthHint = 0.3)
         {
-            var mesh = CreatePolygonFEMMesh(perimeter, layers, electrodeCount);
+            var mesh = CreatePolygonFEMMesh(perimeter, layers, electrodeCount, nodesPerElectrode, electrodeLengthHint);
             mesh.Metadata.Generator = nameof(CreateThoraxFEMMesh);
             mesh.Metadata.Parameters["electrodeCount"] = electrodeCount.ToString();
             mesh.Metadata.Parameters["perimeter"] = string.Join(";", perimeter.Select(p => $"{p.x},{p.y}"));

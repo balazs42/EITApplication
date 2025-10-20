@@ -8,7 +8,11 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
     public class FEMMesh : Discretization<FEMElement, FEMElectrode>
     {
         public List<FEMVertex> Vertices { get; set; } = [];
-        private List<Edge> _edges { get; set; } = [];
+        private readonly List<Edge> _edges = [];
+        private readonly List<Edge> _boundaryEdges = [];
+        private Dictionary<int, FEMVertex> _vertexLookup = new();
+        private List<FEMVertex> _orderedBoundaryVertices = [];
+        private Dictionary<int, int> _boundaryOrderLookup = new();
 
         public FEMMesh(IEnumerable<FEMVertex> vertices,
                        IEnumerable<FEMElement> elements,
@@ -87,20 +91,158 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
 
             PotentialDistribution = new PotentialDistribution(potentialDistribution);
 
+            RebuildVertexLookup();
+            BuildEdgeTopology();
+        }
+
+        private void RebuildVertexLookup()
+        {
+            _vertexLookup = Vertices.ToDictionary(v => v.GlobalId);
+        }
+
+        private void BuildEdgeTopology()
+        {
+            _edges.Clear();
+            _boundaryEdges.Clear();
+
+            var edgeUsage = new Dictionary<(int a, int b), (Edge edge, int count)>();
             int edgeId = 0;
 
-            // Add edges
-            foreach(var element in _elements)
+            foreach (var element in _elements.Cast<FEMElement>())
             {
-                _edges.Add(new Edge(element.Vertices[0], element.Vertices[1], edgeId++));
-                _edges.Add(new Edge(element.Vertices[0], element.Vertices[2], edgeId++));
-                _edges.Add(new Edge(element.Vertices[1], element.Vertices[2], edgeId++));
+                var verts = element.Vertices;
+                var triples = new (FEMVertex A, FEMVertex B)[]
+                {
+                    (verts[0], verts[1]),
+                    (verts[1], verts[2]),
+                    (verts[2], verts[0])
+                };
+
+                foreach (var (A, B) in triples)
+                {
+                    var key = (Math.Min(A.GlobalId, B.GlobalId), Math.Max(A.GlobalId, B.GlobalId));
+                    if (edgeUsage.TryGetValue(key, out var entry))
+                    {
+                        entry.count++;
+                        edgeUsage[key] = entry;
+                    }
+                    else
+                    {
+                        edgeUsage[key] = (new Edge(A, B, edgeId++), 1);
+                    }
+                }
             }
 
-            // Remove duplicates
-            foreach(var edge in _edges.ToList())
-                _edges.RemoveAll(x => x.Start.X == edge.Start.X && x.Start.Y == edge.Start.Y && x.Id != edgeId ||
-                                     x.Start.Y == edge.Start.X && x.Start.X == edge.Start.Y && x.Id != edgeId);
+            foreach (var (_, value) in edgeUsage)
+            {
+                var edge = value.edge;
+                edge.IsBoundary = value.count == 1;
+                _edges.Add(edge);
+                if (edge.IsBoundary)
+                    _boundaryEdges.Add(edge);
+            }
+
+            BuildOrderedBoundaryVertices();
+        }
+
+        private void BuildOrderedBoundaryVertices()
+        {
+            _orderedBoundaryVertices = [];
+            _boundaryOrderLookup = new Dictionary<int, int>();
+
+            var boundaryVerts = Vertices.Where(v => v.IsBoundary).ToList();
+            if (boundaryVerts.Count == 0)
+                return;
+
+            var adjacency = new Dictionary<int, List<int>>();
+            foreach (var edge in _boundaryEdges)
+            {
+                int a = edge.Start.GlobalId;
+                int b = edge.End.GlobalId;
+                if (!adjacency.TryGetValue(a, out var listA))
+                {
+                    listA = new List<int>();
+                    adjacency[a] = listA;
+                }
+                if (!listA.Contains(b))
+                    listA.Add(b);
+
+                if (!adjacency.TryGetValue(b, out var listB))
+                {
+                    listB = new List<int>();
+                    adjacency[b] = listB;
+                }
+                if (!listB.Contains(a))
+                    listB.Add(a);
+            }
+
+            List<FEMVertex> ordered;
+            if (adjacency.Count == 0)
+            {
+                double cx = boundaryVerts.Average(v => v.X);
+                double cy = boundaryVerts.Average(v => v.Y);
+                ordered = [.. boundaryVerts.OrderBy(v => Math.Atan2(v.Y - cy, v.X - cx))];
+            }
+            else
+            {
+                double cx = boundaryVerts.Average(v => v.X);
+                double cy = boundaryVerts.Average(v => v.Y);
+                var start = boundaryVerts
+                    .OrderBy(v => Math.Atan2(v.Y - cy, v.X - cx))
+                    .First();
+
+                ordered = new List<FEMVertex>(boundaryVerts.Count);
+                int current = start.GlobalId;
+                int previous = -1;
+                var visited = new HashSet<int>();
+
+                while (visited.Add(current))
+                {
+                    if (!_vertexLookup.TryGetValue(current, out var vertex))
+                        break;
+
+                    ordered.Add(vertex);
+
+                    if (!adjacency.TryGetValue(current, out var neighbours) || neighbours.Count == 0)
+                        break;
+
+                    int next = -1;
+                    if (neighbours.Count == 1)
+                    {
+                        next = neighbours[0];
+                    }
+                    else
+                    {
+                        foreach (var candidate in neighbours)
+                        {
+                            if (candidate != previous)
+                            {
+                                next = candidate;
+                                break;
+                            }
+                        }
+                        if (next == -1)
+                            next = neighbours[0];
+                    }
+
+                    previous = current;
+                    current = next;
+
+                    if (current == start.GlobalId)
+                        break;
+                }
+
+                if (ordered.Count != boundaryVerts.Count)
+                {
+                    double cx2 = boundaryVerts.Average(v => v.X);
+                    double cy2 = boundaryVerts.Average(v => v.Y);
+                    ordered = [.. boundaryVerts.OrderBy(v => Math.Atan2(v.Y - cy2, v.X - cx2))];
+                }
+            }
+
+            _orderedBoundaryVertices = ordered;
+            for (int i = 0; i < _orderedBoundaryVertices.Count; i++)
+                _boundaryOrderLookup[_orderedBoundaryVertices[i].GlobalId] = i;
         }
 
         protected override IEnumerable<int> StateKeys() => Vertices.Select(v => v.GlobalId);
@@ -128,7 +270,7 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
             return vv.Potential;
         }
 
-        public void PlaceEquidistantElectrodes(int numElectrodes, double zContact, double length)
+        public void PlaceEquidistantElectrodes(int numElectrodes, double zContact, double lengthHint, int nodesPerElectrode = 1)
         {
             foreach (var v in Vertices)
             {
@@ -136,36 +278,209 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
                 v.ElectrodeId = -1;
             }
 
-            _electrodes.Clear();
-
             if (numElectrodes <= 0)
+            {
+                SetElectrodes(new List<FEMElectrode>());
                 return;
+            }
 
-            var boundary = Vertices.Where(v => v.IsBoundary).ToList();
+            if (_orderedBoundaryVertices.Count == 0)
+                BuildEdgeTopology();
+
+            var boundary = _orderedBoundaryVertices;
             if (boundary.Count == 0)
+            {
+                SetElectrodes(new List<FEMElectrode>());
                 return;
+            }
 
-            double cx = boundary.Average(v => v.X);
-            double cy = boundary.Average(v => v.Y);
+            numElectrodes = Math.Clamp(numElectrodes, 1, boundary.Count);
+            nodesPerElectrode = Math.Clamp(nodesPerElectrode, 1, Math.Max(1, boundary.Count / numElectrodes));
 
-            boundary = [.. boundary.OrderBy(v => Math.Atan2(v.Y - cy, v.X - cx))];
-
-            int count = boundary.Count;
-            numElectrodes = Math.Min(numElectrodes, count);
-            double step = count / (double)numElectrodes;
+            var used = new bool[boundary.Count];
+            var electrodes = new List<FEMElectrode>(numElectrodes);
+            double step = boundary.Count / (double)numElectrodes;
             double pos = 0.0;
+
             for (int i = 0; i < numElectrodes; i++)
             {
-                int idx = (int)Math.Floor(pos) % count;
-                var v = boundary[idx];
-                v.IsElectrode = true;
-                v.ElectrodeId = i;
-                var el = new FEMElectrode(i, v.GlobalId, 0.0, zContact, 0.0);
-                el.Length = length;
-                el.FEMVertexIds.Add(v.GlobalId);
-                _electrodes.Add(el);
+                int startIndex = FindNextUnusedIndex(used, (int)Math.Round(pos) % boundary.Count);
+                if (startIndex < 0)
+                    break;
+
+                var assigned = new List<int>(nodesPerElectrode);
+                int current = startIndex;
+                for (int n = 0; n < nodesPerElectrode; n++)
+                {
+                    if (used[current])
+                    {
+                        current = FindNextUnusedIndex(used, current);
+                        if (current < 0)
+                            break;
+                    }
+
+                    used[current] = true;
+                    var vertex = boundary[current];
+                    vertex.IsElectrode = true;
+                    vertex.ElectrodeId = i;
+                    assigned.Add(vertex.GlobalId);
+
+                    current = (current + 1) % boundary.Count;
+                }
+
+                if (assigned.Count == 0)
+                    continue;
+
+                var electrode = new FEMElectrode(
+                    id: i,
+                    meshId: assigned[0],
+                    current: 0.0,
+                    zContact: zContact,
+                    voltage: 0.0,
+                    pointElectrode: assigned.Count == 1);
+                electrode.PointElectrode = assigned.Count == 1;
+                electrode.FEMVertexIds.AddRange(assigned);
+                double arcLength = ComputeElectrodeLength(assigned);
+                electrode.Length = arcLength > 0.0 ? arcLength : lengthHint;
+                electrodes.Add(electrode);
+
                 pos += step;
             }
+
+            for (int idx = 0; idx < boundary.Count; idx++)
+            {
+                if (!used[idx])
+                {
+                    boundary[idx].IsElectrode = false;
+                    boundary[idx].ElectrodeId = -1;
+                }
+            }
+
+            SetElectrodes(electrodes);
+        }
+
+        public IReadOnlyList<FEMVertex> GetOrderedBoundaryVertices() => _orderedBoundaryVertices;
+
+        public bool TryGetBoundaryIndex(int vertexId, out int index) => _boundaryOrderLookup.TryGetValue(vertexId, out index);
+
+        public FEMVertex GetVertexById(int vertexId)
+            => _vertexLookup.TryGetValue(vertexId, out var vertex)
+                ? vertex
+                : throw new InvalidOperationException($"No FEMVertex.GlobalId = {vertexId}.");
+
+        public List<int> OrderVerticesAlongBoundary(IEnumerable<int> vertexIds)
+        {
+            if (vertexIds == null)
+                return [];
+
+            var ids = vertexIds.Where(id => _boundaryOrderLookup.ContainsKey(id)).Distinct().ToList();
+            if (ids.Count <= 1)
+                return ids;
+
+            var ordered = new List<int>(ids.Count);
+            var idSet = new HashSet<int>(ids);
+
+            foreach (var vertex in _orderedBoundaryVertices)
+            {
+                if (idSet.Contains(vertex.GlobalId))
+                    ordered.Add(vertex.GlobalId);
+            }
+
+            if (ordered.Count <= 1)
+                return ordered;
+
+            int n = ordered.Count;
+            int boundaryCount = _orderedBoundaryVertices.Count;
+            var boundaryIndices = ordered.Select(id => _boundaryOrderLookup[id]).ToArray();
+            int bestBreak = 0;
+            int maxGap = -1;
+
+            for (int i = 0; i < n; i++)
+            {
+                int current = boundaryIndices[i];
+                int next = boundaryIndices[(i + 1) % n];
+                int diff = (next - current + boundaryCount) % boundaryCount;
+                if (diff > maxGap)
+                {
+                    maxGap = diff;
+                    bestBreak = (i + 1) % n;
+                }
+            }
+
+            if (bestBreak == 0)
+                return ordered;
+
+            var rotated = new List<int>(n);
+            for (int offset = 0; offset < n; offset++)
+                rotated.Add(ordered[(bestBreak + offset) % n]);
+            return rotated;
+        }
+
+        public double ComputeElectrodeLength(IList<int> orderedVertexIds)
+        {
+            if (orderedVertexIds == null || orderedVertexIds.Count == 0)
+                return 0.0;
+
+            if (orderedVertexIds.Count == 1)
+            {
+                if (_orderedBoundaryVertices.Count < 2)
+                    return 0.0;
+                if (!_boundaryOrderLookup.TryGetValue(orderedVertexIds[0], out var idx))
+                    return 0.0;
+                int prevIdx = (idx - 1 + _orderedBoundaryVertices.Count) % _orderedBoundaryVertices.Count;
+                int nextIdx = (idx + 1) % _orderedBoundaryVertices.Count;
+                var current = GetVertexById(orderedVertexIds[0]);
+                var prev = _orderedBoundaryVertices[prevIdx];
+                var next = _orderedBoundaryVertices[nextIdx];
+                return Distance(current, prev) * 0.5 + Distance(current, next) * 0.5;
+            }
+
+            double length = 0.0;
+            for (int i = 0; i < orderedVertexIds.Count - 1; i++)
+            {
+                var a = GetVertexById(orderedVertexIds[i]);
+                var b = GetVertexById(orderedVertexIds[i + 1]);
+                length += Distance(a, b);
+            }
+            return length;
+        }
+
+        public IEnumerable<(FEMVertex Start, FEMVertex End, FEMElectrode Electrode)> GetElectrodeSegments()
+        {
+            foreach (var electrode in ElectrodesTyped.Cast<FEMElectrode>())
+            {
+                if (electrode.FEMVertexIds == null || electrode.FEMVertexIds.Count < 2)
+                    continue;
+
+                var ids = electrode.FEMVertexIds;
+                for (int i = 0; i < ids.Count - 1; i++)
+                {
+                    if (_vertexLookup.TryGetValue(ids[i], out var start) &&
+                        _vertexLookup.TryGetValue(ids[i + 1], out var end))
+                    {
+                        yield return (start, end, electrode);
+                    }
+                }
+            }
+        }
+
+        private static int FindNextUnusedIndex(bool[] used, int start)
+        {
+            int n = used.Length;
+            for (int step = 0; step < n; step++)
+            {
+                int idx = (start + step) % n;
+                if (!used[idx])
+                    return idx;
+            }
+            return -1;
+        }
+
+        private static double Distance(FEMVertex a, FEMVertex b)
+        {
+            double dx = a.X - b.X;
+            double dy = a.Y - b.Y;
+            return Math.Sqrt(dx * dx + dy * dy);
         }
 
 

@@ -25,6 +25,7 @@ public partial class MeshingPage : ContentPage
     private readonly SKPaint _femStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1 };
     private readonly SKPaint _femFill = new() { Style = SKPaintStyle.Fill };
     private readonly SKPaint _electrodeFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.Yellow };
+    private readonly SKPaint _electrodeSegmentStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Gold, StrokeWidth = 3, IsAntialias = true };
     private readonly SKPaint _pointFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.SkyBlue };
 
     // caching values for coordinate transforms
@@ -41,6 +42,7 @@ public partial class MeshingPage : ContentPage
     // dragging state
     private LBMElement? _draggedLbmElectrode;
     private FEMVertex? _draggedFemVertex;
+    private int? _draggedFemElectrodeId;
 
     private bool _isConductivityPainting;
     private int? _lastPaintedElementId;
@@ -241,6 +243,13 @@ public partial class MeshingPage : ContentPage
             _femFill.Color = ColorForValue(el.Conductivity, min, max);
             canvas.DrawPath(path, _femFill);
             canvas.DrawPath(path, _femStroke);
+        }
+
+        foreach (var segment in mesh.GetElectrodeSegments())
+        {
+            var start = ToCanvas(segment.Start);
+            var end = ToCanvas(segment.End);
+            canvas.DrawLine(start, end, _electrodeSegmentStroke);
         }
 
         foreach (var v in mesh.Vertices.Where(v => v.IsElectrode))
@@ -446,7 +455,9 @@ public partial class MeshingPage : ContentPage
                     if (target != null && target != _draggedFemVertex)
                     {
                         _draggedFemVertex.IsElectrode = false;
+                        _draggedFemVertex.ElectrodeId = -1;
                         target.IsElectrode = true;
+                        target.ElectrodeId = _draggedFemElectrodeId ?? -1;
                         _draggedFemVertex = target;
                         _viewModel.RefreshFemElectrodes();
                         MeshCanvas.InvalidateSurface();
@@ -455,6 +466,7 @@ public partial class MeshingPage : ContentPage
                 else if (e.ActionType == SKTouchAction.Released)
                 {
                     _draggedFemVertex = null;
+                    _draggedFemElectrodeId = null;
                 }
                 e.Handled = true;
                 return;
@@ -467,6 +479,7 @@ public partial class MeshingPage : ContentPage
                 if (hit != null)
                 {
                     _draggedFemVertex = hit;
+                    _draggedFemElectrodeId = hit.ElectrodeId;
                     e.Handled = true;
                     return;
                 }

@@ -22,6 +22,7 @@ namespace ElectricalImpedanceTomography.Views
         private readonly SKPaint _femStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1 };
         private readonly SKPaint _femFill = new() { Style = SKPaintStyle.Fill };
         private readonly SKPaint _electrodeFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.Yellow };
+        private readonly SKPaint _electrodeSegmentStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Gold, StrokeWidth = 3, IsAntialias = true };
 
         private float _scale, _marginX, _marginY, _minX, _minY, _meshWidth, _meshHeight;
 
@@ -164,6 +165,13 @@ namespace ElectricalImpedanceTomography.Views
                 _femFill.Color = ColorForValue(el.Conductivity, min, max);
                 canvas.DrawPath(path, _femFill);
                 canvas.DrawPath(path, _femStroke);
+            }
+
+            foreach (var segment in mesh.GetElectrodeSegments())
+            {
+                var start = ToCanvas(segment.Start);
+                var end = ToCanvas(segment.End);
+                canvas.DrawLine(start, end, _electrodeSegmentStroke);
             }
 
             foreach (var v in mesh.Vertices.Where(v => v.IsElectrode))
