@@ -1260,6 +1260,93 @@ namespace DataAccessLayer
             }
         }
 
+        private static List<double[]>? ParseElectrodeCoordinateArray(JsonElement element)
+        {
+            if (element.ValueKind != JsonValueKind.Array)
+                return null;
+
+            var coordinates = new List<double[]>();
+
+            foreach (var entry in element.EnumerateArray())
+            {
+                var parsed = ParseElectrodeCoordinateEntry(entry);
+                if (parsed != null && parsed.Length > 0)
+                    coordinates.Add(parsed);
+            }
+
+            return coordinates.Count > 0 ? coordinates : null;
+        }
+
+        private static double[]? ParseElectrodeCoordinateEntry(JsonElement element)
+        {
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                var centre = ExtractDoubleArray(element, "centre") ?? ExtractDoubleArray(element, "center");
+                if (centre != null && centre.Length > 0)
+                    return centre;
+
+                return null;
+            }
+
+            if (element.ValueKind != JsonValueKind.Array)
+            {
+                if (TryReadDouble(element, out double scalar))
+                    return new[] { scalar };
+
+                return null;
+            }
+
+            if (element.GetArrayLength() == 0)
+                return Array.Empty<double>();
+
+            var enumerator = element.EnumerateArray();
+            if (!enumerator.MoveNext())
+                return Array.Empty<double>();
+
+            var first = enumerator.Current;
+
+            if (first.ValueKind == JsonValueKind.Number || first.ValueKind == JsonValueKind.String)
+                return ReadDoubleArray(element);
+
+            if (first.ValueKind != JsonValueKind.Array)
+                return ReadDoubleArray(element);
+
+            var samples = new List<double[]>();
+            foreach (var component in element.EnumerateArray())
+            {
+                var values = ReadDoubleArray(component);
+                if (values != null && values.Length > 0)
+                    samples.Add(values);
+            }
+
+            if (samples.Count == 0)
+                return null;
+
+            int dimension = samples.Max(s => s.Length);
+            if (dimension == 0)
+                return null;
+
+            var totals = new double[dimension];
+            var counts = new int[dimension];
+
+            foreach (var sample in samples)
+            {
+                for (int i = 0; i < sample.Length; i++)
+                {
+                    totals[i] += sample[i];
+                    counts[i]++;
+                }
+            }
+
+            for (int i = 0; i < dimension; i++)
+            {
+                if (counts[i] > 0)
+                    totals[i] /= counts[i];
+            }
+
+            return totals;
+        }
+
         private static List<double[]>? ExtractNodeCoordinates(JsonElement root)
         {
             if (!TryFindPropertyCaseInsensitive(root, "nodes", out var nodesElement))
@@ -1465,14 +1552,7 @@ namespace DataAccessLayer
             if (!TryGetPropertyCaseInsensitive(element, propertyName, out var array) || array.ValueKind != JsonValueKind.Array)
                 return null;
 
-            var values = new List<double>();
-            foreach (var item in array.EnumerateArray())
-            {
-                if (TryReadDouble(item, out double value))
-                    values.Add(value);
-            }
-
-            return values.Count > 0 ? values.ToArray() : null;
+            return ReadDoubleArray(array);
         }
 
         private static double? ExtractDouble(JsonElement element, string propertyName)
@@ -1481,6 +1561,21 @@ namespace DataAccessLayer
                 return null;
 
             return TryReadDouble(value, out double result) ? result : null;
+        }
+
+        private static double[]? ReadDoubleArray(JsonElement array)
+        {
+            if (array.ValueKind != JsonValueKind.Array)
+                return null;
+
+            var values = new List<double>();
+            foreach (var item in array.EnumerateArray())
+            {
+                if (TryReadDouble(item, out double value))
+                    values.Add(value);
+            }
+
+            return values.Count > 0 ? values.ToArray() : null;
         }
 
         private static bool TryReadDouble(JsonElement element, out double value)
@@ -1565,7 +1660,10 @@ namespace DataAccessLayer
             public string? StlPath { get; set; }
             public string? ModelType { get; set; }
             public string? EidorsVersion { get; set; }
-            public List<double[]>? ElectrodeVertexCoordinates { get; set; }
+            [JsonPropertyName("electrodeVertexCoordinates")]
+            public JsonElement ElectrodeVertexCoordinatesElement { get; set; }
+            [JsonIgnore]
+            public List<double[]>? ElectrodeVertexCoordinates => ParseElectrodeCoordinateArray(ElectrodeVertexCoordinatesElement);
             public List<double>? ElectrodeZContact { get; set; }
             public List<int[]>? DrivePatternPairs { get; set; }
             public List<double[]>? DrivePatternPairAmps { get; set; }
