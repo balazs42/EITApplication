@@ -146,20 +146,40 @@
                         <Border Grid.Column="0"
                                 Style="{StaticResource PanelSectionBorderStyle}"
                                 BackgroundColor="{AppThemeBinding Light=#27344D, Dark=#27344D}">
-                            <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
+                            <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
                                 <Label Grid.Row="0" Text="Methods" FontSize="Medium" FontAttributes="Bold" Margin="0,0,0,12"/>
-                                <Label Grid.Row="1" HorizontalOptions="Start" Text="DE Solver" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="2" ItemsSource="{Binding DifferentialEquationSolverOptions}" SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}" WidthRequest="150"/>
-                                <Label Grid.Row="3" HorizontalOptions="Start" Text="Error Metric" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="4" HorizontalOptions="Start" ItemsSource="{Binding ErrorMetricOptions}" SelectedItem="{Binding ReconstructionParameters.ErrorMetric}" WidthRequest="150"/>
-                                <Label Grid.Row="5" HorizontalOptions="Start" Text="Regularization" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="6" ItemsSource="{Binding RegularizationTechniqueOptions}" SelectedItem="{Binding ReconstructionParameters.RegularizationTechnique}"/>
-                                <Label Grid.Row="7" HorizontalOptions="Start" Text="Optimizer" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="8" ItemsSource="{Binding NumericOptimizerOptions}" SelectedItem="{Binding ReconstructionParameters.NumericOptimizer}"/>
-                                <Label Grid.Row="9" HorizontalOptions="Start" Text="Linear Solver" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="10" ItemsSource="{Binding NumericSolverOptions}" SelectedItem="{Binding ReconstructionParameters.NumericSolver}" WidthRequest="150"/>
-                                <Label Grid.Row="11" HorizontalOptions="Start" Text="{Binding ParallelizationToggleLabel}" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Switch Grid.Row="12" IsToggled="{Binding UseParallelizationToggle}" HorizontalOptions="Start"/>
+                                <Label Grid.Row="1"
+                                       HorizontalOptions="Start"
+                                       Text="Measurement Source"
+                                       FontFamily="SF Pro Text"
+                                       FontAttributes="None"
+                                       IsVisible="{Binding HasMeasurementSourceOptions}"/>
+                                <Grid Grid.Row="2"
+                                      ColumnDefinitions="*, *"
+                                      ColumnSpacing="10"
+                                      IsVisible="{Binding HasMeasurementSourceOptions}">
+                                    <RadioButton Content="Simulated"
+                                                 IsChecked="{Binding IsSimulatedMeasurementSelected}"
+                                                 GroupName="MeasurementSourceOptions"
+                                                 HorizontalOptions="Start"/>
+                                    <RadioButton Grid.Column="1"
+                                                 Content="{Binding RealMeasurementOptionLabel}"
+                                                 IsChecked="{Binding IsRealMeasurementSelected}"
+                                                 GroupName="MeasurementSourceOptions"
+                                                 HorizontalOptions="Start"/>
+                                </Grid>
+                                <Label Grid.Row="3" HorizontalOptions="Start" Text="DE Solver" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Picker Grid.Row="4" ItemsSource="{Binding DifferentialEquationSolverOptions}" SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}" WidthRequest="150"/>
+                                <Label Grid.Row="5" HorizontalOptions="Start" Text="Error Metric" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Picker Grid.Row="6" HorizontalOptions="Start" ItemsSource="{Binding ErrorMetricOptions}" SelectedItem="{Binding ReconstructionParameters.ErrorMetric}" WidthRequest="150"/>
+                                <Label Grid.Row="7" HorizontalOptions="Start" Text="Regularization" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Picker Grid.Row="8" ItemsSource="{Binding RegularizationTechniqueOptions}" SelectedItem="{Binding ReconstructionParameters.RegularizationTechnique}"/>
+                                <Label Grid.Row="9" HorizontalOptions="Start" Text="Optimizer" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Picker Grid.Row="10" ItemsSource="{Binding NumericOptimizerOptions}" SelectedItem="{Binding ReconstructionParameters.NumericOptimizer}"/>
+                                <Label Grid.Row="11" HorizontalOptions="Start" Text="Linear Solver" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Picker Grid.Row="12" ItemsSource="{Binding NumericSolverOptions}" SelectedItem="{Binding ReconstructionParameters.NumericSolver}" WidthRequest="150"/>
+                                <Label Grid.Row="13" HorizontalOptions="Start" Text="{Binding ParallelizationToggleLabel}" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Switch Grid.Row="14" IsToggled="{Binding UseParallelizationToggle}" HorizontalOptions="Start"/>
                             </Grid>
                         </Border>
                         <!-- Parameter Configuration -->

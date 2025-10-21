@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Xml.Linq;
 using System.Linq;
 using Utility.Classes;
@@ -9,6 +10,7 @@ using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Factories;
 using Utility.Classes.Measurement;
+using Utility.Classes.Application;
 
 namespace DataAccessLayer
 {
@@ -756,6 +758,7 @@ namespace DataAccessLayer
             var potentials = mesh.Vertices.ToDictionary(v => v.GlobalId, v => v.Potential);
             mesh.SetPotentialDistribution(new PotentialDistribution(potentials));
 
+            Workspace.ClearImportedMeasurement();
             TryAugmentFemMeshFromMatlabJson(mesh, filePath);
 
             return mesh;
@@ -770,14 +773,19 @@ namespace DataAccessLayer
             if (string.IsNullOrEmpty(jsonPath) || !File.Exists(jsonPath))
                 return;
 
-            MatlabImportDefinition? import;
+            MatlabImportDefinition? import = null;
+            MatlabJsonSupplement? supplement = null;
+
             try
             {
                 var json = File.ReadAllText(jsonPath);
-                import = JsonSerializer.Deserialize<MatlabImportDefinition>(json, new JsonSerializerOptions
+                using var document = JsonDocument.Parse(json, new JsonDocumentOptions { AllowTrailingCommas = true });
+                import = document.RootElement.Deserialize<MatlabImportDefinition>(new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true
                 });
+
+                supplement = ExtractMatlabSupplement(document.RootElement);
             }
             catch
             {
@@ -788,7 +796,6 @@ namespace DataAccessLayer
                 return;
 
             const double CoordinateTolerance = 2e-2;
-
 
             mesh.Metadata.Parameters ??= new Dictionary<string, string>();
             mesh.Metadata.Parameters["matlabJson"] = Path.GetFileName(jsonPath);
@@ -821,7 +828,39 @@ namespace DataAccessLayer
                 }
             }
 
+            if (supplement?.MeasurementFrames != null && supplement.MeasurementFrames.Count > 0)
+            {
+                mesh.Metadata.Parameters["matlabMeasurementFrameCount"] = supplement.MeasurementFrames.Count.ToString(CultureInfo.InvariantCulture);
+                try
+                {
+                    var measurement = supplement.MeasurementAmplitude.HasValue
+                        ? new EITMeasurement(supplement.MeasurementFrames, supplement.MeasurementAmplitude.Value)
+                        : new EITMeasurement(supplement.MeasurementFrames);
+
+                    string label = ResolveMeasurementLabel(import);
+                    Workspace.SetImportedMeasurement(measurement, label);
+                    mesh.Metadata.Parameters["matlabMeasurementSource"] = label;
+                }
+                catch
+                {
+                    Workspace.ClearImportedMeasurement();
+                }
+            }
+
+            if ((import.ElectrodeZContact == null || import.ElectrodeZContact.Count == 0) && supplement?.ContactImpedances != null)
+                import.ElectrodeZContact = supplement.ContactImpedances;
+
+            var electrodeCoordinates = import.ElectrodeVertexCoordinates;
+            if ((electrodeCoordinates == null || electrodeCoordinates.Count == 0) && supplement?.ElectrodeCoordinates != null)
+                electrodeCoordinates = supplement.ElectrodeCoordinates;
+
             var vertices = mesh.Vertices;
+            foreach (var vertex in vertices)
+            {
+                vertex.IsElectrode = false;
+                vertex.ElectrodeId = -1;
+            }
+
             var electrodes = new List<FEMElectrode>();
             var reassignedElectrodes = new List<int>();
 
@@ -832,70 +871,19 @@ namespace DataAccessLayer
             double meshRangeX = meshMaxX - meshMinX;
             double meshRangeY = meshMaxY - meshMinY;
 
-            double electrodeMinX = double.PositiveInfinity;
-            double electrodeMaxX = double.NegativeInfinity;
-            double electrodeMinY = double.PositiveInfinity;
-            double electrodeMaxY = double.NegativeInfinity;
-            bool haveElectrodeBounds = false;
+            var transform = DetermineElectrodeTransform(vertices, electrodeCoordinates, meshMinX, meshMaxX, meshMinY, meshMaxY);
+            if (!string.IsNullOrEmpty(transform.Description))
+                mesh.Metadata.Parameters["electrodeTransform"] = transform.Description!;
 
-            if (import.ElectrodeVertexCoordinates != null && import.ElectrodeVertexCoordinates.Count > 0)
+            if (electrodeCoordinates != null && electrodeCoordinates.Count > 0)
             {
-                foreach (var coords in import.ElectrodeVertexCoordinates)
+                for (int i = 0; i < electrodeCoordinates.Count; i++)
                 {
-                    if (coords == null || coords.Length < 2)
+                    var coords = electrodeCoordinates[i];
+                    if (coords == null || coords.Length == 0)
                         continue;
 
-                    double x = coords[0];
-                    double y = coords[1];
-
-                    if (!double.IsFinite(x) || !double.IsFinite(y))
-                        continue;
-
-                    electrodeMinX = Math.Min(electrodeMinX, x);
-                    electrodeMaxX = Math.Max(electrodeMaxX, x);
-                    electrodeMinY = Math.Min(electrodeMinY, y);
-                    electrodeMaxY = Math.Max(electrodeMaxY, y);
-                    haveElectrodeBounds = true;
-                }
-            }
-
-            static double NormalizeCoordinate(double value, double min, double max)
-            {
-                double range = max - min;
-                if (range <= 1e-12)
-                    return 0.5;
-                double normalized = (value - min) / range;
-                return Math.Clamp(normalized, 0.0, 1.0);
-            }
-
-            foreach (var vertex in vertices)
-            {
-                vertex.IsElectrode = false;
-                vertex.ElectrodeId = -1;
-            }
-
-            if (import.ElectrodeVertexCoordinates != null && import.ElectrodeVertexCoordinates.Count > 0)
-            {
-                for (int i = 0; i < import.ElectrodeVertexCoordinates.Count; i++)
-                {
-                    var coords = import.ElectrodeVertexCoordinates[i];
-                    if (coords == null || coords.Length < 2)
-                        continue;
-
-                    double targetX = coords[0];
-                    double targetY = coords[1];
-
-                    if (haveElectrodeBounds)
-                    {
-                        double normalizedX = NormalizeCoordinate(targetX, electrodeMinX, electrodeMaxX);
-                        double normalizedY = NormalizeCoordinate(targetY, electrodeMinY, electrodeMaxY);
-
-                        double scaleX = meshRangeX <= 1e-12 ? 0.0 : meshRangeX;
-                        double scaleY = meshRangeY <= 1e-12 ? 0.0 : meshRangeY;
-
-                        targetX = meshMinX + normalizedX * scaleX;
-                        targetY = meshMinY + normalizedY * scaleY;
-                    }
+                    var (targetX, targetY) = ProjectElectrodeCoordinate(coords, transform, meshMinX, meshRangeX, meshMinY, meshRangeY);
 
                     var vertex = FindNearestVertex(
                         vertices,
@@ -904,8 +892,13 @@ namespace DataAccessLayer
                         CoordinateTolerance,
                         out bool withinTolerance,
                         v => v.IsBoundary);
+
                     if (vertex == null)
-                        continue;
+                    {
+                        vertex = FindNearestVertex(vertices, targetX, targetY, CoordinateTolerance, out withinTolerance, null);
+                        if (vertex == null)
+                            continue;
+                    }
 
                     if (!withinTolerance)
                         reassignedElectrodes.Add(i);
@@ -933,9 +926,7 @@ namespace DataAccessLayer
             }
 
             if (reassignedElectrodes.Count > 0)
-            {
                 mesh.Metadata.Parameters["electrodeReassignmentIndices"] = string.Join(",", reassignedElectrodes);
-            }
 
             if (import.DrivePatternPairs != null && import.DrivePatternPairs.Count > 0 && electrodes.Count > 0)
             {
@@ -979,10 +970,205 @@ namespace DataAccessLayer
                 }
 
                 if (conductivity.Count == mesh.ElementsTyped.Count)
-                {
                     mesh.SetConductivityDistribution(new ConductivityDistribution(conductivity));
+            }
+        }
+
+        private static (double X, double Y) ProjectElectrodeCoordinate(
+            IReadOnlyList<double> coords,
+            ElectrodeTransform transform,
+            double meshMinX,
+            double meshRangeX,
+            double meshMinY,
+            double meshRangeY)
+        {
+            double ExtractValue(int axis)
+            {
+                if (axis >= 0 && axis < coords.Count)
+                {
+                    double value = coords[axis];
+                    if (double.IsFinite(value))
+                        return value;
+                }
+
+                foreach (var value in coords)
+                {
+                    if (double.IsFinite(value))
+                        return value;
+                }
+
+                return 0.0;
+            }
+
+            double rawX = ExtractValue(transform.AxisX);
+            double rawY = ExtractValue(transform.AxisY);
+
+            if (!transform.HasBounds)
+                return (rawX, rawY);
+
+            double normalizedX = Normalize(rawX, transform.SourceMinX, transform.SourceMaxX);
+            if (transform.FlipX)
+                normalizedX = 1.0 - normalizedX;
+
+            double normalizedY = Normalize(rawY, transform.SourceMinY, transform.SourceMaxY);
+            if (transform.FlipY)
+                normalizedY = 1.0 - normalizedY;
+
+            double mappedX = meshMinX + normalizedX * meshRangeX;
+            double mappedY = meshMinY + normalizedY * meshRangeY;
+
+            return (mappedX, mappedY);
+        }
+
+        private static ElectrodeTransform DetermineElectrodeTransform(
+            IReadOnlyList<FEMVertex> vertices,
+            IReadOnlyList<double[]>? electrodeCoordinates,
+            double meshMinX,
+            double meshMaxX,
+            double meshMinY,
+            double meshMaxY)
+        {
+            var defaultTransform = new ElectrodeTransform(0, 1, 0.0, 1.0, 0.0, 1.0, false, false, false, null);
+
+            if (electrodeCoordinates == null || electrodeCoordinates.Count == 0)
+                return defaultTransform;
+
+            int dimension = electrodeCoordinates.Max(c => c?.Length ?? 0);
+            if (dimension < 2)
+                return defaultTransform;
+
+            var boundaryVertices = vertices.Where(v => v.IsBoundary).ToList();
+            if (boundaryVertices.Count == 0)
+                boundaryVertices = vertices.ToList();
+
+            var axisPairs = new List<(int X, int Y)>();
+            for (int a = 0; a < dimension; a++)
+                for (int b = a + 1; b < dimension; b++)
+                    axisPairs.Add((a, b));
+
+            if (axisPairs.Count == 0)
+                axisPairs.Add((0, 1));
+
+            double meshRangeX = meshMaxX - meshMinX;
+            double meshRangeY = meshMaxY - meshMinY;
+
+            double bestError = double.PositiveInfinity;
+            ElectrodeTransform bestTransform = defaultTransform;
+
+            foreach (var (axisX, axisY) in axisPairs)
+            {
+                var (minX, maxX, hasBoundsX) = GetAxisBounds(electrodeCoordinates, axisX);
+                var (minY, maxY, hasBoundsY) = GetAxisBounds(electrodeCoordinates, axisY);
+
+                bool hasBounds = hasBoundsX && hasBoundsY;
+
+                if (hasBounds)
+                {
+                    foreach (bool flipX in new[] { false, true })
+                    foreach (bool flipY in new[] { false, true })
+                    {
+                        string description = $"axes[{axisX},{axisY}] {(flipX ? "invX" : "x")}/{(flipY ? "invY" : "y")}";
+                        var transform = new ElectrodeTransform(axisX, axisY, minX, maxX, minY, maxY, flipX, flipY, true, description);
+                        double error = ComputeMappingError(electrodeCoordinates, boundaryVertices, transform,
+                            meshMinX, meshRangeX, meshMinY, meshRangeY);
+                        if (error < bestError)
+                        {
+                            bestError = error;
+                            bestTransform = transform;
+                        }
+                    }
+                }
+                else
+                {
+                    var transform = new ElectrodeTransform(axisX, axisY, minX, maxX, minY, maxY, false, false, false,
+                        $"axes[{axisX},{axisY}] raw");
+                    double error = ComputeMappingError(electrodeCoordinates, boundaryVertices, transform,
+                        meshMinX, meshRangeX, meshMinY, meshRangeY);
+                    if (error < bestError)
+                    {
+                        bestError = error;
+                        bestTransform = transform;
+                    }
                 }
             }
+
+            return bestTransform;
+        }
+
+        private static double ComputeMappingError(
+            IReadOnlyList<double[]> coordinates,
+            IReadOnlyList<FEMVertex> searchVertices,
+            ElectrodeTransform transform,
+            double meshMinX,
+            double meshRangeX,
+            double meshMinY,
+            double meshRangeY)
+        {
+            if (coordinates.Count == 0 || searchVertices.Count == 0)
+                return double.PositiveInfinity;
+
+            double total = 0.0;
+            int count = 0;
+
+            foreach (var entry in coordinates)
+            {
+                if (entry == null || entry.Length == 0)
+                    continue;
+
+                var (mappedX, mappedY) = ProjectElectrodeCoordinate(entry, transform, meshMinX, meshRangeX, meshMinY, meshRangeY);
+
+                var vertex = FindNearestVertex(searchVertices, mappedX, mappedY, 0.0, out _, null);
+                if (vertex == null)
+                    continue;
+
+                double dx = vertex.X - mappedX;
+                double dy = vertex.Y - mappedY;
+                total += dx * dx + dy * dy;
+                count++;
+            }
+
+            if (count == 0)
+                return double.PositiveInfinity;
+
+            return total / count;
+        }
+
+        private static (double Min, double Max, bool HasBounds) GetAxisBounds(
+            IReadOnlyList<double[]> coordinates,
+            int axis)
+        {
+            double min = double.PositiveInfinity;
+            double max = double.NegativeInfinity;
+            bool hasBounds = false;
+
+            foreach (var entry in coordinates)
+            {
+                if (entry == null || axis < 0 || axis >= entry.Length)
+                    continue;
+
+                double value = entry[axis];
+                if (!double.IsFinite(value))
+                    continue;
+
+                hasBounds = true;
+                if (value < min) min = value;
+                if (value > max) max = value;
+            }
+
+            return (min, max, hasBounds);
+        }
+
+        private static double Normalize(double value, double min, double max)
+        {
+            double range = max - min;
+            if (!double.IsFinite(value) || range <= 1e-12)
+                return 0.5;
+
+            double normalized = (value - min) / range;
+            if (!double.IsFinite(normalized))
+                return 0.5;
+
+            return Math.Clamp(normalized, 0.0, 1.0);
         }
 
         private static FEMVertex? FindNearestVertex(
@@ -1052,12 +1238,432 @@ namespace DataAccessLayer
             return values[index];
         }
 
+        private static MatlabJsonSupplement? ExtractMatlabSupplement(JsonElement root)
+        {
+            try
+            {
+                var nodes = ExtractNodeCoordinates(root);
+                var electrodeData = ExtractElectrodeData(root, nodes);
+                var measurement = ExtractMeasurementData(root);
+
+                return new MatlabJsonSupplement
+                {
+                    ElectrodeCoordinates = electrodeData.Coordinates,
+                    ContactImpedances = electrodeData.ZContact,
+                    MeasurementFrames = measurement.Frames,
+                    MeasurementAmplitude = measurement.Amplitude
+                };
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static List<double[]>? ParseElectrodeCoordinateArray(JsonElement element)
+        {
+            if (element.ValueKind != JsonValueKind.Array)
+                return null;
+
+            var coordinates = new List<double[]>();
+
+            foreach (var entry in element.EnumerateArray())
+            {
+                var parsed = ParseElectrodeCoordinateEntry(entry);
+                if (parsed != null && parsed.Length > 0)
+                    coordinates.Add(parsed);
+            }
+
+            return coordinates.Count > 0 ? coordinates : null;
+        }
+
+        private static double[]? ParseElectrodeCoordinateEntry(JsonElement element)
+        {
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                var centre = ExtractDoubleArray(element, "centre") ?? ExtractDoubleArray(element, "center");
+                if (centre != null && centre.Length > 0)
+                    return centre;
+
+                return null;
+            }
+
+            if (element.ValueKind != JsonValueKind.Array)
+            {
+                if (TryReadDouble(element, out double scalar))
+                    return new[] { scalar };
+
+                return null;
+            }
+
+            if (element.GetArrayLength() == 0)
+                return Array.Empty<double>();
+
+            var enumerator = element.EnumerateArray();
+            if (!enumerator.MoveNext())
+                return Array.Empty<double>();
+
+            var first = enumerator.Current;
+
+            if (first.ValueKind == JsonValueKind.Number || first.ValueKind == JsonValueKind.String)
+                return ReadDoubleArray(element);
+
+            if (first.ValueKind != JsonValueKind.Array)
+                return ReadDoubleArray(element);
+
+            var samples = new List<double[]>();
+            foreach (var component in element.EnumerateArray())
+            {
+                var values = ReadDoubleArray(component);
+                if (values != null && values.Length > 0)
+                    samples.Add(values);
+            }
+
+            if (samples.Count == 0)
+                return null;
+
+            int dimension = samples.Max(s => s.Length);
+            if (dimension == 0)
+                return null;
+
+            var totals = new double[dimension];
+            var counts = new int[dimension];
+
+            foreach (var sample in samples)
+            {
+                for (int i = 0; i < sample.Length; i++)
+                {
+                    totals[i] += sample[i];
+                    counts[i]++;
+                }
+            }
+
+            for (int i = 0; i < dimension; i++)
+            {
+                if (counts[i] > 0)
+                    totals[i] /= counts[i];
+            }
+
+            return totals;
+        }
+
+        private static List<double[]>? ExtractNodeCoordinates(JsonElement root)
+        {
+            if (!TryFindPropertyCaseInsensitive(root, "nodes", out var nodesElement))
+                return null;
+
+            if (nodesElement.ValueKind != JsonValueKind.Array)
+                return null;
+
+            var nodes = new List<double[]>();
+            foreach (var node in nodesElement.EnumerateArray())
+            {
+                if (node.ValueKind != JsonValueKind.Array)
+                    continue;
+
+                var coords = new List<double>();
+                foreach (var component in node.EnumerateArray())
+                {
+                    if (TryReadDouble(component, out double value))
+                        coords.Add(value);
+                }
+
+                if (coords.Count > 0)
+                    nodes.Add(coords.ToArray());
+            }
+
+            return nodes.Count > 0 ? nodes : null;
+        }
+
+        private static (List<double[]>? Coordinates, List<double>? ZContact) ExtractElectrodeData(JsonElement root, List<double[]>? nodes)
+        {
+            if (!TryFindPropertyCaseInsensitive(root, "electrode", out var electrodeElement))
+            {
+                if (!TryFindPropertyCaseInsensitive(root, "electrodes", out electrodeElement))
+                    return (null, null);
+            }
+
+            if (electrodeElement.ValueKind != JsonValueKind.Array)
+                return (null, null);
+
+            var coordinates = new List<double[]>();
+            List<double>? zContacts = null;
+
+            foreach (var electrode in electrodeElement.EnumerateArray())
+            {
+                double[]? coord = null;
+
+                var indices = ExtractIntArray(electrode, "nodes")
+                    ?? ExtractIntArray(electrode, "node_indices")
+                    ?? ExtractIntArray(electrode, "nodeNumbers");
+
+                if (indices != null && nodes != null && nodes.Count > 0)
+                {
+                    var positions = new List<double[]>();
+                    foreach (int idx in indices)
+                    {
+                        var position = ResolveNode(nodes, idx);
+                        if (position != null)
+                            positions.Add(position);
+                    }
+
+                    if (positions.Count > 0)
+                    {
+                        int dimension = positions.Max(p => p.Length);
+                        var averages = new double[dimension];
+                        foreach (var pos in positions)
+                        {
+                            for (int i = 0; i < dimension && i < pos.Length; i++)
+                                averages[i] += pos[i];
+                        }
+
+                        for (int i = 0; i < dimension; i++)
+                            averages[i] /= positions.Count;
+
+                        coord = averages;
+                    }
+                }
+
+                if (coord == null)
+                {
+                    var centre = ExtractDoubleArray(electrode, "centre") ?? ExtractDoubleArray(electrode, "center");
+                    if (centre != null && centre.Length > 0)
+                        coord = centre;
+                }
+
+                if (coord != null)
+                    coordinates.Add(coord);
+
+                double? z = ExtractDouble(electrode, "z_contact");
+                if (z.HasValue)
+                {
+                    zContacts ??= new List<double>();
+                    zContacts.Add(z.Value);
+                }
+                else if (zContacts != null)
+                {
+                    zContacts.Add(0.0);
+                }
+            }
+
+            if (zContacts != null && zContacts.Count < coordinates.Count)
+            {
+                while (zContacts.Count < coordinates.Count)
+                    zContacts.Add(0.0);
+            }
+
+            return (coordinates.Count > 0 ? coordinates : null, zContacts);
+        }
+
+        private static (List<double[]>? Frames, double? Amplitude) ExtractMeasurementData(JsonElement root)
+        {
+            if (!TryFindPropertyCaseInsensitive(root, "vv", out var vvElement))
+                return (null, null);
+
+            if (vvElement.ValueKind != JsonValueKind.Array)
+                return (null, null);
+
+            var frames = new List<double[]>();
+            foreach (var row in vvElement.EnumerateArray())
+            {
+                if (row.ValueKind != JsonValueKind.Array)
+                    continue;
+
+                var values = new List<double>();
+                foreach (var entry in row.EnumerateArray())
+                {
+                    if (TryReadDouble(entry, out double value))
+                        values.Add(value);
+                }
+
+                if (values.Count > 0)
+                    frames.Add(values.ToArray());
+            }
+
+            return (frames.Count > 0 ? frames : null, null);
+        }
+
+        private static bool TryFindPropertyCaseInsensitive(JsonElement element, string name, out JsonElement value)
+        {
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var property in element.EnumerateObject())
+                {
+                    if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        value = property.Value;
+                        return true;
+                    }
+
+                    if (TryFindPropertyCaseInsensitive(property.Value, name, out value))
+                        return true;
+                }
+            }
+            else if (element.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in element.EnumerateArray())
+                {
+                    if (TryFindPropertyCaseInsensitive(item, name, out value))
+                        return true;
+                }
+            }
+
+            value = default;
+            return false;
+        }
+
+        private static bool TryGetPropertyCaseInsensitive(JsonElement element, string name, out JsonElement value)
+        {
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var property in element.EnumerateObject())
+                {
+                    if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        value = property.Value;
+                        return true;
+                    }
+                }
+            }
+
+            value = default;
+            return false;
+        }
+
+        private static List<int>? ExtractIntArray(JsonElement element, string propertyName)
+        {
+            if (!TryGetPropertyCaseInsensitive(element, propertyName, out var array) || array.ValueKind != JsonValueKind.Array)
+                return null;
+
+            var values = new List<int>();
+            foreach (var item in array.EnumerateArray())
+            {
+                if (item.ValueKind == JsonValueKind.Number && item.TryGetInt32(out int intValue))
+                    values.Add(intValue);
+                else if (item.ValueKind == JsonValueKind.String && int.TryParse(item.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out intValue))
+                    values.Add(intValue);
+            }
+
+            return values.Count > 0 ? values : null;
+        }
+
+        private static double[]? ExtractDoubleArray(JsonElement element, string propertyName)
+        {
+            if (!TryGetPropertyCaseInsensitive(element, propertyName, out var array) || array.ValueKind != JsonValueKind.Array)
+                return null;
+
+            return ReadDoubleArray(array);
+        }
+
+        private static double? ExtractDouble(JsonElement element, string propertyName)
+        {
+            if (!TryGetPropertyCaseInsensitive(element, propertyName, out var value))
+                return null;
+
+            return TryReadDouble(value, out double result) ? result : null;
+        }
+
+        private static double[]? ReadDoubleArray(JsonElement array)
+        {
+            if (array.ValueKind != JsonValueKind.Array)
+                return null;
+
+            var values = new List<double>();
+            foreach (var item in array.EnumerateArray())
+            {
+                if (TryReadDouble(item, out double value))
+                    values.Add(value);
+            }
+
+            return values.Count > 0 ? values.ToArray() : null;
+        }
+
+        private static bool TryReadDouble(JsonElement element, out double value)
+        {
+            switch (element.ValueKind)
+            {
+                case JsonValueKind.Number when element.TryGetDouble(out double numeric):
+                    value = numeric;
+                    return true;
+                case JsonValueKind.String:
+                    return double.TryParse(element.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+                default:
+                    value = 0.0;
+                    return false;
+            }
+        }
+
+        private static double[]? ResolveNode(List<double[]> nodes, int index)
+        {
+            if (nodes.Count == 0)
+                return null;
+
+            if (index >= 0 && index < nodes.Count)
+                return nodes[index];
+
+            int oneBased = index - 1;
+            if (oneBased >= 0 && oneBased < nodes.Count)
+                return nodes[oneBased];
+
+            return null;
+        }
+
+        private static string ResolveMeasurementLabel(MatlabImportDefinition import)
+        {
+            if (!string.IsNullOrWhiteSpace(import.ModelType))
+                return import.ModelType!;
+
+            if (!string.IsNullOrWhiteSpace(import.EidorsVersion))
+                return $"EIDORS {import.EidorsVersion}";
+
+            return "Matlab";
+        }
+
+        private readonly struct ElectrodeTransform
+        {
+            public ElectrodeTransform(int axisX, int axisY, double sourceMinX, double sourceMaxX, double sourceMinY, double sourceMaxY, bool flipX, bool flipY, bool hasBounds, string? description)
+            {
+                AxisX = axisX;
+                AxisY = axisY;
+                SourceMinX = sourceMinX;
+                SourceMaxX = sourceMaxX;
+                SourceMinY = sourceMinY;
+                SourceMaxY = sourceMaxY;
+                FlipX = flipX;
+                FlipY = flipY;
+                HasBounds = hasBounds;
+                Description = description;
+            }
+
+            public int AxisX { get; }
+            public int AxisY { get; }
+            public double SourceMinX { get; }
+            public double SourceMaxX { get; }
+            public double SourceMinY { get; }
+            public double SourceMaxY { get; }
+            public bool FlipX { get; }
+            public bool FlipY { get; }
+            public bool HasBounds { get; }
+            public string? Description { get; }
+        }
+
+        private sealed class MatlabJsonSupplement
+        {
+            public List<double[]>? ElectrodeCoordinates { get; init; }
+            public List<double>? ContactImpedances { get; init; }
+            public List<double[]>? MeasurementFrames { get; init; }
+            public double? MeasurementAmplitude { get; init; }
+        }
+
         private sealed class MatlabImportDefinition
         {
             public string? StlPath { get; set; }
             public string? ModelType { get; set; }
             public string? EidorsVersion { get; set; }
-            public List<double[]>? ElectrodeVertexCoordinates { get; set; }
+            [JsonPropertyName("electrodeVertexCoordinates")]
+            public JsonElement ElectrodeVertexCoordinatesElement { get; set; }
+            [JsonIgnore]
+            public List<double[]>? ElectrodeVertexCoordinates => ParseElectrodeCoordinateArray(ElectrodeVertexCoordinatesElement);
             public List<double>? ElectrodeZContact { get; set; }
             public List<int[]>? DrivePatternPairs { get; set; }
             public List<double[]>? DrivePatternPairAmps { get; set; }
