@@ -231,18 +231,14 @@
                                                  GroupName="MeasurementSourceOptions"
                                                  HorizontalOptions="Start"/>
                                 </Grid>
-                                <Label Text="{Binding ElectrodeMeasurementSetupLabel}"
-                                       FontSize="12"
-                                       FontAttributes="Italic"
-                                       LineBreakMode="WordWrap"/>
                             </VerticalStackLayout>
 
-                            <HorizontalStackLayout Grid.Row="3" Spacing="30">
+                            <HorizontalStackLayout Grid.Row="3" Spacing="40">
                                 <Label Grid.Row="3" Text="Starting Excitation Electrode" FontAttributes="None" VerticalOptions="Center"/>
                                 <Entry Grid.Row="4" Text="{Binding ExcitationElectrodeId}" HorizontalOptions="End" WidthRequest="50"/>
                             </HorizontalStackLayout>
 
-                            <HorizontalStackLayout Grid.Row="4" Spacing="30">
+                            <HorizontalStackLayout Grid.Row="4" Spacing="52">
                                 <Label Grid.Row="5" Text="Starting Ground Electrode" FontAttributes="None" VerticalOptions="Center"/>
                                 <Entry Grid.Row="6" Text="{Binding GroundElectrodeId}" HorizontalOptions="End" WidthRequest="50"/>
                             </HorizontalStackLayout>

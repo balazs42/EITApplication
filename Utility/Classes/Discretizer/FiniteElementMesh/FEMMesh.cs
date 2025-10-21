@@ -1,19 +1,38 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using Utility.Classes.Factories;
+﻿using Utility.Classes.Factories;
 
 namespace Utility.Classes.Discretizer.FiniteElementMesh
 {
+    /// <summary>
+    /// Triangular 2D FEM mesh with support for electrodes and boundary handling.
+    /// - Holds vertices, elements, and electrodes.
+    /// - Builds edge and boundary topology from elements.
+    /// - Orders boundary vertices and can place electrodes equidistantly along the boundary.
+    /// - Computes electrode physical lengths from mesh geometry.
+    /// - Supports uniform refinement (each triangle split into 4) and conversion to/from a dual graph.
+    /// - Maintains conductivity and potential distributions synchronized with mesh state.
+    /// </summary>
     public class FEMMesh : Discretization<FEMElement, FEMElectrode>
     {
+        /// <summary>
+        /// All vertices of the mesh. Vertex <c>GlobalId</c> values are used as keys across the mesh.
+        /// </summary>
         public List<FEMVertex> Vertices { get; set; } = [];
-        private readonly List<Edge> _edges = [];
-        private readonly List<Edge> _boundaryEdges = [];
-        private Dictionary<int, FEMVertex> _vertexLookup = new();
-        private List<FEMVertex> _orderedBoundaryVertices = [];
-        private Dictionary<int, int> _boundaryOrderLookup = new();
 
+        // All mesh edges discovered from element connectivity
+        private readonly List<Edge> _edges = [];
+        // Subset of _edges that lie on the outer boundary (referenced by exactly one element)
+        private readonly List<Edge> _boundaryEdges = [];
+        // Lookup from vertex id to vertex instance for fast access
+        private Dictionary<int, FEMVertex> _vertexLookup = [];
+        // Boundary vertices ordered along the boundary curve (counter-clockwise for a well-formed mesh)
+        private List<FEMVertex> _orderedBoundaryVertices = [];
+        // Mapping from vertex id to its index in _orderedBoundaryVertices
+        private Dictionary<int, int> _boundaryOrderLookup = [];
+
+        /// <summary>
+        /// Creates a mesh from provided vertices/elements (and optional electrodes).
+        /// Coordinates are normalized into [0,1]x[0,1] by default and topology is initialized.
+        /// </summary>
         public FEMMesh(IEnumerable<FEMVertex> vertices,
                        IEnumerable<FEMElement> elements,
                        IEnumerable<FEMElectrode>? electrodes = null)
@@ -25,17 +44,28 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
             if (electrodes != null)
                 _electrodes.AddRange(electrodes);
 
+            // Normalize to a stable coordinate scale to avoid extreme numeric ranges.
             NormalizeCoordinates();
             Initialize();
         }
 
+        /// <summary>
+        /// Creates an empty mesh structure and initializes internal structures.
+        /// </summary>
         public FEMMesh()
         {
             Initialize();
         }
 
+        /// <summary>
+        /// Returns the list of mesh vertices (same as <see cref="Vertices"/>).
+        /// </summary>
         public List<FEMVertex> GetVertices() => Vertices;
 
+        /// <summary>
+        /// Normalizes X and Y coordinates of all vertices into [minValue, maxValue].
+        /// Degenerate axes (zero range) are collapsed to the midpoint of the target range.
+        /// </summary>
         public void NormalizeCoordinates(double minValue = 0.0, double maxValue = 1.0)
         {
             if (Vertices.Count == 0)
@@ -57,6 +87,7 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
 
             foreach (var vertex in Vertices)
             {
+                // Normalize X
                 if (rangeX < 1e-12)
                 {
                     vertex.X = midpoint;
@@ -67,6 +98,7 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
                     vertex.X = minValue + normalizedX * targetRange;
                 }
 
+                // Normalize Y
                 if (rangeY < 1e-12)
                 {
                     vertex.Y = midpoint;
@@ -79,6 +111,12 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
             }
         }
 
+        /// <summary>
+        /// Initializes or refreshes derived state:
+        /// - Creates a homogeneous conductivity distribution.
+        /// - Builds the potential distribution from vertex potentials.
+        /// - Rebuilds lookup dictionaries and edge/boundary topology.
+        /// </summary>
         public void Initialize()
         {
             // Initialize with a homogeneous conductivity distribution
@@ -95,11 +133,19 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
             BuildEdgeTopology();
         }
 
+        /// <summary>
+        /// Rebuilds the vertex id -> vertex instance dictionary.
+        /// Call this after vertices change or are re-created.
+        /// </summary>
         private void RebuildVertexLookup()
         {
             _vertexLookup = Vertices.ToDictionary(v => v.GlobalId);
         }
 
+        /// <summary>
+        /// Constructs the list of all edges from element connectivity and flags boundary edges
+        /// (those referenced by exactly one element). Also derives the ordered boundary vertex list.
+        /// </summary>
         private void BuildEdgeTopology()
         {
             _edges.Clear();
@@ -108,6 +154,7 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
             var edgeUsage = new Dictionary<(int a, int b), (Edge edge, int count)>();
             int edgeId = 0;
 
+            // Count usage of each undirected edge across all triangles
             foreach (var element in _elements.Cast<FEMElement>())
             {
                 var verts = element.Vertices;
@@ -133,6 +180,7 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
                 }
             }
 
+            // Boundary edges are those used by only one element
             foreach (var (_, value) in edgeUsage)
             {
                 var edge = value.edge;
@@ -145,15 +193,22 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
             BuildOrderedBoundaryVertices();
         }
 
+        /// <summary>
+        /// Builds a cyclic ordering of boundary vertices around the outer boundary.
+        /// If topology is ambiguous, falls back to sorting by polar angle around the centroid.
+        /// Populates <see cref="_orderedBoundaryVertices"/> and <see cref="_boundaryOrderLookup"/>.
+        /// </summary>
         private void BuildOrderedBoundaryVertices()
         {
             _orderedBoundaryVertices = [];
             _boundaryOrderLookup = new Dictionary<int, int>();
 
+            // Collect vertices marked as boundary
             var boundaryVerts = Vertices.Where(v => v.IsBoundary).ToList();
             if (boundaryVerts.Count == 0)
                 return;
 
+            // Build boundary adjacency from boundary edges
             var adjacency = new Dictionary<int, List<int>>();
             foreach (var edge in _boundaryEdges)
             {
@@ -179,12 +234,14 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
             List<FEMVertex> ordered;
             if (adjacency.Count == 0)
             {
+                // No adjacency information: order by angle around the centroid
                 double cx = boundaryVerts.Average(v => v.X);
                 double cy = boundaryVerts.Average(v => v.Y);
                 ordered = [.. boundaryVerts.OrderBy(v => Math.Atan2(v.Y - cy, v.X - cx))];
             }
             else
             {
+                // Walk the boundary using adjacency starting from the lowest-angle boundary vertex
                 double cx = boundaryVerts.Average(v => v.X);
                 double cy = boundaryVerts.Average(v => v.Y);
                 var start = boundaryVerts
@@ -213,6 +270,7 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
                     }
                     else
                     {
+                        // Prefer the neighbor that is not the previous vertex to maintain direction
                         foreach (var candidate in neighbours)
                         {
                             if (candidate != previous)
@@ -228,10 +286,12 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
                     previous = current;
                     current = next;
 
+                    // Stop if we came full circle
                     if (current == start.GlobalId)
                         break;
                 }
 
+                // If we failed to collect all boundary vertices, fall back to angle sort
                 if (ordered.Count != boundaryVerts.Count)
                 {
                     double cx2 = boundaryVerts.Average(v => v.X);
@@ -245,8 +305,14 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
                 _boundaryOrderLookup[_orderedBoundaryVertices[i].GlobalId] = i;
         }
 
+        /// <summary>
+        /// Keys of the current state space for potential distribution (vertex ids).
+        /// </summary>
         protected override IEnumerable<int> StateKeys() => Vertices.Select(v => v.GlobalId);
 
+        /// <summary>
+        /// Writes a single vertex potential back to the mesh state.
+        /// </summary>
         protected override void ApplyPotentialToState(int stateKey, double potential)
         {
             var v = Vertices.FirstOrDefault(x => x.GlobalId == stateKey)
@@ -254,6 +320,10 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
             v.Potential = potential;
         }
 
+        /// <summary>
+        /// Reads an electrode potential from the state. For patch electrodes, averages over referenced vertices.
+        /// For point electrodes, uses the representative <see cref="FEMElectrode.MeshId"/> vertex.
+        /// </summary>
         protected override double ReadPotentialOf(FEMElectrode e)
         {
             if (!e.PointElectrode && e.FEMVertexIds != null && e.FEMVertexIds.Count > 0)
@@ -270,8 +340,14 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
             return vv.Potential;
         }
 
+        /// <summary>
+        /// Places <paramref name="numElectrodes"/> electrodes approximately evenly along the outer boundary.
+        /// Each electrode spans <paramref name="nodesPerElectrode"/> consecutive boundary nodes (>=1).
+        /// Sets z-contact and approximates length from geometry (falls back to <paramref name="lengthHint"/>).
+        /// </summary>
         public void PlaceEquidistantElectrodes(int numElectrodes, double zContact, double lengthHint, int nodesPerElectrode = 1)
         {
+            // Clear previous electrode flags on vertices
             foreach (var v in Vertices)
             {
                 v.IsElectrode = false;
@@ -294,22 +370,25 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
                 return;
             }
 
+            // Clamp requested counts to boundary size
             numElectrodes = Math.Clamp(numElectrodes, 1, boundary.Count);
             nodesPerElectrode = Math.Clamp(nodesPerElectrode, 1, Math.Max(1, boundary.Count / numElectrodes));
 
             var used = new bool[boundary.Count];
             var electrodes = new List<FEMElectrode>(numElectrodes);
-            double step = boundary.Count / (double)numElectrodes;
+            double step = boundary.Count / (double)numElectrodes; // fractional step along the ring
             double pos = 0.0;
 
             for (int i = 0; i < numElectrodes; i++)
             {
+                // Find nearest unused boundary index to the target position
                 int startIndex = FindNextUnusedIndex(used, (int)Math.Round(pos) % boundary.Count);
                 if (startIndex < 0)
                     break;
 
                 var assigned = new List<int>(nodesPerElectrode);
                 int current = startIndex;
+                // Assign consecutive boundary nodes to this electrode
                 for (int n = 0; n < nodesPerElectrode; n++)
                 {
                     if (used[current])
@@ -331,6 +410,7 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
                 if (assigned.Count == 0)
                     continue;
 
+                // Create electrode; patch vs point decided by assigned count
                 var electrode = new FEMElectrode(
                     id: i,
                     meshId: assigned[0],
@@ -344,9 +424,10 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
                 electrode.Length = arcLength > 0.0 ? arcLength : lengthHint;
                 electrodes.Add(electrode);
 
-                pos += step;
+                pos += step; // advance to next target position
             }
 
+            // Clear any remaining vertex electrode flags that were not assigned
             for (int idx = 0; idx < boundary.Count; idx++)
             {
                 if (!used[idx])
@@ -359,15 +440,29 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
             SetElectrodes(electrodes);
         }
 
+        /// <summary>
+        /// Returns the boundary vertices ordered along the outer boundary curve.
+        /// </summary>
         public IReadOnlyList<FEMVertex> GetOrderedBoundaryVertices() => _orderedBoundaryVertices;
 
+        /// <summary>
+        /// Gets the boundary-order index (0..N-1) of a boundary vertex id.
+        /// </summary>
         public bool TryGetBoundaryIndex(int vertexId, out int index) => _boundaryOrderLookup.TryGetValue(vertexId, out index);
 
+        /// <summary>
+        /// Returns a vertex by its global id or throws if not present.
+        /// </summary>
         public FEMVertex GetVertexById(int vertexId)
             => _vertexLookup.TryGetValue(vertexId, out var vertex)
                 ? vertex
                 : throw new InvalidOperationException($"No FEMVertex.GlobalId = {vertexId}.");
 
+        /// <summary>
+        /// Orders the specified vertex ids according to their position along the boundary order.
+        /// If ids are not contiguous, the sequence is rotated to minimize wrap-around (largest gap is cut).
+        /// Non-boundary ids are ignored.
+        /// </summary>
         public List<int> OrderVerticesAlongBoundary(IEnumerable<int> vertexIds)
         {
             if (vertexIds == null)
@@ -377,6 +472,7 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
             if (ids.Count <= 1)
                 return ids;
 
+            // First collect in boundary order
             var ordered = new List<int>(ids.Count);
             var idSet = new HashSet<int>(ids);
 
@@ -389,6 +485,7 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
             if (ordered.Count <= 1)
                 return ordered;
 
+            // Rotate so that the largest boundary gap is between the last and first element
             int n = ordered.Count;
             int boundaryCount = _orderedBoundaryVertices.Count;
             var boundaryIndices = ordered.Select(id => _boundaryOrderLookup[id]).ToArray();
@@ -416,6 +513,11 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
             return rotated;
         }
 
+        /// <summary>
+        /// Computes the arc length of a boundary electrode given an ordered list of boundary vertex ids.
+        /// - For a single vertex, returns half of the sum of adjacent boundary edge lengths.
+        /// - For multiple vertices, sums pairwise distances along the provided order.
+        /// </summary>
         public double ComputeElectrodeLength(IList<int> orderedVertexIds)
         {
             if (orderedVertexIds == null || orderedVertexIds.Count == 0)
@@ -423,6 +525,7 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
 
             if (orderedVertexIds.Count == 1)
             {
+                // Use half of neighbor edge lengths to approximate local contact width
                 if (_orderedBoundaryVertices.Count < 2)
                     return 0.0;
                 if (!_boundaryOrderLookup.TryGetValue(orderedVertexIds[0], out var idx))
@@ -446,38 +549,8 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
         }
 
         /// <summary>
-        ///     Recomputes and assigns the physical surface length of every electrode
-        ///     from the current mesh geometry.  Reconstruction workflows often create
-        ///     electrodes without a reliable <see cref="FEMElectrode.Length"/> value
-        ///     (e.g. during mesh import where only vertex references are available).
-        ///     The solver, the reconstruction metrics and the CEM formulation are all
-        ///     sensitive to the electrode length, therefore it needs to be derived in
-        ///     a systematic way:
-        ///     <list type="number">
-        ///         <item>
-        ///             <description>
-        ///                 Order the contact vertices of each electrode along the mesh
-        ///                 boundary and integrate the polyline arc length.  For single
-        ///                 vertex electrodes the surrounding boundary edges are halved
-        ///                 to obtain a representative contact width.
-        ///             </description>
-        ///         </item>
-        ///         <item>
-        ///             <description>
-        ///                 When an electrode cannot be mapped to boundary vertices
-        ///                 (degenerate import data), fall back to the average spacing of
-        ///                 boundary nodes so the resulting length still scales with the
-        ///                 mesh resolution.
-        ///             </description>
-        ///         </item>
-        ///         <item>
-        ///             <description>
-        ///                 Ensure that a strictly positive value remains – the final
-        ///                 guard of <c>1e-6</c> prevents numerical issues in extreme
-        ///                 degenerate cases.
-        ///             </description>
-        ///         </item>
-        ///     </list>
+        /// Recomputes and assigns the physical surface length of every electrode from the current mesh geometry.
+        /// Falls back to average boundary spacing and then a small positive guard if no geometry is available.
         /// </summary>
         public void UpdateElectrodeLengths()
         {
@@ -519,6 +592,9 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
             }
         }
 
+        /// <summary>
+        /// Estimates the average spacing of boundary vertices along the ordered boundary loop.
+        /// </summary>
         private double EstimateAverageBoundarySpacing()
         {
             int count = _orderedBoundaryVertices.Count;
@@ -536,6 +612,10 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
             return total / count;
         }
 
+        /// <summary>
+        /// Enumerates contiguous boundary line segments for each patch electrode (2 or more vertices).
+        /// Useful for visualization or length verification.
+        /// </summary>
         public IEnumerable<(FEMVertex Start, FEMVertex End, FEMElectrode Electrode)> GetElectrodeSegments()
         {
             foreach (var electrode in ElectrodesTyped.Cast<FEMElectrode>())
@@ -555,6 +635,10 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
             }
         }
 
+        /// <summary>
+        /// Scans the circular boolean array starting at <paramref name="start"/> and returns the first index that is false.
+        /// Returns -1 if all entries are used.
+        /// </summary>
         private static int FindNextUnusedIndex(bool[] used, int start)
         {
             int n = used.Length;
@@ -567,6 +651,9 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
             return -1;
         }
 
+        /// <summary>
+        /// Euclidean distance between two vertices.
+        /// </summary>
         private static double Distance(FEMVertex a, FEMVertex b)
         {
             double dx = a.X - b.X;
@@ -577,13 +664,14 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
 
         /// <summary>
         /// Creates a deep copy of this FEMMesh, including vertices, elements,
-        /// electrode list, and distributions.
+        /// electrode list, and distributions. Electrode lengths are re-derived on the copy.
         /// </summary>
         public override Discretization DeepCopy()
         {
             var FEMVertexMap = new Dictionary<int, FEMVertex>(Vertices.Count);
             var newVertices = new List<FEMVertex>(Vertices.Count);
 
+            // Copy vertices
             foreach (var v in Vertices)
             {
                 var v2 = new FEMVertex
@@ -601,6 +689,7 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
                 newVertices.Add(v2);
             }
 
+            // Copy elements and rebind to new vertex instances
             var newElements = new List<FEMElement>(_elements.Count);
             foreach (var el in _elements)
             {
@@ -625,6 +714,7 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
                 }
             };
 
+            // Copy electrodes (preserving ids and patch membership); then re-derive lengths
             if (_electrodes.Count > 0)
             {
                 var electrodeCopies = new List<FEMElectrode>(_electrodes.Count);
@@ -655,19 +745,22 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
                 copy.SetElectrodes(new List<FEMElectrode>());
             }
 
+            // Copy scalar fields
             copy.SetConductivityDistribution(new ConductivityDistribution(new Dictionary<int, double>(this.ConductivityDistribution.Conductivities)));
             copy.SetPotentialDistribution(new PotentialDistribution(new Dictionary<int, double>(this.PotentialDistribution.Potentials)));
             return copy;
         }
 
+        /// <summary>
+        /// Logs a brief summary of the mesh size to the console.
+        /// </summary>
         public override void LogDiscretization()
         {
             Console.WriteLine($"FEM | V={Vertices.Count}, E={_elements.Count}, EL={_electrodes.Count}");
         }
 
         /// <summary>
-        /// Split every triangle into four by inserting midpoints on each edge.
-        /// Potentials at new midpoints are averaged from endpoints; conductivity is inherited from parent.
+        /// Uniformly refines the mesh by splitting every triangle into four, <paramref name="levels"/> times.
         /// </summary>
         public override FEMMesh RefineUniform(int levels = 1)
         {
@@ -677,6 +770,11 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
             return current;
         }
 
+        /// <summary>
+        /// Performs a single uniform refinement pass (4 children per triangle).
+        /// Midpoints inherit averaged position/potential; boundary status is preserved on boundary edges.
+        /// Electrodes are remapped to nearest vertex in the refined mesh.
+        /// </summary>
         private FEMMesh RefineOnce()
         {
             var oldVerts = this.Vertices;
@@ -785,7 +883,7 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
                 refined.UpdateElectrodeLengths();
             }
 
-            // Refresh distributions
+            // Refresh distributions on the refined mesh
             var cd = refined.ElementsTyped.Cast<FEMElement>().ToDictionary(e => e.Id, e => e.Conductivity);
             refined.SetConductivityDistribution(new ConductivityDistribution(cd));
 
@@ -797,8 +895,10 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
 
 
         /// <summary>
-        /// Iterates through all elements and creates a graph based on if two elements share a face
-        /// then the two graph nodes will be connected with a weigth of the two elements harmonic mean conductance.
+        /// Builds the dual graph of the mesh:
+        /// - One graph vertex per FEM element (located at the centroid).
+        /// - Graph edges connect elements that share a mesh edge.
+        /// - Edge weights are two-point transmissibilities based on face length and centroid distances.
         /// </summary>
         /// <returns>The graph object created from the FEM discretization.</returns>
         public override Utility.Classes.Discretizer.GraphMesh.Graph ToGraph()
@@ -929,7 +1029,12 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
             return new Utility.Classes.Discretizer.GraphMesh.Graph(gVertices, gEdges);
         }
 
-
+        /// <summary>
+        /// Reconstructs a FEM mesh from a dual graph produced by <see cref="ToGraph"/>.
+        /// - Creates a vertex for each graph vertex using its coordinates.
+        /// - Finds triangles as 3-cliques in the graph adjacency.
+        /// - Sets element conductivity as the average of the three edge weights.
+        /// </summary>
         public override FEMMesh FromGraph(GraphMesh.Graph graphToConvert)
         {
             if (graphToConvert == null) throw new ArgumentNullException(nameof(graphToConvert));

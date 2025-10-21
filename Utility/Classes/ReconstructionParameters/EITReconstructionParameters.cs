@@ -55,7 +55,7 @@ namespace Utility.Classes.ReconstructionParameters
             DifferentialEquationSolver = DifferentialEquationSolver.FEM;
             RegularizationTechnique = RegularizationTechnique.None;
             ErrorMetric = ErrorMetric.Wasserstein2;
-            NumericSolver = NumericSolver.SVD;
+            NumericSolver = NumericSolver.GMRES;
             NumericOptimizer = NumericOptimizer.ADAM;
             InitialDistributionType = InitialDistributionTypes.Homogeneous;
             MeasurementNoiseType = MeasurementNoiseType.None;

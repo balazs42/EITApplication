@@ -1,5 +1,3 @@
-using System;
-
 namespace Utility.Classes.Discretizer.FiniteElementMesh
 {
     /// <summary>

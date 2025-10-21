@@ -14,12 +14,39 @@ using Utility.Classes.Application;
 
 namespace DataAccessLayer
 {
+    /// <summary>
+    /// Repository for persisting, loading, exporting and introspecting discretizations (FEM meshes and LBM grids).
+    /// Responsibilities:
+    /// - Save/load native <c>.eitmesh</c> XML files for FEM and LBM discretizations
+    /// - Save FEM meshes to ASCII STL for interoperability
+    /// - Load FEM meshes directly from STL (ASCII/Binary) and reconstruct a planar mesh
+    /// - Export FEM meshes for Matlab (STL + JSON sidecar) and re-import supplementary data from JSON
+    /// - Enumerate available discretization snapshots and expose metadata for UI
+    ///
+    /// All files are stored in a per-user folder under LocalApplicationData/EITApplication/Meshes.
+    /// </summary>
     public class MeshRepository : IMeshRepository
     {
+        /// <summary>
+        /// Root directory for mesh files (native XML and STL exports).
+        /// </summary>
         private static string MeshDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                                                        "EITApplication", "Meshes");
+
+        /// <summary>
+        /// Quantization step used when deduplicating vertices while parsing STL files. Points within this
+        /// tolerance are treated as identical and merged to a single vertex.
+        /// </summary>
         private const double StlMergeTolerance = 1e-9;
 
+        /// <summary>
+        /// Saves a FEM mesh into the native <c>.eitmesh</c> XML format and, in addition, into ASCII STL.
+        /// Both files are timestamped identically so the user can easily correlate them.
+        /// </summary>
+        /// <param name="mesh">Mesh to save.</param>
+        /// <param name="name">Logical name used in the file name and inside metadata.</param>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="mesh"/> is null.</exception>
+        /// <exception cref="ArgumentException">Thrown if <paramref name="name"/> is null/empty.</exception>
         public void SaveFEMMesh(FEMMesh mesh, string name)
         {
             if (mesh == null) throw new ArgumentNullException(nameof(mesh));
@@ -40,6 +67,13 @@ namespace DataAccessLayer
             SaveFemMeshAsStl(mesh, name, "fem", timestamp);
         }
 
+        /// <summary>
+        /// Saves an LBM grid into the native <c>.eitmesh</c> XML format.
+        /// </summary>
+        /// <param name="grid">Grid to save.</param>
+        /// <param name="name">Logical name used in the file name and metadata.</param>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="grid"/> is null.</exception>
+        /// <exception cref="ArgumentException">Thrown if <paramref name="name"/> is null/empty.</exception>
         public void SaveLBMGrid(LBMGrid grid, string name)
         {
             if (grid == null) throw new ArgumentNullException(nameof(grid));
@@ -50,6 +84,19 @@ namespace DataAccessLayer
             SaveDocument(doc, name, "lbm", timestamp);
         }
 
+        /// <summary>
+        /// Exports a FEM mesh for Matlab-based workflows.
+        /// Writes:
+        /// - an ASCII STL of the 2D triangular mesh embedded in the XY plane, and
+        /// - a JSON sidecar file containing mapping data (vertex order, electrode mapping, drive patterns).
+        /// </summary>
+        /// <param name="mesh">Mesh to export.</param>
+        /// <param name="name">Logical base name for files.</param>
+        /// <param name="drivePattern">Drive pattern definition used to generate electrode pairs.</param>
+        /// <param name="modelType">String describing model type to include in JSON.</param>
+        /// <returns>Paths to the created STL and JSON files.</returns>
+        /// <exception cref="ArgumentNullException">If <paramref name="mesh"/> is null.</exception>
+        /// <exception cref="ArgumentException">If <paramref name="name"/> or <paramref name="modelType"/> are empty.</exception>
         public MatlabExportResult ExportFemMeshForMatlab(FEMMesh mesh, string name, DrivePattern drivePattern, string modelType)
         {
             if (mesh == null) throw new ArgumentNullException(nameof(mesh));
@@ -60,6 +107,7 @@ namespace DataAccessLayer
             var stlVertexOrder = new List<int>(mesh.Vertices.Count);
             string stlPath = SaveFemMeshAsStl(mesh, name, "matlab", timestamp, stlVertexOrder);
 
+            // Derive a deterministic vertex order compatible with Matlab's 1-based indexing.
             var matlabVertexOrder = ComputeMatlabVertexOrder(mesh);
             var matlabIndexByVertexId = new Dictionary<int, int>(matlabVertexOrder.Count);
             for (int i = 0; i < matlabVertexOrder.Count; i++)
@@ -77,6 +125,8 @@ namespace DataAccessLayer
             var matlabElectrodeVertexIds = new List<int>(electrodes.Count);
             foreach (var electrode in electrodes)
             {
+                // Pick a representative vertex for this electrode. Prefer explicit FEMVertexIds,
+                // otherwise fall back to MeshId if available.
                 int? vertexId = null;
 
                 if (electrode.FEMVertexIds != null && electrode.FEMVertexIds.Count > 0)
@@ -99,6 +149,7 @@ namespace DataAccessLayer
                 int globalId = vertexId ?? -1;
                 electrodeVertices.Add(globalId);
 
+                // Export coordinates for convenience on the Matlab side.
                 if (globalId >= 0 && vertexById.TryGetValue(globalId, out var coordinateVertex))
                 {
                     electrodeVertexCoordinates.Add(new[] { coordinateVertex.X, coordinateVertex.Y });
@@ -108,6 +159,7 @@ namespace DataAccessLayer
                     electrodeVertexCoordinates.Add(null);
                 }
 
+                // Translate internal vertex id to Matlab's 1-based index in the exported vertex list.
                 if (globalId >= 0 && matlabIndexByVertexId.TryGetValue(globalId, out var matlabIndex))
                 {
                     // Matlab exposes vertex indices using one-based numbering; mirror that so the
@@ -120,6 +172,7 @@ namespace DataAccessLayer
                 }
             }
 
+            // Generate electrode excitation/ground pairs based on the chosen drive pattern.
             var strategy = DrivePatternStrategyProvider.GetStrategy(drivePattern);
             var drivePatternPairs = new List<int[]>();
             if (electrodes.Count > 0)
@@ -153,6 +206,10 @@ namespace DataAccessLayer
             return new MatlabExportResult(stlPath, jsonFile);
         }
 
+        /// <summary>
+        /// Enumerates saved discretizations in the mesh directory and yields lightweight info objects
+        /// with deserialized metadata. Supports native <c>.eitmesh</c> and STL files.
+        /// </summary>
         public IEnumerable<DiscretizationInfo> GetDiscretizationInfos()
         {
             Directory.CreateDirectory(MeshDir);
@@ -179,6 +236,7 @@ namespace DataAccessLayer
                 }
             }
 
+            // Also surface raw STL files as discretization candidates so users can select imported meshes.
             foreach (var file in Directory.GetFiles(MeshDir, "*.stl"))
             {
                 var info = TryBuildStlDiscretizationInfo(file);
@@ -187,6 +245,12 @@ namespace DataAccessLayer
             }
         }
 
+        /// <summary>
+        /// Deletes a mesh file and, if it is a native <c>.eitmesh</c>, also deletes its paired STL export.
+        /// Safe to call for non-existent files.
+        /// </summary>
+        /// <param name="filePath">Absolute path to the file to delete.</param>
+        /// <exception cref="ArgumentException">If <paramref name="filePath"/> is null/empty.</exception>
         public void DeleteMesh(string filePath)
         {
             if (string.IsNullOrWhiteSpace(filePath))
@@ -205,6 +269,15 @@ namespace DataAccessLayer
             }
         }
 
+        /// <summary>
+        /// Loads a FEM mesh from either native <c>.eitmesh</c> XML or STL (ASCII/Binary).
+        /// STL import reconstructs a planar triangular mesh from facets. When loading native XML,
+        /// this method rehydrates vertices, elements, electrodes, and distributions, then initializes the mesh.
+        /// </summary>
+        /// <param name="filePath">Absolute path to the source file.</param>
+        /// <returns>Reconstructed <see cref="FEMMesh"/>.</returns>
+        /// <exception cref="FileNotFoundException">If the file does not exist.</exception>
+        /// <exception cref="InvalidOperationException">If the native XML is invalid.</exception>
         public FEMMesh LoadFEMMesh(string filePath)
         {
             if (!File.Exists(filePath))
@@ -312,6 +385,14 @@ namespace DataAccessLayer
             return mesh;
         }
 
+        /// <summary>
+        /// Loads an LBM grid from a native <c>.eitmesh</c> XML file and rehydrates elements, electrodes
+        /// and distributions.
+        /// </summary>
+        /// <param name="filePath">Absolute path to the source XML.</param>
+        /// <returns>Reconstructed <see cref="LBMGrid"/>.</returns>
+        /// <exception cref="FileNotFoundException">If the file does not exist.</exception>
+        /// <exception cref="InvalidOperationException">If the XML is invalid.</exception>
         public LBMGrid LoadLBMGrid(string filePath)
         {
             if (!File.Exists(filePath))
@@ -371,6 +452,10 @@ namespace DataAccessLayer
             return grid;
         }
 
+        /// <summary>
+        /// Writes an XML document to the mesh directory using a safe file name composed from <paramref name="name"/>,
+        /// <paramref name="timestamp"/>, <paramref name="suffix"/> and <paramref name="extension"/>.
+        /// </summary>
         private static void SaveDocument(XDocument doc, string name, string suffix, DateTime timestamp, string extension = "eitmesh")
         {
             Directory.CreateDirectory(MeshDir);
@@ -379,6 +464,16 @@ namespace DataAccessLayer
             doc.Save(file);
         }
 
+        /// <summary>
+        /// Serializes the FEM mesh into an ASCII STL file. Every triangular FEM element becomes one facet
+        /// in the XY plane (Z = 0). Optionally records the first occurrence order of vertex ids for downstream mapping.
+        /// </summary>
+        /// <param name="mesh">Source FEM mesh.</param>
+        /// <param name="name">Logical base name.</param>
+        /// <param name="suffix">File name suffix to distinguish purpose (e.g. fem/matlab).</param>
+        /// <param name="timestamp">Timestamp for file name grouping.</param>
+        /// <param name="stlVertexOrder">Optional list filled with vertex ids in the order they first appear.</param>
+        /// <returns>Absolute path of the written STL file.</returns>
         private static string SaveFemMeshAsStl(FEMMesh mesh, string name, string suffix, DateTime timestamp, IList<int>? stlVertexOrder = null)
         {
             Directory.CreateDirectory(MeshDir);
@@ -404,6 +499,7 @@ namespace DataAccessLayer
                 var b = element.Vertices[1];
                 var c = element.Vertices[2];
 
+                // The normal is computed from 2D coordinates embedded in 3D at Z=0.
                 var normal = CalculateFacetNormal(a, b, c);
                 writer.WriteLine(string.Format(CultureInfo.InvariantCulture,
                     "  facet normal {0:G17} {1:G17} {2:G17}", normal.X, normal.Y, normal.Z));
@@ -441,6 +537,8 @@ namespace DataAccessLayer
 
             void WriteVertex(StreamWriter writer, FEMVertex vertex)
             {
+                // Record the first time we encounter a vertex (by its global id) to get a stable
+                // vertex ordering list that can be used by Matlab consumers.
                 if (stlVertexOrder != null && seenVertices != null && seenVertices.Add(vertex.GlobalId))
                 {
                     stlVertexOrder.Add(vertex.GlobalId);
@@ -453,6 +551,13 @@ namespace DataAccessLayer
             return file;
         }
 
+        /// <summary>
+        /// Computes a deterministic vertex order for Matlab post-processing by:
+        /// - merging near-duplicate vertices using <see cref="CreateVertexKey(double, double, double)"/>
+        /// - picking the lowest GlobalId for each unique position
+        /// - sorting by X, then Y, then Z (Z=0 for a planar mesh)
+        /// Returns the list of internal vertex GlobalIds in that order.
+        /// </summary>
         private static List<int> ComputeMatlabVertexOrder(FEMMesh mesh)
         {
             if (mesh == null)
@@ -482,6 +587,10 @@ namespace DataAccessLayer
                 .ToList();
         }
 
+        /// <summary>
+        /// Builds the native XML representation for a FEM mesh including metadata, elements, electrodes,
+        /// vertices and distributions.
+        /// </summary>
         private static XDocument BuildFemDocument(FEMMesh mesh, string name)
         {
             mesh.Metadata.ElementCount = mesh.ElementsTyped.Count;
@@ -548,6 +657,10 @@ namespace DataAccessLayer
             return doc;
         }
 
+        /// <summary>
+        /// Builds the native XML representation for an LBM grid including metadata, elements, electrodes
+        /// and distributions.
+        /// </summary>
         private static XDocument BuildLbmDocument(LBMGrid mesh, string name)
         {
             mesh.Metadata.ElementCount = mesh.ElementsTyped.Count;
@@ -599,6 +712,9 @@ namespace DataAccessLayer
             return doc;
         }
 
+        /// <summary>
+        /// Serializes common metadata to XML.
+        /// </summary>
         private static XElement SerializeMetadata(DiscretizationMetaData metadata)
         {
             return new XElement("Metadata",
@@ -614,6 +730,9 @@ namespace DataAccessLayer
             );
         }
 
+        /// <summary>
+        /// Deserializes common metadata from XML, tolerating missing nodes by providing sensible defaults.
+        /// </summary>
         private static DiscretizationMetaData DeserializeMetadata(XElement? element)
         {
             var md = new DiscretizationMetaData();
@@ -633,6 +752,10 @@ namespace DataAccessLayer
             return md;
         }
 
+        /// <summary>
+        /// Recreates a FEM mesh scaffold from metadata (generator + parameters) so that vertex/element structures
+        /// are present before we overwrite their values from the XML payload. Falls back to an empty mesh on failure.
+        /// </summary>
         private static FEMMesh CreateFemFromMetadata(DiscretizationMetaData md)
         {
             try
@@ -683,10 +806,16 @@ namespace DataAccessLayer
             }
             catch
             {
+                // Intentionally swallow and fall back to empty mesh; the XML payload will still overwrite fields
+                // where possible, allowing partial recovery from inconsistent metadata.
             }
             return new FEMMesh();
         }
 
+        /// <summary>
+        /// Attempts to interpret an STL file as a discretization candidate and builds a <see cref="DiscretizationInfo"/>
+        /// for display. Detects ASCII vs Binary STL and counts triangles to populate metadata.
+        /// </summary>
         private static DiscretizationInfo? TryBuildStlDiscretizationInfo(string filePath)
         {
             try
@@ -722,6 +851,10 @@ namespace DataAccessLayer
             }
         }
 
+        /// <summary>
+        /// Loads a FEM mesh from STL (ASCII/Binary), reconstructs planar vertices and elements, assigns default
+        /// distributions, clears electrodes and tries to augment the result from an adjacent Matlab JSON file if present.
+        /// </summary>
         private static FEMMesh LoadFemMeshFromStl(string filePath)
         {
             bool isAscii;
@@ -758,12 +891,22 @@ namespace DataAccessLayer
             var potentials = mesh.Vertices.ToDictionary(v => v.GlobalId, v => v.Potential);
             mesh.SetPotentialDistribution(new PotentialDistribution(potentials));
 
+            // Optionally retrieve measurements/electrodes/impedances from a sidecar JSON produced by Matlab export.
             Workspace.ClearImportedMeasurement();
             TryAugmentFemMeshFromMatlabJson(mesh, filePath);
 
             return mesh;
         }
 
+        /// <summary>
+        /// Attempts to enrich a FEM mesh loaded from STL with information found in a sidecar JSON file (same base name).
+        /// The JSON is expected to originate from Matlab/EIDORS pipelines and may contain:
+        /// - electrode centers (possibly in different coordinate systems),
+        /// - contact impedances, drive pattern pairs and optional current amplitudes,
+        /// - measured voltage frames and optional global amplitude.
+        /// The method tries to map electrode coordinates onto mesh vertices, respecting boundary preference and
+        /// a configurable tolerance. It also stores useful provenance metadata on the mesh.
+        /// </summary>
         private static void TryAugmentFemMeshFromMatlabJson(FEMMesh mesh, string stlFilePath)
         {
             if (mesh is null)
@@ -828,6 +971,7 @@ namespace DataAccessLayer
                 }
             }
 
+            // Bring measurements into the application workspace if present.
             if (supplement?.MeasurementFrames != null && supplement.MeasurementFrames.Count > 0)
             {
                 mesh.Metadata.Parameters["matlabMeasurementFrameCount"] = supplement.MeasurementFrames.Count.ToString(CultureInfo.InvariantCulture);
@@ -847,13 +991,16 @@ namespace DataAccessLayer
                 }
             }
 
+            // If contact impedances were not declared in the main definition, try the supplement.
             if ((import.ElectrodeZContact == null || import.ElectrodeZContact.Count == 0) && supplement?.ContactImpedances != null)
                 import.ElectrodeZContact = supplement.ContactImpedances;
 
+            // Prefer the main definition's electrode coordinates; fall back to supplement if needed.
             var electrodeCoordinates = import.ElectrodeVertexCoordinates;
             if ((electrodeCoordinates == null || electrodeCoordinates.Count == 0) && supplement?.ElectrodeCoordinates != null)
                 electrodeCoordinates = supplement.ElectrodeCoordinates;
 
+            // Clear stale flags, then rebuild electrode list from coordinate mapping.
             var vertices = mesh.Vertices;
             foreach (var vertex in vertices)
             {
@@ -871,6 +1018,7 @@ namespace DataAccessLayer
             double meshRangeX = meshMaxX - meshMinX;
             double meshRangeY = meshMaxY - meshMinY;
 
+            // Heuristically determine how to interpret electrode coordinates (axis choice, bounds, flips).
             var transform = DetermineElectrodeTransform(vertices, electrodeCoordinates, meshMinX, meshMaxX, meshMinY, meshMaxY);
             if (!string.IsNullOrEmpty(transform.Description))
                 mesh.Metadata.Parameters["electrodeTransform"] = transform.Description!;
@@ -885,6 +1033,7 @@ namespace DataAccessLayer
 
                     var (targetX, targetY) = ProjectElectrodeCoordinate(coords, transform, meshMinX, meshRangeX, meshMinY, meshRangeY);
 
+                    // Prefer boundary vertices to place electrodes; fall back to any vertex within tolerance.
                     var vertex = FindNearestVertex(
                         vertices,
                         targetX,
@@ -928,6 +1077,7 @@ namespace DataAccessLayer
             if (reassignedElectrodes.Count > 0)
                 mesh.Metadata.Parameters["electrodeReassignmentIndices"] = string.Join(",", reassignedElectrodes);
 
+            // Mark the first drive pair as excitation/ground and optionally inject currents from amps array.
             if (import.DrivePatternPairs != null && import.DrivePatternPairs.Count > 0 && electrodes.Count > 0)
             {
                 var firstPair = import.DrivePatternPairs[0];
@@ -958,6 +1108,7 @@ namespace DataAccessLayer
                 }
             }
 
+            // Optional inhomogeneous phantom data mapped onto element conductivities.
             if (import.InhomogenousPhantomElemData != null && import.InhomogenousPhantomElemData.Count > 0)
             {
                 var conductivity = new Dictionary<int, double>(mesh.ElementsTyped.Count);
@@ -974,6 +1125,11 @@ namespace DataAccessLayer
             }
         }
 
+        /// <summary>
+        /// Projects an arbitrary coordinate vector to 2D mesh space using the provided transform.
+        /// If the transform has bounds, values are normalized and optionally flipped to span the mesh extents;
+        /// otherwise the raw values of the chosen axes are used.
+        /// </summary>
         private static (double X, double Y) ProjectElectrodeCoordinate(
             IReadOnlyList<double> coords,
             ElectrodeTransform transform,
@@ -991,6 +1147,7 @@ namespace DataAccessLayer
                         return value;
                 }
 
+                // Fallback: return the first finite coordinate if the chosen axis is not present.
                 foreach (var value in coords)
                 {
                     if (double.IsFinite(value))
@@ -1020,6 +1177,11 @@ namespace DataAccessLayer
             return (mappedX, mappedY);
         }
 
+        /// <summary>
+        /// Chooses a mapping from input electrode coordinate space to mesh X/Y axes by evaluating multiple axis-pair
+        /// candidates (and optional flips) and selecting the transform that minimizes average squared distance to
+        /// nearest boundary vertices.
+        /// </summary>
         private static ElectrodeTransform DetermineElectrodeTransform(
             IReadOnlyList<FEMVertex> vertices,
             IReadOnlyList<double[]>? electrodeCoordinates,
@@ -1095,6 +1257,10 @@ namespace DataAccessLayer
             return bestTransform;
         }
 
+        /// <summary>
+        /// Computes the average squared distance between projected electrode coordinates and their nearest vertices
+        /// among <paramref name="searchVertices"/>.
+        /// </summary>
         private static double ComputeMappingError(
             IReadOnlyList<double[]> coordinates,
             IReadOnlyList<FEMVertex> searchVertices,
@@ -1133,6 +1299,10 @@ namespace DataAccessLayer
             return total / count;
         }
 
+        /// <summary>
+        /// Finds min/max bounds for a chosen axis across coordinate samples, skipping non-finite values.
+        /// Returns a flag indicating whether any valid bounds were observed.
+        /// </summary>
         private static (double Min, double Max, bool HasBounds) GetAxisBounds(
             IReadOnlyList<double[]> coordinates,
             int axis)
@@ -1158,6 +1328,10 @@ namespace DataAccessLayer
             return (min, max, hasBounds);
         }
 
+        /// <summary>
+        /// Normalizes <paramref name="value"/> into [0,1] using <paramref name="min"/>/<paramref name="max"/>.
+        /// Falls back to 0.5 when range is degenerate or non-finite.
+        /// </summary>
         private static double Normalize(double value, double min, double max)
         {
             double range = max - min;
@@ -1171,6 +1345,10 @@ namespace DataAccessLayer
             return Math.Clamp(normalized, 0.0, 1.0);
         }
 
+        /// <summary>
+        /// Finds the nearest vertex to the given target point. Optionally restricts candidates with a predicate
+        /// and returns a flag indicating whether the best candidate lies within the specified Euclidean tolerance.
+        /// </summary>
         private static FEMVertex? FindNearestVertex(
             IReadOnlyList<FEMVertex> vertices,
             double x,
@@ -1231,6 +1409,9 @@ namespace DataAccessLayer
             return best;
         }
 
+        /// <summary>
+        /// Safely reads <paramref name="index"/> from a list or returns <paramref name="fallback"/>.
+        /// </summary>
         private static double GetListValue(IReadOnlyList<double>? values, int index, double fallback)
         {
             if (values == null || index < 0 || index >= values.Count)
@@ -1238,6 +1419,9 @@ namespace DataAccessLayer
             return values[index];
         }
 
+        /// <summary>
+        /// Extracts optional supplementary information from a Matlab JSON export, tolerating absent or malformed parts.
+        /// </summary>
         private static MatlabJsonSupplement? ExtractMatlabSupplement(JsonElement root)
         {
             try
@@ -1260,6 +1444,10 @@ namespace DataAccessLayer
             }
         }
 
+        /// <summary>
+        /// Parses an array of electrode coordinate entries, each of which can be a vector, an object with
+        /// a <c>centre/center</c> property, a scalar or even an array of arrays (averaged per component).
+        /// </summary>
         private static List<double[]>? ParseElectrodeCoordinateArray(JsonElement element)
         {
             if (element.ValueKind != JsonValueKind.Array)
@@ -1277,6 +1465,10 @@ namespace DataAccessLayer
             return coordinates.Count > 0 ? coordinates : null;
         }
 
+        /// <summary>
+        /// Parses a single electrode coordinate entry. Supports the same flexible input shapes as
+        /// <see cref="ParseElectrodeCoordinateArray"/> and returns a flattened vector.
+        /// </summary>
         private static double[]? ParseElectrodeCoordinateEntry(JsonElement element)
         {
             if (element.ValueKind == JsonValueKind.Object)
@@ -1311,6 +1503,7 @@ namespace DataAccessLayer
             if (first.ValueKind != JsonValueKind.Array)
                 return ReadDoubleArray(element);
 
+            // Average over array-of-arrays samples per component to get a representative coordinate.
             var samples = new List<double[]>();
             foreach (var component in element.EnumerateArray())
             {
@@ -1347,6 +1540,9 @@ namespace DataAccessLayer
             return totals;
         }
 
+        /// <summary>
+        /// Reads node coordinates from a nested <c>nodes</c> array in the JSON document.
+        /// </summary>
         private static List<double[]>? ExtractNodeCoordinates(JsonElement root)
         {
             if (!TryFindPropertyCaseInsensitive(root, "nodes", out var nodesElement))
@@ -1375,6 +1571,10 @@ namespace DataAccessLayer
             return nodes.Count > 0 ? nodes : null;
         }
 
+        /// <summary>
+        /// Extracts electrode center coordinates and optional <c>z_contact</c> values from the JSON document.
+        /// If the electrode references node indices, their average coordinate is used as the center.
+        /// </summary>
         private static (List<double[]>? Coordinates, List<double>? ZContact) ExtractElectrodeData(JsonElement root, List<double[]>? nodes)
         {
             if (!TryFindPropertyCaseInsensitive(root, "electrode", out var electrodeElement))
@@ -1393,6 +1593,7 @@ namespace DataAccessLayer
             {
                 double[]? coord = null;
 
+                // Accept multiple JSON schema forms for backward compatibility.
                 var indices = ExtractIntArray(electrode, "nodes")
                     ?? ExtractIntArray(electrode, "node_indices")
                     ?? ExtractIntArray(electrode, "nodeNumbers");
@@ -1455,6 +1656,10 @@ namespace DataAccessLayer
             return (coordinates.Count > 0 ? coordinates : null, zContacts);
         }
 
+        /// <summary>
+        /// Extracts measurement frames from a <c>vv</c> array. If a row length matches N*(N-3) it is partitioned into
+        /// blocks of size (N-3) assuming EIT measurement layout for N electrodes.
+        /// </summary>
         private static (List<double[]>? Frames, double? Amplitude) ExtractMeasurementData(JsonElement root)
         {
             if (!TryFindPropertyCaseInsensitive(root, "vv", out var vvElement))
@@ -1487,6 +1692,10 @@ namespace DataAccessLayer
             return (frames.Count > 0 ? frames : null, null);
         }
 
+        /// <summary>
+        /// Splits a flattened measurement row into frames if its length conforms to EIT block structure.
+        /// Returns true if any blocks were added.
+        /// </summary>
         private static bool TryPartitionMeasurementRow(double[] values, List<double[]> frames)
         {
             int blockLength = TryGetMeasurementBlockLength(values.Length);
@@ -1504,6 +1713,10 @@ namespace DataAccessLayer
             return frames.Count > existing;
         }
 
+        /// <summary>
+        /// Tries to infer the EIT block length (N-3) from a total row length M using the relation M = N*(N-3).
+        /// Returns 0 if no integer solution exists.
+        /// </summary>
         private static int TryGetMeasurementBlockLength(int totalLength)
         {
             if (totalLength <= 0)
@@ -1531,6 +1744,9 @@ namespace DataAccessLayer
             return blockLength;
         }
 
+        /// <summary>
+        /// Case-insensitive deep search for a property named <paramref name="name"/> in the JSON tree.
+        /// </summary>
         private static bool TryFindPropertyCaseInsensitive(JsonElement element, string name, out JsonElement value)
         {
             if (element.ValueKind == JsonValueKind.Object)
@@ -1560,6 +1776,9 @@ namespace DataAccessLayer
             return false;
         }
 
+        /// <summary>
+        /// Case-insensitive, non-recursive property lookup on the current JSON object.
+        /// </summary>
         private static bool TryGetPropertyCaseInsensitive(JsonElement element, string name, out JsonElement value)
         {
             if (element.ValueKind == JsonValueKind.Object)
@@ -1578,6 +1797,9 @@ namespace DataAccessLayer
             return false;
         }
 
+        /// <summary>
+        /// Extracts an integer array from a named JSON array property, accepting numbers and numeric strings.
+        /// </summary>
         private static List<int>? ExtractIntArray(JsonElement element, string propertyName)
         {
             if (!TryGetPropertyCaseInsensitive(element, propertyName, out var array) || array.ValueKind != JsonValueKind.Array)
@@ -1595,6 +1817,9 @@ namespace DataAccessLayer
             return values.Count > 0 ? values : null;
         }
 
+        /// <summary>
+        /// Extracts a double array from a named JSON array property.
+        /// </summary>
         private static double[]? ExtractDoubleArray(JsonElement element, string propertyName)
         {
             if (!TryGetPropertyCaseInsensitive(element, propertyName, out var array) || array.ValueKind != JsonValueKind.Array)
@@ -1603,6 +1828,9 @@ namespace DataAccessLayer
             return ReadDoubleArray(array);
         }
 
+        /// <summary>
+        /// Extracts a single double from a property if possible.
+        /// </summary>
         private static double? ExtractDouble(JsonElement element, string propertyName)
         {
             if (!TryGetPropertyCaseInsensitive(element, propertyName, out var value))
@@ -1611,6 +1839,9 @@ namespace DataAccessLayer
             return TryReadDouble(value, out double result) ? result : null;
         }
 
+        /// <summary>
+        /// Reads a JSON array of numbers or numeric strings into a <see cref="double"/> array.
+        /// </summary>
         private static double[]? ReadDoubleArray(JsonElement array)
         {
             if (array.ValueKind != JsonValueKind.Array)
@@ -1626,6 +1857,9 @@ namespace DataAccessLayer
             return values.Count > 0 ? values.ToArray() : null;
         }
 
+        /// <summary>
+        /// Reads a double from a JSON token accepting either number or string tokens.
+        /// </summary>
         private static bool TryReadDouble(JsonElement element, out double value)
         {
             switch (element.ValueKind)
@@ -1641,6 +1875,9 @@ namespace DataAccessLayer
             }
         }
 
+        /// <summary>
+        /// Resolves a node coordinate by index supporting both 0-based and 1-based indices.
+        /// </summary>
         private static double[]? ResolveNode(List<double[]> nodes, int index)
         {
             if (nodes.Count == 0)
@@ -1656,6 +1893,9 @@ namespace DataAccessLayer
             return null;
         }
 
+        /// <summary>
+        /// Builds a human-readable measurement label from the import definition.
+        /// </summary>
         private static string ResolveMeasurementLabel(MatlabImportDefinition import)
         {
             if (!string.IsNullOrWhiteSpace(import.ModelType))
@@ -1667,6 +1907,11 @@ namespace DataAccessLayer
             return "Matlab";
         }
 
+        /// <summary>
+        /// Describes a linear mapping from a source coordinate system (arbitrary dimensional) onto mesh X/Y axes.
+        /// When <see cref="HasBounds"/> is true, values are normalized from <see cref="SourceMinX"/>.. <see cref="SourceMaxX"/>
+        /// and <see cref="SourceMinY"/>.. <see cref="SourceMaxY"/> and optionally flipped.
+        /// </summary>
         private readonly struct ElectrodeTransform
         {
             public ElectrodeTransform(int axisX, int axisY, double sourceMinX, double sourceMaxX, double sourceMinY, double sourceMaxY, bool flipX, bool flipY, bool hasBounds, string? description)
@@ -1695,6 +1940,9 @@ namespace DataAccessLayer
             public string? Description { get; }
         }
 
+        /// <summary>
+        /// Supplementary data parsed from Matlab JSON that complements a bare STL import.
+        /// </summary>
         private sealed class MatlabJsonSupplement
         {
             public List<double[]>? ElectrodeCoordinates { get; init; }
@@ -1703,6 +1951,10 @@ namespace DataAccessLayer
             public double? MeasurementAmplitude { get; init; }
         }
 
+        /// <summary>
+        /// Strongly-typed facade over the JSON contract used by Matlab/EIDORS exports.
+        /// Uses a raw <see cref="JsonElement"/> for flexible coordinate parsing.
+        /// </summary>
         private sealed class MatlabImportDefinition
         {
             public string? StlPath { get; set; }
@@ -1718,6 +1970,9 @@ namespace DataAccessLayer
             public List<double>? InhomogenousPhantomElemData { get; set; }
         }
 
+        /// <summary>
+        /// Parses an ASCII STL file and reconstructs unique vertices and triangles.
+        /// </summary>
         private static FEMMesh LoadFemMeshFromAsciiStl(string filePath)
         {
             var vertices = new List<(double X, double Y, double Z)>();
@@ -1762,6 +2017,9 @@ namespace DataAccessLayer
             return CreateMeshFromTriangleSoup(vertices, triangles);
         }
 
+        /// <summary>
+        /// Parses a Binary STL file and reconstructs unique vertices and triangles.
+        /// </summary>
         private static FEMMesh LoadFemMeshFromBinaryStl(string filePath)
         {
             var vertices = new List<(double X, double Y, double Z)>();
@@ -1810,6 +2068,10 @@ namespace DataAccessLayer
             return CreateMeshFromTriangleSoup(vertices, triangles);
         }
 
+        /// <summary>
+        /// Builds a FEM mesh from a list of unique vertex positions and triangle indices. Marks boundary vertices
+        /// by detecting edges used by a single triangle and assigns sequential boundary ids ordered by polar angle.
+        /// </summary>
         private static FEMMesh CreateMeshFromTriangleSoup(List<(double X, double Y, double Z)> vertexPositions,
                                                           List<(int A, int B, int C)> triangles)
         {
@@ -1853,6 +2115,10 @@ namespace DataAccessLayer
             return mesh;
         }
 
+        /// <summary>
+        /// Identifies boundary vertices by counting how many triangles use each undirected edge (exactly one means boundary).
+        /// Additionally orders boundary vertices around the centroid and assigns sequential <see cref="FEMVertex.BoundaryId"/>.
+        /// </summary>
         private static void MarkBoundaryVertices(
             List<FEMVertex> vertices,
             List<(int A, int B, int C)> triangles)
@@ -1930,12 +2196,19 @@ namespace DataAccessLayer
             }
         }
 
+        /// <summary>
+        /// Helper for boundary detection; tracks uses of an undirected edge and its first-seen orientation.
+        /// </summary>
         private sealed class BoundaryEdgeInfo
         {
             public int Count { get; set; }
             public (int From, int To) Orientation { get; set; }
         }
 
+        /// <summary>
+        /// Heuristically determines whether an STL stream represents ASCII or Binary STL.
+        /// Uses header signature, presence of NUL bytes and size-consistency heuristics.
+        /// </summary>
         private static bool IsAsciiStl(Stream stream)
         {
             if (!stream.CanSeek)
@@ -1981,6 +2254,9 @@ namespace DataAccessLayer
             return true;
         }
 
+        /// <summary>
+        /// Counts STL triangles from either ASCII (by scanning "facet") or Binary (reading the header count).
+        /// </summary>
         private static int CountTrianglesInStl(string filePath, bool isAscii)
         {
             if (isAscii)
@@ -2011,6 +2287,10 @@ namespace DataAccessLayer
             }
         }
 
+        /// <summary>
+        /// Gets the index of a vertex, inserting a new entry if it was not seen before using a quantized key
+        /// to merge near-duplicate coordinates.
+        /// </summary>
         private static int GetOrAddVertex(Dictionary<VertexKey, int> lookup,
                                            List<(double X, double Y, double Z)> vertices,
                                            double x, double y, double z)
@@ -2025,6 +2305,9 @@ namespace DataAccessLayer
             return index;
         }
 
+        /// <summary>
+        /// Quantizes coordinates into a key used for deduplication at tolerance <see cref="StlMergeTolerance"/>.
+        /// </summary>
         private static VertexKey CreateVertexKey(double x, double y, double z)
         {
             double qx = Math.Round(x / StlMergeTolerance) * StlMergeTolerance;
@@ -2033,8 +2316,14 @@ namespace DataAccessLayer
             return new VertexKey(qx, qy, qz);
         }
 
+        /// <summary>
+        /// Value-like key of a quantized vertex coordinate used in dictionaries.
+        /// </summary>
         private readonly record struct VertexKey(double X, double Y, double Z);
 
+        /// <summary>
+        /// Recreates an LBM grid from metadata (generator + parameters). Falls back to an empty grid on failure.
+        /// </summary>
         private static LBMGrid CreateLbmFromMetadata(DiscretizationMetaData md)
         {
             try
@@ -2084,6 +2373,7 @@ namespace DataAccessLayer
             }
             catch
             {
+                // Fall back to an empty grid to keep loading resilient.
             }
             return new LBMGrid();
         }

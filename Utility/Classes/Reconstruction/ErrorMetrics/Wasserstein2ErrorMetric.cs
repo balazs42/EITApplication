@@ -1,9 +1,4 @@
 ﻿using Google.OrTools.LinearSolver;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
@@ -48,16 +43,31 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             for (int i = 0; i < a.Length; i++)
                 if (!double.IsFinite(a[i]))
                     a[i] = 0.0;
+
             for (int j = 0; j < b.Length; j++)
                 if (!double.IsFinite(b[j]))
                     b[j] = 0.0;
 
             double minA = a.Length > 0 ? a.Min() : 0.0;
             double minB = b.Length > 0 ? b.Min() : 0.0;
-            if (minA < 0) for (int i = 0; i < a.Length; i++) a[i] -= minA;
-            if (minB < 0) for (int j = 0; j < b.Length; j++) b[j] -= minB;
-            for (int i = 0; i < a.Length; i++) if (a[i] < 0) a[i] = 0.0;
-            for (int j = 0; j < b.Length; j++) if (b[j] < 0) b[j] = 0.0;
+            if (minA < 0)
+            {
+                for (int i = 0; i < a.Length; i++)
+                    a[i] -= minA;
+            }
+
+            if (minB < 0)
+            {
+                for (int j = 0; j < b.Length; j++)
+                    b[j] -= minB;
+            }
+
+            for (int i = 0; i < a.Length; i++) 
+                if (a[i] < 0) 
+                    a[i] = 0.0;
+            for (int j = 0; j < b.Length; j++) 
+                if (b[j] < 0) 
+                    b[j] = 0.0;
 
             double sumA = a.Sum();
             double sumB = b.Sum();
@@ -77,8 +87,10 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                     new double[ne]);
             }
 
-            for (int i = 0; i < a.Length; i++) a[i] /= sumA;
-            for (int j = 0; j < b.Length; j++) b[j] /= sumB;
+            for (int i = 0; i < a.Length; i++) 
+                a[i] /= sumA;
+            for (int j = 0; j < b.Length; j++) 
+                b[j] /= sumB;
 
             int m = a.Length, n = b.Length;
             var solver = Solver.CreateSolver("GLOP") ?? throw new InvalidOperationException("OR-Tools LP solver 'GLOP' not available.");
@@ -86,6 +98,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             var plan = new Variable[m, n];
             var row = new Constraint[m];
             var col = new Constraint[n];
+
             for (int i = 0; i < m; i++)
                 row[i] = solver.MakeConstraint(a[i], a[i], $"row[{i}]");
             for (int j = 0; j < n; j++)
@@ -98,9 +111,12 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                     plan[i, j] = solver.MakeNumVar(0.0, double.PositiveInfinity, $"P[{i},{j}]");
                     row[i].SetCoefficient(plan[i, j], 1.0);
                     col[j].SetCoefficient(plan[i, j], 1.0);
+
                     double dx = x[i].x - y[j].x;
                     double dy = x[i].y - y[j].y;
+
                     double cij = dx * dx + dy * dy;
+
                     obj.SetCoefficient(plan[i, j], cij);
                 }
 
@@ -119,19 +135,29 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             // Dual potentials from row/column constraints
             double[] phi = new double[m];
             double[] psi = new double[n];
-            for (int i = 0; i < m; i++) phi[i] = row[i].DualValue();
-            for (int j = 0; j < n; j++) psi[j] = col[j].DualValue();
+            
+            for (int i = 0; i < m; i++) 
+                phi[i] = row[i].DualValue();
+            
+            for (int j = 0; j < n; j++) 
+                psi[j] = col[j].DualValue();
 
             // Gradient w.r.t normalized source histogram
             double[] grad = new double[m];
-            for (int i = 0; i < m; i++) grad[i] = 0.5 * phi[i];
-            double mean = 0.0;
-            for (int i = 0; i < m; i++) mean += grad[i] * a[i];
-            for (int i = 0; i < m; i++) grad[i] -= mean;
+            for (int i = 0; i < m; i++) 
+                grad[i] = 0.5 * phi[i];
+            
+            double mean = 0.0;            
+            for (int i = 0; i < m; i++)
+            {
+                mean += grad[i] * a[i];
+                grad[i] -= mean;
+            }
 
             // Chain rule back to raw (unnormalized) masses
             double[] gradRaw = new double[m];
-            for (int i = 0; i < m; i++) gradRaw[i] = grad[i] / sumA;
+            for (int i = 0; i < m; i++)
+                gradRaw[i] = grad[i] / sumA;
 
             return new OTResult(cost, gradRaw, P, phi, psi);
         }

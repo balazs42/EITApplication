@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-
 namespace Utility.Classes.Discretizer.FiniteElementMesh
 {
     public class FEMElectrode : Electrode
