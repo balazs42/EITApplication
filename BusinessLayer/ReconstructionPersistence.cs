@@ -1001,7 +1001,7 @@ namespace BusinessLayer
 
                     var newSigmaDict = sigma.Conductivities.ToDictionary(
                         kvp => kvp.Key,
-                        _ => kvp.Value - step * frame.ConductivityGradient.GetConductivity(kvp.Key)
+                        kvp => kvp.Value - step * frame.ConductivityGradient.GetConductivity(kvp.Key)                        
                     );
 
                     var updatedSigma = ConductivityClipper.Clip(new ConductivityDistribution(newSigmaDict));

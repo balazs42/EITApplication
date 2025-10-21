@@ -19,7 +19,7 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
         /// <summary>
         /// Physical length of the electrode contact region on the boundary.
         /// </summary>
-        public double Length { get; set; } = 0.3;
+        public double Length { get; set; } = 1.0;
 
         /// <summary>
         /// Indicates whether the electrode is interpreted as a single-node contact.

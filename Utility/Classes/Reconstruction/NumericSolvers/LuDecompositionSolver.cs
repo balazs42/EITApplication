@@ -26,7 +26,7 @@ namespace Utility.Classes.Reconstruction.NumericSolvers
                 throw new InvalidOperationException("System contains invalid entries.");
 
             var lu = A.LU();
-            if (lu.IsSingular)
+            if (lu.Determinant == 0.0)
                 throw new InvalidOperationException("Matrix is singular or nearly so.");
 
             return lu.Solve(b);

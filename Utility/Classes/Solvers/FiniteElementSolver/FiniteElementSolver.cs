@@ -1,16 +1,14 @@
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
 using System.Numerics;
-using System.Threading.Tasks;
 using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Double;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Measurement;
 using Utility.Classes.ReconstructionParameters;
-using Utility.Classes.Solvers;
+
+using Vector = MathNet.Numerics.LinearAlgebra.Vector<double>;
+using Matrix = MathNet.Numerics.LinearAlgebra.Matrix<double>;
 
 namespace Utility.Classes.Solvers.FiniteElementSolver
 {
@@ -36,26 +34,26 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         private bool _boundaryMatricesDirty = true;
         private double[] _cachedContactImpedances;
 
-        private Matrix<double> _stiffnessMatrix;
-        private Matrix<double> _robinMassMatrix;
-        private Matrix<double> _couplingMatrix;
-        private Vector<double> _electrodeDiagonal;
-        private Matrix<double> _systemMatrix;
-        private Vector<double> _systemRhs;
+        private Matrix _stiffnessMatrix;
+        private Matrix _robinMassMatrix;
+        private Matrix _couplingMatrix;
+        private Vector _electrodeDiagonal;
+        private Matrix _systemMatrix;
+        private Vector _systemRhs;
         private int _groundElectrodeId;
 
         public int N_phi { get; }
         public int L { get; }
 
         // Sub-block matrices
-        public Matrix<double> K => _stiffnessMatrix;
-        public Matrix<double> M => _robinMassMatrix;
-        public Matrix<double> A_coup => _couplingMatrix;
-        public Vector<double> D => _electrodeDiagonal;
+        public Matrix K => _stiffnessMatrix;
+        public Matrix M => _robinMassMatrix;
+        public Matrix A_coup => _couplingMatrix;
+        public Vector D => _electrodeDiagonal;
 
         // Global system
-        public Matrix<double> SystemMatrix => _systemMatrix;
-        public Vector<double> SystemRHS => _systemRhs;
+        public Matrix SystemMatrix => _systemMatrix;
+        public Vector SystemRHS => _systemRhs;
 
         /// <summary>
         /// Initialize solver with mesh sizes and numeric solver.
@@ -72,9 +70,9 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             _stiffnessMatrix = SparseMatrix.Create(N_phi, N_phi, 0.0);
             _robinMassMatrix = SparseMatrix.Create(N_phi, N_phi, 0.0);
             _couplingMatrix = SparseMatrix.Create(N_phi, L, 0.0);
-            _electrodeDiagonal = Vector<double>.Build.Dense(L, 0.0);
+            _electrodeDiagonal = Vector.Build.Dense(L, 0.0);
             _systemMatrix = SparseMatrix.Create(N_phi + Math.Max(0, L - 1), N_phi + Math.Max(0, L - 1), 0.0);
-            _systemRhs = Vector<double>.Build.Sparse(N_phi + Math.Max(0, L - 1));
+            _systemRhs = Vector.Build.Sparse(N_phi + Math.Max(0, L - 1));
             _cachedContactImpedances = Enumerable.Repeat(double.NaN, L).ToArray();
             _groundElectrodeId = 0;
         }
@@ -265,7 +263,7 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
 
             _robinMassMatrix = SparseMatrix.OfIndexed(N_phi, N_phi, EnumerateContributions(massContrib));
             _couplingMatrix = SparseMatrix.OfIndexed(N_phi, electrodes.Count, EnumerateContributions(coupContrib));
-            _electrodeDiagonal = Vector<double>.Build.Dense(diag);
+            _electrodeDiagonal = Vector.Build.Dense(diag);
             _boundaryMatricesDirty = false;
         }
 
@@ -310,7 +308,7 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         private void BuildRhsVector(List<FEMElectrode> electrodes)
         {
             int systemSize = N_phi + Math.Max(0, L - 1);
-            _systemRhs = Vector<double>.Build.Sparse(systemSize);
+            _systemRhs = Vector.Build.Sparse(systemSize);
 
             for (int ell = 0; ell < L; ell++)
             {
