@@ -17,6 +17,7 @@ namespace Utility.Classes.Factories
             NumericSolver.SVD => CreateSVDSolver(),
             NumericSolver.tSVD => CreatetSVDSolver(),
             NumericSolver.GMRES => CreateGMRESSolver(),
+            NumericSolver.ConjugateGradient => CreateConjugateGradientSolver(),
             _ => throw new NotSupportedException()
         };
 
@@ -51,6 +52,15 @@ namespace Utility.Classes.Factories
             Workspace.AddLogMessage("NumericSolverFactory","Created GRMES Numeric Solver object.");
 
             return solver;
-        }        
+        }
+
+        private static ConjugateGradientSolver CreateConjugateGradientSolver()
+        {
+            var solver = new ConjugateGradientSolver();
+
+            Workspace.AddLogMessage("NumericSolverFactory","Created Conjugate Gradient Numeric Solver object.");
+
+            return solver;
+        }
     }
 }

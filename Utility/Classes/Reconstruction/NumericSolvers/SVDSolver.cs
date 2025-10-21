@@ -1,4 +1,7 @@
+using System;
+using MathNet.Numerics;
 using MathNet.Numerics.LinearAlgebra;
+using MathNet.Numerics.LinearAlgebra.Double;
 using Utility.Classes.ReconstructionParameters;
 
 using Vector = MathNet.Numerics.LinearAlgebra.Vector<double>;
@@ -26,8 +29,34 @@ namespace Utility.Classes.Reconstruction.NumericSolvers
             //    b.Enumerate(Zeros.AllowSkip).Any(d => double.IsNaN(d) || double.IsInfinity(d)))
             //    throw new InvalidOperationException("SVD solver received non-finite entries. This typically indicates a degenerate FEM element in the mesh assembly.");
 
-            var svd = A.Svd(computeVectors: true);
-            return svd.Solve(b);
+            var dense = A as DenseMatrix ?? DenseMatrix.OfMatrix(A);
+
+            var svd = dense.Svd(computeVectors: true, fullVectors: false);
+            var singularValues = svd.S;
+
+            if (singularValues.Count == 0)
+                throw new InvalidOperationException("SVD failed to compute singular values.");
+
+            double sigmaMax = singularValues[0];
+            double tolerance = Math.Max(dense.RowCount, dense.ColumnCount) * Precision.DoubleMachineEpsilon * sigmaMax;
+
+            var projected = svd.U.TransposeThisAndMultiply(b);
+            var y = Vector.Build.Dense(singularValues.Count);
+
+            for (int i = 0; i < singularValues.Count; i++)
+            {
+                double sigma = singularValues[i];
+                if (sigma > tolerance)
+                {
+                    y[i] = projected[i] / sigma;
+                }
+                else
+                {
+                    y[i] = 0.0;
+                }
+            }
+
+            return svd.VT.TransposeThisAndMultiply(y);
         }
     }
 }
