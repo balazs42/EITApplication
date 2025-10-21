@@ -1,4 +1,6 @@
-﻿using Utility.Classes.Discretizer.FiniteElementMesh;
+using MathNet.Numerics.LinearAlgebra;
+using MathNet.Numerics.LinearAlgebra.Double;
+using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.GraphMesh;
 using Utility.Classes.ReconstructionParameters;
 
@@ -39,10 +41,10 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
         /// Assembles the weighted graph Laplacian using the supplied edge
         /// conductances.
         /// </summary>
-        private double[,] BuildLaplacian(double[] w)
+        private Matrix<double> BuildLaplacian(double[] w)
         {
             int N = _graph.NodeCount;
-            var K = new double[N, N];
+            var K = SparseMatrix.Create(N, N, 0.0);
 
             for (int e = 0; e < _graph.Edges.Count; e++)
             {
@@ -50,8 +52,13 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
                 int i = _vidx[ge.Vertices[0].GlobalId];
                 int j = _vidx[ge.Vertices[1].GlobalId];
                 double we = Math.Max(w[e], 0.0);
-                K[i, i] += we; K[j, j] += we;
-                K[i, j] -= we; K[j, i] -= we;
+                if (we == 0.0)
+                    continue;
+
+                K[i, i] = K[i, i] + we;
+                K[j, j] = K[j, j] + we;
+                K[i, j] = K[i, j] - we;
+                K[j, i] = K[j, i] - we;
             }
             return K;
         }
@@ -79,7 +86,8 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
                                  .Where(t => t.v.BoundaryId != 0)
                                  .Select(t => t.i)
                                  .ToList();
-            if (boundary.Count == 0) boundary = [.. Enumerable.Range(0, _graph.Vertices.Count)];
+            if (boundary.Count == 0)
+                boundary = [.. Enumerable.Range(0, _graph.Vertices.Count)];
 
             (double x, double y) VPos(int id)
             {
@@ -89,12 +97,18 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
 
             int Nearest((double x, double y) p)
             {
-                double best = double.MaxValue; int bestIdx = 0;
+                double best = double.MaxValue;
+                int bestIdx = 0;
                 foreach (var i in boundary)
                 {
-                    double dx = _graph.Vertices[i].X - p.x, dy = _graph.Vertices[i].Y - p.y;
+                    double dx = _graph.Vertices[i].X - p.x;
+                    double dy = _graph.Vertices[i].Y - p.y;
                     double d2 = dx * dx + dy * dy;
-                    if (d2 < best) { best = d2; bestIdx = i; }
+                    if (d2 < best)
+                    {
+                        best = d2;
+                        bestIdx = i;
+                    }
                 }
                 return bestIdx;
             }
@@ -106,9 +120,14 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
                 var set = new HashSet<int>();
 
                 if (!e.PointElectrode && e.FEMVertexIds != null && e.FEMVertexIds.Count > 0)
-                    foreach (var vid in e.FEMVertexIds) set.Add(Nearest(VPos(vid)));
+                {
+                    foreach (var vid in e.FEMVertexIds)
+                        set.Add(Nearest(VPos(vid)));
+                }
                 else
+                {
                     set.Add(Nearest(VPos(e.MeshId)));
+                }
 
                 map[ell] = [.. set];
             }
@@ -119,33 +138,45 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
         /// Builds the graph-based CEM matrices for a given set of edge weights
         /// and returns the electrode-to-node mapping used during assembly.
         /// </summary>
-        private void AssembleCEM(double[] w, FEMMesh mesh,
-                                 out double[,] Kt, out double[,] A, out double[,] D,
-                                 out int ground, out Dictionary<int, List<int>> emap)
+        private void AssembleCEM(
+            double[] w,
+            FEMMesh mesh,
+            out Matrix<double> laplacian,
+            out Matrix<double> coupling,
+            out Vector<double> electrodeDiag,
+            out int ground,
+            out Dictionary<int, List<int>> emap)
         {
-            var K = BuildLaplacian(w);
+            laplacian = BuildLaplacian(w);
             var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
 
-            int N = _graph.NodeCount, L = electrodes.Count;
-            A = new double[N, L];
-            D = new double[L, L];
+            int N = _graph.NodeCount;
+            int L = electrodes.Count;
+
+            coupling = SparseMatrix.Create(N, L, 0.0);
+            electrodeDiag = Vector<double>.Build.Dense(L, 0.0);
             emap = MapElectrodesToGraphNodes(mesh);
 
             for (int ell = 0; ell < L; ell++)
             {
                 var el = electrodes[ell];
                 double beta = el.ZContact > 0.0 ? 1.0 / el.ZContact : 1e12;
+                if (beta <= 0.0)
+                    continue;
 
                 foreach (var b in emap[ell])
                 {
-                    K[b, b] += beta;
-                    A[b, ell] += beta;
-                    D[ell, ell] += beta;
+                    laplacian[b, b] = laplacian[b, b] + beta;
+                    coupling[b, ell] = coupling[b, ell] + beta;
                 }
+                electrodeDiag[ell] = emap[ell].Count > 0 ? beta * emap[ell].Count : beta;
             }
-            Kt = K;
+
             ground = PickGround(electrodes);
         }
+
+        private static int ElectrodeColumn(int electrodeId, int groundId, int nodeCount)
+            => electrodeId < groundId ? nodeCount + electrodeId : nodeCount + electrodeId - 1;
 
         /// <summary>
         /// Solves the graph-based CEM system for a given edge-weight vector,
@@ -153,44 +184,45 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
         /// </summary>
         public (double[] phi, double[] U, Dictionary<int, List<int>> map) SolveCEM(double[] w, FEMMesh mesh)
         {
-            AssembleCEM(w, mesh, out var Kt, out var A, out var D, out int g, out var map);
+            AssembleCEM(w, mesh, out var Kt, out var A, out var Ddiag, out int g, out var map);
 
             int N = _graph.NodeCount;
             var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
-            int L = electrodes.Count, Lr = L - 1, nTot = N + Lr;
+            int L = electrodes.Count;
+            int systemSize = N + Math.Max(0, L - 1);
 
-            var S = new double[nTot, nTot];
-            var rhs = new double[nTot];
+            var system = SparseMatrix.Create(systemSize, systemSize, 0.0);
+            var rhs = Vector<double>.Build.Sparse(systemSize);
 
-            for (int i = 0; i < N; i++)
-                for (int j = 0; j < N; j++)
-                    S[i, j] = Kt[i, j];
-
-            int ColU(int ell) => ell < g ? N + ell : N + ell - 1;
-
-            for (int b = 0; b < N; b++)
-                for (int ell = 0; ell < L; ell++)
-                    if (ell != g) S[b, ColU(ell)] = -A[b, ell];
+            foreach (var (row, col, value) in Kt.EnumerateIndexed(Zeros.AllowSkip))
+                system[row, col] = value;
 
             for (int ell = 0; ell < L; ell++)
             {
-                if (ell == g) continue;
-                int irow = ColU(ell);
-                for (int b = 0; b < N; b++) S[irow, b] = -A[b, ell];
-                for (int m = 0; m < L; m++)
-                    if (m != g) S[irow, ColU(m)] = ell == m ? D[ell, ell] : 0.0;
+                if (ell == g)
+                    continue;
+
+                int col = ElectrodeColumn(ell, g, N);
+                foreach (var nodeId in map[ell])
+                {
+                    double value = A[nodeId, ell];
+                    if (Math.Abs(value) < 1e-30)
+                        continue;
+
+                    system[nodeId, col] = system[nodeId, col] - value;
+                    system[col, nodeId] = system[col, nodeId] - value;
+                }
+
+                system[col, col] = Ddiag[ell];
+                rhs[col] = electrodes[ell].Current;
             }
 
-            for (int ell = 0; ell < L; ell++)
-                if (ell != g) rhs[ColU(ell)] = electrodes[ell].Current;
+            var sol = _solver.SolveLinearSystem(system, rhs);
 
-            var x = _solver.SolveLinearSystem(S, rhs);
-
-            var phi = new double[N];
-            Array.Copy(x, 0, phi, 0, N);
-
+            var phi = sol.SubVector(0, N).ToArray();
             var U = new double[L];
-            for (int ell = 0; ell < L; ell++) U[ell] = ell == g ? 0.0 : x[ColU(ell)];
+            for (int ell = 0; ell < L; ell++)
+                U[ell] = ell == g ? 0.0 : sol[ElectrodeColumn(ell, g, N)];
 
             return (phi, U, map);
         }
@@ -203,22 +235,27 @@ namespace Utility.Classes.Solvers.GraphBasedSolver
         {
             var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
             int L = electrodes.Count;
-            if (L == 0) return new double[0, 0];
+            if (L == 0)
+                return new double[0, 0];
 
-            var resp = new double[L, L];
-            var saved = electrodes.Select(e => e.Current).ToArray();
+            var response = new double[L, L];
+            var savedCurrents = electrodes.Select(e => e.Current).ToArray();
 
             for (int ell = 0; ell < L; ell++)
             {
-                for (int k = 0; k < L; k++) electrodes[k].Current = 0.0;
-                electrodes[ell].Current = +1.0;
+                for (int k = 0; k < L; k++)
+                    electrodes[k].Current = 0.0;
+                electrodes[ell].Current = 1.0;
 
-                var (_, U, _) = SolveCEM(w, mesh);
-                for (int r = 0; r < L; r++) resp[r, ell] = U[r];
+                var (_, potentials, _) = SolveCEM(w, mesh);
+                for (int r = 0; r < L; r++)
+                    response[r, ell] = potentials[r];
             }
-            for (int k = 0; k < L; k++) electrodes[k].Current = saved[k];
 
-            return resp;
+            for (int k = 0; k < L; k++)
+                electrodes[k].Current = savedCurrents[k];
+
+            return response;
         }
     }
 }

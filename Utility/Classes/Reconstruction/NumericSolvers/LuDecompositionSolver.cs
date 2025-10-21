@@ -1,5 +1,4 @@
-﻿using MathNet.Numerics.LinearAlgebra;
-using MathNet.Numerics.LinearAlgebra.Double;
+using MathNet.Numerics.LinearAlgebra;
 using Utility.Classes.ReconstructionParameters;
 
 namespace Utility.Classes.Reconstruction.NumericSolvers
@@ -10,28 +9,27 @@ namespace Utility.Classes.Reconstruction.NumericSolvers
     /// </summary>
     public sealed class LuDecompositionSolver : INumericSolver
     {
-        public double[] SolveLinearSystem(double[,] A, double[] b)
+        public Vector<double> SolveLinearSystem(Matrix<double> A, Vector<double> b)
         {
-            if (A.Cast<double>().Any(d => double.IsNaN(d) || double.IsInfinity(d)) ||
-                                     b.Any(d => double.IsNaN(d) || double.IsInfinity(d)))
-                throw new InvalidOperationException("System contains invalid entries.");
+            if (A == null)
+                throw new ArgumentNullException(nameof(A));
+            if (b == null)
+                throw new ArgumentNullException(nameof(b));
 
-            // Convert native C# arrays to MathNet types
-            Matrix<double> matrixA = DenseMatrix.OfArray(A);
-            Vector<double> vectorB = DenseVector.OfArray(b);
-
-            if (matrixA.RowCount != matrixA.ColumnCount)
+            if (A.RowCount != b.Count)
+                throw new ArgumentException("Matrix and vector dimensions do not agree.");
+            if (A.RowCount != A.ColumnCount)
                 throw new ArgumentException("LU decomposition requires a square matrix.");
 
-            if (Math.Abs(matrixA.Determinant()) < 1e-12)
+            if (A.Enumerate().Any(d => double.IsNaN(d) || double.IsInfinity(d)) ||
+                b.Enumerate().Any(d => double.IsNaN(d) || double.IsInfinity(d)))
+                throw new InvalidOperationException("System contains invalid entries.");
+
+            var lu = A.LU();
+            if (lu.IsSingular)
                 throw new InvalidOperationException("Matrix is singular or nearly so.");
 
-            // Perform LU decomposition and solve
-            var lu = matrixA.LU();
-            Vector<double> resultX = lu.Solve(vectorB);
-
-            // Convert result back to a native double array
-            return resultX.ToArray();
+            return lu.Solve(b);
         }
     }
 }

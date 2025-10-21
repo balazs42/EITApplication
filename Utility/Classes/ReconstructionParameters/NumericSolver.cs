@@ -10,6 +10,8 @@
 
     public interface INumericSolver
     {
-        double[] SolveLinearSystem(double[,] A, double[] b);
+        MathNet.Numerics.LinearAlgebra.Vector<double> SolveLinearSystem(
+            MathNet.Numerics.LinearAlgebra.Matrix<double> A,
+            MathNet.Numerics.LinearAlgebra.Vector<double> b);
     }
 }
