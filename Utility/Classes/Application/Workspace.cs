@@ -1,4 +1,5 @@
-﻿using Utility.Classes.Discretizer;
+﻿using System;
+using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Measurement;
@@ -42,6 +43,9 @@ namespace Utility.Classes.Application
         private static EITMeasurement? _importedMeasurement;
         private static string? _importedMeasurementLabel;
         private static MeasurementSourceOption _measurementSource = MeasurementSourceOption.Simulated;
+        private static ElectrodeMeasurementSetup _electrodeMeasurementSetup = ElectrodeMeasurementSetup.Active;
+
+        public static event Action<ElectrodeMeasurementSetup>? ElectrodeMeasurementSetupChanged;
 
         public static void Initialize(User user, EITReconstructionParameters? eITReconstructionParameters, IDiscretization? discretization)
         {
@@ -159,6 +163,17 @@ namespace Utility.Classes.Application
         public static EITMeasurement? GetImportedMeasurement() => _importedMeasurement;
 
         public static string? GetImportedMeasurementLabel() => _importedMeasurementLabel;
+
+        public static ElectrodeMeasurementSetup GetElectrodeMeasurementSetup() => _electrodeMeasurementSetup;
+
+        public static void SetElectrodeMeasurementSetup(ElectrodeMeasurementSetup setup)
+        {
+            if (_electrodeMeasurementSetup == setup)
+                return;
+
+            _electrodeMeasurementSetup = setup;
+            ElectrodeMeasurementSetupChanged?.Invoke(setup);
+        }
 
         public static MeasurementSourceOption GetMeasurementSource() => _measurementSource;
 

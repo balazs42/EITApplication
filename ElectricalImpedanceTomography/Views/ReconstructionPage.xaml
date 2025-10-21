@@ -217,20 +217,25 @@
                                    FontFamily="SF Pro Text"
                                    FontAttributes="None"
                                    IsVisible="{Binding HasMeasurementSourceOptions}"/>
-                            <Grid Grid.Row="2"
-                                  ColumnDefinitions="*, *"
-                                  ColumnSpacing="10"
-                                  IsVisible="{Binding HasMeasurementSourceOptions}">
-                                <RadioButton Content="Simulated"
-                                             IsChecked="{Binding IsSimulatedMeasurementSelected}"
-                                             GroupName="MeasurementSourceOptions"
-                                             HorizontalOptions="Start"/>
-                                <RadioButton Grid.Column="1"
-                                             Content="{Binding RealMeasurementOptionLabel}"
-                                             IsChecked="{Binding IsRealMeasurementSelected}"
-                                             GroupName="MeasurementSourceOptions"
-                                             HorizontalOptions="Start"/>        
-                            </Grid>
+                            <VerticalStackLayout Grid.Row="2"
+                                                  Spacing="4"
+                                                  IsVisible="{Binding HasMeasurementSourceOptions}">
+                                <Grid ColumnDefinitions="*, *" ColumnSpacing="10">
+                                    <RadioButton Content="Simulated"
+                                                 IsChecked="{Binding IsSimulatedMeasurementSelected}"
+                                                 GroupName="MeasurementSourceOptions"
+                                                 HorizontalOptions="Start"/>
+                                    <RadioButton Grid.Column="1"
+                                                 Content="{Binding RealMeasurementOptionLabel}"
+                                                 IsChecked="{Binding IsRealMeasurementSelected}"
+                                                 GroupName="MeasurementSourceOptions"
+                                                 HorizontalOptions="Start"/>
+                                </Grid>
+                                <Label Text="{Binding ElectrodeMeasurementSetupLabel}"
+                                       FontSize="12"
+                                       FontAttributes="Italic"
+                                       LineBreakMode="WordWrap"/>
+                            </VerticalStackLayout>
 
                             <HorizontalStackLayout Grid.Row="3" Spacing="30">
                                 <Label Grid.Row="3" Text="Starting Excitation Electrode" FontAttributes="None" VerticalOptions="Center"/>
