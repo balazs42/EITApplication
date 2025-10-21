@@ -46,6 +46,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         private bool _resetMetricsOnStart = true;
         private bool _updatingDrivePatternSelection;
         private EITReconstructionParameters? _trackedParameters;
+        private MeasurementSourceOption _selectedMeasurementSource = Workspace.GetMeasurementSource();
 
         [ObservableProperty]
         private int iterationCount = 0;
@@ -92,6 +93,82 @@ namespace ElectricalImpedanceTomography.ViewModels
 
                 OnPropertyChanged(nameof(UseParallelizationToggle));
             }
+        }
+
+        public bool HasMeasurementSourceOptions => Workspace.GetImportedMeasurement() != null;
+
+        public bool IsSimulatedMeasurementSelected
+        {
+            get => SelectedMeasurementSource == MeasurementSourceOption.Simulated;
+            set
+            {
+                if (value)
+                    SelectedMeasurementSource = MeasurementSourceOption.Simulated;
+            }
+        }
+
+        public bool IsRealMeasurementSelected
+        {
+            get => SelectedMeasurementSource == MeasurementSourceOption.Real;
+            set
+            {
+                if (value)
+                    SelectedMeasurementSource = MeasurementSourceOption.Real;
+            }
+        }
+
+        public string RealMeasurementOptionLabel
+        {
+            get
+            {
+                var label = Workspace.GetImportedMeasurementLabel();
+                if (HasMeasurementSourceOptions && !string.IsNullOrWhiteSpace(label))
+                    return $"Real ({label})";
+                return "Real";
+            }
+        }
+
+        public void RefreshMeasurementSourceOptions() => RefreshMeasurementSourceSelection();
+
+        private MeasurementSourceOption SelectedMeasurementSource
+        {
+            get => _selectedMeasurementSource;
+            set
+            {
+                var desired = value;
+                if (desired == MeasurementSourceOption.Real && Workspace.GetImportedMeasurement() == null)
+                    desired = MeasurementSourceOption.Simulated;
+
+                Workspace.SetMeasurementSource(desired);
+                var actual = Workspace.GetMeasurementSource();
+
+                if (_selectedMeasurementSource != actual)
+                {
+                    _selectedMeasurementSource = actual;
+                    OnPropertyChanged(nameof(IsSimulatedMeasurementSelected));
+                    OnPropertyChanged(nameof(IsRealMeasurementSelected));
+                }
+                else if (_selectedMeasurementSource != desired)
+                {
+                    // Requested source was not available; update bindings to reflect the enforced value.
+                    OnPropertyChanged(nameof(IsSimulatedMeasurementSelected));
+                    OnPropertyChanged(nameof(IsRealMeasurementSelected));
+                }
+            }
+        }
+
+        private void RefreshMeasurementSourceSelection()
+        {
+            if (!HasMeasurementSourceOptions && _selectedMeasurementSource == MeasurementSourceOption.Real)
+            {
+                Workspace.SetMeasurementSource(MeasurementSourceOption.Simulated);
+            }
+
+            _selectedMeasurementSource = Workspace.GetMeasurementSource();
+            OnPropertyChanged(nameof(HasMeasurementSourceOptions));
+            OnPropertyChanged(nameof(RealMeasurementOptionLabel));
+            OnPropertyChanged(nameof(IsSimulatedMeasurementSelected));
+            OnPropertyChanged(nameof(IsRealMeasurementSelected));
         }
 
         [ObservableProperty]
@@ -225,6 +302,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             TrackReconstructionParameters(ReconstructionParameters);
             SyncDrivePatternSelection();
             UpdateParallelizationToggleState();
+            RefreshMeasurementSourceSelection();
 
             //UpdateMetric(MetricKeys.ErrorMetric, ReconstructionParameters.ErrorMetric.ToString());
             //UpdateMetric(MetricKeys.RegularizationWeight, FormatDouble(RegularizationWeight, "G3"));
@@ -567,7 +645,11 @@ namespace ElectricalImpedanceTomography.ViewModels
         }
 
         partial void OnReconstructionSearchTextChanged(string value) => ApplyReconstructionFilter();
-        private void UpdateMesh() => _discretization = Workspace.GetDiscretization();
+        private void UpdateMesh()
+        {
+            _discretization = Workspace.GetDiscretization();
+            RefreshMeasurementSourceSelection();
+        }
         private void UpdateReconstructionParameters() => ReconstructionParameters = Workspace.GetReconstructionParameters();
 
         private void InitializeReconstruction(bool force = false)
