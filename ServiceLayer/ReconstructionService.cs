@@ -238,6 +238,7 @@ namespace ServiceLayer
                 // Apply initial distribution to the active discretization.
                 discretization.SetConductivityDistribution(_initialSigma);
                 Workspace.SetOriginalConductivityDistribution(_originalSigma);
+                Workspace.SetInitialConductivityDistribution(_initialSigma);
 
                 // Bootstrap persistence with the conductivity benchmark values.
                 _reconstructionPersistence.SetConductivityDistributions(_originalSigma, _initialSigma);
@@ -1115,6 +1116,7 @@ namespace ServiceLayer
                 var frames = _reconstructionPersistence.LoadReconstruction(filePath);
                 Workspace.SetReconstructionResults(frames);
                 Workspace.SetReconstructionFrames([.. frames.SelectMany(r => r.Frames)]);
+                Workspace.SetInitialConductivityDistribution(frames.FirstOrDefault()?.InitialConductivitiyDistribution);
                 return frames;
             }
             catch (Exception ex)

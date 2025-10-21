@@ -37,12 +37,16 @@ public sealed class ReconstructionExportService : IReconstructionExportService
 
         string directory = Path.Combine(rootDirectory, $"reconstruction_export_{DateTime.Now:yyyyMMdd_HHmmss}");
 
+        var initialDistribution = Workspace.GetInitialConductivityDistribution()
+                                   ?? results[0].InitialConductivitiyDistribution;
+
         var request = new ReconstructionExportRequest(discretization,
                                                       frames,
                                                       results,
                                                       renderFrame,
                                                       displayMode,
-                                                      directory);
+                                                      directory,
+                                                      initialDistribution);
 
         return Task.Run(() => _repository.ExportReconstructionData(request), cancellationToken);
     }

@@ -28,6 +28,7 @@ namespace Utility.Classes.Application
         private static List<ReconstructionFrame> _reconstructionFrames = [];
         private static List<WorkspaceMessage> _messages = [];
         private static ConductivityDistribution? _originalConductivityDistribution = null;
+        private static ConductivityDistribution? _initialConductivityDistribution = null;
         public static event Action<WorkspaceMessage>? MessageAdded;
 
         private static List<FEMElement>? _currentGlobalFemElements;
@@ -78,6 +79,7 @@ namespace Utility.Classes.Application
         public static void SetReconstructionResults(List<ReconstructionResult> results) => _reconstructionResults = results;
         public static void SetReconstructionFrames(List<ReconstructionFrame> frames) => _reconstructionFrames = frames;
         public static void SetOriginalConductivityDistribution(ConductivityDistribution? sigma) => _originalConductivityDistribution = sigma;
+        public static void SetInitialConductivityDistribution(ConductivityDistribution? sigma) => _initialConductivityDistribution = sigma;
 
         public static User GetUser() => _user;
         public static EITReconstructionParameters GetReconstructionParameters() => _reconstructionParameters;
@@ -87,6 +89,7 @@ namespace Utility.Classes.Application
         public static List<ReconstructionResult> GetReconstructionResults() => _reconstructionResults;
         public static List<ReconstructionFrame> GetReconstructionFrames() => _reconstructionFrames;
         public static ConductivityDistribution? GetOriginalConductivityDistribution() => _originalConductivityDistribution;
+        public static ConductivityDistribution? GetInitialConductivityDistribution() => _initialConductivityDistribution;
 
         public static void UpdateCurrentGlobalFemElements(FEMMesh mesh)
             => _currentGlobalFemElements = [.. mesh.GetElements().Cast<FEMElement>()];

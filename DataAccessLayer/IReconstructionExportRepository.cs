@@ -15,4 +15,5 @@ public sealed record ReconstructionExportRequest(IDiscretization Discretization,
                                                   IReadOnlyList<ReconstructionResult> Results,
                                                   ReconstructionFrame RenderFrame,
                                                   PotentialDisplayMode DisplayMode,
-                                                  string TargetDirectory);
+                                                  string TargetDirectory,
+                                                  ConductivityDistribution InitialDistribution);
