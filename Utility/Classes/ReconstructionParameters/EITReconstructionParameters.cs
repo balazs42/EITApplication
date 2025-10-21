@@ -17,7 +17,7 @@ namespace Utility.Classes.ReconstructionParameters
         [ObservableProperty]
         private ErrorMetric errorMetric = ErrorMetric.Wasserstein2;
         [ObservableProperty]
-        private NumericSolver numericSolver = NumericSolver.SVD;
+        private NumericSolver numericSolver = NumericSolver.GMRES;
         [ObservableProperty]
         private NumericOptimizer numericOptimizer = NumericOptimizer.ADAM;
 

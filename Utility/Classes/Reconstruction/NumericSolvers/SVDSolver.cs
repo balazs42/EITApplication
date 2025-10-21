@@ -31,14 +31,14 @@ namespace Utility.Classes.Reconstruction.NumericSolvers
 
             var dense = A as DenseMatrix ?? DenseMatrix.OfMatrix(A);
 
-            var svd = dense.Svd(computeVectors: true, fullVectors: false);
+            var svd = dense.Svd(computeVectors: true);
             var singularValues = svd.S;
 
             if (singularValues.Count == 0)
                 throw new InvalidOperationException("SVD failed to compute singular values.");
 
             double sigmaMax = singularValues[0];
-            double tolerance = Math.Max(dense.RowCount, dense.ColumnCount) * Precision.DoubleMachineEpsilon * sigmaMax;
+            double tolerance = Math.Max(dense.RowCount, dense.ColumnCount) * Precision.MachineEpsilon * sigmaMax;
 
             var projected = svd.U.TransposeThisAndMultiply(b);
             var y = Vector.Build.Dense(singularValues.Count);

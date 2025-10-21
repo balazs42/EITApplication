@@ -149,7 +149,7 @@
                             <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
                                 <Label Grid.Row="0" Text="Methods" FontSize="Medium" FontAttributes="Bold" Margin="0,0,0,12"/>
                                 <Label Grid.Row="1" HorizontalOptions="Start" Text="DE Solver" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="2" ItemsSource="{Binding DifferentialEquationSolverOptions}" SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}"/>
+                                <Picker Grid.Row="2" ItemsSource="{Binding DifferentialEquationSolverOptions}" SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}" WidthRequest="150"/>
                                 <Label Grid.Row="3" HorizontalOptions="Start" Text="Error Metric" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Picker Grid.Row="4" HorizontalOptions="Start" ItemsSource="{Binding ErrorMetricOptions}" SelectedItem="{Binding ReconstructionParameters.ErrorMetric}" WidthRequest="150"/>
                                 <Label Grid.Row="5" HorizontalOptions="Start" Text="Regularization" FontFamily="SF Pro Text" FontAttributes="None"/>
@@ -157,7 +157,7 @@
                                 <Label Grid.Row="7" HorizontalOptions="Start" Text="Optimizer" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Picker Grid.Row="8" ItemsSource="{Binding NumericOptimizerOptions}" SelectedItem="{Binding ReconstructionParameters.NumericOptimizer}"/>
                                 <Label Grid.Row="9" HorizontalOptions="Start" Text="Linear Solver" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="10" ItemsSource="{Binding NumericSolverOptions}" SelectedItem="{Binding ReconstructionParameters.NumericSolver}"/>
+                                <Picker Grid.Row="10" ItemsSource="{Binding NumericSolverOptions}" SelectedItem="{Binding ReconstructionParameters.NumericSolver}" WidthRequest="150"/>
                                 <Label Grid.Row="11" HorizontalOptions="Start" Text="{Binding ParallelizationToggleLabel}" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Switch Grid.Row="12" IsToggled="{Binding UseParallelizationToggle}" HorizontalOptions="Start"/>
                             </Grid>
@@ -185,7 +185,7 @@
                                        IsEnabled="{Binding IsNoiseAmplitudeEnabled}"/>
                                 <Label Grid.Row="13"
                                        HorizontalOptions="Start"
-                                       Text="Conductivity Bounds"
+                                       Text="Conductivity Bounds [S]"
                                        FontFamily="SF Pro Text"
                                        FontAttributes="None"/>
                                 <Grid Grid.Row="14" ColumnDefinitions="*, *" ColumnSpacing="8">
@@ -423,7 +423,7 @@
                             </VerticalStackLayout>
                             <!-- Original -->
                             <VerticalStackLayout Grid.Row="1" Grid.Column="0" HorizontalOptions="Center" Spacing="10">
-                                <Label Text="Original Distribution [Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="#F0F4FF"/>
+                                <Label Text="Original Distribution [S]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="#F0F4FF"/>
                                 <Border Style="{StaticResource CanvasBorderStyle}" Margin="10" HorizontalOptions="Center">
                                     <Grid RowDefinitions="Auto,Auto">
                                         <skia:SKCanvasView x:Name="OriginalDistributionCanvas" PaintSurface="OnOriginalCanvasPaintSurface" EnableTouchEvents="True" Touch="OnOriginalCanvasTouch" HeightRequest="250" WidthRequest="250" Margin="10"/>
@@ -433,7 +433,7 @@
                             </VerticalStackLayout>
                             <!-- Initial -->
                             <VerticalStackLayout Grid.Row="2" Grid.Column="1" HorizontalOptions="Center" Spacing="10">
-                                <Label Text="Initial Distribution [Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="#F0F4FF"/>
+                                <Label Text="Initial Distribution [S]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="#F0F4FF"/>
                                 <Border Style="{StaticResource CanvasBorderStyle}" Margin="10" HorizontalOptions="Center">
                                     <Grid RowDefinitions="Auto,Auto">
                                         <skia:SKCanvasView x:Name="InitialDistributionCanvas" PaintSurface="OnInitialCanvasPaintSurface" EnableTouchEvents="True" Touch="OnInitialCanvasTouch" HeightRequest="250" WidthRequest="250" Margin="10"/>
@@ -443,7 +443,7 @@
                             </VerticalStackLayout>
                             <!-- Reconstructed -->
                             <VerticalStackLayout Grid.Row="3" Grid.Column="2" HorizontalOptions="Center" Spacing="10">
-                                <Label Text="Reconstructed Distribution [Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="#F0F4FF"/>
+                                <Label Text="Reconstructed Distribution [S]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="#F0F4FF"/>
                                 <Border Style="{StaticResource CanvasBorderStyle}" Margin="10" HorizontalOptions="Center">
                                     <Grid RowDefinitions="Auto,Auto">
                                         <skia:SKCanvasView x:Name="ReconstructedDistributionCanvas" PaintSurface="OnReconstructedCanvasPaintSurface" EnableTouchEvents="True" Touch="OnReconstructedCanvasTouch" HeightRequest="250" WidthRequest="250" Margin="10"/>
