@@ -24,6 +24,9 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
             var firstSnapshot = snapshots.First();
             var latestSnapshot = snapshots.Last();
 
+            var initialDistribution = request.InitialDistribution;
+            var initialResult = CreateInitialDistributionResult(firstSnapshot.Result, initialDistribution);
+
             ReconstructionVideoRenderer.SaveDistributionSnapshot(request.TargetDirectory,
                                      "original_distribution.png",
                                      request.Discretization,
@@ -34,23 +37,24 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
                                      CreateRangeMetadata(latestSnapshot.Result.OriginalConductivityDistribution),
                                      request.DisplayMode);
 
-            var initialMetadata = CreateRangeMetadata(firstSnapshot.Result.InitialConductivitiyDistribution);
-            double initialResidual = CalculateResidual(firstSnapshot.Result.InitialConductivitiyDistribution,
+            var initialMetadata = CreateRangeMetadata(initialDistribution);
+            double initialResidual = CalculateResidual(initialDistribution,
                                                        firstSnapshot.Result.OriginalConductivityDistribution);
             initialMetadata.Add(("Residual L2", FormatDouble(initialResidual)));
 
-            var initialMetrics = ComputeInitialDistributionMetrics(firstSnapshot.Result);
+            var initialMetrics = ComputeDistributionMetrics(initialResult, CancellationToken.None);
             if (initialMetrics.HasValue)
             {
-                initialMetadata.Add(("MAE", FormatDouble(initialMetrics.Value.Mae)));
-                initialMetadata.Add(("RMSE", FormatDouble(initialMetrics.Value.Rmse)));
+                var metrics = initialMetrics.Value;
+                initialMetadata.Add(("MAE", FormatDouble(metrics.Mae)));
+                initialMetadata.Add(("RMSE", FormatDouble(metrics.Rmse)));
             }
 
             ReconstructionVideoRenderer.SaveDistributionSnapshot(request.TargetDirectory,
                                      "initial_distribution.png",
                                      request.Discretization,
                                      GetFrameForResult(firstSnapshot.Result, request.RenderFrame),
-                                     firstSnapshot.Result,
+                                     initialResult,
                                      ReconstructionVideoRenderer.DistributionSnapshotType.Initial,
                                      "Initial Conductivity Distribution",
                                      initialMetadata,
@@ -153,7 +157,7 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
 
             var ssimSnapshot = metricSnapshots
                 .Where(s => !double.IsNaN(s.Metrics!.Value.Ssim))
-                .OrderBy(s => s.Metrics!.Value.Ssim)
+                .OrderByDescending(s => s.Metrics!.Value.Ssim)
                 .FirstOrDefault();
 
             if (ssimSnapshot.Result != null)
@@ -175,7 +179,7 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
                                          GetFrameForResult(ssimSnapshot.Result, fallbackFrame),
                                          ssimSnapshot.Result,
                                          ReconstructionVideoRenderer.DistributionSnapshotType.Reconstructed,
-                                         "Reconstruction – Min SSIM",
+                                         "Reconstruction – Max SSIM",
                                          metadata,
                                          mode);
             }
@@ -215,7 +219,7 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
 
         var correlationSnapshot = snapshots
             .Where(s => !double.IsNaN(s.Correlation))
-            .OrderBy(s => s.Correlation)
+            .OrderByDescending(s => s.Correlation)
             .FirstOrDefault();
 
         if (correlationSnapshot.Result != null)
@@ -241,10 +245,29 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
                                      GetFrameForResult(correlationSnapshot.Result, fallbackFrame),
                                      correlationSnapshot.Result,
                                      ReconstructionVideoRenderer.DistributionSnapshotType.Reconstructed,
-                                     "Reconstruction – Min Correlation",
+                                     "Reconstruction – Max Correlation",
                                      metadata,
                                      mode);
         }
+    }
+
+    private static ReconstructionResult CreateInitialDistributionResult(ReconstructionResult snapshot,
+                                                                        ConductivityDistribution initialDistribution)
+    {
+        var discretization = snapshot.GetDiscretization();
+        if (discretization != null)
+        {
+            return new ReconstructionResult(discretization,
+                                            snapshot.OriginalConductivityDistribution,
+                                            initialDistribution,
+                                            initialDistribution,
+                                            snapshot.Frames);
+        }
+
+        return new ReconstructionResult(snapshot.OriginalConductivityDistribution,
+                                        initialDistribution,
+                                        initialDistribution,
+                                        snapshot.Frames);
     }
 
     private static void WriteIterationMetricsCsv(string directory,
@@ -428,15 +451,6 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
 
         double correlation = numerator / denominator;
         return double.IsNaN(correlation) ? double.NaN : correlation;
-    }
-
-    private static DistributionMetrics? ComputeInitialDistributionMetrics(ReconstructionResult snapshot)
-    {
-        var initialResult = new ReconstructionResult(snapshot.OriginalConductivityDistribution,
-                                                     snapshot.InitialConductivitiyDistribution,
-                                                     snapshot.InitialConductivitiyDistribution,
-                                                     snapshot.Frames);
-        return ComputeDistributionMetrics(initialResult, CancellationToken.None);
     }
 
     private static DistributionMetrics? ComputeDistributionMetrics(ReconstructionResult result, CancellationToken token)
