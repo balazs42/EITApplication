@@ -148,26 +148,6 @@
                                 BackgroundColor="{AppThemeBinding Light=#27344D, Dark=#27344D}">
                             <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
                                 <Label Grid.Row="0" Text="Methods" FontSize="Medium" FontAttributes="Bold" Margin="0,0,0,12"/>
-                                <Label Grid.Row="1"
-                                       HorizontalOptions="Start"
-                                       Text="Measurement Source"
-                                       FontFamily="SF Pro Text"
-                                       FontAttributes="None"
-                                       IsVisible="{Binding HasMeasurementSourceOptions}"/>
-                                <Grid Grid.Row="2"
-                                      ColumnDefinitions="*, *"
-                                      ColumnSpacing="10"
-                                      IsVisible="{Binding HasMeasurementSourceOptions}">
-                                    <RadioButton Content="Simulated"
-                                                 IsChecked="{Binding IsSimulatedMeasurementSelected}"
-                                                 GroupName="MeasurementSourceOptions"
-                                                 HorizontalOptions="Start"/>
-                                    <RadioButton Grid.Column="1"
-                                                 Content="{Binding RealMeasurementOptionLabel}"
-                                                 IsChecked="{Binding IsRealMeasurementSelected}"
-                                                 GroupName="MeasurementSourceOptions"
-                                                 HorizontalOptions="Start"/>
-                                </Grid>
                                 <Label Grid.Row="3" HorizontalOptions="Start" Text="DE Solver" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Picker Grid.Row="4" ItemsSource="{Binding DifferentialEquationSolverOptions}" SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}" WidthRequest="150"/>
                                 <Label Grid.Row="5" HorizontalOptions="Start" Text="Error Metric" FontFamily="SF Pro Text" FontAttributes="None"/>
@@ -225,17 +205,47 @@
                     <Border Style="{StaticResource PanelSectionBorderStyle}"
                             MaximumWidthRequest="350"
                             BackgroundColor="{AppThemeBinding Light=#253049, Dark=#253049}">
-                        <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
+                        <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
                             <Grid Grid.Row="0" ColumnDefinitions="Auto, *" ColumnSpacing="8">
                                 <Image Grid.Column="0" Source="icon_boundary.png" HeightRequest="25"/>
                                 <Label Grid.Column="1" Text="Boundary Conditions" FontAttributes="Italic" FontSize="Medium"/>
                             </Grid>
-                            <Label Grid.Row="1" Text="Starting Excitation Electrode" FontAttributes="None"/>
-                            <Entry Grid.Row="2" Text="{Binding ExcitationElectrodeId}"/>
-                            <Label Grid.Row="3" Text="Starting Ground Electrode" FontAttributes="None"/>
-                            <Entry Grid.Row="4" Text="{Binding GroundElectrodeId}"/>
-                            <Label Grid.Row="5" Text="Drive Pattern:" FontAttributes="None"/>
-                            <Grid Grid.Row="6" ColumnDefinitions="Auto, Auto, Auto, Auto" ColumnSpacing="10" HorizontalOptions="Center">
+
+                            <Label Grid.Row="1"
+                                   HorizontalOptions="Start"
+                                   Text="Measurement Source"
+                                   FontFamily="SF Pro Text"
+                                   FontAttributes="None"
+                                   IsVisible="{Binding HasMeasurementSourceOptions}"/>
+                            <Grid Grid.Row="2"
+                                  ColumnDefinitions="*, *"
+                                  ColumnSpacing="10"
+                                  IsVisible="{Binding HasMeasurementSourceOptions}">
+                                <RadioButton Content="Simulated"
+                                             IsChecked="{Binding IsSimulatedMeasurementSelected}"
+                                             GroupName="MeasurementSourceOptions"
+                                             HorizontalOptions="Start"/>
+                                <RadioButton Grid.Column="1"
+                                             Content="{Binding RealMeasurementOptionLabel}"
+                                             IsChecked="{Binding IsRealMeasurementSelected}"
+                                             GroupName="MeasurementSourceOptions"
+                                             HorizontalOptions="Start"/>        
+                            </Grid>
+
+                            <HorizontalStackLayout Grid.Row="3" Spacing="30">
+                                <Label Grid.Row="3" Text="Starting Excitation Electrode" FontAttributes="None" VerticalOptions="Center"/>
+                                <Entry Grid.Row="4" Text="{Binding ExcitationElectrodeId}" HorizontalOptions="End" WidthRequest="50"/>
+                            </HorizontalStackLayout>
+
+                            <HorizontalStackLayout Grid.Row="4" Spacing="30">
+                                <Label Grid.Row="5" Text="Starting Ground Electrode" FontAttributes="None" VerticalOptions="Center"/>
+                                <Entry Grid.Row="6" Text="{Binding GroundElectrodeId}" HorizontalOptions="End" WidthRequest="50"/>
+                            </HorizontalStackLayout>
+
+                            <BoxView Grid.Row="5" Color="#3F3F3F" HeightRequest="1"/>
+
+                            <Label Grid.Row="6" Text="Drive Pattern:" FontAttributes="Bold" FontSize="Small"/>
+                            <Grid Grid.Row="7" ColumnDefinitions="Auto, Auto, Auto, Auto" ColumnSpacing="10" HorizontalOptions="Center">
                                 <Label Grid.Column="0" Margin="5" Text="Adjecent" VerticalOptions="Center" HorizontalOptions="Start" FontAttributes="None"/>
                                 <CheckBox Grid.Column="1"
                                           HorizontalOptions="Center"
@@ -249,7 +259,7 @@
                                           IsChecked="{Binding OppositeDrivePattern}"
                                           CheckedChanged="OnOppositeDrivePatternChecked"/>
                                 </Grid>
-                            <Button Grid.Row="7" Text="Edit Boundary Conditions" Background="#2F9E9C" TextColor="White" FontAttributes="Bold" Clicked="OnEditBoundaryConditionsClicked"/>
+                            <Button Grid.Row="8" Text="Edit Boundary Conditions" Background="#2F9E9C" TextColor="White" FontAttributes="Bold" Clicked="OnEditBoundaryConditionsClicked"/>
                         </Grid>
                     </Border>
                     <!--

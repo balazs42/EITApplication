@@ -1,6 +1,4 @@
-using System;
 using MathNet.Numerics;
-using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Double;
 using Utility.Classes.ReconstructionParameters;
 
@@ -47,13 +45,9 @@ namespace Utility.Classes.Reconstruction.NumericSolvers
             {
                 double sigma = singularValues[i];
                 if (sigma > tolerance)
-                {
                     y[i] = projected[i] / sigma;
-                }
                 else
-                {
                     y[i] = 0.0;
-                }
             }
 
             return svd.VT.TransposeThisAndMultiply(y);
