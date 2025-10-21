@@ -57,5 +57,18 @@ namespace Utility.Tests
             Assert.Equal(2.0, x[0], 6);
             Assert.Equal(3.0, x[1], 6);
         }
+
+        [Fact]
+        public void ConjugateGradient_Solves_SPD_System()
+        {
+            INumericSolver s = NumericSolverFactory.Create(NumericSolver.ConjugateGradient);
+            Matrix<double> A = DenseMatrix.OfArray(new double[,] { { 4, 1 }, { 1, 3 } });
+            Vector<double> b = Vector<double>.Build.DenseOfArray(new double[] { 1, 2 });
+
+            var x = s.SolveLinearSystem(A, b);
+
+            Assert.Equal(1.0 / 11.0, x[0], 6);
+            Assert.Equal(7.0 / 11.0, x[1], 6);
+        }
     }
 }

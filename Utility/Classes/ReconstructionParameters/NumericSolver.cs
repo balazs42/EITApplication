@@ -5,7 +5,8 @@
         LU = 1,
         SVD = 2,
         tSVD = 3,
-        GMRES = 4
+        GMRES = 4,
+        ConjugateGradient = 5
     };
 
     public interface INumericSolver
