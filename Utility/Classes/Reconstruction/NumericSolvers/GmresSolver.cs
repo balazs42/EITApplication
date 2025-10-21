@@ -1,6 +1,8 @@
-using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Double;
 using Utility.Classes.ReconstructionParameters;
+
+using Vector = MathNet.Numerics.LinearAlgebra.Vector<double>;
+using Matrix = MathNet.Numerics.LinearAlgebra.Matrix<double>;
 
 namespace Utility.Classes.Reconstruction.NumericSolvers
 {
@@ -12,7 +14,7 @@ namespace Utility.Classes.Reconstruction.NumericSolvers
     /// </summary>
     public sealed class GmresSolver : INumericSolver
     {
-        public Vector<double> SolveLinearSystem(Matrix<double> A, Vector<double> b)
+        public Vector SolveLinearSystem(Matrix A, Vector b)
         {
             if (A == null)
                 throw new ArgumentNullException(nameof(A));
@@ -31,18 +33,18 @@ namespace Utility.Classes.Reconstruction.NumericSolvers
             double tol = 1e-10;
 
             // Initial guess is zero vector
-            Vector<double> x = Vector<double>.Build.Dense(n, 0.0);
+            Vector x = Vector.Build.Dense(n, 0.0);
 
             // Initial residual
-            Vector<double> r = b - A * x;
+            Vector r = b - A * x;
             double beta = r.L2Norm();
 
             if (beta < tol)
                 return x;
 
-            var V = new List<Vector<double>> { r / beta };
-            Matrix<double> H = DenseMatrix.Create(maxIter + 1, maxIter, 0.0);
-            Vector<double> g = Vector<double>.Build.Dense(maxIter + 1, 0.0);
+            var V = new List<Vector> { r / beta };
+            Matrix H = DenseMatrix.Create(maxIter + 1, maxIter, 0.0);
+            Vector g = Vector.Build.Dense(maxIter + 1, 0.0);
             g[0] = beta;
 
             double[] c = new double[maxIter];
@@ -51,7 +53,7 @@ namespace Utility.Classes.Reconstruction.NumericSolvers
             int k;
             for (k = 0; k < maxIter; k++)
             {
-                Vector<double> w = A * V[k];
+                Vector w = A * V[k];
                 for (int j = 0; j <= k; j++)
                 {
                     H[j, k] = w.DotProduct(V[j]);
@@ -93,7 +95,7 @@ namespace Utility.Classes.Reconstruction.NumericSolvers
             }
 
             // Solve upper triangular system H*y = g
-            var y = Vector<double>.Build.Dense(k, 0.0);
+            var y = Vector.Build.Dense(k, 0.0);
             for (int i = k - 1; i >= 0; i--)
             {
                 double sum = g[i];

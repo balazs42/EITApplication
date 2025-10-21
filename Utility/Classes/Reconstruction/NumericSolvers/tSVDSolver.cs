@@ -1,5 +1,7 @@
-using MathNet.Numerics.LinearAlgebra;
 using Utility.Classes.ReconstructionParameters;
+
+using Vector = MathNet.Numerics.LinearAlgebra.Vector<double>;
+using Matrix = MathNet.Numerics.LinearAlgebra.Matrix<double>;
 
 namespace Utility.Classes.Reconstruction.NumericSolvers
 {
@@ -21,7 +23,7 @@ namespace Utility.Classes.Reconstruction.NumericSolvers
             _threshold = threshold;
         }
 
-        public Vector<double> SolveLinearSystem(Matrix<double> A, Vector<double> b)
+        public Vector SolveLinearSystem(Matrix A, Vector b)
         {
             if (A == null)
                 throw new ArgumentNullException(nameof(A));
