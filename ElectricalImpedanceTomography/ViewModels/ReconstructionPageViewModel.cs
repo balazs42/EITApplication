@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Storage;
@@ -128,6 +128,23 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
         }
 
+        private string _electrodeMeasurementSetupLabel = FormatMeasurementSetupLabel(Workspace.GetElectrodeMeasurementSetup());
+
+        public string ElectrodeMeasurementSetupLabel
+        {
+            get => _electrodeMeasurementSetupLabel;
+            private set => SetProperty(ref _electrodeMeasurementSetupLabel, value);
+        }
+
+        private static string FormatMeasurementSetupLabel(ElectrodeMeasurementSetup setup) => setup == ElectrodeMeasurementSetup.Active
+            ? "Electrode measurement setup: Active (excitation electrodes are sampled)"
+            : "Electrode measurement setup: Non-active (excitation electrodes are ignored)";
+
+        private void OnElectrodeMeasurementSetupChanged(ElectrodeMeasurementSetup setup)
+        {
+            ElectrodeMeasurementSetupLabel = FormatMeasurementSetupLabel(setup);
+        }
+
         public void RefreshMeasurementSourceOptions() => RefreshMeasurementSourceSelection();
 
         private MeasurementSourceOption SelectedMeasurementSource
@@ -169,6 +186,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             OnPropertyChanged(nameof(RealMeasurementOptionLabel));
             OnPropertyChanged(nameof(IsSimulatedMeasurementSelected));
             OnPropertyChanged(nameof(IsRealMeasurementSelected));
+            ElectrodeMeasurementSetupLabel = FormatMeasurementSetupLabel(Workspace.GetElectrodeMeasurementSetup());
         }
 
         [ObservableProperty]
@@ -303,6 +321,8 @@ namespace ElectricalImpedanceTomography.ViewModels
             SyncDrivePatternSelection();
             UpdateParallelizationToggleState();
             RefreshMeasurementSourceSelection();
+            ElectrodeMeasurementSetupLabel = FormatMeasurementSetupLabel(Workspace.GetElectrodeMeasurementSetup());
+            Workspace.ElectrodeMeasurementSetupChanged += OnElectrodeMeasurementSetupChanged;
 
             //UpdateMetric(MetricKeys.ErrorMetric, ReconstructionParameters.ErrorMetric.ToString());
             //UpdateMetric(MetricKeys.RegularizationWeight, FormatDouble(RegularizationWeight, "G3"));

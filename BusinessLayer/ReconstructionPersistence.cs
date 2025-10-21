@@ -1,5 +1,6 @@
 ﻿using DataAccessLayer;
 using System.Diagnostics;
+using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Utility.Classes;
@@ -360,6 +361,41 @@ namespace BusinessLayer
             return new ReconstructionFrame(dataGrad, phi, mu, new ConductivityDistribution([]));
         }
 
+        private static double[] AlignMeasurementVector(double[] measurement, List<FEMElectrode> electrodes)
+        {
+            // Rebuild a length-M vector compatible with the FEM solver.  Missing entries
+            // from non-active datasets are padded with NaNs so that the misfit ignores
+            // excitation electrodes while preserving index alignment.
+            int electrodeCount = electrodes.Count;
+            if (electrodeCount == 0)
+                return measurement;
+
+            if (measurement.Length == electrodeCount)
+                return measurement;
+
+            if (measurement.Length > electrodeCount)
+                return measurement.Take(electrodeCount).ToArray();
+
+            double[] expanded = Enumerable.Repeat(double.NaN, electrodeCount).ToArray();
+            int measurementIndex = 0;
+            int measuringElectrodes = electrodes.Count(e => e.IsMeasuring);
+
+            for (int i = 0; i < electrodeCount && measurementIndex < measurement.Length; i++)
+            {
+                if (!electrodes[i].IsMeasuring)
+                    continue;
+
+                expanded[i] = measurement[measurementIndex++];
+            }
+
+            if (measurementIndex < measurement.Length)
+                Workspace.AddWarningMessage($"Discarding {measurement.Length - measurementIndex} excess measurement entries that cannot be mapped to electrodes.");
+            else if (measurementIndex < measuringElectrodes)
+                Workspace.AddWarningMessage($"Measurement frame supplies only {measurementIndex} of {measuringElectrodes} measuring electrodes. Missing values will be ignored.");
+
+            return expanded;
+        }
+
         private ReconstructionFrame ComputeFemInverseStep(FEMMesh mesh,
                                                           FEMBoundaryCondition bc,
                                                           double[] currentMeasurement,
@@ -396,10 +432,12 @@ namespace BusinessLayer
                 elements = mesh.GetElements().Cast<FEMElement>().ToList();
             }
 
+            // Ensure the data vector mirrors the electrode ordering that the solver expects.
+            var measurementVector = AlignMeasurementVector(currentMeasurement, electrodes);
             PotentialDistribution phi = PotentialClipper.Clip(solver.Solve(mesh, bc, null));
             double[] simulatedPotentials = PotentialClipper.Clip(mesh.GetElectrodePotentials());
 
-            var adjSrc = errorMetric.EvaluateAdjointSource(mesh, currentMeasurement, simulatedPotentials);
+            var adjSrc = errorMetric.EvaluateAdjointSource(mesh, measurementVector, simulatedPotentials);
             Complex[] adjointSource = new Complex[adjSrc.Length];
             for (int k = 0; k < adjSrc.Length; k++)
                 adjointSource[k] = adjSrc[k];
@@ -887,7 +925,9 @@ namespace BusinessLayer
                 _ = _differentialEquationSolver.Solve(mesh, bc, null);
                 double[] dSimNew = mesh.GetElectrodePotentials();
                 double[] dObs = simulatedMeasurements[exc];
-                Jtotal += _errorMetric.Evaluate(mesh, dObs, dSimNew);
+                // Compare only the electrodes that are physically measured in the current configuration.
+                var alignedObs = AlignMeasurementVector(dObs, electrodes);
+                Jtotal += _errorMetric.Evaluate(mesh, alignedObs, dSimNew);
             }
 
             return Jtotal;
@@ -1257,7 +1297,9 @@ namespace BusinessLayer
                     var phiNew = PotentialClipper.Clip(_differentialEquationSolver.Solve(mesh, bc, null));
                     double[] dSimNew = PotentialClipper.Clip(mesh.GetElectrodePotentials());
                     double[] dObs = simulatedMeasurements[exc];
-                    Jtotal += _errorMetric.Evaluate(mesh, dObs, dSimNew);
+                    // Restrict the misfit to the subset of electrodes that produced readings.
+                    var alignedObs = AlignMeasurementVector(dObs, electrodes);
+                    Jtotal += _errorMetric.Evaluate(mesh, alignedObs, dSimNew);
                 }
                 Debug.WriteLine($"Iteration {iter}: total misfit = {Jtotal}");
 

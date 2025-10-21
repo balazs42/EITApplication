@@ -1,5 +1,6 @@
 ﻿using BusinessLayer;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using Utility.Classes;
@@ -45,6 +46,10 @@ namespace ServiceLayer
         private bool _useOmpParallelization;
         private MeasurementSourceOption _measurementSource = MeasurementSourceOption.Simulated;
         private double? _realMeasurementAmplitude;
+        // Tracks whether the currently loaded measurements include voltages on the driven electrodes
+        // ("active") or omit them ("non-active").  This flag is mirrored to the workspace so that
+        // the UI can communicate the acquisition mode to the user.
+        private ElectrodeMeasurementSetup _measurementSetup = ElectrodeMeasurementSetup.Active;
 
         public event EventHandler<ReconstructionResult>? ReconstructionUpdated;
         public event EventHandler<ReconstructionFrame>? ReconstructionFrameUpdated;
@@ -171,6 +176,9 @@ namespace ServiceLayer
                 _reconstructionPersistence.SetConductivityDistributions(_originalSigma, _initialSigma);
                 _reconstructionPersistence.InitializeReconstruction(discretization, parameters, reinit);
 
+                _measurementSetup = ElectrodeMeasurementSetup.Active;
+                Workspace.SetElectrodeMeasurementSetup(ElectrodeMeasurementSetup.Active);
+
                 _drivePattern = parameters.DrivePattern;
                 _drivePatternStrategy = DrivePatternStrategyProvider.GetStrategy(_drivePattern);
                 _useOmpParallelization = parameters.UseOmpParallelization;
@@ -260,8 +268,10 @@ namespace ServiceLayer
             {
                 var femBc = boundaryCondition as FEMBoundaryCondition
                              ?? throw new ArgumentException("Boundary condition must be FEMBoundaryCondition", nameof(boundaryCondition));
+                // Ensure the measurement vector respects the per-electrode measuring/drive state encoded in the boundary condition.
+                var preparedMeasurement = PrepareMeasurementFrame(measurement, femBc.GetElectrodes());
 
-                ReconstructionFrame frame = _reconstructionPersistence.InverseSolveStepFem(mesh, femBc, measurement, stepSize);
+                ReconstructionFrame frame = _reconstructionPersistence.InverseSolveStepFem(mesh, femBc, preparedMeasurement, stepSize);
 
                 Workspace.AddReconstructionFrameToWorkspace(frame);
 
@@ -374,12 +384,21 @@ namespace ServiceLayer
             _simulatedMeasurements.Clear();
             _simMeasurementIndex = 0;
             _realMeasurementAmplitude = null;
+            _measurementSetup = ElectrodeMeasurementSetup.Active;
+            Workspace.SetElectrodeMeasurementSetup(ElectrodeMeasurementSetup.Active);
         }
 
         private void EnsureSimulatedMeasurements()
         {
             if (_simulatedMeasurements.Count > 0)
                 return;
+
+            int electrodeCount = _discretization switch
+            {
+                FEMMesh fem => fem.GetElectrodes().Count,
+                LBMGrid lbm => lbm.GetElectrodes().Count,
+                _ => 0
+            };
 
             if (_measurementSource == MeasurementSourceOption.Real)
             {
@@ -388,6 +407,8 @@ namespace ServiceLayer
                 {
                     _simulatedMeasurements = measurement.Frames.Select(frame => (double[])frame.Clone()).ToList();
                     _realMeasurementAmplitude = measurement.CurrentAmplitude;
+                    // Persist whether this imported dataset follows the active or non-active convention.
+                    UpdateMeasurementSetupFromFrames(electrodeCount, _simulatedMeasurements);
                     return;
                 }
 
@@ -404,12 +425,15 @@ namespace ServiceLayer
                 var frames = _reconstructionPersistence.SimulateFemMeasurements(femOrig, _excitationAmplitude, _drivePattern);
                 _simulatedMeasurements = CloneMeasurementsWithNoise(frames, _measurementNoiseType, _measurementNoiseAmplitude);
                 _realMeasurementAmplitude = null;
+                // Simulations currently emit active frames, but we still record the mode to keep the UI consistent.
+                UpdateMeasurementSetupFromFrames(electrodeCount, _simulatedMeasurements);
             }
             else if (_discretization is LBMGrid && original is LBMGrid lbmOrig)
             {
                 var measurement = _reconstructionPersistence.SimulateLbmMeasurements(lbmOrig, _excitationAmplitude, _drivePattern);
                 _simulatedMeasurements = CloneMeasurementsWithNoise(measurement.Frames, _measurementNoiseType, _measurementNoiseAmplitude);
                 _realMeasurementAmplitude = null;
+                UpdateMeasurementSetupFromFrames(electrodeCount, _simulatedMeasurements);
             }
             else
             {
@@ -454,6 +478,77 @@ namespace ServiceLayer
             }
         }
 
+        private void UpdateMeasurementSetupFromFrames(int electrodeCount, IReadOnlyList<double[]> frames)
+        {
+            // Measurements originating from an active setup deliver M readings per frame
+            // (yielding M×M values over a full cycle).  Non-active instrumentation omits the
+            // two driven contacts per frame, resulting in M×(M-3) total samples.  We derive the
+            // acquisition mode from these counts so both the solver and the UI can react accordingly.
+            if (electrodeCount <= 0 || frames == null || frames.Count == 0)
+            {
+                _measurementSetup = ElectrodeMeasurementSetup.Active;
+                Workspace.SetElectrodeMeasurementSetup(_measurementSetup);
+                return;
+            }
+
+            int frameLength = frames[0].Length;
+            long totalMeasurements = (long)frameLength * frames.Count;
+            long expectedActiveTotal = (long)electrodeCount * electrodeCount;
+            long expectedNonActiveTotal = (long)electrodeCount * Math.Max(0, electrodeCount - 3);
+
+            bool looksActive = frameLength == electrodeCount || totalMeasurements == expectedActiveTotal;
+            bool looksNonActive = !looksActive && (frameLength == Math.Max(0, electrodeCount - 2) || totalMeasurements == expectedNonActiveTotal);
+
+            _measurementSetup = looksActive ? ElectrodeMeasurementSetup.Active : ElectrodeMeasurementSetup.NonActive;
+
+            if (!looksActive && !looksNonActive)
+            {
+                Workspace.AddWarningMessage($"Ambiguous measurement frame dimensions (frame length {frameLength}, frame count {frames.Count}, electrodes {electrodeCount}). Assuming {_measurementSetup} electrodes.");
+            }
+
+            Workspace.SetElectrodeMeasurementSetup(_measurementSetup);
+        }
+
+        private static double[] PrepareMeasurementFrame(double[] measurement, List<FEMElectrode> electrodes)
+        {
+            // Map the supplied measurement vector to the solver ordering.
+            // When non-active data is provided only the measuring electrodes
+            // are present, so the remaining entries are padded with NaN to
+            // ensure the residual ignores the driven electrodes.
+            int electrodeCount = electrodes.Count;
+            if (electrodeCount == 0)
+                return measurement;
+
+            if (measurement.Length == electrodeCount)
+                return measurement;
+
+            if (measurement.Length > electrodeCount)
+            {
+                Workspace.AddWarningMessage($"Measurement frame has {measurement.Length} values but only {electrodeCount} electrodes. Truncating to match electrode count.");
+                return measurement.Take(electrodeCount).ToArray();
+            }
+
+            double[] prepared = Enumerable.Repeat(double.NaN, electrodeCount).ToArray();
+            int measurementIndex = 0;
+            int measuringElectrodeCount = electrodes.Count(e => e.IsMeasuring);
+
+            for (int i = 0; i < electrodeCount; i++)
+            {
+                if (!electrodes[i].IsMeasuring)
+                    continue;
+
+                if (measurementIndex < measurement.Length)
+                    prepared[i] = measurement[measurementIndex++];
+            }
+
+            if (measurementIndex < measurement.Length)
+                Workspace.AddWarningMessage($"Discarded {measurement.Length - measurementIndex} surplus measurement values that could not be mapped to measuring electrodes.");
+            else if (measurementIndex < measuringElectrodeCount)
+                Workspace.AddWarningMessage($"Measurement frame provides only {measurementIndex} values for {measuringElectrodeCount} measuring electrodes. Missing entries will be ignored during reconstruction.");
+
+            return prepared;
+        }
+
         private double NextGaussian(double mean, double stdDev)
         {
             double u1 = 1.0 - _noiseRandom.NextDouble();
@@ -484,8 +579,10 @@ namespace ServiceLayer
                 ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, stepIndex);
 
                 var bc = new FEMBoundaryCondition(electrodes);
+                // Expand the raw measurement vector to match the solver ordering (injecting NaNs for excluded electrodes).
+                var preparedMeasurement = PrepareMeasurementFrame(measurement, electrodes);
 
-                var frame = _reconstructionPersistence.Step(measurement, bc, _stepSize, _regularizationWeight);
+                var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, _stepSize, _regularizationWeight);
                 _simMeasurementIndex++;
                 Workspace.AddReconstructionFrameToWorkspace(frame);
                 _currentCycleFrames.Add(frame);
@@ -617,8 +714,10 @@ namespace ServiceLayer
 
                         var bc = new FEMBoundaryCondition(electrodes);
                         var measurement = _simulatedMeasurements[i];
+                        // Convert the measurement snapshot to the solver layout for the current electrode roles.
+                        var preparedMeasurement = PrepareMeasurementFrame(measurement, electrodes);
 
-                        var frame = _reconstructionPersistence.Step(measurement, bc, _stepSize, _regularizationWeight);
+                        var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, _stepSize, _regularizationWeight);
 
                         Workspace.AddReconstructionFrameToWorkspace(frame);
                         _currentCycleFrames.Add(frame);
