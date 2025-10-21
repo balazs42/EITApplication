@@ -1,4 +1,4 @@
-﻿using MathNet.Numerics.LinearAlgebra;
+using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Double;
 using Utility.Classes.ReconstructionParameters;
 
@@ -12,33 +12,37 @@ namespace Utility.Classes.Reconstruction.NumericSolvers
     /// </summary>
     public sealed class GmresSolver : INumericSolver
     {
-        public double[] SolveLinearSystem(double[,] A, double[] b)
+        public Vector<double> SolveLinearSystem(Matrix<double> A, Vector<double> b)
         {
-            if (A.Cast<double>().Any(d => double.IsNaN(d) || double.IsInfinity(d)) ||
-                                    b.Any(d => double.IsNaN(d) || double.IsInfinity(d)))
+            if (A == null)
+                throw new ArgumentNullException(nameof(A));
+            if (b == null)
+                throw new ArgumentNullException(nameof(b));
+
+            if (A.RowCount != b.Count)
+                throw new ArgumentException("Matrix and vector dimensions do not agree.");
+
+            if (A.Enumerate().Any(d => double.IsNaN(d) || double.IsInfinity(d)) ||
+                b.Enumerate().Any(d => double.IsNaN(d) || double.IsInfinity(d)))
                 throw new InvalidOperationException("System contains invalid entries.");
 
-            // Convert input arrays to MathNet types
-            Matrix<double> M = DenseMatrix.OfArray(A);
-            Vector<double> rhs = DenseVector.OfArray(b);
-
-            int n = rhs.Count;
+            int n = b.Count;
             int maxIter = Math.Min(1000, n);   // limit iterations to keep memory bounded
             double tol = 1e-10;
 
             // Initial guess is zero vector
-            Vector<double> x = DenseVector.Create(n, 0.0);
+            Vector<double> x = Vector<double>.Build.Dense(n, 0.0);
 
             // Initial residual
-            Vector<double> r = rhs - M * x;
+            Vector<double> r = b - A * x;
             double beta = r.L2Norm();
 
             if (beta < tol)
-                return x.ToArray();
+                return x;
 
             var V = new List<Vector<double>> { r / beta };
             Matrix<double> H = DenseMatrix.Create(maxIter + 1, maxIter, 0.0);
-            Vector<double> g = DenseVector.Create(maxIter + 1, 0.0);
+            Vector<double> g = Vector<double>.Build.Dense(maxIter + 1, 0.0);
             g[0] = beta;
 
             double[] c = new double[maxIter];
@@ -47,7 +51,7 @@ namespace Utility.Classes.Reconstruction.NumericSolvers
             int k;
             for (k = 0; k < maxIter; k++)
             {
-                Vector<double> w = M * V[k];
+                Vector<double> w = A * V[k];
                 for (int j = 0; j <= k; j++)
                 {
                     H[j, k] = w.DotProduct(V[j]);
@@ -70,6 +74,9 @@ namespace Utility.Classes.Reconstruction.NumericSolvers
 
                 // Create new Givens rotation
                 double rho = Math.Sqrt(H[k, k] * H[k, k] + H[k + 1, k] * H[k + 1, k]);
+                if (rho < 1e-30)
+                    break;
+
                 c[k] = H[k, k] / rho;
                 s[k] = H[k + 1, k] / rho;
                 H[k, k] = rho;
@@ -86,7 +93,7 @@ namespace Utility.Classes.Reconstruction.NumericSolvers
             }
 
             // Solve upper triangular system H*y = g
-            var y = DenseVector.Create(k, 0.0);
+            var y = Vector<double>.Build.Dense(k, 0.0);
             for (int i = k - 1; i >= 0; i--)
             {
                 double sum = g[i];
@@ -99,7 +106,7 @@ namespace Utility.Classes.Reconstruction.NumericSolvers
             for (int j = 0; j < k; j++)
                 x += V[j] * y[j];
 
-            return x.ToArray();
+            return x;
         }
     }
 }

@@ -1,30 +1,30 @@
-﻿using MathNet.Numerics.LinearAlgebra;
-using MathNet.Numerics.LinearAlgebra.Double;
+using MathNet.Numerics.LinearAlgebra;
 using Utility.Classes.ReconstructionParameters;
 
 namespace Utility.Classes.Reconstruction.NumericSolvers
 {
     /// <summary>
     /// Solves Ax = b using Singular Value Decomposition (SVD).
-    /// This is a very robust solver that can handle non-square or ill-conditioned matrices
-    /// by finding the minimum-norm, least-squares solution.
+    /// Provides a robust minimum-norm solution for non-square or ill-conditioned matrices.
     /// </summary>
     public sealed class SVDSolver : INumericSolver
     {
-        public double[] SolveLinearSystem(double[,] A, double[] b)
+        public Vector<double> SolveLinearSystem(Matrix<double> A, Vector<double> b)
         {
-            if (A.Cast<double>().Any(d => double.IsNaN(d) || double.IsInfinity(d)) ||
-                b.Any(d => double.IsNaN(d) || double.IsInfinity(d)))
-                throw new InvalidOperationException("SVD solver received non-finite entries. This typically indicates a degenerate FEM element (zero area) in the mesh assembly.");
+            if (A == null)
+                throw new ArgumentNullException(nameof(A));
+            if (b == null)
+                throw new ArgumentNullException(nameof(b));
 
-            Matrix<double> matrixA = DenseMatrix.OfArray(A);
-            Vector<double> vectorB = DenseVector.OfArray(b);
+            if (A.RowCount != b.Count)
+                throw new ArgumentException("Matrix and vector dimensions do not agree.");
 
-            // Perform SVD and solve
-            var svd = matrixA.Svd();
-            Vector<double> resultX = svd.Solve(vectorB);
+            if (A.Enumerate().Any(d => double.IsNaN(d) || double.IsInfinity(d)) ||
+                b.Enumerate().Any(d => double.IsNaN(d) || double.IsInfinity(d)))
+                throw new InvalidOperationException("SVD solver received non-finite entries. This typically indicates a degenerate FEM element in the mesh assembly.");
 
-            return resultX.ToArray();
+            var svd = A.Svd(true);
+            return svd.Solve(b);
         }
     }
 }
