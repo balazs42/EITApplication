@@ -126,13 +126,14 @@ public partial class ReconstructionPage : ContentPage
         MetricTrendCanvas.InvalidateSurface();
     }
 
-    protected override void OnAppearing()
-    {
-        base.OnAppearing();
-        var (startColor, endColor) = GetBackgroundPulseColors();
-        this.StartBackgroundPulse(startColor, endColor);
-        _viewModel.LoadAvailableReconstructions();
-    }
+        protected override void OnAppearing()
+        {
+            base.OnAppearing();
+            var (startColor, endColor) = GetBackgroundPulseColors();
+            this.StartBackgroundPulse(startColor, endColor);
+            _viewModel.RefreshMeasurementSourceOptions();
+            _viewModel.LoadAvailableReconstructions();
+        }
 
     protected override void OnDisappearing()
     {

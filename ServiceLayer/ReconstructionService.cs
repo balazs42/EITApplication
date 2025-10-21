@@ -43,6 +43,8 @@ namespace ServiceLayer
         private IDrivePatternStrategy _drivePatternStrategy = DrivePatternStrategyProvider.GetStrategy(DrivePattern.Adjecent);
         private readonly Random _noiseRandom = new();
         private bool _useOmpParallelization;
+        private MeasurementSourceOption _measurementSource = MeasurementSourceOption.Simulated;
+        private double? _realMeasurementAmplitude;
 
         public event EventHandler<ReconstructionResult>? ReconstructionUpdated;
         public event EventHandler<ReconstructionFrame>? ReconstructionFrameUpdated;
@@ -195,6 +197,9 @@ namespace ServiceLayer
                     Workspace.AddLogMessage("Reconstruction Service",
                         $"Measurement noise enabled: {_measurementNoiseType} (amplitude {amplitudeDescriptor}).");
                 }
+
+                _measurementSource = Workspace.GetMeasurementSource();
+                _realMeasurementAmplitude = null;
             }
             catch(Exception ex)
             {
@@ -359,10 +364,37 @@ namespace ServiceLayer
             ground.Current = -excitationAmplitude;
         }
 
+        private void SyncMeasurementSource()
+        {
+            var desired = Workspace.GetMeasurementSource();
+            if (desired == _measurementSource)
+                return;
+
+            _measurementSource = desired;
+            _simulatedMeasurements.Clear();
+            _simMeasurementIndex = 0;
+            _realMeasurementAmplitude = null;
+        }
+
         private void EnsureSimulatedMeasurements()
         {
             if (_simulatedMeasurements.Count > 0)
                 return;
+
+            if (_measurementSource == MeasurementSourceOption.Real)
+            {
+                var measurement = Workspace.GetImportedMeasurement();
+                if (measurement != null && measurement.Frames.Count > 0)
+                {
+                    _simulatedMeasurements = measurement.Frames.Select(frame => (double[])frame.Clone()).ToList();
+                    _realMeasurementAmplitude = measurement.CurrentAmplitude;
+                    return;
+                }
+
+                Workspace.AddWarningMessage("Real measurement data was requested but is not available. Falling back to simulated measurements.");
+                _measurementSource = MeasurementSourceOption.Simulated;
+                _realMeasurementAmplitude = null;
+            }
 
             var original = Workspace.GetOriginalDiscretization()
                            ?? throw new NullReferenceException("Original mesh not set.");
@@ -371,11 +403,13 @@ namespace ServiceLayer
             {
                 var frames = _reconstructionPersistence.SimulateFemMeasurements(femOrig, _excitationAmplitude, _drivePattern);
                 _simulatedMeasurements = CloneMeasurementsWithNoise(frames, _measurementNoiseType, _measurementNoiseAmplitude);
+                _realMeasurementAmplitude = null;
             }
             else if (_discretization is LBMGrid && original is LBMGrid lbmOrig)
             {
                 var measurement = _reconstructionPersistence.SimulateLbmMeasurements(lbmOrig, _excitationAmplitude, _drivePattern);
                 _simulatedMeasurements = CloneMeasurementsWithNoise(measurement.Frames, _measurementNoiseType, _measurementNoiseAmplitude);
+                _realMeasurementAmplitude = null;
             }
             else
             {
@@ -430,6 +464,8 @@ namespace ServiceLayer
 
         private ReconstructionFrame? PerformInverseStep()
         {
+            SyncMeasurementSource();
+
             if (_discretization is FEMMesh femMesh)
             {
                 EnsureSimulatedMeasurements();
@@ -444,7 +480,8 @@ namespace ServiceLayer
                 var measurement = _simulatedMeasurements[stepIndex];
 
                 var electrodes = femMesh.GetElectrodes().Cast<FEMElectrode>().ToList();
-                ApplyDrivePatternToElectrodes(electrodes, _excitationAmplitude, stepIndex);
+                double effectiveAmplitude = _realMeasurementAmplitude ?? _excitationAmplitude;
+                ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, stepIndex);
 
                 var bc = new FEMBoundaryCondition(electrodes);
 
@@ -479,7 +516,8 @@ namespace ServiceLayer
                 int electrodeCount = electrodes.Count;
                 int cycleLength = Math.Max(1, _drivePatternStrategy.GetCycleLength(electrodeCount));
                 int stepIndex = _simMeasurementIndex % cycleLength;
-                ApplyDrivePatternToElectrodes(electrodes, _excitationAmplitude, stepIndex);
+                double effectiveAmplitude = _realMeasurementAmplitude ?? _excitationAmplitude;
+                ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, stepIndex);
 
                 var bc = new LBMBoundaryCondition(electrodes);
                 double[] measurement = _simulatedMeasurements[stepIndex];
@@ -563,6 +601,8 @@ namespace ServiceLayer
 
             return await Task.Run(() =>
             {
+                SyncMeasurementSource();
+
                 if (_discretization is FEMMesh femMesh)
                 {
                     EnsureSimulatedMeasurements();
@@ -572,7 +612,8 @@ namespace ServiceLayer
 
                     for (int i = 0; i < _simulatedMeasurements.Count; i++)
                     {
-                        ApplyDrivePatternToElectrodes(electrodes, _excitationAmplitude, i);
+                        double effectiveAmplitude = _realMeasurementAmplitude ?? _excitationAmplitude;
+                        ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, i);
 
                         var bc = new FEMBoundaryCondition(electrodes);
                         var measurement = _simulatedMeasurements[i];
@@ -624,7 +665,8 @@ namespace ServiceLayer
                     for (int i = 0; i < _simulatedMeasurements.Count; i++)
                     {
                         var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
-                        ApplyDrivePatternToElectrodes(electrodes, _excitationAmplitude, i);
+                        double effectiveAmplitude = _realMeasurementAmplitude ?? _excitationAmplitude;
+                        ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, i);
                         var bc = new LBMBoundaryCondition(electrodes);
 
                         var measurement = _simulatedMeasurements[i];

@@ -37,7 +37,11 @@ namespace Utility.Classes.Application
         private static List<LBMElectrode>? _currentGlobalLbmElectrodes;
         private static LBMBoundaryCondition? _currentGlobalLbmBoundaryCondition;
 
-        private static bool _initialized = false; 
+        private static bool _initialized = false;
+
+        private static EITMeasurement? _importedMeasurement;
+        private static string? _importedMeasurementLabel;
+        private static MeasurementSourceOption _measurementSource = MeasurementSourceOption.Simulated;
 
         public static void Initialize(User user, EITReconstructionParameters? eITReconstructionParameters, IDiscretization? discretization)
         {
@@ -130,6 +134,44 @@ namespace Utility.Classes.Application
 
         public static LBMBoundaryCondition GetCurrentGlobalLbmBoundaryCondition()
             => _currentGlobalLbmBoundaryCondition ?? throw new InvalidOperationException("Current LBM boundary condition has not been cached in the workspace.");
+
+        public static void SetImportedMeasurement(EITMeasurement? measurement, string? label = null)
+        {
+            bool hadMeasurement = _importedMeasurement != null;
+
+            if (measurement == null)
+            {
+                _importedMeasurement = null;
+                _importedMeasurementLabel = null;
+                _measurementSource = MeasurementSourceOption.Simulated;
+                return;
+            }
+
+            _importedMeasurement = measurement;
+            _importedMeasurementLabel = label;
+
+            if (!hadMeasurement)
+                _measurementSource = MeasurementSourceOption.Real;
+        }
+
+        public static void ClearImportedMeasurement() => SetImportedMeasurement(null);
+
+        public static EITMeasurement? GetImportedMeasurement() => _importedMeasurement;
+
+        public static string? GetImportedMeasurementLabel() => _importedMeasurementLabel;
+
+        public static MeasurementSourceOption GetMeasurementSource() => _measurementSource;
+
+        public static void SetMeasurementSource(MeasurementSourceOption source)
+        {
+            if (source == MeasurementSourceOption.Real && _importedMeasurement == null)
+            {
+                _measurementSource = MeasurementSourceOption.Simulated;
+                return;
+            }
+
+            _measurementSource = source;
+        }
 
         public static int MaxIterationCount
         {
