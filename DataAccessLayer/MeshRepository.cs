@@ -1476,11 +1476,59 @@ namespace DataAccessLayer
                         values.Add(value);
                 }
 
-                if (values.Count > 0)
-                    frames.Add(values.ToArray());
+                if (values.Count == 0)
+                    continue;
+
+                var raw = values.ToArray();
+                if (!TryPartitionMeasurementRow(raw, frames))
+                    frames.Add(raw);
             }
 
             return (frames.Count > 0 ? frames : null, null);
+        }
+
+        private static bool TryPartitionMeasurementRow(double[] values, List<double[]> frames)
+        {
+            int blockLength = TryGetMeasurementBlockLength(values.Length);
+            if (blockLength <= 0)
+                return false;
+
+            int existing = frames.Count;
+            for (int offset = 0; offset < values.Length; offset += blockLength)
+            {
+                var block = new double[blockLength];
+                Array.Copy(values, offset, block, 0, blockLength);
+                frames.Add(block);
+            }
+
+            return frames.Count > existing;
+        }
+
+        private static int TryGetMeasurementBlockLength(int totalLength)
+        {
+            if (totalLength <= 0)
+                return 0;
+
+            double discriminant = 9.0 + 4.0 * totalLength;
+            double root = Math.Sqrt(discriminant);
+            double electrodeCandidate = (3.0 + root) / 2.0;
+            int electrodeCount = (int)Math.Round(electrodeCandidate);
+
+            if (electrodeCount <= 0)
+                return 0;
+
+            const double tolerance = 1e-6;
+            if (Math.Abs(electrodeCandidate - electrodeCount) > tolerance)
+                return 0;
+
+            int blockLength = electrodeCount - 3;
+            if (blockLength <= 0)
+                return 0;
+
+            if (blockLength * electrodeCount != totalLength)
+                return 0;
+
+            return blockLength;
         }
 
         private static bool TryFindPropertyCaseInsensitive(JsonElement element, string name, out JsonElement value)
