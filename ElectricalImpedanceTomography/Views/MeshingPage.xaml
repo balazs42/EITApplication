@@ -524,18 +524,18 @@
                     Margin="5, 5, 5, 5"
                     Style="{StaticResource PanelBorderStyle}"
                     Background="{StaticResource StatisticsPanelBrush}">
-                <VerticalStackLayout Margin="20"
+                <ScrollView>
+                    <VerticalStackLayout Margin="20"
                                       Spacing="16">
-                    <Label Text="Saved Meshes"
+                        <Label Text="Saved Meshes"
                            FontSize="Medium"
                            HorizontalOptions="Center"
                            TextColor="{AppThemeBinding Light=#F7FBFF, Dark=White}"/>
-                    <SearchBar Placeholder="Search"
+                        <SearchBar Placeholder="Search"
                                Text="{Binding MeshSearchText}"/>
-                    <Border Style="{StaticResource PanelSectionBorderStyle}"
+                        <Border Style="{StaticResource PanelSectionBorderStyle}"
                             BackgroundColor="#1F2B44"
                             Padding="0">
-                        <ScrollView>
                             <VerticalStackLayout Spacing="8"
                                                  Padding="12"
                                                  BindableLayout.ItemsSource="{Binding FilteredMeshes}">
@@ -572,9 +572,9 @@
                                     </DataTemplate>
                                 </BindableLayout.ItemTemplate>
                             </VerticalStackLayout>
-                        </ScrollView>
-                    </Border>
-                </VerticalStackLayout>
+                        </Border>
+                    </VerticalStackLayout>
+                </ScrollView>
             </Border>
         </Grid>
     </Grid>
