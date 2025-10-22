@@ -303,7 +303,8 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                             for (int i = 0; i < 9; i++)
                                 el.Fi[i] = weights[i] * Math.Abs(current);
 
-                            ApplyNeumannBoundaryCondition(el, electrode, phiStreamed, elementIndexLookup, opposite);
+                            bool useDefaultPotentialDifference = t == 0;
+                            ApplyNeumannBoundaryCondition(el, electrode, phiStreamed, elementIndexLookup, opposite, useDefaultPotentialDifference);
                         }
                     }
                 }
@@ -375,7 +376,8 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             LBMElectrode electrode,
             IReadOnlyList<double> phiStreamed,
             IReadOnlyDictionary<int, int> elementIndexLookup,
-            int[] opposite)
+            int[] opposite,
+            bool useDefaultPotentialDifference)
         {
             if (!elementIndexLookup.TryGetValue(element.Id, out int elementIndex))
                 return;
@@ -395,11 +397,15 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             double phiBoundary = phiStreamed[elementIndex];
             double phiInterior = phiStreamed[interiorIndex];
 
+            double potentialDifference = useDefaultPotentialDifference
+                ? 1.0
+                : (phiInterior - phiBoundary);
+
             // The normal current correction is obtained from the discrete gradient of the
             // potential field multiplied by the local conductivity.  This mirrors the
             // continuous expression j = -γ ∂φ/∂n while remaining compatible with the
             // streamed potential that was already computed for the current iteration.
-            double deltaFi = element.Conductivity * (phiInterior - phiBoundary);
+            double deltaFi = element.Conductivity * potentialDifference;
 
             double current = electrode.Current;
 
@@ -624,7 +630,8 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     conductivityBuffer.View,                     // Material conductivity
                     phiBuffer.View,                              // Streamed potentials
                     LatticeBoltzmannCudaContext.OppositeView,    // Opposite directions
-                    LatticeBoltzmannCudaContext.WeightsView);    // D2Q9 equilibrium weights
+                    LatticeBoltzmannCudaContext.WeightsView,     // D2Q9 equilibrium weights
+                    t == 0 ? 1 : 0);                             // Use default potential difference on first iteration
 
                 // Check convergence periodically
                 if (t % checkFreq == 0)
@@ -718,7 +725,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 _initializeKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>>(InitializeKernel);
                 _collisionKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<int>, ArrayView<double>, double, double, ArrayView<double>>(CollisionKernel);
                 _streamKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>>(StreamingKernel);
-                _updateKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<double>>(UpdateKernel);
+                _updateKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<double>, int>(UpdateKernel);
                 _phiKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<double>>(PhiKernel);
             }
         }
@@ -942,7 +949,8 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             ArrayView<double> conductivity,     // Conductivity per element
             ArrayView<double> phiStreamed,      // Streamed potential field
             ArrayView<int> opposite,            // Opposite direction mapping
-            ArrayView<double> weights)          // D2Q9 equilibrium weights
+            ArrayView<double> weights,          // D2Q9 equilibrium weights
+            int useDefaultPotentialDifference)  // Flag for first-iteration fallback
         {
             // Skip wall elements (no update needed)
             if (isWall[index] == 1)
@@ -996,7 +1004,10 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     {
                         double phiBoundary = phiStreamed[index];
                         double phiInterior = phiStreamed[interiorIndex];
-                        double deltaFi = conductivity[index] * (phiInterior - phiBoundary);
+                        double potentialDifference = useDefaultPotentialDifference == 1
+                            ? 1.0
+                            : (phiInterior - phiBoundary);
+                        double deltaFi = conductivity[index] * potentialDifference;
 
                         // Remove the gradient-driven flux from the interior pointing
                         // population and add it, together with the prescribed electrode
