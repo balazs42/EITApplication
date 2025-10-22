@@ -27,6 +27,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         // LBM stability constants
         private const double TauSafetyEpsilon = 1e-6;          // Small value to prevent numerical instability
         private const double MinTau = 0.5 + TauSafetyEpsilon; // Minimum relaxation time for stability
+        private const double DefaultInitialPotentialDifference = 1.0; // Fallback gradient for first iteration
 
         // CUDA kernel management - static to share across solver instances
         private static readonly object _cudaKernelLock = new(); // Thread-safe kernel compilation
@@ -397,6 +398,13 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
             double phiBoundary = phiStreamed[elementIndex];
             double phiInterior = phiStreamed[interiorIndex];
+            double potentialDifference = useDefaultPotentialDifference
+                ? defaultPotentialDifference
+                : (phiInterior - phiBoundary);
+
+            double potentialDifference = useDefaultPotentialDifference
+                ? 1.0
+                : (phiInterior - phiBoundary);
 
             double potentialDifference = useDefaultPotentialDifference
                 ? 1.0
@@ -617,6 +625,8 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 _phiKernel(elementCount, fiNextBuffer.View, phiBuffer.View);
 
                 // Execute update kernel: copy streamed values and enforce boundary conditions
+                int useDefaultPotentialDifference = t == 0 ? 1 : 0;
+
                 _updateKernel(elementCount,                       // Number of elements to process
                     fiBuffer.View,                               // Distribution functions (output)
                     fiNextBuffer.View,                           // Streamed values (input)
