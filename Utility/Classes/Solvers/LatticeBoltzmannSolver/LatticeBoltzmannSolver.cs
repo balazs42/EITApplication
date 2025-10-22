@@ -4,6 +4,7 @@ using System.Linq;
 using System.Numerics;
 using ILGPU;
 using ILGPU.Runtime;
+using ILGPU.Algorithms;
 using Utility.Classes.Measurement;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
@@ -27,7 +28,6 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         // LBM stability constants
         private const double TauSafetyEpsilon = 1e-6;          // Small value to prevent numerical instability
         private const double MinTau = 0.5 + TauSafetyEpsilon; // Minimum relaxation time for stability
-        private const double DefaultInitialPotentialDifference = 1.0; // Fallback gradient for first iteration
 
         // CUDA kernel management - static to share across solver instances
         private static readonly object _cudaKernelLock = new(); // Thread-safe kernel compilation
@@ -38,7 +38,6 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         private static System.Action<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>>? _streamKernel;
         private static System.Action<Index1D, UpdateKernelParams>? _updateKernel;
         private static System.Action<Index1D, ArrayView<double>, ArrayView<double>>? _phiKernel;
-        private static double defaultPotentialDifference = 0.1;
 
         // A blittable container for Update kernel arguments to reduce generic arity
         private readonly struct UpdateKernelParams
@@ -451,19 +450,20 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             if (!elementIndexLookup.TryGetValue(interiorNeighbor.Id, out int interiorIndex))
                 return;
 
+            double current = electrode.Current;
+
             double phiBoundary = phiStreamed[elementIndex];
             double phiInterior = phiStreamed[interiorIndex];
-            double potentialDifference = useDefaultPotentialDifference
-                ? defaultPotentialDifference
-                : (phiInterior - phiBoundary);
+            double potentialDifference = phiInterior - phiBoundary;
+
+            if (useDefaultPotentialDifference && Math.Abs(potentialDifference) < 1e-12)
+                potentialDifference = 0.0;
 
             // The normal current correction is obtained from the discrete gradient of the
             // potential field multiplied by the local conductivity.  This mirrors the
             // continuous expression j = -γ ∂φ/∂n while remaining compatible with the
             // streamed potential that was already computed for the current iteration.
             double deltaFi = element.Conductivity * potentialDifference;
-
-            double current = electrode.Current;
 
             // Remove the gradient contribution from the distribution that points into
             // the domain.  This enforces the desired normal derivative at the wall.
@@ -1037,9 +1037,10 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     {
                         double phiBoundary = p.PhiStreamed[index];
                         double phiInterior = p.PhiStreamed[interiorIndex];
-                        double potentialDifference = p.UseDefaultPotentialDifference == 1
-                            ? 1.0
-                            : (phiInterior - phiBoundary);
+                        double potentialDifference = phiInterior - phiBoundary;
+
+                        if (p.UseDefaultPotentialDifference == 1 && XMath.Abs(potentialDifference) < 1e-12)
+                            potentialDifference = 0.0;
                         double deltaFi = p.Conductivity[index] * potentialDifference;
 
                         // Remove the gradient-driven flux from the interior pointing
