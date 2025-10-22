@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -32,11 +33,11 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         private static readonly object _cudaKernelLock = new(); // Thread-safe kernel compilation
         
         // Pre-compiled CUDA kernels for LBM operations
-        private static Action<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>>? _initializeKernel;
-        private static Action<Index1D, ArrayView<double>, ArrayView<int>, ArrayView<double>, double, double, ArrayView<double>>? _collisionKernel;
-        private static Action<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>>? _streamKernel;
-        private static Action<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<double>, int, double>? _updateKernel;
-        private static Action<Index1D, ArrayView<double>, ArrayView<double>>? _phiKernel;
+        private static System.Action<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>>? _initializeKernel;
+        private static System.Action<Index1D, ArrayView<double>, ArrayView<int>, ArrayView<double>, double, double, ArrayView<double>>? _collisionKernel;
+        private static System.Action<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>>? _streamKernel;
+        private static System.Action<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<double>, int>? _updateKernel;
+        private static System.Action<Index1D, ArrayView<double>, ArrayView<double>>? _phiKernel;
 
         /// <summary>
         /// Initializes LBM solver with specified convergence criteria and execution mode.
@@ -399,6 +400,10 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             double phiInterior = phiStreamed[interiorIndex];
             double potentialDifference = useDefaultPotentialDifference
                 ? defaultPotentialDifference
+                : (phiInterior - phiBoundary);
+
+            double potentialDifference = useDefaultPotentialDifference
+                ? 1.0
                 : (phiInterior - phiBoundary);
 
             double potentialDifference = useDefaultPotentialDifference
