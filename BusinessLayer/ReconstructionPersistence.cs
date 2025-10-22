@@ -390,8 +390,14 @@ namespace BusinessLayer
 
             if (measurementIndex < measurement.Length)
                 Workspace.AddWarningMessage($"Discarding {measurement.Length - measurementIndex} excess measurement entries that cannot be mapped to electrodes.");
-            else if (measurementIndex < measuringElectrodes)
-                Workspace.AddWarningMessage($"Measurement frame supplies only {measurementIndex} of {measuringElectrodes} measuring electrodes. Missing values will be ignored.");
+            else if (measurement.Length < measuringElectrodes)
+            {
+                bool expectedMissing = Workspace.GetElectrodeMeasurementSetup() == ElectrodeMeasurementSetup.NonActive &&
+                                        measurement.Length == Math.Max(0, measuringElectrodes - 1);
+
+                if (!expectedMissing)
+                    Workspace.AddWarningMessage($"Measurement frame supplies only {measurementIndex} of {measuringElectrodes} measuring electrodes. Missing values will be ignored.");
+            }
 
             return expanded;
         }

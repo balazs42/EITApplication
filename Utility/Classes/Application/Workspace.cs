@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Linq;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
@@ -10,6 +11,8 @@ namespace Utility.Classes.Application
 {
     public static class Workspace
     {
+        private const int MaxMessageCount = 200;
+
         private static User _user { get; set; } = new DefaultUser(0, "No User");
         private static EITReconstructionParameters _reconstructionParameters = new();
         private static IDiscretization? _discretization{ get; set; } = null;
@@ -231,6 +234,7 @@ namespace Utility.Classes.Application
             DateTime time = DateTime.Now;
             var msg = new WorkspaceMessage(time, message, type);
             _messages.Add(msg);
+            EnforceMessageLimit();
             MessageAdded?.Invoke(msg);
         }
 
@@ -241,5 +245,30 @@ namespace Utility.Classes.Application
         public static void AddLogMessage(string source, string message, WorkspaceMessageType type = WorkspaceMessageType.Log) => AddMessage(source + ": " + message, type);
 
         public static IReadOnlyList<WorkspaceMessage> GetMessages() => _messages;
+
+        private static void EnforceMessageLimit()
+        {
+            while (_messages.Count > MaxMessageCount)
+            {
+                var candidate = _messages
+                    .OrderBy(m => GetMessagePriority(m.Type))
+                    .ThenBy(m => m.Time)
+                    .FirstOrDefault();
+
+                if (candidate == null)
+                    break;
+
+                _messages.Remove(candidate);
+            }
+        }
+
+        private static int GetMessagePriority(WorkspaceMessageType type) => type switch
+        {
+            WorkspaceMessageType.Error => 4,
+            WorkspaceMessageType.Warning => 3,
+            WorkspaceMessageType.Loading => 2,
+            WorkspaceMessageType.Info => 1,
+            _ => 0,
+        };
     }
 }
