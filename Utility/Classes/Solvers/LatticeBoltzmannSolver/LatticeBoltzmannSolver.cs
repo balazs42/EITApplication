@@ -31,13 +31,68 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
         // CUDA kernel management - static to share across solver instances
         private static readonly object _cudaKernelLock = new(); // Thread-safe kernel compilation
-        
+
         // Pre-compiled CUDA kernels for LBM operations
         private static System.Action<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>>? _initializeKernel;
         private static System.Action<Index1D, ArrayView<double>, ArrayView<int>, ArrayView<double>, double, double, ArrayView<double>>? _collisionKernel;
         private static System.Action<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>>? _streamKernel;
-        private static System.Action<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<double>, int>? _updateKernel;
+        private static System.Action<Index1D, UpdateKernelParams>? _updateKernel;
         private static System.Action<Index1D, ArrayView<double>, ArrayView<double>>? _phiKernel;
+        private static double defaultPotentialDifference = 0.1;
+
+        // A blittable container for Update kernel arguments to reduce generic arity
+        private readonly struct UpdateKernelParams
+        {
+            public readonly ArrayView<double> Fi;
+            public readonly ArrayView<double> FiNext;
+            public readonly ArrayView<int> IsWall;
+            public readonly ArrayView<int> IsElectrode;
+            public readonly ArrayView<int> ElectrodeIsSource;
+            public readonly ArrayView<int> ElectrodeIsGround;
+            public readonly ArrayView<double> ElectrodeCurrent;
+            public readonly ArrayView<double> ElectrodePotential;
+            public readonly ArrayView<int> NeighborIsWall;
+            public readonly ArrayView<int> NeighborIndices;
+            public readonly ArrayView<double> Conductivity;
+            public readonly ArrayView<double> PhiStreamed;
+            public readonly ArrayView<int> Opposite;
+            public readonly ArrayView<double> Weights;
+            public readonly int UseDefaultPotentialDifference;
+
+            public UpdateKernelParams(
+                ArrayView<double> fi,
+                ArrayView<double> fiNext,
+                ArrayView<int> isWall,
+                ArrayView<int> isElectrode,
+                ArrayView<int> electrodeIsSource,
+                ArrayView<int> electrodeIsGround,
+                ArrayView<double> electrodeCurrent,
+                ArrayView<double> electrodePotential,
+                ArrayView<int> neighborIsWall,
+                ArrayView<int> neighborIndices,
+                ArrayView<double> conductivity,
+                ArrayView<double> phiStreamed,
+                ArrayView<int> opposite,
+                ArrayView<double> weights,
+                int useDefaultPotentialDifference)
+            {
+                Fi = fi;
+                FiNext = fiNext;
+                IsWall = isWall;
+                IsElectrode = isElectrode;
+                ElectrodeIsSource = electrodeIsSource;
+                ElectrodeIsGround = electrodeIsGround;
+                ElectrodeCurrent = electrodeCurrent;
+                ElectrodePotential = electrodePotential;
+                NeighborIsWall = neighborIsWall;
+                NeighborIndices = neighborIndices;
+                Conductivity = conductivity;
+                PhiStreamed = phiStreamed;
+                Opposite = opposite;
+                Weights = weights;
+                UseDefaultPotentialDifference = useDefaultPotentialDifference;
+            }
+        }
 
         /// <summary>
         /// Initializes LBM solver with specified convergence criteria and execution mode.
@@ -79,7 +134,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         {
             // Standard LBM relationship: τ = D/cs² + 0.5, where D is diffusion coefficient
             double tau = conductivity / csSquared + 0.5;
-            
+
             // Enforce minimum relaxation time to prevent numerical instability
             // Values below 0.5 can cause negative distribution functions
             return tau < MinTau ? MinTau : tau;
@@ -106,7 +161,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         {
             var lbmGrid = discretization as LBMGrid ?? throw new InvalidCastException();
             var bc = boundaryCondition as LBMBoundaryCondition ?? throw new InvalidCastException();
-            
+
             // Get electrode collections for modification
             var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
             var bcElectrodes = bc.GetElectrodes().ToList();
@@ -329,7 +384,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     // Check relative convergence criterion
                     if (den > 0 && Math.Sqrt(num / den) < tol)
                         break; // Converged - exit time loop early
-                        
+
                     Array.Copy(phi, prevPhi, phi.Length); // Store for next check
                 }
             }
@@ -402,14 +457,6 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 ? defaultPotentialDifference
                 : (phiInterior - phiBoundary);
 
-            double potentialDifference = useDefaultPotentialDifference
-                ? 1.0
-                : (phiInterior - phiBoundary);
-
-            double potentialDifference = useDefaultPotentialDifference
-                ? 1.0
-                : (phiInterior - phiBoundary);
-
             // The normal current correction is obtained from the discrete gradient of the
             // potential field multiplied by the local conductivity.  This mirrors the
             // continuous expression j = -γ ∂φ/∂n while remaining compatible with the
@@ -457,7 +504,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             // Extract flattened mesh data for GPU processing
             var elements = topology.Elements;           // Original element objects
             var elementIds = topology.ElementIds;       // Linear ID mapping
-            
+
             // Get electrode data for boundary condition setup
             var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToArray();
             var bcElectrodes = bc.GetElectrodes().Cast<LBMElectrode>().ToArray();
@@ -487,7 +534,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             for (int idx = 0; idx < elementCount; idx++)
             {
                 var element = elements[idx];
-                
+
                 // Load and sanitize conductivity
                 double conductivity = SanitizeConductivity(sigmaDist.GetConductivity(element.Id));
                 element.Conductivity = conductivity;
@@ -627,32 +674,34 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 // Execute update kernel: copy streamed values and enforce boundary conditions
                 int useDefaultPotentialDifference = t == 0 ? 1 : 0;
 
-                _updateKernel(elementCount,                       // Number of elements to process
-                    fiBuffer.View,                               // Distribution functions (output)
-                    fiNextBuffer.View,                           // Streamed values (input)
-                    isWallBuffer.View,                           // Wall identification
-                    isElectrodeBuffer.View,                      // Electrode identification
-                    electrodeIsSourceBuffer.View,                // Boundary condition types
-                    electrodeIsGroundBuffer.View,                // Ground identification
-                    electrodeCurrentBuffer.View,                 // Current values for Neumann BCs
-                    electrodePotentialBuffer.View,               // Potential values for Dirichlet BCs
-                    neighborIsWallBuffer.View,                   // Neighbor wall flags
-                    neighborIndexBuffer.View,                    // Neighbor connectivity
-                    conductivityBuffer.View,                     // Material conductivity
-                    phiBuffer.View,                              // Streamed potentials
-                    LatticeBoltzmannCudaContext.OppositeView,    // Opposite directions
-                    LatticeBoltzmannCudaContext.WeightsView,     // D2Q9 equilibrium weights
-                    t == 0 ? 1 : 0);                             // Use default potential difference on first iteration
+                var updateParams = new UpdateKernelParams(
+                    fiBuffer.View,
+                    fiNextBuffer.View,
+                    isWallBuffer.View,
+                    isElectrodeBuffer.View,
+                    electrodeIsSourceBuffer.View,
+                    electrodeIsGroundBuffer.View,
+                    electrodeCurrentBuffer.View,
+                    electrodePotentialBuffer.View,
+                    neighborIsWallBuffer.View,
+                    neighborIndexBuffer.View,
+                    conductivityBuffer.View,
+                    phiBuffer.View,
+                    LatticeBoltzmannCudaContext.OppositeView,
+                    LatticeBoltzmannCudaContext.WeightsView,
+                    useDefaultPotentialDifference);
+
+                _updateKernel(elementCount, updateParams);
 
                 // Check convergence periodically
                 if (t % checkFreq == 0)
                 {
                     accelerator.Synchronize(); // Ensure all kernels complete
-                    
+
                     // Compute potential field (sum of distributions) on GPU
                     _phiKernel(elementCount, fiBuffer.View, phiBuffer.View);
                     accelerator.Synchronize(); // Wait for computation
-                    
+
                     // Copy potential field back to CPU for convergence check
                     var phiHost = phiBuffer.GetAsArray1D();
 
@@ -669,14 +718,14 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     // Check convergence criterion
                     if (den > 0.0 && Math.Sqrt(num / den) < tol)
                         break; // Converged - exit time loop
-                        
+
                     Array.Copy(phiHost, prevPhi, phiHost.Length); // Store for next check
                 }
             }
 
             // Synchronize to ensure all GPU work is complete
             accelerator.Synchronize();
-            
+
             // Copy final distribution functions back to CPU
             var finalFi = fiBuffer.GetAsArray1D();
 
@@ -698,7 +747,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 double phi = 0.0;
                 for (int k = 0; k < 9; k++)
                     phi += finalFi[baseIndex + k];
-                    
+
                 dict[elementIds[idx]] = phi; // Store in solution dictionary
             }
 
@@ -716,7 +765,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         {
             // Initialize CUDA context first
             LatticeBoltzmannCudaContext.EnsureInitialized();
-            
+
             // Quick check without locking for performance
             if (_initializeKernel != null)
                 return;
@@ -730,13 +779,13 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
                 // Get accelerator for kernel compilation
                 var accelerator = LatticeBoltzmannCudaContext.Accelerator;
-                
+
                 // Compile and cache all LBM kernels with automatic optimization
                 // ILGPU handles thread block sizing and register allocation automatically
                 _initializeKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>>(InitializeKernel);
                 _collisionKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<int>, ArrayView<double>, double, double, ArrayView<double>>(CollisionKernel);
                 _streamKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>>(StreamingKernel);
-                _updateKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<double>, int>(UpdateKernel);
+                _updateKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, UpdateKernelParams>(UpdateKernel);
                 _phiKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<double>>(PhiKernel);
             }
         }
@@ -812,7 +861,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 {
                     // Dirichlet boundary condition: prescribed potential
                     double potential = electrodePotential[index];
-                    
+
                     // Set distribution functions proportional to potential
                     for (int k = 0; k < 9; k++)
                         fi[baseIndex + k] = weights[k] * potential;
@@ -847,7 +896,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
             // Calculate base index for this element's 9 distributions
             int baseIndex = index * 9;
-            
+
             // Compute macroscopic potential (zeroth moment)
             double phi = 0.0;
             for (int k = 0; k < 9; k++)
@@ -856,11 +905,11 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             // Calculate relaxation time from material conductivity
             // τ = D/cs² + 0.5, where D is the diffusion coefficient (conductivity)
             double tau = conductivity[index] / csSquared + 0.5;
-            
+
             // Enforce minimum relaxation time for numerical stability
             if (tau < minTau)
                 tau = minTau;
-                
+
             double omega = 1.0 / tau; // Collision frequency (inverse relaxation time)
 
             // Apply BGK collision operator: Fi = Fi - ω(Fi - Fi_eq)
@@ -899,7 +948,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
             // Calculate base index for this element's 9 distributions
             int baseIndex = index * 9;
-            
+
             // Stream all 9 distribution functions to their target locations
             for (int k = 0; k < 9; k++)
             {
@@ -931,76 +980,49 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         /// Each thread processes one element.
         /// </summary>
         /// <param name="index">Linear element index (thread ID)</param>
-        /// <param name="fi">Output: updated distribution functions [elementCount * 9]</param>
-        /// <param name="fiNext">Input: streamed distribution functions [elementCount * 9]</param>
-        /// <param name="isWall">Input: wall flags [elementCount]</param>
-        /// <param name="isElectrode">Input: electrode flags [elementCount]</param>
-        /// <param name="electrodeIsSource">Input: boundary type flags [elementCount]</param>
-        /// <param name="electrodeIsGround">Input: ground electrode flags [elementCount]</param>
-        /// <param name="electrodeCurrent">Input: current values [elementCount]</param>
-        /// <param name="electrodePotential">Input: potential values [elementCount]</param>
-        /// <param name="neighborIsWall">Input: neighbor wall flags [elementCount * 9]</param>
-        /// <param name="neighborIndices">Input: neighbor indices [elementCount * 9]</param>
-        /// <param name="conductivity">Input: conductivity values [elementCount]</param>
-        /// <param name="phiStreamed">Input: streamed potentials [elementCount]</param>
-        /// <param name="opposite">Input: opposite direction mapping [9]</param>
-        /// <param name="weights">Input: D2Q9 equilibrium weights [9]</param>
+        /// <param name="p">Blittable container of all update-kernel parameters</param>
         private static void UpdateKernel(
             Index1D index,                      // Current thread's element index
-            ArrayView<double> fi,               // Distribution functions to update
-            ArrayView<double> fiNext,           // Streamed distribution functions
-            ArrayView<int> isWall,              // Wall identification per element
-            ArrayView<int> isElectrode,         // Electrode identification per element
-            ArrayView<int> electrodeIsSource,   // Boundary condition type per element
-            ArrayView<int> electrodeIsGround,   // Ground electrode identification per element
-            ArrayView<double> electrodeCurrent, // Current values for Neumann BCs
-            ArrayView<double> electrodePotential, // Potential values for Dirichlet BCs
-            ArrayView<int> neighborIsWall,      // Neighbor wall flags
-            ArrayView<int> neighborIndices,     // Neighbor connectivity
-            ArrayView<double> conductivity,     // Conductivity per element
-            ArrayView<double> phiStreamed,      // Streamed potential field
-            ArrayView<int> opposite,            // Opposite direction mapping
-            ArrayView<double> weights,          // D2Q9 equilibrium weights
-            int useDefaultPotentialDifference)  // Flag for first-iteration fallback
+            UpdateKernelParams p)
         {
             // Skip wall elements (no update needed)
-            if (isWall[index] == 1)
+            if (p.IsWall[index] == 1)
                 return;
 
             // Calculate base index for this element's 9 distributions
             int baseIndex = index * 9;
-            
+
             // Copy streamed values from temporary to main arrays
             for (int k = 0; k < 9; k++)
             {
-                fi[baseIndex + k] = fiNext[baseIndex + k];  // Copy streamed value
-                fiNext[baseIndex + k] = 0.0;                // Clear temporary for next iteration
+                p.Fi[baseIndex + k] = p.FiNext[baseIndex + k];  // Copy streamed value
+                p.FiNext[baseIndex + k] = 0.0;                  // Clear temporary for next iteration
             }
 
             // Skip boundary condition enforcement for non-electrodes
-            if (isElectrode[index] == 0)
+            if (p.IsElectrode[index] == 0)
                 return;
 
             // Re-enforce electrode boundary conditions after streaming
-            if (electrodeIsSource[index] == 1)
+            if (p.ElectrodeIsSource[index] == 1)
             {
                 // Neumann boundary condition: prescribed current
-                double current = electrodeCurrent[index];
+                double current = p.ElectrodeCurrent[index];
 
                 // Start from an isotropic population that carries the imposed current.  A
                 // second pass below redistributes the populations along the wall normal to
                 // satisfy the Neumann flux requirement exactly.
                 for (int k = 0; k < 9; k++)
-                    fi[baseIndex + k] = weights[k] * Math.Abs(current);
+                    p.Fi[baseIndex + k] = p.Weights[k] * Math.Abs(current);
 
                 int outwardDirection = -1;
                 for (int dir = 1; dir < 9; dir++)
                 {
-                    if (neighborIsWall[baseIndex + dir] != 1)
+                    if (p.NeighborIsWall[baseIndex + dir] != 1)
                         continue;
 
-                    int inward = opposite[dir];
-                    if (neighborIsWall[baseIndex + inward] == 1)
+                    int inward = p.Opposite[dir];
+                    if (p.NeighborIsWall[baseIndex + inward] == 1)
                         continue;
 
                     if (outwardDirection < 0 || dir < 5 && outwardDirection >= 5)
@@ -1009,24 +1031,24 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
                 if (outwardDirection >= 0)
                 {
-                    int inwardDirection = opposite[outwardDirection];
-                    int interiorIndex = neighborIndices[baseIndex + inwardDirection];
+                    int inwardDirection = p.Opposite[outwardDirection];
+                    int interiorIndex = p.NeighborIndices[baseIndex + inwardDirection];
                     if (interiorIndex >= 0)
                     {
-                        double phiBoundary = phiStreamed[index];
-                        double phiInterior = phiStreamed[interiorIndex];
-                        double potentialDifference = useDefaultPotentialDifference == 1
+                        double phiBoundary = p.PhiStreamed[index];
+                        double phiInterior = p.PhiStreamed[interiorIndex];
+                        double potentialDifference = p.UseDefaultPotentialDifference == 1
                             ? 1.0
                             : (phiInterior - phiBoundary);
-                        double deltaFi = conductivity[index] * potentialDifference;
+                        double deltaFi = p.Conductivity[index] * potentialDifference;
 
                         // Remove the gradient-driven flux from the interior pointing
                         // population and add it, together with the prescribed electrode
                         // current, to the outward pointing population.  The current is
                         // negative for ground electrodes, which naturally reduces the
                         // outward distribution instead of increasing it.
-                        fi[baseIndex + inwardDirection] -= deltaFi;
-                        fi[baseIndex + outwardDirection] += deltaFi + current;
+                        p.Fi[baseIndex + inwardDirection] -= deltaFi;
+                        p.Fi[baseIndex + outwardDirection] += deltaFi + current;
                     }
                 }
             }
@@ -1047,12 +1069,12 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         {
             // Calculate base index for this element's 9 distributions
             int baseIndex = index * 9;
-            
+
             // Sum all 9 distribution functions to get macroscopic potential
             double phi = 0.0;
             for (int k = 0; k < 9; k++)
                 phi += fi[baseIndex + k];
-                
+
             // Store result in output array
             phiOut[index] = phi;
         }

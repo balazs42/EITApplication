@@ -570,8 +570,8 @@
                                                                 </Label>
                                                                 <Label Grid.Column="1"
                                                                        Text="{Binding Value}"
-                                                                       FontSize="10"
-                                                                       TextColor="#F0F4FF"
+                                                                       FontSize="9"
+                                                                       TextColor="#F0F4FF"                                                                       
                                                                        HorizontalOptions="End">
                                                                     <Label.Triggers>
                                                                         <DataTrigger TargetType="Label" Binding="{Binding IsTrendSelected}" Value="True">
