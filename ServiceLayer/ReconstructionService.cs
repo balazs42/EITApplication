@@ -697,8 +697,14 @@ namespace ServiceLayer
 
             if (measurementIndex < measurement.Length)
                 Workspace.AddWarningMessage($"Discarded {measurement.Length - measurementIndex} surplus measurement values that could not be mapped to measuring electrodes.");
-            else if (measurementIndex < measuringElectrodeCount)
-                Workspace.AddWarningMessage($"Measurement frame provides only {measurementIndex} values for {measuringElectrodeCount} measuring electrodes. Missing entries will be ignored during reconstruction.");
+            else if (measurement.Length < measuringElectrodeCount)
+            {
+                bool expectedMissing = Workspace.GetElectrodeMeasurementSetup() == ElectrodeMeasurementSetup.NonActive &&
+                                        measurement.Length == Math.Max(0, measuringElectrodeCount - 1);
+
+                if (!expectedMissing)
+                    Workspace.AddWarningMessage($"Measurement frame provides only {measurementIndex} values for {measuringElectrodeCount} measuring electrodes. Missing entries will be ignored during reconstruction.");
+            }
 
             return prepared;
         }
