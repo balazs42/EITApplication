@@ -59,7 +59,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         private static double SanitizeConductivity(double conductivity)
         {
             // Check for invalid floating-point values that could crash GPU kernels
-            if (double.IsNaN(conductivity) || double.IsInfinity(conductivity))
+            if (double.IsNaN(conductivity) || double.IsInfinity(conductivity) || !double.IsFinite(conductivity))
                 return 0.0;
 
             // Ensure non-negative conductivity (physical constraint)
@@ -108,7 +108,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             // Get electrode collections for modification
             var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
             var bcElectrodes = bc.GetElectrodes().ToList();
-            int bcElectrodeCount = bcElectrodes.Count();
+            int bcElectrodeCount = bcElectrodes.Count;
 
             // Set up adjoint boundary conditions: zero potential, adjoint current sources
             for(int i = 0; i < bcElectrodeCount; i++)
@@ -203,27 +203,6 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
                 if (isWall)
                     continue;
-
-                if (el.IsElectrode)
-                {
-                    var correspondingElectrode = electrodes.Find(x => x.GridId == el.Id);
-
-                    if (correspondingElectrode != null)
-                    {
-                        if (correspondingElectrode.IsExcitation || correspondingElectrode.IsGround)
-                        {
-                            double current = correspondingElectrode.Current;
-                            for (int i = 0; i < 9; i++)
-                                el.Fi[i] = weights[i] * current;
-                        }
-                        else
-                        {
-                            correspondingElectrode.Potential = bcElectrodes[correspondingElectrode.Id].Potential;
-                            for (int i = 0; i < 9; i++)
-                                el.Fi[i] = weights[i] * correspondingElectrode.Potential;
-                        }
-                    }
-                }
             }
 
             // PHASE 2: Mark electrode cells for boundary condition enforcement
@@ -310,7 +289,6 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                         el.Fi[k] = el.Fi_next[k];
                         el.Fi_next[k] = 0.0; // Clear for next iteration
                     }
-                    
                     // Re-enforce electrode boundary conditions after streaming
                     if (el.IsElectrode)
                     {
@@ -323,16 +301,9 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                             // carries the prescribed electrode current.  The directional
                             // correction is handled below in ApplyNeumannBoundaryCondition.
                             for (int i = 0; i < 9; i++)
-                                el.Fi[i] = weights[i] * current;
+                                el.Fi[i] = weights[i] * Math.Abs(current);
 
                             ApplyNeumannBoundaryCondition(el, electrode, phiStreamed, elementIndexLookup, opposite);
-                        }
-                        else
-                        {
-                            // Dirichlet: reset distributions to potential value
-                            double potential = electrode.Potential;
-                            for (int k = 0; k < 9; k++)
-                                el.Fi[k] = weights[k] * potential;
                         }
                     }
                 }
@@ -815,7 +786,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     // potentials are available.
                     for (int k = 0; k < 9; k++)
                     {
-                        double value = weights[k] * current;
+                        double value = weights[k] * Math.Abs(current);
                         fi[baseIndex + k] = value;
                     }
                 }
@@ -1001,7 +972,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 // second pass below redistributes the populations along the wall normal to
                 // satisfy the Neumann flux requirement exactly.
                 for (int k = 0; k < 9; k++)
-                    fi[baseIndex + k] = weights[k] * current;
+                    fi[baseIndex + k] = weights[k] * Math.Abs(current);
 
                 int outwardDirection = -1;
                 for (int dir = 1; dir < 9; dir++)
@@ -1036,15 +1007,6 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                         fi[baseIndex + outwardDirection] += deltaFi + current;
                     }
                 }
-            }
-            else
-            {
-                // Dirichlet boundary condition: prescribed potential
-                double potential = electrodePotential[index];
-                
-                // Reset distribution functions to potential value
-                for (int k = 0; k < 9; k++)
-                    fi[baseIndex + k] = weights[k] * potential;
             }
         }
 
