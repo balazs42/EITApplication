@@ -3,8 +3,9 @@ using MathNet.Numerics.LinearAlgebra.Double;
 using MathNet.Numerics.LinearAlgebra.Factorization;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
-
+using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.ReconstructionParameters;
+using Utility.Classes.Solvers.LatticeBoltzmannSolver;
 
 namespace Utility.Classes.Reconstruction.ErrorMetrics
 {
@@ -179,8 +180,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 throw new ArgumentException("Measured data size must match the electrode count.");
 
             var mesh = discretization.GetDiscretization();
-            if (mesh is not FEMMesh fem)
-                throw new NotSupportedException("ConductivityAwareW2Metric currently requires a FEM mesh discretization.");
+            var (electrodePositions, geodesics) = PrepareGeodesics(mesh);
 
             // (1) Smooth normalisation of electrode data.
             var simNorm = Normalize(simulated, _config.Kappa, _config.Epsilon);
@@ -188,12 +188,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             var mu = simNorm.Normalized;
             var nu = measNorm.Normalized;
 
-            // Determine electrode spatial positions.
-            var electrodePositions = GetElectrodePositions(fem);
-            var electrodeNodes = MapElectrodesToGraphNodes(fem, electrodePositions);
-
             // Build both geometric and conductivity-aware cost matrices.
-            var geodesics = ComputeSoftDistancesAndOccupancies(fem, electrodeNodes);
             var costConductive = BuildCostMatrix(geodesics.Distances);
             var costGeometric = BuildGeometricCost(electrodePositions);
 
@@ -220,7 +215,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             // R^T g_μ for the adjoint RHS (Eq. (1) VJP).
             var adjointSource = ApplyNormalizationVjp(simNorm, gMu);
             // OT physics-cost correction (Eq. (5)-(7)).
-            var costTerm = ComputeCostGradient(fem, geodesics, otPhysics.Plan);
+            var costTerm = ComputeCostGradient(geodesics, otPhysics.Plan);
             _last = new EvaluationCache
             {
                 Mu = mu,
@@ -299,8 +294,6 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 throw new InvalidOperationException("Evaluate must be called before assembling gradients.");
 
             var mesh = discretization.GetDiscretization();
-            if (mesh is not FEMMesh fem)
-                throw new NotSupportedException("ConductivityAwareW2Metric currently requires a FEM mesh discretization.");
 
             /*
              * (7) Final gradient assembly:
@@ -308,15 +301,29 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
              * The adjoint contribution uses the supplied λ, while the transport-cost
              * correction reuses the cached soft-geodesic sensitivities from Evaluate().
              */
-            var phi = fem.GetPotentialDistribution() ??
-                      throw new InvalidOperationException("Forward potential distribution is missing on the FEM mesh.");
+            var costTerm = _last.GradientCostTerm ?? ComputeCostGradient(_last.Geodesics, _last.GammaPhysics);
 
-            var adjointTerm = ComputeAdjointConductivityGradient(fem, phi, adjointPotential);
-            var costTerm = _last.GradientCostTerm ?? ComputeCostGradient(fem, _last.Geodesics, _last.GammaPhysics);
+            ConductivityDistribution totalGradient = mesh switch
+            {
+                FEMMesh femMesh =>
+                {
+                    var phi = femMesh.GetPotentialDistribution() ??
+                              throw new InvalidOperationException("Forward potential distribution is missing on the FEM mesh.");
+                    var adjointTerm = ComputeAdjointConductivityGradient(femMesh, phi, adjointPotential);
+                    _last.GradientAdjointTerm = adjointTerm;
+                    return MergeGradientComponents(femMesh, adjointTerm, costTerm);
+                },
+                LBMGrid lbmGrid =>
+                {
+                    var phi = lbmGrid.GetPotentialDistribution() ??
+                              throw new InvalidOperationException("Forward potential distribution is missing on the LBM grid.");
+                    var adjointTerm = ComputeAdjointConductivityGradient(lbmGrid, phi, adjointPotential);
+                    _last.GradientAdjointTerm = adjointTerm;
+                    return MergeGradientComponents(lbmGrid, adjointTerm, costTerm);
+                },
+                _ => throw new NotSupportedException($"ConductivityAwareW2Metric cannot assemble gradients for discretization type '{mesh.GetType().Name}'.")
+            };
 
-            _last.GradientAdjointTerm = adjointTerm;
-
-            var totalGradient = MergeGradientComponents(fem, adjointTerm, costTerm);
             _last.Gradient = totalGradient;
             return totalGradient;
         }
@@ -657,7 +664,23 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             return result;
         }
 
-        private static IReadOnlyList<(double x, double y)> GetElectrodePositions(FEMMesh mesh)
+        private (IReadOnlyList<(double x, double y)> positions, SoftGeodesicResult geodesics) PrepareGeodesics(Discretization mesh)
+        {
+            var positions = GetElectrodePositions(mesh);
+            var mapping = MapElectrodesToGraphNodes(mesh, positions);
+            var geodesics = ComputeSoftDistancesAndOccupancies(mesh, mapping);
+            return (positions, geodesics);
+        }
+
+        private static IReadOnlyList<(double x, double y)> GetElectrodePositions(Discretization mesh)
+            => mesh switch
+            {
+                FEMMesh femMesh => GetElectrodePositionsFEM(femMesh),
+                LBMGrid lbmGrid => GetElectrodePositionsLBM(lbmGrid),
+                _ => throw new NotSupportedException($"ConductivityAwareW2Metric cannot extract electrode positions for discretization type '{mesh.GetType().Name}'.")
+            };
+
+        private static IReadOnlyList<(double x, double y)> GetElectrodePositionsFEM(FEMMesh mesh)
         {
             var vertices = mesh.GetVertices().ToDictionary(v => v.GlobalId);
             var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
@@ -683,6 +706,20 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 }
                 double inv = 1.0 / electrode.FEMVertexIds.Count;
                 positions.Add((sx * inv, sy * inv));
+            }
+
+            return positions;
+        }
+
+        private static IReadOnlyList<(double x, double y)> GetElectrodePositionsLBM(LBMGrid mesh)
+        {
+            var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
+            var positions = new List<(double x, double y)>(electrodes.Count);
+
+            foreach (var electrode in electrodes)
+            {
+                var (x, y) = mesh.ToLattice(electrode.GridId);
+                positions.Add((x, y));
             }
 
             return positions;
@@ -715,7 +752,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         /// <param name="mesh">Mesh that defines both the graph and electrodes.</param>
         /// <param name="electrodePositions">Electrode centroid coordinates.</param>
         /// <returns>Array mapping electrode indices to graph node indices.</returns>
-        private static int[] MapElectrodesToGraphNodes(FEMMesh mesh, IReadOnlyList<(double x, double y)> electrodePositions)
+        private static int[] MapElectrodesToGraphNodes(Discretization mesh, IReadOnlyList<(double x, double y)> electrodePositions)
         {
             var graph = mesh.ToGraph();
             var vertices = graph.Vertices;
@@ -754,7 +791,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         /// <param name="mesh">Finite-element mesh providing the conductivity graph.</param>
         /// <param name="electrodeNodes">Indices of graph nodes attached to electrodes.</param>
         /// <returns>Distances and edge metadata for subsequent computations.</returns>
-        private SoftGeodesicResult ComputeSoftDistancesAndOccupancies(FEMMesh mesh, int[] electrodeNodes)
+        private SoftGeodesicResult ComputeSoftDistancesAndOccupancies(Discretization mesh, int[] electrodeNodes)
         {
             // Build graph data from the discretization.
             var graph = mesh.ToGraph();
@@ -1009,7 +1046,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         /// <param name="geodesics">Soft geodesic cache.</param>
         /// <param name="gamma">Optimal transport plan Γ.</param>
         /// <returns>Element-indexed gradient contribution.</returns>
-        private Dictionary<int, double> ComputeCostGradient(FEMMesh mesh, SoftGeodesicResult geodesics, double[,] gamma)
+        private static Dictionary<int, double> ComputeCostGradient(SoftGeodesicResult geodesics, double[,] gamma)
         {
             var gradient = new Dictionary<int, double>();
 
@@ -1067,6 +1104,22 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             return result;
         }
 
+        private static Dictionary<int, double> ComputeAdjointConductivityGradient(LBMGrid mesh, PotentialDistribution phi, PotentialDistribution lambda)
+        {
+            var gradPhi = LatticeBoltzmannOperators.CalculateGradient(mesh, phi);
+            var gradLambda = LatticeBoltzmannOperators.CalculateGradient(mesh, lambda);
+
+            var result = new Dictionary<int, double>();
+            foreach (var element in mesh.GetElements().Cast<LBMElement>())
+            {
+                var gPhi = gradPhi.GetVector(element.Id);
+                var gLambda = gradLambda.GetVector(element.Id);
+                double dot = gPhi.X * gLambda.X + gPhi.Y * gLambda.Y;
+                result[element.Id] = -dot;
+            }
+            return result;
+        }
+
         /// <summary>
         /// Evaluates the gradient of a nodal potential over a single
         /// triangular FEM element using the stored basis-function gradients.
@@ -1101,6 +1154,24 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         {
             var merged = new Dictionary<int, double>(mesh.ElementsTyped.Count);
             foreach (var element in mesh.ElementsTyped)
+            {
+                double adj = 0.0;
+                if (adjoint != null && adjoint.TryGetValue(element.Id, out var a))
+                    adj = a;
+                double c = cost.TryGetValue(element.Id, out var v) ? v : 0.0;
+                merged[element.Id] = adj + c;
+            }
+
+            return new ConductivityDistribution(merged);
+        }
+
+        private static ConductivityDistribution MergeGradientComponents(LBMGrid mesh,
+                                                                         Dictionary<int, double>? adjoint,
+                                                                         Dictionary<int, double> cost)
+        {
+            var elements = mesh.GetElements();
+            var merged = new Dictionary<int, double>(elements.Count);
+            foreach (var element in elements.Cast<LBMElement>())
             {
                 double adj = 0.0;
                 if (adjoint != null && adjoint.TryGetValue(element.Id, out var a))
