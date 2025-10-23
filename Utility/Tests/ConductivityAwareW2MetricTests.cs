@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Utility.Classes;
 using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Reconstruction.ErrorMetrics;
 using Xunit;
 
@@ -162,6 +163,40 @@ namespace Utility.Tests
                 Assert.True(gradCopy.ContainsKey(kv.Key));
                 Assert.Equal(kv.Value, gradCopy[kv.Key], 3);
             }
+        }
+
+        [Fact]
+        public void EvaluateSupportsLbmMeshes()
+        {
+            var grid = new LBMGrid(6, 6);
+            grid.PlaceEquidistantElectrodes(4);
+
+            var elements = grid.GetElements().Cast<LBMElement>().ToList();
+            var forwardPotentials = elements.ToDictionary(e => e.Id, e => 0.1 * ((e.Id % 5) - 2));
+            grid.SetPotentialDistribution(new PotentialDistribution(forwardPotentials));
+
+            var electrodes = grid.GetElectrodes();
+            double[] measured = electrodes.Select((_, i) => (double)((i % 3) - 1)).ToArray();
+            double[] simulated = electrodes.Select((_, i) => (double)((i + 1) % 3)).ToArray();
+
+            var metric = new ConductivityAwareW2Metric(new ConductivityAwareW2Metric.Config
+            {
+                Alpha = 1.0,
+                UsePhysicsAwareOnly = true,
+                ReturnComponents = true
+            });
+
+            double value = metric.Evaluate(grid, measured, simulated);
+            Assert.True(double.IsFinite(value));
+            Assert.NotNull(metric.LastCostComponent);
+
+            var adjointSource = metric.EvaluateAdjointSource(grid, measured, simulated);
+            Assert.Equal(measured.Length, adjointSource.Length);
+
+            var adjointPotentials = elements.ToDictionary(e => e.Id, e => 0.05 * ((e.Id % 4) - 1));
+            var gradient = metric.AssembleTotalConductivityGradient(grid, new PotentialDistribution(adjointPotentials));
+
+            Assert.Equal(elements.Count, gradient.Conductivities.Count);
         }
 
         private static double[] Simulate(FEMMesh mesh, IReadOnlyList<double> sigma)
