@@ -147,12 +147,12 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             for (int i = 0; i < m; i++) 
                 grad[i] = 0.5 * phi[i];
             
-            double mean = 0.0;            
+            double mean = 0.0;
             for (int i = 0; i < m; i++)
-            {
                 mean += grad[i] * a[i];
+
+            for (int i = 0; i < m; i++)
                 grad[i] -= mean;
-            }
 
             // Chain rule back to raw (unnormalized) masses
             double[] gradRaw = new double[m];
