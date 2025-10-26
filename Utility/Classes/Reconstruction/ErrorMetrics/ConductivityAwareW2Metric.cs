@@ -303,26 +303,30 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
              */
             var costTerm = _last.GradientCostTerm ?? ComputeCostGradient(_last.Geodesics, _last.GammaPhysics);
 
-            ConductivityDistribution totalGradient = mesh switch
+            ConductivityDistribution totalGradient;
+            switch (mesh)
             {
-                FEMMesh femMesh =>
+                case FEMMesh femMesh:
                 {
                     var phi = femMesh.GetPotentialDistribution() ??
                               throw new InvalidOperationException("Forward potential distribution is missing on the FEM mesh.");
                     var adjointTerm = ComputeAdjointConductivityGradient(femMesh, phi, adjointPotential);
                     _last.GradientAdjointTerm = adjointTerm;
-                    return MergeGradientComponents(femMesh, adjointTerm, costTerm);
-                },
-                LBMGrid lbmGrid =>
+                    totalGradient = MergeGradientComponents(femMesh, adjointTerm, costTerm);
+                    break;
+                }
+                case LBMGrid lbmGrid:
                 {
                     var phi = lbmGrid.GetPotentialDistribution() ??
                               throw new InvalidOperationException("Forward potential distribution is missing on the LBM grid.");
                     var adjointTerm = ComputeAdjointConductivityGradient(lbmGrid, phi, adjointPotential);
                     _last.GradientAdjointTerm = adjointTerm;
-                    return MergeGradientComponents(lbmGrid, adjointTerm, costTerm);
-                },
-                _ => throw new NotSupportedException($"ConductivityAwareW2Metric cannot assemble gradients for discretization type '{mesh.GetType().Name}'.")
-            };
+                    totalGradient = MergeGradientComponents(lbmGrid, adjointTerm, costTerm);
+                    break;
+                }
+                default:
+                    throw new NotSupportedException($"ConductivityAwareW2Metric cannot assemble gradients for discretization type '{mesh.GetType().Name}'.");
+            }
 
             _last.Gradient = totalGradient;
             return totalGradient;
@@ -673,12 +677,14 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         }
 
         private static IReadOnlyList<(double x, double y)> GetElectrodePositions(Discretization mesh)
-            => mesh switch
+        {
+            return mesh switch
             {
                 FEMMesh femMesh => GetElectrodePositionsFEM(femMesh),
                 LBMGrid lbmGrid => GetElectrodePositionsLBM(lbmGrid),
-                _ => throw new NotSupportedException($"ConductivityAwareW2Metric cannot extract electrode positions for discretization type '{mesh.GetType().Name}'.")
+                _ => throw new NotSupportedException($"ConductivityAwareW2Metric cannot extract electrode positions for discretization type '{mesh.GetType().Name}'."),
             };
+        }
 
         private static IReadOnlyList<(double x, double y)> GetElectrodePositionsFEM(FEMMesh mesh)
         {
@@ -743,6 +749,16 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             return ComputeSoftDistancesAndOccupancies(mesh, nodes);
         }
 
+        private static Utility.Classes.Discretizer.GraphMesh.Graph GetGraph(Discretization mesh)
+        {
+            return mesh switch
+            {
+                FEMMesh fem => fem.ToGraph(),
+                LBMGrid lbm => lbm.ToGraph(),
+                _ => throw new NotSupportedException($"ConductivityAwareW2Metric cannot build graph for discretization type '{mesh.GetType().Name}'.")
+            };
+        }
+
         /// <summary>
         /// Associates each electrode with the nearest vertex in the graph that
         /// is derived from the FEM mesh.  The mapping provides the bridge
@@ -754,7 +770,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         /// <returns>Array mapping electrode indices to graph node indices.</returns>
         private static int[] MapElectrodesToGraphNodes(Discretization mesh, IReadOnlyList<(double x, double y)> electrodePositions)
         {
-            var graph = mesh.ToGraph();
+            var graph = GetGraph(mesh);
             var vertices = graph.Vertices;
             int nodeCount = vertices.Count;
 
@@ -794,7 +810,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         private SoftGeodesicResult ComputeSoftDistancesAndOccupancies(Discretization mesh, int[] electrodeNodes)
         {
             // Build graph data from the discretization.
-            var graph = mesh.ToGraph();
+            var graph = GetGraph(mesh);
             int nodeCount = graph.Vertices.Count;
             var nodeIndex = new Dictionary<int, int>(nodeCount);
             for (int i = 0; i < nodeCount; i++)
@@ -1046,7 +1062,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         /// <param name="geodesics">Soft geodesic cache.</param>
         /// <param name="gamma">Optimal transport plan Γ.</param>
         /// <returns>Element-indexed gradient contribution.</returns>
-        private static Dictionary<int, double> ComputeCostGradient(SoftGeodesicResult geodesics, double[,] gamma)
+        private Dictionary<int, double> ComputeCostGradient(SoftGeodesicResult geodesics, double[,] gamma)
         {
             var gradient = new Dictionary<int, double>();
 
