@@ -89,7 +89,9 @@ namespace Utility.Classes.Reconstruction
 
         private static double Sanitize(double value)
         {
-            return double.IsFinite(value) ? value : 0.0;
+            double retVal = double.IsFinite(value) ? value : 0.0;
+
+            return retVal;
         }
     }
 }

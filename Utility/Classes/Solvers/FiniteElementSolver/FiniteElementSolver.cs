@@ -28,8 +28,8 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         private readonly bool _useOmpParallelization;
         private FEMMesh _referenceMesh;
 
-        private readonly Dictionary<int, IReadOnlyList<int>> _electrodeContactCache = new();
-        private readonly Dictionary<int, List<(int start, int end, double length)>> _segmentCache = new();
+        private readonly Dictionary<int, IReadOnlyList<int>> _electrodeContactCache = [];
+        private readonly Dictionary<int, List<(int start, int end, double length)>> _segmentCache = [];
         private readonly object _cacheGuard = new();
         private bool _boundaryMatricesDirty = true;
         private double[] _cachedContactImpedances;
@@ -109,7 +109,7 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             var bc = boundaryCondition as FEMBoundaryCondition ?? throw new InvalidCastException();
             var electrodes = femMesh.GetElectrodes();
             var bcElectrodes = bc.GetElectrodes();
-            int bcElectrodeCount = bcElectrodes.Count();
+            int bcElectrodeCount = bcElectrodes.Count;
 
             for (int i = 0; i < bcElectrodeCount; i++)
             {
@@ -131,8 +131,6 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         /// <param name="mesh"/> FEM mesh
         /// <param name="electrodes"/> electrode list with .Current, .IsGround set
         /// <returns>vector [alpha; U]</returns>
-
-
         private PotentialDistribution Solve(FEMMesh mesh, List<FEMElectrode> electrodes)
         {
             AssembleSystem(mesh, electrodes);
@@ -482,24 +480,24 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
 
         #region Utils
 
-private List<(int StartId, int EndId, double Length)> BuildElectrodeSegments(FEMMesh mesh, List<int> orderedVertexIds)
-{
-    var segments = new List<(int, int, double)>();
-    if (orderedVertexIds == null || orderedVertexIds.Count < 2)
-        return segments;
-
-    for (int i = 0; i < orderedVertexIds.Count - 1; i++)
+    private List<(int StartId, int EndId, double Length)> BuildElectrodeSegments(FEMMesh mesh, List<int> orderedVertexIds)
     {
-        var start = mesh.GetVertexById(orderedVertexIds[i]);
-        var end = mesh.GetVertexById(orderedVertexIds[i + 1]);
-        double dx = start.X - end.X;
-        double dy = start.Y - end.Y;
-        double length = Math.Sqrt(dx * dx + dy * dy);
-        if (length > 0.0)
-            segments.Add((start.GlobalId, end.GlobalId, length));
+        var segments = new List<(int, int, double)>();
+        if (orderedVertexIds == null || orderedVertexIds.Count < 2)
+            return segments;
+
+        for (int i = 0; i < orderedVertexIds.Count - 1; i++)
+        {
+            var start = mesh.GetVertexById(orderedVertexIds[i]);
+            var end = mesh.GetVertexById(orderedVertexIds[i + 1]);
+            double dx = start.X - end.X;
+            double dy = start.Y - end.Y;
+            double length = Math.Sqrt(dx * dx + dy * dy);
+            if (length > 0.0)
+                segments.Add((start.GlobalId, end.GlobalId, length));
+        }
+        return segments;
     }
-    return segments;
-}
 
         private double ResolveElectrodeLength(FEMMesh mesh, FEMElectrode electrode, List<int> contactVertexIds)
         {

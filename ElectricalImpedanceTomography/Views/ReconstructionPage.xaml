@@ -561,7 +561,7 @@
                                                                                       CommandParameter="{Binding Key}"/>
                                                             </Border.GestureRecognizers>
                                                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                                                                <Label Text="{Binding Name}" FontAttributes="None" FontSize="12" TextColor="#9DAAD3">
+                                                                <Label Text="{Binding Name}" FontAttributes="Italic" FontSize="12" TextColor="#9DAAD3">
                                                                     <Label.Triggers>
                                                                         <DataTrigger TargetType="Label" Binding="{Binding IsTrendSelected}" Value="True">
                                                                             <Setter Property="TextColor" Value="#E3EDFF"/>

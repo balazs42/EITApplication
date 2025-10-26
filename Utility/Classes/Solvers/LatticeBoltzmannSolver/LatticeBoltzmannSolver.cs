@@ -247,7 +247,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 el.Conductivity = SanitizeConductivity(sigmaDist.GetConductivity(el.Id));
             }
 
-            // PHASE 1: Initialize distribution functions with boundary conditions
+            // PHASE 1: Initialize distribution functions
             foreach (var el in elements)
             {
                 bool isWall = el.IsWall;
