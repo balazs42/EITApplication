@@ -39,6 +39,7 @@ namespace BusinessLayer
         private InitialDistributionTypes _initialDistributionType = InitialDistributionTypes.SlightlyDiffering;
         private bool _useOmpParallelization = false;
         private bool _useCudaParallelization = false;
+        private bool _usePotentialDifferences = false;
         private NumericSolver _numericSolverChoice = NumericSolver.LU;
         private ErrorMetric _errorMetricChoice = ErrorMetric.L2;
 
@@ -118,6 +119,7 @@ namespace BusinessLayer
                 initSigma = ConductivityClipper.Clip(initSigma);
                 _numericOptimizer = NumericOptimizerFactory.Create(parameters.NumericOptimizer, initSigma);
                 _drivePattern = parameters.DrivePattern;
+                _usePotentialDifferences = parameters.UsePotentialDifferences;
 
                 _inverseModel = InverseModelFactory.Create(_discretization, _numericOptimizer, _regularizer, _errorMetric, _differentialEquationSolver);
 
@@ -323,11 +325,13 @@ namespace BusinessLayer
 
             // Extract simulated potentials
             double[] simulatedPotentials = PotentialClipper.Clip(mesh.GetElectrodePotentials());
+            var projectedMeasurement = PrepareMeasurementData(currentMeasurement, electrodes.Count);
+            var projectedSimulated = PrepareSimulatedData(simulatedPotentials);
 
-            double currentError = _errorMetric.Evaluate(mesh, currentMeasurement, simulatedPotentials);
+            double currentError = _errorMetric.Evaluate(mesh, projectedMeasurement, projectedSimulated);
 
-            // Error metric based gradeint expression
-            var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, currentMeasurement, simulatedPotentials);
+            // Error metric based gradient expression
+            var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, projectedMeasurement, projectedSimulated);
 
             Complex[] adjointSource = new Complex[adjSrc.Length];
             for (int k = 0; k < adjSrc.Length; k++)
@@ -402,6 +406,42 @@ namespace BusinessLayer
             return expanded;
         }
 
+        private double[] PrepareMeasurementData(double[] measurement, int electrodeCount)
+        {
+            if (!_usePotentialDifferences)
+                return measurement;
+
+            int differenceLength = Math.Max(0, electrodeCount - 1);
+            if (measurement.Length == differenceLength)
+                return measurement;
+
+            return ComputeSequentialDifferences(measurement);
+        }
+
+        private double[] PrepareSimulatedData(double[] simulated)
+        {
+            if (!_usePotentialDifferences)
+                return simulated;
+
+            return ComputeSequentialDifferences(simulated);
+        }
+
+        private static double[] ComputeSequentialDifferences(double[] values)
+        {
+            if (values.Length <= 1)
+                return System.Array.Empty<double>();
+
+            double[] differences = new double[values.Length - 1];
+            for (int i = 0; i < differences.Length; i++)
+            {
+                double a = values[i];
+                double b = values[i + 1];
+                differences[i] = double.IsNaN(a) || double.IsNaN(b) ? double.NaN : b - a;
+            }
+
+            return differences;
+        }
+
         private ReconstructionFrame ComputeFemInverseStep(FEMMesh mesh,
                                                           FEMBoundaryCondition bc,
                                                           double[] currentMeasurement,
@@ -440,10 +480,13 @@ namespace BusinessLayer
 
             // Ensure the data vector mirrors the electrode ordering that the solver expects.
             var measurementVector = AlignMeasurementVector(currentMeasurement, electrodes);
+            var projectedMeasurement = PrepareMeasurementData(measurementVector, electrodes.Count);
+
             PotentialDistribution phi = PotentialClipper.Clip(solver.Solve(mesh, bc, null));
             double[] simulatedPotentials = PotentialClipper.Clip(mesh.GetElectrodePotentials());
+            var projectedSimulated = PrepareSimulatedData(simulatedPotentials);
 
-            var adjSrc = errorMetric.EvaluateAdjointSource(mesh, measurementVector, simulatedPotentials);
+            var adjSrc = errorMetric.EvaluateAdjointSource(mesh, projectedMeasurement, projectedSimulated);
             Complex[] adjointSource = new Complex[adjSrc.Length];
             for (int k = 0; k < adjSrc.Length; k++)
                 adjointSource[k] = adjSrc[k];
@@ -933,7 +976,9 @@ namespace BusinessLayer
                 double[] dObs = simulatedMeasurements[exc];
                 // Compare only the electrodes that are physically measured in the current configuration.
                 var alignedObs = AlignMeasurementVector(dObs, electrodes);
-                Jtotal += _errorMetric.Evaluate(mesh, alignedObs, dSimNew);
+                var projectedMeasurement = PrepareMeasurementData(alignedObs, electrodeCount);
+                var projectedSimulated = PrepareSimulatedData(dSimNew);
+                Jtotal += _errorMetric.Evaluate(mesh, projectedMeasurement, projectedSimulated);
             }
 
             return Jtotal;
@@ -961,11 +1006,13 @@ namespace BusinessLayer
 
             // Extract simulated potentials
             double[] simulatedPotentials = PotentialClipper.Clip(mesh.GetElectrodePotentials());
+            var projectedMeasurement = PrepareMeasurementData(currentMeasurement, electrodes.Count);
+            var projectedSimulated = PrepareSimulatedData(simulatedPotentials);
 
-            double currentError = _errorMetric.Evaluate(mesh, currentMeasurement, simulatedPotentials);
+            double currentError = _errorMetric.Evaluate(mesh, projectedMeasurement, projectedSimulated);
 
-            // Error metric based gradeint expression
-            var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, currentMeasurement, simulatedPotentials);
+            // Error metric based gradient expression
+            var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, projectedMeasurement, projectedSimulated);
 
             Complex[] adjointSource = new Complex[adjSrc.Length];
             for (int k = 0; k < adjSrc.Length; k++)
@@ -1305,7 +1352,9 @@ namespace BusinessLayer
                     double[] dObs = simulatedMeasurements[exc];
                     // Restrict the misfit to the subset of electrodes that produced readings.
                     var alignedObs = AlignMeasurementVector(dObs, electrodes);
-                    Jtotal += _errorMetric.Evaluate(mesh, alignedObs, dSimNew);
+                    var projectedMeasurement = PrepareMeasurementData(alignedObs, electrodeCount);
+                    var projectedSimulated = PrepareSimulatedData(dSimNew);
+                    Jtotal += _errorMetric.Evaluate(mesh, projectedMeasurement, projectedSimulated);
                 }
                 Debug.WriteLine($"Iteration {iter}: total misfit = {Jtotal}");
 
