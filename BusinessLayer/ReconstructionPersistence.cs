@@ -444,22 +444,27 @@ namespace BusinessLayer
         /// </summary>
         private static int CountMeasuringElectrodes(List<FEMElectrode> electrodes) => electrodes.Count(e => e.IsMeasuring);
 
-        private static int GetExpectedDifferenceLength(List<FEMElectrode> electrodes)
-        {
-            int measuringElectrodes = CountMeasuringElectrodes(electrodes);
-            return Math.Max(0, measuringElectrodes - 1);
-        }
-
         private static List<double> ExtractMeasuringValues(double[] values, List<FEMElectrode> electrodes)
         {
-            var measuring = new List<double>(CountMeasuringElectrodes(electrodes));
+            if (values == null || electrodes == null)
+                return new List<double>();
+
             int limit = Math.Min(values.Length, electrodes.Count);
+            var measuring = new List<double>(limit);
             for (int i = 0; i < limit; i++)
             {
-                if (!electrodes[i].IsMeasuring)
+                double sample = values[i];
+                if (double.IsNaN(sample))
                     continue;
 
-                measuring.Add(values[i]);
+                measuring.Add(sample);
+            }
+
+            for (int i = electrodes.Count; i < values.Length; i++)
+            {
+                double sample = values[i];
+                if (!double.IsNaN(sample))
+                    measuring.Add(sample);
             }
 
             return measuring;
@@ -470,8 +475,13 @@ namespace BusinessLayer
             if (!_usePotentialDifferences || measurement == null)
                 return false;
 
-            int expected = GetExpectedDifferenceLength(electrodes);
-            return measurement.Length == expected;
+            int measuringElectrodes = CountMeasuringElectrodes(electrodes);
+            int electrodeCount = electrodes.Count;
+
+            int measuringDifference = Math.Max(0, measuringElectrodes - 1);
+            int activeDifference = Math.Max(0, electrodeCount - 1);
+
+            return measurement.Length == measuringDifference || measurement.Length == activeDifference;
         }
 
         private static double[] AlignMeasurementVector(double[] measurement, List<FEMElectrode> electrodes, bool measurementIsDifference)
