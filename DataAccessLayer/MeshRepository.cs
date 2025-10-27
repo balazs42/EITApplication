@@ -1678,7 +1678,7 @@ namespace DataAccessLayer
                 foreach (var entry in row.EnumerateArray())
                 {
                     if (TryReadDouble(entry, out double value))
-                        values.Add(value);
+                        values.Add(value * 1000);
                 }
 
                 if (values.Count == 0)
