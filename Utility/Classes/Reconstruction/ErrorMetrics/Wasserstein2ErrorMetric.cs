@@ -178,10 +178,6 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
 
         private OptimalTransportResult SolveOT(IDiscretization discretization, double[] measured, double[] simulated)
         {
-            var all = discretization.GetElectrodes().OrderBy(e => e.Id).ToList();
-            if (all.Count != measured.Length || all.Count != simulated.Length)
-                throw new ArgumentException("Electrode count must match data length.");
-
             Func<Electrode, (double x, double y)> coord;
             if (discretization is LBMGrid lbm)
                 coord = e => { var le = (LBMElectrode)e; return ToXY(lbm, le.GridId); };
@@ -189,6 +185,17 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 coord = e => { var fe = (FEMElectrode)e; return GetCoord(fem, fe); };
             else
                 throw new ArgumentException("Wasserstein-2 currently implemented for LBMGrid or FEMMesh because it needs electrode coordinates.");
+
+            var all = discretization.GetElectrodes().OrderBy(e => e.Id).ToList();
+            bool usingDifferences = all.Count > 0 &&
+                                    measured.Length == all.Count - 1 &&
+                                    simulated.Length == all.Count - 1;
+
+            if (usingDifferences)
+                return SolveDifferenceOT(measured, simulated, all, coord);
+
+            if (all.Count != measured.Length || all.Count != simulated.Length)
+                throw new ArgumentException("Electrode count must match data length when using direct potentials.");
 
             // Determine which electrodes carry valid measurements.  Include
             // an electrode if the corresponding measured value is finite,
@@ -214,6 +221,33 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             return new OptimalTransportResult(measured, simulated, res.Cost, gradFull);
         }
 
+        private OptimalTransportResult SolveDifferenceOT(double[] measured, double[] simulated,
+            List<Electrode> electrodes, Func<Electrode, (double x, double y)> getCoord)
+        {
+            if (measured.Length != simulated.Length)
+                throw new ArgumentException("Measured and simulated difference arrays must have identical length.");
+
+            int differenceCount = measured.Length;
+            var include = new List<int>();
+            for (int i = 0; i < differenceCount; i++)
+                if (double.IsFinite(measured[i]) && double.IsFinite(simulated[i]))
+                    include.Add(i);
+
+            var (aRaw, aLoc, aMap) = BuildDifferenceDistribution(simulated, electrodes, getCoord, include);
+            var (bRaw, bLoc, _) = BuildDifferenceDistribution(measured, electrodes, getCoord, include);
+
+            if (aRaw.Length == 0 || bRaw.Length == 0)
+                return new OptimalTransportResult(measured, simulated, 0.0, new double[differenceCount]);
+
+            var res = w2_misfit_and_grad(aRaw, bRaw, aLoc, bLoc);
+
+            var grad = new double[differenceCount];
+            foreach (var (srcIdx, diffIdx) in aMap)
+                grad[diffIdx] = res.Grad[srcIdx];
+
+            return new OptimalTransportResult(measured, simulated, res.Cost, grad);
+        }
+
         private static (double[] raw, (double x, double y)[] loc, List<(int srcIdx, int electrodeIdx)> indexMap)
             BuildDistribution(double[] raw, List<Electrode> electrodes,
                 Func<Electrode, (double x, double y)> getCoord, List<int> include)
@@ -233,6 +267,40 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 coords.Add(getCoord(e));
                 map.Add((vals.Count - 1, i));
             }
+            return (vals.ToArray(), coords.ToArray(), map);
+        }
+
+        private static (double[] raw, (double x, double y)[] loc, List<(int srcIdx, int diffIdx)> indexMap)
+            BuildDifferenceDistribution(double[] raw, List<Electrode> electrodes,
+                Func<Electrode, (double x, double y)> getCoord, List<int> include)
+        {
+            var vals = new List<double>(include.Count);
+            var coords = new List<(double, double)>(include.Count);
+            var map = new List<(int, int)>(include.Count);
+
+            foreach (int diffIdx in include)
+            {
+                if (diffIdx < 0 || diffIdx >= raw.Length)
+                    continue;
+
+                double v = raw[diffIdx];
+                if (!double.IsFinite(v))
+                    continue;
+
+                int left = diffIdx;
+                int right = diffIdx + 1;
+                if (left < 0 || right >= electrodes.Count)
+                    continue;
+
+                var leftCoord = getCoord(electrodes[left]);
+                var rightCoord = getCoord(electrodes[right]);
+                var midpoint = ((leftCoord.x + rightCoord.x) * 0.5, (leftCoord.y + rightCoord.y) * 0.5);
+
+                vals.Add(v);
+                coords.Add(midpoint);
+                map.Add((vals.Count - 1, diffIdx));
+            }
+
             return (vals.ToArray(), coords.ToArray(), map);
         }
 
