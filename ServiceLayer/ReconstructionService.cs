@@ -673,7 +673,7 @@ namespace ServiceLayer
         /// driven electrodes (non-active mode), NaN placeholders are injected for those positions so that solver
         /// residuals can ignore them. Excess values are truncated with a warning.
         /// </summary>
-        private static double[] PrepareMeasurementFrame(double[] measurement, List<FEMElectrode> electrodes)
+        private double[] PrepareMeasurementFrame(double[] measurement, List<FEMElectrode> electrodes)
         {
             // Map the supplied measurement vector to the solver ordering.
             // When non-active data is provided only the measuring electrodes
@@ -682,6 +682,12 @@ namespace ServiceLayer
             int electrodeCount = electrodes.Count;
             if (electrodeCount == 0)
                 return measurement;
+
+            int measuringElectrodeCount = electrodes.Count(e => e.IsMeasuring);
+            int expectedDifferenceLength = Math.Max(0, measuringElectrodeCount - 1);
+
+            if (_usePotentialDifferences && measurement.Length == expectedDifferenceLength)
+                return (double[])measurement.Clone();
 
             if (measurement.Length == electrodeCount)
                 return measurement; // Already in full active form
@@ -695,7 +701,6 @@ namespace ServiceLayer
             // Allocate full frame and fill measuring positions sequentially from the provided data.
             double[] prepared = Enumerable.Repeat(double.NaN, electrodeCount).ToArray();
             int measurementIndex = 0;
-            int measuringElectrodeCount = electrodes.Count(e => e.IsMeasuring);
 
             for (int i = 0; i < electrodeCount; i++)
             {
