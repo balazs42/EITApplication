@@ -187,12 +187,15 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 throw new ArgumentException("Wasserstein-2 currently implemented for LBMGrid or FEMMesh because it needs electrode coordinates.");
 
             var all = discretization.GetElectrodes().OrderBy(e => e.Id).ToList();
-            bool usingDifferences = all.Count > 0 &&
-                                    measured.Length == all.Count - 1 &&
-                                    simulated.Length == all.Count - 1;
+            var measuring = all.Where(e => e.IsMeasuring).OrderBy(e => e.Id).ToList();
+            var differenceElectrodes = measuring.Count > 0 ? (IReadOnlyList<Electrode>)measuring : all;
+
+            int expectedDifferenceLength = Math.Max(0, differenceElectrodes.Count - 1);
+            bool usingDifferences = measured.Length == expectedDifferenceLength &&
+                                    simulated.Length == expectedDifferenceLength;
 
             if (usingDifferences)
-                return SolveDifferenceOT(measured, simulated, all, coord);
+                return SolveDifferenceOT(measured, simulated, differenceElectrodes, coord);
 
             if (all.Count != measured.Length || all.Count != simulated.Length)
                 throw new ArgumentException("Electrode count must match data length when using direct potentials.");
@@ -222,7 +225,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         }
 
         private OptimalTransportResult SolveDifferenceOT(double[] measured, double[] simulated,
-            List<Electrode> electrodes, Func<Electrode, (double x, double y)> getCoord)
+            IReadOnlyList<Electrode> electrodes, Func<Electrode, (double x, double y)> getCoord)
         {
             if (measured.Length != simulated.Length)
                 throw new ArgumentException("Measured and simulated difference arrays must have identical length.");
@@ -271,7 +274,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         }
 
         private static (double[] raw, (double x, double y)[] loc, List<(int srcIdx, int diffIdx)> indexMap)
-            BuildDifferenceDistribution(double[] raw, List<Electrode> electrodes,
+            BuildDifferenceDistribution(double[] raw, IReadOnlyList<Electrode> electrodes,
                 Func<Electrode, (double x, double y)> getCoord, List<int> include)
         {
             var vals = new List<double>(include.Count);
