@@ -60,6 +60,7 @@ namespace ServiceLayer
         // ("active") or omit them ("non-active").  This flag is mirrored to the workspace so that
         // the UI can communicate the acquisition mode to the user.
         private ElectrodeMeasurementSetup _measurementSetup = ElectrodeMeasurementSetup.Active;
+        private bool _usePotentialDifferences;
 
         /// <summary>
         /// Raised when a full reconstruction result is available (i.e., at the end of a cycle or batch).
@@ -260,6 +261,7 @@ namespace ServiceLayer
                 // Store noise settings for subsequent simulations/import handling.
                 _measurementNoiseType = parameters.MeasurementNoiseType;
                 _measurementNoiseAmplitude = parameters.MeasurementNoiseAmplitude;
+                _usePotentialDifferences = parameters.UsePotentialDifferences;
 
                 if (_measurementNoiseType == MeasurementNoiseType.None || Math.Abs(_measurementNoiseAmplitude) <= double.Epsilon)
                     Workspace.AddLogMessage("Reconstruction Service", "Measurement noise disabled.");
@@ -277,6 +279,11 @@ namespace ServiceLayer
                     Workspace.AddLogMessage("Reconstruction Service",
                         $"Measurement noise enabled: {_measurementNoiseType} (amplitude {amplitudeDescriptor}).");
                 }
+
+                Workspace.AddLogMessage("Reconstruction Service",
+                    _usePotentialDifferences
+                        ? "Using electrode potential differences for reconstruction misfit evaluation."
+                        : "Using direct electrode potentials for reconstruction misfit evaluation.");
 
                 // Seed measurement source state; we may swap to real measurements later.
                 _measurementSource = Workspace.GetMeasurementSource();
@@ -643,9 +650,13 @@ namespace ServiceLayer
             long totalMeasurements = (long)frameLength * frames.Count;
             long expectedActiveTotal = (long)electrodeCount * electrodeCount;
             long expectedNonActiveTotal = (long)electrodeCount * Math.Max(0, electrodeCount - 3);
+            int expectedDifferenceLength = Math.Max(0, electrodeCount - 1);
 
             bool looksActive = frameLength == electrodeCount || totalMeasurements == expectedActiveTotal;
             bool looksNonActive = !looksActive && (frameLength == Math.Max(0, electrodeCount - 2) || totalMeasurements == expectedNonActiveTotal);
+
+            if (_usePotentialDifferences && frameLength == expectedDifferenceLength)
+                looksActive = true;
 
             _measurementSetup = looksActive ? ElectrodeMeasurementSetup.Active : ElectrodeMeasurementSetup.NonActive;
 

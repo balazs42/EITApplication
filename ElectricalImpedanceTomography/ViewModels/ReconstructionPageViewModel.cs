@@ -1889,6 +1889,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 ExcitationElectrodeId,
                 GroundElectrodeId,
                 parameters.DrivePattern,
+                parameters.UsePotentialDifferences,
                 parameters.UseOmpParallelization,
                 parameters.UseCudaAcceleration);
 
@@ -2044,6 +2045,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             int ExcitationElectrodeId,
             int GroundElectrodeId,
             DrivePattern DrivePattern,
+            bool UsePotentialDifferences,
             bool UseOmpParallelization,
             bool UseCudaAcceleration);
 
