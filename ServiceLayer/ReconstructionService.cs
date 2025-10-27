@@ -650,13 +650,20 @@ namespace ServiceLayer
             long totalMeasurements = (long)frameLength * frames.Count;
             long expectedActiveTotal = (long)electrodeCount * electrodeCount;
             long expectedNonActiveTotal = (long)electrodeCount * Math.Max(0, electrodeCount - 3);
-            int expectedDifferenceLength = Math.Max(0, electrodeCount - 1);
+            int activeDifferenceLength = Math.Max(0, electrodeCount - 1);
+            int nonActiveDifferenceLength = Math.Max(0, electrodeCount - 3);
 
             bool looksActive = frameLength == electrodeCount || totalMeasurements == expectedActiveTotal;
             bool looksNonActive = !looksActive && (frameLength == Math.Max(0, electrodeCount - 2) || totalMeasurements == expectedNonActiveTotal);
 
-            if (_usePotentialDifferences && frameLength == expectedDifferenceLength)
-                looksActive = true;
+            if (_usePotentialDifferences)
+            {
+                if (frameLength == activeDifferenceLength)
+                    looksActive = true;
+
+                if (!looksActive && frameLength == nonActiveDifferenceLength)
+                    looksNonActive = true;
+            }
 
             _measurementSetup = looksActive ? ElectrodeMeasurementSetup.Active : ElectrodeMeasurementSetup.NonActive;
 
@@ -685,8 +692,9 @@ namespace ServiceLayer
 
             int measuringElectrodeCount = electrodes.Count(e => e.IsMeasuring);
             int expectedDifferenceLength = Math.Max(0, measuringElectrodeCount - 1);
+            int activeDifferenceLength = Math.Max(0, electrodeCount - 1);
 
-            if (_usePotentialDifferences && measurement.Length == expectedDifferenceLength)
+            if (_usePotentialDifferences && (measurement.Length == expectedDifferenceLength || measurement.Length == activeDifferenceLength))
                 return (double[])measurement.Clone();
 
             if (measurement.Length == electrodeCount)
