@@ -34,6 +34,9 @@ namespace Utility.Classes.ReconstructionParameters
         private DrivePattern drivePattern = DrivePattern.Adjecent;
 
         [ObservableProperty]
+        private bool usePotentialDifferences = false;
+
+        [ObservableProperty]
         private bool useOmpParallelization = false;
 
         [ObservableProperty]
@@ -61,6 +64,7 @@ namespace Utility.Classes.ReconstructionParameters
             MeasurementNoiseType = MeasurementNoiseType.None;
             MeasurementNoiseAmplitude = 0.0;
             DrivePattern = DrivePattern.Adjecent;
+            UsePotentialDifferences = false;
             UseOmpParallelization = false;
             UseCudaAcceleration = false;
             Mesh = DiscretizationType.FEM;
@@ -78,7 +82,8 @@ namespace Utility.Classes.ReconstructionParameters
                                            InitialDistributionTypes initialDistributionType = InitialDistributionTypes.SlightlyDiffering,
                                            MeasurementNoiseType measurementNoiseType = MeasurementNoiseType.None,
                                            double measurementNoiseAmplitude = 0.0,
-                                           DrivePattern drivePattern = DrivePattern.Adjecent)
+                                           DrivePattern drivePattern = DrivePattern.Adjecent,
+                                           bool usePotentialDifferences = false)
         {
             DifferentialEquationSolver = differentialEquationSolver;
             RegularizationTechnique = regularizationTechnique;
@@ -89,6 +94,7 @@ namespace Utility.Classes.ReconstructionParameters
             MeasurementNoiseType = measurementNoiseType;
             MeasurementNoiseAmplitude = measurementNoiseAmplitude;
             DrivePattern = drivePattern;
+            UsePotentialDifferences = usePotentialDifferences;
             UseOmpParallelization = false;
             UseCudaAcceleration = false;
 
