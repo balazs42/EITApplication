@@ -372,7 +372,13 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             {
                 double rawVal = raw[i];
                 if (!double.IsFinite(rawVal))
-                    rawVal = min;
+                {
+                    shifted[i] = 0.0;
+                    softplus[i] = 0.0;
+                    sigmoid[i] = 0.0;
+                    normalized[i] = 0.0;
+                    continue;
+                }
                 double val = rawVal - min;
                 shifted[i] = val;
                 double kx = kappa * val;
@@ -386,7 +392,10 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             }
 
             if (sum <= 0.0)
-                throw new InvalidOperationException("Normalisation resulted in zero total mass.");
+            {
+                Array.Clear(normalized, 0, normalized.Length);
+                return new NormalizationCache(raw, shifted, softplus, sigmoid, normalized, minIdx, 0.0);
+            }
 
             for (int i = 0; i < normalized.Length; i++)
                 normalized[i] /= sum;
@@ -419,6 +428,8 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             meanWeighted *= cache.Sum;
 
             double sum = cache.Sum;
+            if (sum <= 0.0)
+                return result;
             int minIdx = cache.MinIndex;
 
             for (int k = 0; k < n; k++)

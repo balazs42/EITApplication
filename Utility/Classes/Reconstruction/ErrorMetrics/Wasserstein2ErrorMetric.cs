@@ -1,7 +1,9 @@
 ﻿using Google.OrTools.LinearSolver;
+using Utility.Classes.Application;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
+using Utility.Classes.Measurement;
 using Utility.Classes.ReconstructionParameters;
 
 namespace Utility.Classes.Reconstruction.ErrorMetrics
@@ -188,14 +190,19 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
 
             var all = discretization.GetElectrodes().OrderBy(e => e.Id).ToList();
             var measuring = all.Where(e => e.IsMeasuring).OrderBy(e => e.Id).ToList();
-            var differenceElectrodes = measuring.Count > 0 ? (IReadOnlyList<Electrode>)measuring : all;
+            var pattern = Workspace.GetMeasurementPattern();
+            bool usingDifferences = pattern?.Representation == MeasurementRepresentation.PotentialDifference;
 
-            int expectedDifferenceLength = Math.Max(0, differenceElectrodes.Count - 1);
-            bool usingDifferences = measured.Length == expectedDifferenceLength &&
+            if (!usingDifferences)
+            {
+                var differenceElectrodes = measuring.Count > 0 ? (IReadOnlyList<Electrode>)measuring : all;
+                int expectedDifferenceLength = Math.Max(0, differenceElectrodes.Count - 1);
+                usingDifferences = measured.Length == expectedDifferenceLength &&
                                     simulated.Length == expectedDifferenceLength;
+            }
 
             if (usingDifferences)
-                return SolveDifferenceOT(measured, simulated, differenceElectrodes, coord);
+                return SolveDifferenceOT(measured, simulated, all, coord, pattern);
 
             if (all.Count != measured.Length || all.Count != simulated.Length)
                 throw new ArgumentException("Electrode count must match data length when using direct potentials.");
@@ -225,7 +232,9 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         }
 
         private OptimalTransportResult SolveDifferenceOT(double[] measured, double[] simulated,
-            IReadOnlyList<Electrode> electrodes, Func<Electrode, (double x, double y)> getCoord)
+            IReadOnlyList<Electrode> electrodes,
+            Func<Electrode, (double x, double y)> getCoord,
+            MeasurementPattern? pattern)
         {
             if (measured.Length != simulated.Length)
                 throw new ArgumentException("Measured and simulated difference arrays must have identical length.");
@@ -236,8 +245,15 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 if (double.IsFinite(measured[i]) && double.IsFinite(simulated[i]))
                     include.Add(i);
 
-            var (aRaw, aLoc, aMap) = BuildDifferenceDistribution(simulated, electrodes, getCoord, include);
-            var (bRaw, bLoc, _) = BuildDifferenceDistribution(measured, electrodes, getCoord, include);
+            if (include.Count == 0)
+                return new OptimalTransportResult(measured, simulated, 0.0, new double[differenceCount]);
+
+            var activePattern = pattern != null && pattern.SanitizedLength == differenceCount
+                ? pattern
+                : null;
+
+            var (aRaw, aLoc, aMap) = BuildDifferenceDistribution(simulated, electrodes, getCoord, include, activePattern);
+            var (bRaw, bLoc, _) = BuildDifferenceDistribution(measured, electrodes, getCoord, include, activePattern);
 
             if (aRaw.Length == 0 || bRaw.Length == 0)
                 return new OptimalTransportResult(measured, simulated, 0.0, new double[differenceCount]);
@@ -274,8 +290,11 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         }
 
         private static (double[] raw, (double x, double y)[] loc, List<(int srcIdx, int diffIdx)> indexMap)
-            BuildDifferenceDistribution(double[] raw, IReadOnlyList<Electrode> electrodes,
-                Func<Electrode, (double x, double y)> getCoord, List<int> include)
+            BuildDifferenceDistribution(double[] raw,
+                                        IReadOnlyList<Electrode> electrodes,
+                                        Func<Electrode, (double x, double y)> getCoord,
+                                        List<int> include,
+                                        MeasurementPattern? pattern)
         {
             var vals = new List<double>(include.Count);
             var coords = new List<(double, double)>(include.Count);
@@ -290,9 +309,22 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 if (!double.IsFinite(v))
                     continue;
 
-                int left = diffIdx;
-                int right = diffIdx + 1;
-                if (left < 0 || right >= electrodes.Count)
+                int left;
+                int right;
+                if (pattern != null && pattern.TryGetChannel(diffIdx, out var channel))
+                {
+                    left = channel.FirstElectrodeIndex;
+                    right = channel.SecondElectrodeIndex;
+                }
+                else
+                {
+                    left = diffIdx % electrodes.Count;
+                    right = (diffIdx + 1) % electrodes.Count;
+                }
+
+                if (left < 0 || left >= electrodes.Count)
+                    continue;
+                if (right < 0 || right >= electrodes.Count)
                     continue;
 
                 var leftCoord = getCoord(electrodes[left]);

@@ -46,7 +46,8 @@ public sealed class ReconstructionExportService : IReconstructionExportService
                                                       renderFrame,
                                                       displayMode,
                                                       directory,
-                                                      initialDistribution);
+                                                      initialDistribution,
+                                                      Workspace.GetMeasurementPattern());
 
         return Task.Run(() => _repository.ExportReconstructionData(request), cancellationToken);
     }

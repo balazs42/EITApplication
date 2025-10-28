@@ -13,7 +13,9 @@
 
         public static int currentFrameIndex = 0;
 
-        public EITMeasurement(List<double[]> frames)
+        public MeasurementPattern? Pattern { get; set; }
+
+        public EITMeasurement(List<double[]> frames, MeasurementPattern? pattern = null)
         {
             Frames = frames;
 
@@ -23,6 +25,7 @@
                     throw new ArgumentOutOfRangeException("All measurement frames should be of the same size!");
 
             FrameSize = Frames[0].Length;
+            Pattern = pattern;
         }
 
         public EITMeasurement(double[,] measurementFrames)
@@ -39,7 +42,7 @@
         }
 
 
-        public EITMeasurement(List<double[]> frames, double currentAmplitude)
+        public EITMeasurement(List<double[]> frames, double currentAmplitude, MeasurementPattern? pattern = null)
         {
             Frames = frames;
 
@@ -50,6 +53,7 @@
 
             FrameSize = Frames[0].Length;
             CurrentAmplitude = currentAmplitude;
+            Pattern = pattern;
         }
 
         public double[] GetNextFrame()
