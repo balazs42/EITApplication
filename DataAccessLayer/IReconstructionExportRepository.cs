@@ -2,6 +2,7 @@ using Utility.Exports;
 using Utility.Rendering;
 using Utility.Classes;
 using Utility.Classes.Discretizer;
+using Utility.Classes.Measurement;
 
 namespace DataAccessLayer;
 
@@ -16,4 +17,5 @@ public sealed record ReconstructionExportRequest(IDiscretization Discretization,
                                                   ReconstructionFrame RenderFrame,
                                                   PotentialDisplayMode DisplayMode,
                                                   string TargetDirectory,
-                                                  ConductivityDistribution InitialDistribution);
+                                                  ConductivityDistribution InitialDistribution,
+                                                  MeasurementPattern? MeasurementPattern);

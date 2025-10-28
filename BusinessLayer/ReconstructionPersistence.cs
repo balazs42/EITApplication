@@ -394,17 +394,24 @@ namespace BusinessLayer
                 : _differentialEquationSolver.Solve(mesh, bc, null);
             phi = PotentialClipper.Clip(phi);
 
-            // Extract simulated potentials and project both measured and simulated to the active representation
+            // Extract simulated potentials and project both measured and simulated to the representation
             double[] simulatedPotentials = PotentialClipper.Clip(mesh.GetElectrodePotentials());
-            var projectedMeasurement = PrepareMeasurementData(currentMeasurement, electrodes.Count);
-            var projectedSimulated = PrepareSimulatedData(simulatedPotentials);
+            var measurementSetup = Workspace.GetElectrodeMeasurementSetup();
+            var electrodeProjectionList = electrodes.Cast<Electrode>().ToList();
+            // Normalise Option 1–4 frames (see MeasurementPattern) prior to evaluating the misfit.
+            var projection = MeasurementProjector.Create(electrodeProjectionList,
+                                                         measurementSetup,
+                                                         _usePotentialDifferences,
+                                                         currentMeasurement,
+                                                         simulatedPotentials);
+            Workspace.SetMeasurementPattern(projection.Pattern);
 
-            double currentError = _errorMetric.Evaluate(mesh, projectedMeasurement, projectedSimulated);
+            double currentError = _errorMetric.Evaluate(mesh, projection.Measured, projection.Simulated);
             _ = currentError; // error value is not stored in this frame, but could be logged if needed
 
             // Error metric based gradient expression
-            var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, projectedMeasurement, projectedSimulated);
-            var expandedAdjoint = BuildAdjointSourceVector(adjSrc, electrodes.Count);
+            var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, projection.Measured, projection.Simulated);
+            var expandedAdjoint = projection.ExpandAdjoint(adjSrc);
             Complex[] adjointSource = ToComplex(expandedAdjoint);
 
             // Adjoint solve using the same boundary condition shape but with source applied
@@ -436,235 +443,6 @@ namespace BusinessLayer
 
             // LBM path in this routine does not compute explicit regularization (left empty)
             return new ReconstructionFrame(dataGrad, phi, mu, new ConductivityDistribution([]));
-        }
-
-        /// <summary>
-        /// Expands a measurement vector to match the FEM electrode list ordering expected by the solver.
-        /// Pads missing entries with NaNs and trims excess if needed. Non-measuring electrodes are ignored.
-        /// </summary>
-        private static int CountMeasuringElectrodes(List<FEMElectrode> electrodes) => electrodes.Count(e => e.IsMeasuring);
-
-        private static List<double> ExtractMeasuringValues(double[] values, List<FEMElectrode> electrodes)
-        {
-            if (values == null || electrodes == null)
-                return new List<double>();
-
-            int limit = Math.Min(values.Length, electrodes.Count);
-            var measuring = new List<double>(limit);
-            for (int i = 0; i < limit; i++)
-            {
-                double sample = values[i];
-                if (double.IsNaN(sample))
-                    continue;
-
-                measuring.Add(sample);
-            }
-
-            for (int i = electrodes.Count; i < values.Length; i++)
-            {
-                double sample = values[i];
-                if (!double.IsNaN(sample))
-                    measuring.Add(sample);
-            }
-
-            return measuring;
-        }
-
-        private bool MeasurementRepresentsDifferences(double[] measurement, List<FEMElectrode> electrodes)
-        {
-            if (!_usePotentialDifferences || measurement == null)
-                return false;
-
-            int measuringElectrodes = CountMeasuringElectrodes(electrodes);
-            int electrodeCount = electrodes.Count;
-
-            int measuringDifference = Math.Max(0, measuringElectrodes - 1);
-            int activeDifference = Math.Max(0, electrodeCount - 1);
-
-            return measurement.Length == measuringDifference || measurement.Length == activeDifference;
-        }
-
-        private static double[] AlignMeasurementVector(double[] measurement, List<FEMElectrode> electrodes, bool measurementIsDifference)
-        {
-            if (measurementIsDifference)
-                return (double[])measurement.Clone();
-
-            // Rebuild a length-M vector compatible with the FEM solver.  Missing entries
-            // from non-active datasets are padded with NaNs so that the misfit ignores
-            // excitation electrodes while preserving index alignment.
-            int electrodeCount = electrodes.Count;
-            if (electrodeCount == 0)
-                return measurement;
-
-            if (measurement.Length == electrodeCount)
-                return measurement;
-
-            if (measurement.Length > electrodeCount)
-                return measurement.Take(electrodeCount).ToArray();
-
-            double[] expanded = Enumerable.Repeat(double.NaN, electrodeCount).ToArray();
-            int measurementIndex = 0;
-            int measuringElectrodes = electrodes.Count(e => e.IsMeasuring);
-
-            for (int i = 0; i < electrodeCount && measurementIndex < measurement.Length; i++)
-            {
-                if (!electrodes[i].IsMeasuring)
-                    continue;
-
-                expanded[i] = measurement[measurementIndex++];
-            }
-
-            if (measurementIndex < measurement.Length)
-                Workspace.AddWarningMessage($"Discarding {measurement.Length - measurementIndex} excess measurement entries that cannot be mapped to electrodes.");
-            else if (measurement.Length < measuringElectrodes)
-            {
-                bool expectedMissing = Workspace.GetElectrodeMeasurementSetup() == ElectrodeMeasurementSetup.NonActive &&
-                                        measurement.Length == Math.Max(0, measuringElectrodes - 1);
-
-                if (!expectedMissing)
-                    Workspace.AddWarningMessage($"Measurement frame supplies only {measurementIndex} of {measuringElectrodes} measuring electrodes. Missing values will be ignored.");
-            }
-
-            return expanded;
-        }
-
-        /// <summary>
-        /// Projects measured data into the configured representation.
-        /// When potential differences are enabled, measurements coming from the measuring-electrode subset are
-        /// transformed into sequential differences; otherwise the values are returned unchanged.
-        /// </summary>
-        private double[] PrepareMeasurementData(double[] measurement, List<FEMElectrode> electrodes, bool measurementIsDifference)
-        {
-            if (!_usePotentialDifferences)
-                return measurement;
-
-            if (measurementIsDifference)
-                return (double[])measurement.Clone();
-
-            var measuringValues = ExtractMeasuringValues(measurement, electrodes);
-            return ComputeSequentialDifferences(measuringValues);
-        }
-
-        private double[] PrepareMeasurementData(double[] measurement, int electrodeCount)
-        {
-            if (!_usePotentialDifferences)
-                return measurement;
-
-            int differenceLength = Math.Max(0, electrodeCount - 1);
-            if (measurement.Length == differenceLength)
-                return (double[])measurement.Clone();
-
-            return ComputeSequentialDifferences(measurement);
-        }
-
-        /// <summary>
-        /// Projects simulated data into the configured representation; symmetric to <see cref="PrepareMeasurementData"/>.
-        /// </summary>
-        private double[] PrepareSimulatedData(double[] simulated, List<FEMElectrode> electrodes)
-        {
-            if (!_usePotentialDifferences)
-                return simulated;
-
-            var measuringValues = ExtractMeasuringValues(simulated, electrodes);
-            return ComputeSequentialDifferences(measuringValues);
-        }
-
-        private double[] PrepareSimulatedData(double[] simulated)
-        {
-            if (!_usePotentialDifferences)
-                return simulated;
-
-            return ComputeSequentialDifferences(simulated);
-        }
-
-        /// <summary>
-        /// Computes first-order forward differences v[i+1]-v[i] while preserving NaNs
-        /// (any pair including a NaN yields NaN at the difference index).
-        /// </summary>
-        private static double[] ComputeSequentialDifferences(IReadOnlyList<double> values)
-        {
-            if (values.Count <= 1)
-                return System.Array.Empty<double>();
-
-            double[] differences = new double[values.Count - 1];
-            for (int i = 0; i < differences.Length; i++)
-            {
-                double a = values[i];
-                double b = values[i + 1];
-                differences[i] = double.IsNaN(a) || double.IsNaN(b) ? double.NaN : b - a;
-            }
-
-            return differences;
-        }
-
-        /// <summary>
-        /// Ensures the adjoint source vector matches the number of electrodes.
-        /// Expands from difference-space to full electrodes if needed and resizes with zero-padding/truncation.
-        /// </summary>
-        private double[] BuildAdjointSourceVector(double[] adjoint, int electrodeCount)
-        {
-            if (electrodeCount <= 0)
-                return Array.Empty<double>();
-
-            double[] values = adjoint;
-
-            if (_usePotentialDifferences)
-                values = ExpandSequentialDifferenceAdjoint(values, electrodeCount);
-
-            if (values.Length == electrodeCount)
-                return values;
-
-            double[] resized = new double[electrodeCount];
-            int copyLength = Math.Min(values.Length, electrodeCount);
-            Array.Copy(values, resized, copyLength);
-
-            if (values.Length > electrodeCount)
-            {
-                Workspace.AddWarningMessage($"Discarding {values.Length - electrodeCount} adjoint source entries that cannot be mapped to electrodes.");
-            }
-            else if (values.Length < electrodeCount)
-            {
-                for (int i = copyLength; i < electrodeCount; i++)
-                    resized[i] = 0.0;
-            }
-
-            return resized;
-        }
-
-        /// <summary>
-        /// Inverse of the difference operator used for potential differences representation.
-        /// Maps an (N-1)-length difference adjoint vector back to an N-length per-electrode vector.
-        /// </summary>
-        private static double[] ExpandSequentialDifferenceAdjoint(double[] adjoint, int electrodeCount)
-        {
-            if (electrodeCount <= 0)
-                return Array.Empty<double>();
-
-            if (adjoint.Length == electrodeCount)
-                return adjoint;
-
-            if (adjoint.Length == 0)
-                return new double[electrodeCount];
-
-            if (adjoint.Length != electrodeCount - 1)
-                return adjoint;
-
-            double[] expanded = new double[electrodeCount];
-
-            if (electrodeCount == 1)
-                return expanded;
-
-            // The adjoint for sequential differences is equivalent to the negative discrete divergence
-            expanded[0] = -adjoint[0];
-            for (int i = 1; i < electrodeCount - 1; i++)
-            {
-                double left = adjoint[i - 1];
-                double right = adjoint[i];
-                expanded[i] = left - right;
-            }
-            expanded[electrodeCount - 1] = adjoint[adjoint.Length - 1];
-
-            return expanded;
         }
 
         /// <summary>
@@ -720,19 +498,23 @@ namespace BusinessLayer
                 elements = mesh.GetElements().Cast<FEMElement>().ToList();
             }
 
-            // Ensure the data vector mirrors the electrode ordering that the solver expects.
-            bool measurementIsDifference = MeasurementRepresentsDifferences(currentMeasurement, electrodes);
-            var measurementVector = AlignMeasurementVector(currentMeasurement, electrodes, measurementIsDifference);
-            var projectedMeasurement = PrepareMeasurementData(measurementVector, electrodes, measurementIsDifference);
-
             // Forward solve: φ
             PotentialDistribution phi = PotentialClipper.Clip(solver.Solve(mesh, bc, null));
             double[] simulatedPotentials = PotentialClipper.Clip(mesh.GetElectrodePotentials());
-            var projectedSimulated = PrepareSimulatedData(simulatedPotentials, electrodes);
+
+            var measurementSetup = Workspace.GetElectrodeMeasurementSetup();
+            var electrodeProjectionList = electrodes.Cast<Electrode>().ToList();
+            // Normalise Option 1–4 frames (see MeasurementPattern) prior to evaluating the misfit.
+            var projection = MeasurementProjector.Create(electrodeProjectionList,
+                                                         measurementSetup,
+                                                         _usePotentialDifferences,
+                                                         currentMeasurement,
+                                                         simulatedPotentials);
+            Workspace.SetMeasurementPattern(projection.Pattern);
 
             // Build adjoint source from error metric and project back to electrode-space
-            var adjSrc = errorMetric.EvaluateAdjointSource(mesh, projectedMeasurement, projectedSimulated);
-            var expandedAdjoint = BuildAdjointSourceVector(adjSrc, electrodes.Count);
+            var adjSrc = errorMetric.EvaluateAdjointSource(mesh, projection.Measured, projection.Simulated);
+            var expandedAdjoint = projection.ExpandAdjoint(adjSrc);
             Complex[] adjointSource = ToComplex(expandedAdjoint);
 
             // Adjoint solve: μ
@@ -1229,14 +1011,18 @@ namespace BusinessLayer
                 electrodes[(exc + 1) % electrodeCount].Current = -excitationAmplitude;
 
                 _ = _differentialEquationSolver.Solve(mesh, bc, null);
-                double[] dSimNew = mesh.GetElectrodePotentials();
+                double[] dSimNew = PotentialClipper.Clip(mesh.GetElectrodePotentials());
                 double[] dObs = simulatedMeasurements[exc];
-                bool measurementIsDifference = MeasurementRepresentsDifferences(dObs, electrodes);
-                // Compare only the electrodes that are physically measured in the current configuration.
-                var alignedObs = AlignMeasurementVector(dObs, electrodes, measurementIsDifference);
-                var projectedMeasurement = PrepareMeasurementData(alignedObs, electrodes, measurementIsDifference);
-                var projectedSimulated = PrepareSimulatedData(dSimNew, electrodes);
-                Jtotal += _errorMetric.Evaluate(mesh, projectedMeasurement, projectedSimulated);
+                var measurementSetup = Workspace.GetElectrodeMeasurementSetup();
+                var electrodeProjectionList = electrodes.Cast<Electrode>().ToList();
+                // Normalise Option 1–4 frames (see MeasurementPattern) prior to evaluating the misfit.
+                var projection = MeasurementProjector.Create(electrodeProjectionList,
+                                                             measurementSetup,
+                                                             _usePotentialDifferences,
+                                                             dObs,
+                                                             dSimNew);
+                Workspace.SetMeasurementPattern(projection.Pattern);
+                Jtotal += _errorMetric.Evaluate(mesh, projection.Measured, projection.Simulated);
             }
 
             return Jtotal;
@@ -1268,15 +1054,21 @@ namespace BusinessLayer
 
             // Extract simulated potentials
             double[] simulatedPotentials = PotentialClipper.Clip(mesh.GetElectrodePotentials());
-            var projectedMeasurement = PrepareMeasurementData(currentMeasurement, electrodes.Count);
-            var projectedSimulated = PrepareSimulatedData(simulatedPotentials);
+            var measurementSetup = Workspace.GetElectrodeMeasurementSetup();
+            var electrodeProjectionList = electrodes.Cast<Electrode>().ToList();
+            var projection = MeasurementProjector.Create(electrodeProjectionList,
+                                                         measurementSetup,
+                                                         _usePotentialDifferences,
+                                                         currentMeasurement,
+                                                         simulatedPotentials);
+            Workspace.SetMeasurementPattern(projection.Pattern);
 
-            double currentError = _errorMetric.Evaluate(mesh, projectedMeasurement, projectedSimulated);
+            double currentError = _errorMetric.Evaluate(mesh, projection.Measured, projection.Simulated);
             _ = currentError;
 
             // Error metric based gradient expression
-            var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, projectedMeasurement, projectedSimulated);
-            var expandedAdjoint = BuildAdjointSourceVector(adjSrc, electrodes.Count);
+            var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, projection.Measured, projection.Simulated);
+            var expandedAdjoint = projection.ExpandAdjoint(adjSrc);
             Complex[] adjointSource = ToComplex(expandedAdjoint);
 
             var adjointBoundaryCondition = new LBMBoundaryCondition(electrodes);
@@ -1397,7 +1189,9 @@ namespace BusinessLayer
             var strategy = DrivePatternStrategyProvider.GetStrategy(drivePattern);
             int cycleLength = Math.Max(1, strategy.GetCycleLength(electrodeCount));
 
-            double[,] measurementFrames = new double[cycleLength, electrodeCount];
+            var frames = new List<double[]>(cycleLength);
+
+            MeasurementPattern? referencePattern = null;
 
             for (int i = 0; i < cycleLength; i++)
             {
@@ -1425,13 +1219,18 @@ namespace BusinessLayer
 
                 _ = _differentialEquationSolver.Solve(deepCopy, boundaryCondition, null);
 
-                double[] electrodePotentials = deepCopy.GetElectrodePotentials();
-
-                for (int j = 0; j < electrodeCount; j++)
-                    measurementFrames[i, j] = electrodePotentials[j];
+                double[] electrodePotentials = PotentialClipper.Clip(deepCopy.GetElectrodePotentials());
+                var measurementSetup = Workspace.GetElectrodeMeasurementSetup();
+                var electrodeProjectionList = electrodes.Cast<Electrode>().ToList();
+                var pattern = MeasurementPatternBuilder.Build(electrodeProjectionList,
+                                                              measurementSetup,
+                                                              _usePotentialDifferences);
+                referencePattern ??= pattern;
+                frames.Add(pattern.ExtractRawMeasurement(electrodePotentials));
             }
 
-            return new EITMeasurement(measurementFrames);
+            Workspace.SetMeasurementPattern(referencePattern);
+            return new EITMeasurement(frames, referencePattern);
         }
 
         #endregion
@@ -1625,12 +1424,16 @@ namespace BusinessLayer
                     var phiNew = PotentialClipper.Clip(_differentialEquationSolver.Solve(mesh, bc, null));
                     double[] dSimNew = PotentialClipper.Clip(mesh.GetElectrodePotentials());
                     double[] dObs = simulatedMeasurements[exc];
-                    bool measurementIsDifference = MeasurementRepresentsDifferences(dObs, electrodes);
-                    // Restrict the misfit to the subset of electrodes that produced readings.
-                    var alignedObs = AlignMeasurementVector(dObs, electrodes, measurementIsDifference);
-                    var projectedMeasurement = PrepareMeasurementData(alignedObs, electrodes, measurementIsDifference);
-                    var projectedSimulated = PrepareSimulatedData(dSimNew, electrodes);
-                    Jtotal += _errorMetric.Evaluate(mesh, projectedMeasurement, projectedSimulated);
+                    var measurementSetup = Workspace.GetElectrodeMeasurementSetup();
+                    var electrodeProjectionList = electrodes.Cast<Electrode>().ToList();
+                    // Normalise Option 1–4 frames (see MeasurementPattern) prior to evaluating the misfit.
+                    var projection = MeasurementProjector.Create(electrodeProjectionList,
+                                                                 measurementSetup,
+                                                                 _usePotentialDifferences,
+                                                                 dObs,
+                                                                 dSimNew);
+                    Workspace.SetMeasurementPattern(projection.Pattern);
+                    Jtotal += _errorMetric.Evaluate(mesh, projection.Measured, projection.Simulated);
                 }
                 Debug.WriteLine($"Iteration {iter}: total misfit = {Jtotal}");
 
@@ -1673,6 +1476,8 @@ namespace BusinessLayer
             var strategy = DrivePatternStrategyProvider.GetStrategy(drivePattern);
             int cycleLength = Math.Max(1, strategy.GetCycleLength(electrodeCount));
 
+            MeasurementPattern? referencePattern = null;
+
             for (int i = 0; i < cycleLength; i++)
             {
                 // Clear electrode status
@@ -1696,9 +1501,17 @@ namespace BusinessLayer
 
                 FEMMesh result = SolveFemForward(deepCopy);
 
-                measurements.Add(PotentialClipper.Clip(result.GetElectrodePotentials()));
+                double[] potentials = PotentialClipper.Clip(result.GetElectrodePotentials());
+                var measurementSetup = Workspace.GetElectrodeMeasurementSetup();
+                var electrodeProjectionList = electrodes.Cast<Electrode>().ToList();
+                var pattern = MeasurementPatternBuilder.Build(electrodeProjectionList,
+                                                              measurementSetup,
+                                                              _usePotentialDifferences);
+                referencePattern ??= pattern;
+                measurements.Add(pattern.ExtractRawMeasurement(potentials));
             }
 
+            Workspace.SetMeasurementPattern(referencePattern);
             return measurements;
         }
 

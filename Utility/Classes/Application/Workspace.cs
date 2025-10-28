@@ -48,6 +48,7 @@ namespace Utility.Classes.Application
         private static string? _importedMeasurementLabel;
         private static MeasurementSourceOption _measurementSource = MeasurementSourceOption.Simulated;
         private static ElectrodeMeasurementSetup _electrodeMeasurementSetup = ElectrodeMeasurementSetup.Active;
+        private static MeasurementPattern? _measurementPattern;
 
         public static event Action<ElectrodeMeasurementSetup>? ElectrodeMeasurementSetupChanged;
 
@@ -193,6 +194,21 @@ namespace Utility.Classes.Application
 
             _measurementSource = source;
         }
+
+        /// <summary>
+        /// Retrieves the most recently configured measurement pattern.  The
+        /// pattern captures which electrodes contribute to the sanitised
+        /// measurement vector and how potential differences are assembled.
+        /// </summary>
+        public static MeasurementPattern? GetMeasurementPattern() => _measurementPattern;
+
+        /// <summary>
+        /// Stores the active measurement pattern so that services, error
+        /// metrics, and export routines can share a consistent description of
+        /// the acquisition layout.
+        /// </summary>
+        public static void SetMeasurementPattern(MeasurementPattern? pattern)
+            => _measurementPattern = pattern;
 
         public static int MaxIterationCount
         {
