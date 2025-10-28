@@ -327,12 +327,8 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 if (right < 0 || right >= electrodes.Count)
                     continue;
 
-                var leftCoord = getCoord(electrodes[left]);
-                var rightCoord = getCoord(electrodes[right]);
-                var midpoint = ((leftCoord.x + rightCoord.x) * 0.5, (leftCoord.y + rightCoord.y) * 0.5);
-
                 vals.Add(v);
-                coords.Add(midpoint);
+                coords.Add(getCoord(electrodes[left]));
                 map.Add((vals.Count - 1, diffIdx));
             }
 
