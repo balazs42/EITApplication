@@ -49,6 +49,7 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
                 initialMetadata.Add(("MAE", FormatDouble(metrics.Mae)));
                 initialMetadata.Add(("RMSE", FormatDouble(metrics.Rmse)));
             }
+            initialMetadata.Add(("Measurement Mode", DescribeMeasurementPattern(request.MeasurementPattern)));
 
             ReconstructionVideoRenderer.SaveDistributionSnapshot(request.TargetDirectory,
                                      "initial_distribution.png",
@@ -71,6 +72,7 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
                 finalMetadata.Add(("SSIM", FormatDouble(metrics.Ssim)));
             }
             finalMetadata.Add(("Correlation", FormatDouble(latestSnapshot.Correlation)));
+            finalMetadata.Add(("Measurement Mode", DescribeMeasurementPattern(request.MeasurementPattern)));
 
             ReconstructionVideoRenderer.SaveDistributionSnapshot(request.TargetDirectory,
                                      "reconstructed_distribution_latest.png",
@@ -352,6 +354,21 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
             ("Maximum σ", FormatNullableDouble(stats.Max)),
             ("Mean σ", FormatNullableDouble(stats.Mean))
         };
+    }
+
+    private static string DescribeMeasurementPattern(MeasurementPattern? pattern)
+    {
+        if (pattern == null)
+            return "Unknown";
+
+        string representation = pattern.Representation == MeasurementRepresentation.PotentialDifference
+            ? "Potential difference"
+            : "Amplitude";
+        string setup = pattern.MeasurementSetup == ElectrodeMeasurementSetup.NonActive
+            ? "non-active electrodes"
+            : "active electrodes";
+
+        return $"{representation} - {setup}";
     }
 
     private static string FormatCsvValue(double value)

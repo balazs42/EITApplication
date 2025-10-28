@@ -38,10 +38,12 @@ namespace Utility.Classes.Measurement
         private readonly Dictionary<int, MeasurementChannel> _channelByTargetIndex;
 
         internal MeasurementPattern(MeasurementRepresentation representation,
+                                    ElectrodeMeasurementSetup measurementSetup,
                                     int sanitizedLength,
                                     IList<MeasurementChannel> channels)
         {
             Representation = representation;
+            MeasurementSetup = measurementSetup;
             SanitizedLength = sanitizedLength;
             _channels = new ReadOnlyCollection<MeasurementChannel>(channels.ToList());
             _channelByTargetIndex = channels.ToDictionary(c => c.TargetIndex);
@@ -52,6 +54,14 @@ namespace Utility.Classes.Measurement
         /// potential differences.
         /// </summary>
         public MeasurementRepresentation Representation { get; }
+
+        /// <summary>
+        /// Identifies whether the underlying acquisition provided data on all
+        /// electrodes (<see cref="ElectrodeMeasurementSetup.Active"/>) or
+        /// omitted the currently driven contacts
+        /// (<see cref="ElectrodeMeasurementSetup.NonActive"/>).
+        /// </summary>
+        public ElectrodeMeasurementSetup MeasurementSetup { get; }
 
         /// <summary>
         /// The length of the sanitised vectors forwarded to the error metrics
@@ -195,7 +205,10 @@ namespace Utility.Classes.Measurement
 
             int electrodeCount = electrodes.Count;
             if (electrodeCount == 0)
-                return new MeasurementPattern(MeasurementRepresentation.Amplitude, 0, []);
+                return new MeasurementPattern(MeasurementRepresentation.Amplitude,
+                                              ElectrodeMeasurementSetup.Active,
+                                              0,
+                                              []);
 
             if (!usePotentialDifferences)
                 return BuildAmplitudePattern(electrodes, setup);
@@ -221,7 +234,10 @@ namespace Utility.Classes.Measurement
             if (channels.Count == 0)
                 Workspace.AddWarningMessage("Amplitude measurement pattern contains no measuring electrodes.");
 
-            return new MeasurementPattern(MeasurementRepresentation.Amplitude, electrodeCount, channels);
+            return new MeasurementPattern(MeasurementRepresentation.Amplitude,
+                                          setup,
+                                          electrodeCount,
+                                          channels);
         }
 
         private static MeasurementPattern BuildDifferencePattern(IReadOnlyList<Electrode> electrodes,
@@ -255,7 +271,10 @@ namespace Utility.Classes.Measurement
             if (channels.Count == 0)
                 Workspace.AddWarningMessage("Potential-difference measurement pattern contains no valid channels.");
 
-            return new MeasurementPattern(MeasurementRepresentation.PotentialDifference, electrodeCount, channels);
+            return new MeasurementPattern(MeasurementRepresentation.PotentialDifference,
+                                          setup,
+                                          electrodeCount,
+                                          channels);
         }
     }
 

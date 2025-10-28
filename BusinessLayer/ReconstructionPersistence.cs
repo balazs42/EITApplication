@@ -404,6 +404,7 @@ namespace BusinessLayer
                                                          _usePotentialDifferences,
                                                          currentMeasurement,
                                                          simulatedPotentials);
+            Workspace.SetMeasurementPattern(projection.Pattern);
 
             double currentError = _errorMetric.Evaluate(mesh, projection.Measured, projection.Simulated);
             _ = currentError; // error value is not stored in this frame, but could be logged if needed
@@ -509,6 +510,7 @@ namespace BusinessLayer
                                                          _usePotentialDifferences,
                                                          currentMeasurement,
                                                          simulatedPotentials);
+            Workspace.SetMeasurementPattern(projection.Pattern);
 
             // Build adjoint source from error metric and project back to electrode-space
             var adjSrc = errorMetric.EvaluateAdjointSource(mesh, projection.Measured, projection.Simulated);
@@ -1019,6 +1021,7 @@ namespace BusinessLayer
                                                              _usePotentialDifferences,
                                                              dObs,
                                                              dSimNew);
+                Workspace.SetMeasurementPattern(projection.Pattern);
                 Jtotal += _errorMetric.Evaluate(mesh, projection.Measured, projection.Simulated);
             }
 
@@ -1058,6 +1061,7 @@ namespace BusinessLayer
                                                          _usePotentialDifferences,
                                                          currentMeasurement,
                                                          simulatedPotentials);
+            Workspace.SetMeasurementPattern(projection.Pattern);
 
             double currentError = _errorMetric.Evaluate(mesh, projection.Measured, projection.Simulated);
             _ = currentError;
@@ -1187,6 +1191,8 @@ namespace BusinessLayer
 
             var frames = new List<double[]>(cycleLength);
 
+            MeasurementPattern? referencePattern = null;
+
             for (int i = 0; i < cycleLength; i++)
             {
                 // Clear electrode status
@@ -1219,10 +1225,12 @@ namespace BusinessLayer
                 var pattern = MeasurementPatternBuilder.Build(electrodeProjectionList,
                                                               measurementSetup,
                                                               _usePotentialDifferences);
+                referencePattern ??= pattern;
                 frames.Add(pattern.ExtractRawMeasurement(electrodePotentials));
             }
 
-            return new EITMeasurement(frames);
+            Workspace.SetMeasurementPattern(referencePattern);
+            return new EITMeasurement(frames, referencePattern);
         }
 
         #endregion
@@ -1424,6 +1432,7 @@ namespace BusinessLayer
                                                                  _usePotentialDifferences,
                                                                  dObs,
                                                                  dSimNew);
+                    Workspace.SetMeasurementPattern(projection.Pattern);
                     Jtotal += _errorMetric.Evaluate(mesh, projection.Measured, projection.Simulated);
                 }
                 Debug.WriteLine($"Iteration {iter}: total misfit = {Jtotal}");
@@ -1467,6 +1476,8 @@ namespace BusinessLayer
             var strategy = DrivePatternStrategyProvider.GetStrategy(drivePattern);
             int cycleLength = Math.Max(1, strategy.GetCycleLength(electrodeCount));
 
+            MeasurementPattern? referencePattern = null;
+
             for (int i = 0; i < cycleLength; i++)
             {
                 // Clear electrode status
@@ -1496,9 +1507,11 @@ namespace BusinessLayer
                 var pattern = MeasurementPatternBuilder.Build(electrodeProjectionList,
                                                               measurementSetup,
                                                               _usePotentialDifferences);
+                referencePattern ??= pattern;
                 measurements.Add(pattern.ExtractRawMeasurement(potentials));
             }
 
+            Workspace.SetMeasurementPattern(referencePattern);
             return measurements;
         }
 
