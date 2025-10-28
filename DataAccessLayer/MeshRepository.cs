@@ -1095,7 +1095,8 @@ namespace DataAccessLayer
                         var excitation = electrodes[excitationId];
                         excitation.IsExcitation = true;
                         excitation.IsMeasuring = false;
-                        excitation.Current = firstAmps != null && firstAmps.Length > 0 ? firstAmps[0] : excitation.Current;
+                        // First entry is the negative current, second entry is the positive current
+                        excitation.Current = firstAmps != null && firstAmps.Length > 0 ? firstAmps[1] : excitation.Current;
                     }
 
                     if (groundId >= 0 && groundId < electrodes.Count)
@@ -1103,7 +1104,7 @@ namespace DataAccessLayer
                         var ground = electrodes[groundId];
                         ground.IsGround = true;
                         ground.IsMeasuring = false;
-                        ground.Current = firstAmps != null && firstAmps.Length > 1 ? firstAmps[1] : ground.Current;
+                        ground.Current = firstAmps != null && firstAmps.Length > 1 ? firstAmps[0] : ground.Current;
                     }
                 }
             }

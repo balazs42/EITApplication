@@ -1267,6 +1267,7 @@ namespace BusinessLayer
         /// </summary>
         public FEMMesh SolveFemInverseAllFrames(FEMMesh mesh, int maxIterCount, double stepSize, double regularization, double excitationAmplitude = 1.0, double tolerance = 1e-5, double minConductivtiy = 1e-3, double maxConductivity = 10.0)
         {
+            throw new NotImplementedException();
             if (_differentialEquationSolver == null ||
                 _errorMetric == null ||
                 _regularizer == null ||
@@ -1340,39 +1341,39 @@ namespace BusinessLayer
 
                     // 4e) Build adjoint source s = EvaluateAdjointSource (L2: residual; W2: Kantorovich φ) 
                     var adjSrc = PotentialClipper.Clip(_errorMetric.EvaluateAdjointSource(mesh, dObs, dSim));
-                    var expandedAdjoint = BuildAdjointSourceVector(adjSrc, electrodes.Count);
-                    Complex[] adjointSource = ToComplex(expandedAdjoint);
+                    //var expandedAdjoint = BuildAdjointSourceVector(adjSrc, electrodes.Count);
+                    //Complex[] adjointSource = ToComplex(expandedAdjoint);
 
                     // wrap into a PotentialDistribution on electrodes
-                    var srcDist = new PotentialDistribution(
-                        Enumerable.Range(0, expandedAdjoint.Length)
-                                  .ToDictionary(i => electrodes[i].Id, i => expandedAdjoint[i])
-                    );
+                    //var srcDist = new PotentialDistribution(
+                    //    Enumerable.Range(0, expandedAdjoint.Length)
+                    //              .ToDictionary(i => electrodes[i].Id, i => expandedAdjoint[i])
+                    //);
 
                     // 4f) Adjoint solve μ: same forward‐solver but feed in adjSrc as boundary currents
-                    var adjointBoundaryCondition = new FEMBoundaryCondition(electrodes, srcDist);
-                    Workspace.SetCurrentGlobalFemBoundaryCondition(adjointBoundaryCondition);
-                    var mu = PotentialClipper.Clip(_differentialEquationSolver.Solve(mesh, adjointBoundaryCondition, adjointSource));
+                    //var adjointBoundaryCondition = new FEMBoundaryCondition(electrodes, srcDist);
+                    //Workspace.SetCurrentGlobalFemBoundaryCondition(adjointBoundaryCondition);
+                    //var mu = PotentialClipper.Clip(_differentialEquationSolver.Solve(mesh, adjointBoundaryCondition, adjointSource));
                     Debug.WriteLine("Adjoint μ computed.");
 
                     // 4g) Compute gradient ∇J_data = ∇μ·∇φ elementwise
-                    var phiGradient = FiniteElementOperators.CalculateElementWiseGradient(mesh, phi);
-                    var muGradient = FiniteElementOperators.CalculateElementWiseGradient(mesh, mu);
+                    //var phiGradient = FiniteElementOperators.CalculateElementWiseGradient(mesh, phi);
+                    //var muGradient = FiniteElementOperators.CalculateElementWiseGradient(mesh, mu);
 
-                    var dataGrad = new ConductivityDistribution(
-                        Workspace.GetCurrentGlobalFemElements().ToDictionary(
-                            el => el.Id,
-                            el => {
-                                // compute ∇φ, ∇μ on this element
-                                var gPhi = phiGradient.GetVector(el.Id);
-                                var gMu = muGradient.GetVector(el.Id);
-                                return (gMu.X * gPhi.X + gMu.Y * gPhi.Y) * el.Area;
-                            }
-                        )
-                    );
-
-                    foreach (var kvp in dataGrad.Conductivities)
-                        totalGrad[kvp.Key] += kvp.Value;
+                    //var dataGrad = new ConductivityDistribution(
+                    //    Workspace.GetCurrentGlobalFemElements().ToDictionary(
+                    //        el => el.Id,
+                    //        el => {
+                    //            // compute ∇φ, ∇μ on this element
+                    //            var gPhi = phiGradient.GetVector(el.Id);
+                    //            var gMu = muGradient.GetVector(el.Id);
+                    //            return (gMu.X * gPhi.X + gMu.Y * gPhi.Y) * el.Area;
+                    //        }
+                    //    )
+                    //);
+                    //
+                    //foreach (var kvp in dataGrad.Conductivities)
+                    //    totalGrad[kvp.Key] += kvp.Value;
                 }
 
                 // 4d) Regularization term J_reg and grad ∇J_reg
