@@ -517,6 +517,13 @@ namespace BusinessLayer
             var expandedAdjoint = projection.ExpandAdjoint(adjSrc);
             Complex[] adjointSource = ToComplex(expandedAdjoint);
 
+            foreach(var electrode in electrodes)
+            {
+                electrode.IsExcitation = false;
+                electrode.IsGround = false;
+                electrode.IsMeasuring = true;
+            }
+
             // Adjoint solve: μ
             var adjointBoundaryCondition = new FEMBoundaryCondition(new List<FEMElectrode>(electrodes));
             if (updateWorkspace)

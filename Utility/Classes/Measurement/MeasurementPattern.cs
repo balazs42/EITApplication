@@ -316,6 +316,7 @@ namespace Utility.Classes.Measurement
                     expanded[channel.FirstElectrodeIndex] = adjoint[channel.TargetIndex];
                 }
             }
+            // Potential differences branch, TODO: is the remapping valid?
             else
             {
                 foreach (var channel in _pattern.Channels)
@@ -330,6 +331,14 @@ namespace Utility.Classes.Measurement
                     expanded[channel.FirstElectrodeIndex] += value;
                     expanded[channel.SecondElectrodeIndex] -= value;
                 }
+            }
+
+            double sum = expanded.Sum();
+            // Ensure zero mean adjustment to avoid global potential shifts
+            if (sum > 1e-6 && sum < 1e6)
+            {
+                for(int i = 0; i < expanded.Length; i++)
+                    expanded[i] -= sum / expanded.Length;
             }
 
             return expanded;
