@@ -202,7 +202,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             }
 
             if (usingDifferences)
-                return SolveDifferenceOT(measured, simulated, all, coord, pattern);
+                return SolveDifferenceOT2(measured, simulated, all, coord, pattern);
 
             if (all.Count != measured.Length || all.Count != simulated.Length)
                 throw new ArgumentException("Electrode count must match data length when using direct potentials.");
@@ -266,6 +266,84 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
 
             return new OptimalTransportResult(measured, simulated, res.Cost, grad);
         }
+
+        private OptimalTransportResult SolveDifferenceOT2(double[] measured, double[] simulated,
+                                                        IReadOnlyList<Electrode> electrodes,
+                                                        Func<Electrode, (double x, double y)> getCoord,
+                                                        MeasurementPattern? pattern)
+        {
+            if (measured.Length != simulated.Length)
+                throw new ArgumentException("Measured and simulated difference arrays must have identical length.");
+
+            int differenceCount = measured.Length;
+
+            // Use only channels that are finite on both sides (your existing logic).
+            var include = new List<int>(differenceCount);
+            for (int i = 0; i < differenceCount; i++)
+                if (double.IsFinite(measured[i]) && double.IsFinite(simulated[i]))
+                    include.Add(i);
+
+            if (include.Count == 0)
+                return new OptimalTransportResult(measured, simulated, 0.0, new double[differenceCount]);
+
+            // Pattern provides (left,right) and we use LEFT electrode coords for channel supports.
+            // (Your BuildDifferenceDistribution already does this.)
+            var activePattern = pattern != null && pattern.SanitizedLength == differenceCount ? pattern : null;
+
+            // Build raw values and channel coordinates (aligned) + back-map
+            var (aRaw, aLoc, aMap) = BuildDifferenceDistribution(simulated, electrodes, getCoord, include, activePattern);
+            var (bRaw, bLoc, _) = BuildDifferenceDistribution(measured, electrodes, getCoord, include, activePattern);
+
+            if (aRaw.Length == 0 || bRaw.Length == 0)
+                return new OptimalTransportResult(measured, simulated, 0.0, new double[differenceCount]);
+
+            // ---- Positive/Negative split on the SAME supports ----
+            int m = aRaw.Length;
+            double[] aPlus = new double[m];
+            double[] aMinus = new double[m];
+            double[] bPlus = new double[m];
+            double[] bMinus = new double[m];
+
+            for (int i = 0; i < m; i++)
+            {
+                double av = aRaw[i];
+                double bv = bRaw[i];
+                if (av > 0) aPlus[i] = av; else aMinus[i] = -av;
+                if (bv > 0) bPlus[i] = bv; else bMinus[i] = -bv;
+            }
+
+            // Run two ordinary W2 solves (your existing routine) on the SAME coords.
+            // NOTE: w2_misfit_and_grad internally normalizes to unit mass and returns
+            // a gradient in "raw" units (scaled by 1/sum of its input), so we reweight.
+            var resPlus = w2_misfit_and_grad(aPlus, bPlus, aLoc, bLoc);
+            var resMinus = w2_misfit_and_grad(aMinus, bMinus, aLoc, bLoc);
+
+            // Reweight by original masses so the two pieces contribute proportionally.
+            double massPlusA = aPlus.Sum();
+            double massMinusA = aMinus.Sum();
+
+            var gradSigned = new double[m];
+            for (int i = 0; i < m; i++)
+                gradSigned[i] = massPlusA * resPlus.Grad[i] - massMinusA * resMinus.Grad[i];
+
+            // Explicitly remove constant mode (robust for ring graphs: S^T * 1 = 0).
+            double mean = 0.0;
+            for (int i = 0; i < m; i++) mean += gradSigned[i];
+            mean /= m;
+            for (int i = 0; i < m; i++) gradSigned[i] -= mean;
+
+            // Map the channel-space gradient back to the original difference vector layout.
+            var gradOut = new double[differenceCount];
+            foreach (var (srcIdx, diffIdx) in aMap)
+                gradOut[diffIdx] = gradSigned[srcIdx];
+
+            // (Optional) combine costs for reporting; mass-weighted average is a reasonable choice.
+            double massTot = massPlusA + massMinusA + 1e-12;
+            double cost = (massPlusA * resPlus.Cost + massMinusA * resMinus.Cost) / massTot;
+
+            return new OptimalTransportResult(measured, simulated, cost, gradOut);
+        }
+
 
         private static (double[] raw, (double x, double y)[] loc, List<(int srcIdx, int electrodeIdx)> indexMap)
             BuildDistribution(double[] raw, List<Electrode> electrodes,
