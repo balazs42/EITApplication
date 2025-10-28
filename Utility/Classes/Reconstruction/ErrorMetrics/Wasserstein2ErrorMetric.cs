@@ -108,6 +108,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
 
             var obj = solver.Objective();
             for (int i = 0; i < m; i++)
+            {
                 for (int j = 0; j < n; j++)
                 {
                     plan[i, j] = solver.MakeNumVar(0.0, double.PositiveInfinity, $"P[{i},{j}]");
@@ -121,6 +122,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
 
                     obj.SetCoefficient(plan[i, j], cij);
                 }
+            }
 
             obj.SetMinimization();
             var status = solver.Solve();
