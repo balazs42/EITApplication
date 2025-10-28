@@ -350,7 +350,22 @@ namespace Utility.Classes.Measurement
                                                    double[] simulated)
         {
             var pattern = MeasurementPatternBuilder.Build(electrodes, setup, usePotentialDifferences);
-            var measured = pattern.MapMeasurement(measurement);
+
+            double[] measured;
+            if (measurement.Length == pattern.SanitizedLength)
+            {
+                // Option 2 (active electrodes, potential differences) already supplies
+                // one value per electrode pair in solver order, so we simply retain the
+                // provided frame.  Cloning avoids mutating the caller-owned buffer.
+                measured = (double[])measurement.Clone();
+            }
+            else
+            {
+                // Options 3 & 4 deliver compact frames that require NaN padding so
+                // error metrics skip the driven electrodes.  MapMeasurement() handles
+                // the expansion without re-applying difference calculations.
+                measured = pattern.MapMeasurement(measurement);
+            }
             var projectedSimulated = pattern.ProjectSimulated(simulated);
             return new MeasurementProjection(pattern, measured, projectedSimulated);
         }
