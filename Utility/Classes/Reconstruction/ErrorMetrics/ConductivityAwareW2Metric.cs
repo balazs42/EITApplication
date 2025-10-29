@@ -1,1248 +1,1147 @@
+using System.Buffers;
+using System.Linq;
+using System.Threading.Tasks;
 using Google.OrTools.LinearSolver;
-using MathNet.Numerics.LinearAlgebra.Double;
-using MathNet.Numerics.LinearAlgebra.Factorization;
+using Utility.Classes.Application;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
+using Utility.Classes.Measurement;
 using Utility.Classes.ReconstructionParameters;
-using Utility.Classes.Solvers.LatticeBoltzmannSolver;
 
-namespace Utility.Classes.Reconstruction.ErrorMetrics
+namespace Utility.Classes.Reconstruction.ErrorMetrics;
+
+/// <summary>
+/// Conductivity-aware Wasserstein-2 error metric.
+/// </summary>
+public sealed class ConductivityAwareW2Metric : IErrorMetric
 {
     /// <summary>
-
-    /// Implements the conductivity-aware Wasserstein-2 error metric described in the
-    /// user specification.  The class follows the existing <see cref="IErrorMetric"/>
-    /// contract, while internally computing the optimal transport objective,
-    /// Kantorovich potentials, and the adjoint conductivity gradient.
+    /// Public configuration knobs. Defaults follow the specification while keeping
+    /// the original call sites unchanged.
     /// </summary>
-    public sealed class ConductivityAwareW2Metric : IErrorMetric
+    public sealed class Config
     {
-        /// <summary>
-        /// Configuration container exposed to callers.  Defaults follow the
-        /// guidelines of the user specification.
-        /// </summary>
-        public sealed class Config
-        {
-            /// <summary>Exponent β in c_e(σ) = ℓ_e σ_e^{-β}.</summary>
-            public double Beta { get; init; } = 1.0;
+        /// <summary>Target blend weight for the conductivity-aware ground cost.</summary>
+        public double TargetAlpha { get; init; } = 0.25;
 
-            /// <summary>Soft-min temperature τ in the entropy regularised Bellman operator.</summary>
-            public double Tau { get; init; } = 0.05;
-
-            /// <summary>
-            /// Blend between geometric and conductivity-aware costs.  α = 0 uses
-            /// purely geometric distances, α = 1 uses the conductivity-aware
-            /// ground cost.
-            /// </summary>
-            public double Alpha { get; init; } = 0.0;
-
-            /// <summary>Softplus temperature κ used in the smooth normalisation map.</summary>
-            public double Kappa { get; init; } = 8.0;
-
-            /// <summary>Mass floor ε added before normalisation.</summary>
-            public double Epsilon { get; init; } = 1e-6;
-
-            /// <summary>Maximum iterations in the soft Bellman solver.</summary>
-            public int MaxBellmanIterations { get; init; } = 500;
-
-            /// <summary>Absolute convergence tolerance for the Bellman iteration.</summary>
-            public double BellmanTolerance { get; init; } = 1e-6;
-
-            /// <summary>Relaxation parameter used when updating Bellman iterates.</summary>
-            public double BellmanDamping { get; init; } = 0.5;
-
-            /// <summary>If true the metric evaluates α = 1 regardless of <see cref="Alpha"/>.</summary>
-            public bool UsePhysicsAwareOnly { get; init; } = false;
-
-            /// <summary>When enabled the metric exposes individual gradient components.</summary>
-            public bool ReturnComponents { get; init; } = false;
-
-            /// <summary>Optional lower bound applied to edge conductivities.</summary>
-            public double SigmaFloor { get; init; } = 1e-8;
-
-            /// <summary>Optional upper bound applied to edge conductivities.</summary>
-            public double SigmaCeiling { get; init; } = 1e6;
-        }
-
-        /// <summary>Cache structure produced by <see cref="Normalize"/>.</summary>
-        internal readonly struct NormalizationCache
-        {
-            public NormalizationCache(double[] raw, double[] shifted, double[] softplus, double[] sigmoid,
-                                      double[] normalized, int minIndex, double sum)
-            {
-                Raw = raw;
-                Shifted = shifted;
-                Softplus = softplus;
-                Sigmoid = sigmoid;
-                Normalized = normalized;
-                MinIndex = minIndex;
-                Sum = sum;
-            }
-
-            public double[] Raw { get; }
-            public double[] Shifted { get; }
-            public double[] Softplus { get; }
-            public double[] Sigmoid { get; }
-            public double[] Normalized { get; }
-            public int MinIndex { get; }
-            public double Sum { get; }
-        }
-
-        internal sealed record EdgeInfo(int Index, int U, int V, double Length, int ElementU, int ElementV, double Sigma, double Cost);
-
-        private sealed record DirectedEdge(int EdgeIndex, int From, int To, double Cost);
-
-        private sealed record Transition(int EdgeIndex, int To, double Probability);
-
-        internal sealed class SoftGeodesicResult
-        {
-            public SoftGeodesicResult(double[,] distances,
-                                      Dictionary<(int source, int target), double[]> occupancies,
-                                      IReadOnlyList<EdgeInfo> edgeInfos)
-            {
-                Distances = distances;
-                Occupancies = occupancies;
-                EdgeInfos = edgeInfos;
-            }
-
-            public double[,] Distances { get; }
-            public Dictionary<(int source, int target), double[]> Occupancies { get; }
-            public IReadOnlyList<EdgeInfo> EdgeInfos { get; }
-        }
-
-        private sealed class EvaluationCache
-        {
-            public required double[] Mu;
-            public required double[] Nu;
-            public required double[,] GammaPhysics;
-            public double[,]? GammaGeo;
-            public required double[] AlphaPhysics;
-            public double[]? AlphaGeo;
-            public required NormalizationCache SimNormalization;
-            public required SoftGeodesicResult Geodesics;
-            public required double[] GMu;
-            public required double[] AdjointElectrodeSource;
-            public Dictionary<int, double>? GradientAdjointTerm;
-            public required Dictionary<int, double> GradientCostTerm;
-            public required double[] Measured;
-            public required double[] Simulated;
-
-            public ConductivityDistribution? Gradient;
-        }
-
-        private readonly Config _config;
-
-        private EvaluationCache? _last;
+        /// <summary>How many OT solves elapse between ground-cost rebuilds.</summary>
+        public int RecomputeEvery { get; init; } = 3;
 
         /// <summary>
-        /// Creates a new conductivity-aware W₂ metric.
+        /// L1 change in σ that triggers an early rebuild of the lagged ground cost.
         /// </summary>
-        /// <param name="config">Optional configuration overrides.</param>
-        public ConductivityAwareW2Metric(Config? config = null)
+        public double SigmaChangeTolerance { get; init; } = 1e-3;
+
+        /// <summary>Warm-up override. When negative the measurement length is used.</summary>
+        public int WarmupSolves { get; init; } = -1;
+
+        /// <summary>If true we gradually ramp α towards <see cref="TargetAlpha"/>.</summary>
+        public bool EnableAlphaRamp { get; init; } = true;
+    }
+
+    private const double Tiny = 1e-12;
+    private const double SigmaEps = 1e-12;
+    private const double TinyDistance = 1e-9;
+
+    private readonly Config _config;
+
+    private bool _warmupInitialized;
+    private int _warmupSolvesRemaining;
+    private bool _useConductivityAware;
+    private int _solveCounter;
+    private int _lastCostBuildIter = -1;
+    private double _alphaCurrent;
+    private double _scale = 1.0;
+    private int _maxElectrodes;
+
+    private double[,]? _euclideanCost;
+    private double[,]? _cAmp;
+    private double[,]? _cDiff;
+
+    private double[]? _sigmaSnapshot;
+
+    private readonly Dictionary<int, double[,]> _amplitudeCostScratch = new();
+    private readonly Dictionary<int, double[,]> _differenceCostScratch = new();
+
+    private OptimalTransportResult? _last;
+
+    private readonly object _costLock = new();
+
+    public ConductivityAwareW2Metric(Config? config = null)
+    {
+        _config = config ?? new Config();
+        _alphaCurrent = 0.0;
+    }
+    public double Evaluate(IDiscretization discretization, double[] measured, double[] simulated)
+    {
+        if (discretization == null) throw new ArgumentNullException(nameof(discretization));
+        if (measured == null) throw new ArgumentNullException(nameof(measured));
+        if (simulated == null) throw new ArgumentNullException(nameof(simulated));
+
+        var result = SolveOt(discretization, measured, simulated);
+        _last = result;
+        return result.Cost;
+    }
+
+    public double[] EvaluateAdjointSource(IDiscretization discretization, double[] measured, double[] simulated)
+    {
+        if (_last != null && _last.Matches(measured, simulated))
+            return (double[])_last.Gradient.Clone();
+
+        var result = SolveOt(discretization, measured, simulated);
+        _last = result;
+        return (double[])result.Gradient.Clone();
+    }
+    private OptimalTransportResult SolveOt(IDiscretization discretization, double[] measured, double[] simulated)
+    {
+        var mesh = discretization.GetDiscretization();
+        var electrodes = discretization.GetElectrodes().OrderBy(e => e.Id).ToList();
+        if (electrodes.Count == 0)
+            return new OptimalTransportResult(measured, simulated, 0.0, Array.Empty<double>());
+
+        _maxElectrodes = Math.Max(_maxElectrodes, electrodes.Count);
+
+        Func<Electrode, (double x, double y)> coord = mesh switch
         {
-            _config = config ?? new Config();
-       }
+            FEMMesh fem => e => GetCoord(fem, e),
+            LBMGrid lbm => e => e is LBMElectrode lbmElectrode
+                ? ToXY(lbm, lbmElectrode.GridId)
+                : throw new InvalidOperationException("Expected LBMElectrode for LBMGrid discretization."),
+            _ => throw new NotSupportedException($"Conductivity-aware W2 requires FEMMesh or LBMGrid discretizations (got {mesh.GetType().Name}).")
+        };
 
-        /// <summary>
-        /// Gets the last computed total gradient with respect to σ, if available.
-        /// </summary>
-        public ConductivityDistribution? LastConductivityGradient => _last?.Gradient;
-
-        /// <summary>
-        /// Gets the last computed PDE adjoint contribution, available when
-        /// <see cref="Config.ReturnComponents"/> is enabled.
-        /// </summary>
-        public IReadOnlyDictionary<int, double>? LastAdjointComponent =>
-            _config.ReturnComponents ? _last?.GradientAdjointTerm : null;
-
-        /// <summary>
-        /// Gets the last computed conductivity-cost contribution, available when
-        /// <see cref="Config.ReturnComponents"/> is enabled.
-        /// </summary>
-        public IReadOnlyDictionary<int, double>? LastCostComponent =>
-            _config.ReturnComponents ? _last?.GradientCostTerm : null;
-
-        /// <inheritdoc />
-        public double Evaluate(IDiscretization discretization, double[] measured, double[] simulated)
+        var pattern = Workspace.GetMeasurementPattern();
+        bool usingDifferences = pattern?.Representation == MeasurementRepresentation.PotentialDifference;
+        if (!usingDifferences)
         {
-            if (discretization == null) throw new ArgumentNullException(nameof(discretization));
-            if (measured == null) throw new ArgumentNullException(nameof(measured));
-            if (simulated == null) throw new ArgumentNullException(nameof(simulated));
-            if (measured.Length != simulated.Length)
-                throw new ArgumentException("Measured and simulated arrays must share the same length.");
-
-            if (measured.Length == 0)
-                return 0.0;
-
-            var electrodes = discretization.GetElectrodes();
-            if (electrodes.Count != measured.Length)
-                throw new ArgumentException("Measured data size must match the electrode count.");
-
-            var mesh = discretization.GetDiscretization();
-            var (electrodePositions, geodesics) = PrepareGeodesics(mesh);
-
-            // (1) Smooth normalisation of electrode data.
-            var simNorm = Normalize(simulated, _config.Kappa, _config.Epsilon);
-            var measNorm = Normalize(measured, _config.Kappa, _config.Epsilon);
-            var mu = simNorm.Normalized;
-            var nu = measNorm.Normalized;
-
-            // Build both geometric and conductivity-aware cost matrices.
-            var costConductive = BuildCostMatrix(geodesics.Distances);
-            var costGeometric = BuildGeometricCost(electrodePositions);
-
-            bool physicsOnly = _config.UsePhysicsAwareOnly || _config.Alpha >= 1.0 - 1e-12;
-            double alpha = physicsOnly ? 1.0 : Math.Clamp(_config.Alpha, 0.0, 1.0);
-
-            var otPhysics = SolveOptimalTransport(costConductive, mu, nu);
-            OptimalTransportResult? otGeo = null;
-            if (!physicsOnly && alpha < 1.0)
-                otGeo = SolveOptimalTransport(costGeometric, mu, nu);
-
-            // Build misfit value (Eq. (4)).
-            double physTerm = 0.5 * WeightedSum(costConductive, otPhysics.Plan);
-            double value = physTerm;
-            if (!physicsOnly && otGeo != null)
-            {
-                double geoTerm = 0.5 * WeightedSum(costGeometric, otGeo.Plan);
-                value = 0.5 * ((1.0 - alpha) * 2.0 * geoTerm + alpha * 2.0 * physTerm);
-            }
-
-            // Average Kantorovich potentials according to the blend.
-            var gMu = BlendPotentials(alpha, otPhysics.SourcePotential, otGeo?.SourcePotential);
-
-            // R^T g_μ for the adjoint RHS (Eq. (1) VJP).
-            var adjointSource = ApplyNormalizationVjp(simNorm, gMu);
-            // OT physics-cost correction (Eq. (5)-(7)).
-            var costTerm = ComputeCostGradient(geodesics, otPhysics.Plan);
-            _last = new EvaluationCache
-            {
-                Mu = mu,
-                Nu = nu,
-                GammaPhysics = otPhysics.Plan,
-                GammaGeo = otGeo?.Plan,
-                AlphaPhysics = otPhysics.SourcePotential,
-                AlphaGeo = otGeo?.SourcePotential,
-                SimNormalization = simNorm,
-                Geodesics = geodesics,
-                GMu = gMu,
-                AdjointElectrodeSource = adjointSource,
-                GradientAdjointTerm = null,
-                GradientCostTerm = costTerm,
-                Measured = (double[])measured.Clone(),
-                Simulated = (double[])simulated.Clone(),
-                Gradient = null
-            };
-
-            return value;
+            // Fall back to legacy inference when pattern is absent.
+            var measuring = electrodes.Where(e => e.IsMeasuring).OrderBy(e => e.Id).ToList();
+            var differenceElectrodes = measuring.Count > 0 ? (IReadOnlyList<Electrode>)measuring : electrodes;
+            int expectedDifferenceLength = Math.Max(0, differenceElectrodes.Count - 1);
+            usingDifferences = measured.Length == expectedDifferenceLength && simulated.Length == expectedDifferenceLength;
         }
 
-        /// <inheritdoc />
-        public double[] EvaluateAdjointSource(IDiscretization discretization, double[] measured, double[] simulated)
+        EnsureWarmup(usingDifferences ? measured.Length : electrodes.Count);
+        _solveCounter++;
+
+        OptimalTransportResult result = usingDifferences
+            ? SolveDifferenceOt(mesh, electrodes, coord, pattern, measured, simulated)
+            : SolveAmplitudeOt(mesh, electrodes, coord, measured, simulated);
+
+        AdvanceWarmup();
+        return result;
+    }
+    private void EnsureWarmup(int measurementLength)
+    {
+        if (_warmupInitialized)
+            return;
+
+        int warmup = _config.WarmupSolves >= 0 ? _config.WarmupSolves : measurementLength;
+        _warmupSolvesRemaining = Math.Max(0, warmup);
+        _warmupInitialized = true;
+        _useConductivityAware = _warmupSolvesRemaining <= 0;
+    }
+
+    private void AdvanceWarmup()
+    {
+        if (_warmupSolvesRemaining > 0)
         {
-            if (discretization == null) throw new ArgumentNullException(nameof(discretization));
-            if (measured == null) throw new ArgumentNullException(nameof(measured));
-            if (simulated == null) throw new ArgumentNullException(nameof(simulated));
-
-            if (_last == null || !InputsMatch(_last, measured, simulated))
-            {
-                _ = Evaluate(discretization, measured, simulated);
-            }
-
-            return (double[])_last!.AdjointElectrodeSource.Clone();
+            _warmupSolvesRemaining--;
+            if (_warmupSolvesRemaining == 0)
+                _useConductivityAware = true;
+        }
+    }
+    private OptimalTransportResult SolveAmplitudeOt(
+        Discretization mesh,
+        IReadOnlyList<Electrode> electrodes,
+        Func<Electrode, (double x, double y)> getCoord,
+        double[] measured,
+        double[] simulated)
+    {
+        int n = Math.Min(measured.Length, electrodes.Count);
+        var include = new List<int>(n);
+        for (int i = 0; i < n; i++)
+        {
+            if (double.IsFinite(measured[i]) && double.IsFinite(simulated[i]))
+                include.Add(i);
         }
 
-        private static bool InputsMatch(EvaluationCache cache, double[] measured, double[] simulated)
+        if (include.Count == 0)
+            return new OptimalTransportResult(measured, simulated, 0.0, new double[electrodes.Count]);
+
+        var (aRaw, aLoc, aMap) = BuildDistribution(simulated, electrodes, getCoord, include);
+        var (bRaw, bLoc, _) = BuildDistribution(measured, electrodes, getCoord, include);
+
+        if (aRaw.Length == 0 || bRaw.Length == 0)
+            return new OptimalTransportResult(measured, simulated, 0.0, new double[electrodes.Count]);
+
+        if (!_useConductivityAware)
         {
-            if (cache.Measured.Length != measured.Length || cache.Simulated.Length != simulated.Length)
-                return false;
-
-            var comparer = EqualityComparer<double>.Default;
-
-            for (int i = 0; i < cache.Measured.Length; i++)
-            {
-                if (!comparer.Equals(cache.Measured[i], measured[i]))
-                    return false;
-            }
-
-            for (int i = 0; i < cache.Simulated.Length; i++)
-            {
-                if (!comparer.Equals(cache.Simulated[i], simulated[i]))
-                    return false;
-            }
-
-            return true;
+            var res = w2_misfit_and_grad(aRaw, bRaw, aLoc, bLoc);
+            var grad = new double[electrodes.Count];
+            foreach (var (srcIdx, electrodeIdx) in aMap)
+                grad[electrodeIdx] = res.Grad[srcIdx];
+            return new OptimalTransportResult(measured, simulated, res.Cost, grad);
         }
 
-        /// <summary>
-        /// Combines the cached conductivity-aware OT sensitivity with an externally computed
-        /// adjoint potential to assemble the full gradient with respect to σ.
-        /// Callers are expected to obtain the adjoint field by solving ∇·(σ∇λ) = -S^T R^T g_μ
-        /// using the source returned by <see cref="EvaluateAdjointSource"/>.
-        /// </summary>
-        /// <param name="discretization">Discretization that produced the cached evaluation.</param>
-        /// <param name="adjointPotential">Adjoint potential λ obtained from the PDE solver.</param>
-        /// <returns>The combined conductivity gradient.</returns>
-        public ConductivityDistribution AssembleTotalConductivityGradient(
-            IDiscretization discretization,
-            PotentialDistribution adjointPotential)
+        var sigma = ExtractConductivities(mesh);
+        UpdateGroundCostIfNeeded(mesh, sigma, electrodes, getCoord);
+
+        var cost = GetAmplitudeCost(include);
+        var resCa = w2_misfit_and_grad(aRaw, bRaw, cost);
+        var gradCa = new double[electrodes.Count];
+        foreach (var (srcIdx, electrodeIdx) in aMap)
+            gradCa[electrodeIdx] = resCa.Grad[srcIdx];
+
+        return new OptimalTransportResult(measured, simulated, resCa.Cost, gradCa);
+    }
+    private OptimalTransportResult SolveDifferenceOt(
+        Discretization mesh,
+        IReadOnlyList<Electrode> electrodes,
+        Func<Electrode, (double x, double y)> getCoord,
+        MeasurementPattern? pattern,
+        double[] measured,
+        double[] simulated)
+    {
+        int differenceCount = measured.Length;
+        var include = new List<int>(differenceCount);
+        for (int i = 0; i < differenceCount; i++)
         {
-            if (discretization == null) throw new ArgumentNullException(nameof(discretization));
-            if (adjointPotential == null) throw new ArgumentNullException(nameof(adjointPotential));
-            if (_last == null)
-                throw new InvalidOperationException("Evaluate must be called before assembling gradients.");
-
-            var mesh = discretization.GetDiscretization();
-
-            /*
-             * (7) Final gradient assembly:
-             *     ∂J/∂σ(x) = -∇ϕ(x)·∇λ(x) + ½ Σ₍ᵢⱼ₎ Γ*_{ij} ∂Cσ(i,j)/∂σ(x).
-             * The adjoint contribution uses the supplied λ, while the transport-cost
-             * correction reuses the cached soft-geodesic sensitivities from Evaluate().
-             */
-            var costTerm = _last.GradientCostTerm ?? ComputeCostGradient(_last.Geodesics, _last.GammaPhysics);
-
-            ConductivityDistribution totalGradient;
-            switch (mesh)
-            {
-                case FEMMesh femMesh:
-                {
-                    var phi = femMesh.GetPotentialDistribution() ??
-                              throw new InvalidOperationException("Forward potential distribution is missing on the FEM mesh.");
-                    var adjointTerm = ComputeAdjointConductivityGradient(femMesh, phi, adjointPotential);
-                    _last.GradientAdjointTerm = adjointTerm;
-                    totalGradient = MergeGradientComponents(femMesh, adjointTerm, costTerm);
-                    break;
-                }
-                case LBMGrid lbmGrid:
-                {
-                    var phi = lbmGrid.GetPotentialDistribution() ??
-                              throw new InvalidOperationException("Forward potential distribution is missing on the LBM grid.");
-                    var adjointTerm = ComputeAdjointConductivityGradient(lbmGrid, phi, adjointPotential);
-                    _last.GradientAdjointTerm = adjointTerm;
-                    totalGradient = MergeGradientComponents(lbmGrid, adjointTerm, costTerm);
-                    break;
-                }
-                default:
-                    throw new NotSupportedException($"ConductivityAwareW2Metric cannot assemble gradients for discretization type '{mesh.GetType().Name}'.");
-            }
-
-            _last.Gradient = totalGradient;
-            return totalGradient;
+            if (double.IsFinite(measured[i]) && double.IsFinite(simulated[i]))
+                include.Add(i);
         }
 
-        /// <summary>
-        /// (1) Smooth normalisation map using the softplus temperature κ and mass floor ε.
-        /// Returns both the normalised histogram and auxiliary data for the VJP.
-        /// </summary>
-        internal static NormalizationCache Normalize(double[] raw, double kappa, double epsilon)
+        if (include.Count == 0)
+            return new OptimalTransportResult(measured, simulated, 0.0, new double[differenceCount]);
+
+        var (aRaw, aLoc, aMap, leftIndices) = BuildDifferenceDistribution(simulated, electrodes, getCoord, include, pattern);
+        var (bRaw, bLoc, _, _) = BuildDifferenceDistribution(measured, electrodes, getCoord, include, pattern);
+
+        if (aRaw.Length == 0 || bRaw.Length == 0)
+            return new OptimalTransportResult(measured, simulated, 0.0, new double[differenceCount]);
+
+        int m = aRaw.Length;
+        var gradOut = new double[differenceCount];
+
+        // Split signed histograms.
+        double[] aPlus = new double[m];
+        double[] aMinus = new double[m];
+        double[] bPlus = new double[m];
+        double[] bMinus = new double[m];
+        for (int i = 0; i < m; i++)
         {
-            if (raw == null) throw new ArgumentNullException(nameof(raw));
-            if (raw.Length == 0)
-                return new NormalizationCache(Array.Empty<double>(), Array.Empty<double>(), Array.Empty<double>(), Array.Empty<double>(), Array.Empty<double>(), 0, 0.0);
-
-            double[] shifted = new double[raw.Length];
-            double[] softplus = new double[raw.Length];
-            double[] sigmoid = new double[raw.Length];
-            double[] normalized = new double[raw.Length];
-
-            double min = double.PositiveInfinity;
-            int minIdx = 0;
-            for (int i = 0; i < raw.Length; i++)
-            {
-                double value = raw[i];
-                if (!double.IsFinite(value))
-                    continue;
-                if (value < min)
-                {
-                    min = value;
-                    minIdx = i;
-                }
-            }
-
-            if (!double.IsFinite(min))
-            {
-                min = 0.0;
-                minIdx = 0;
-            }
-
-            double sum = 0.0;
-            for (int i = 0; i < raw.Length; i++)
-            {
-                double rawVal = raw[i];
-                if (!double.IsFinite(rawVal))
-                {
-                    shifted[i] = 0.0;
-                    softplus[i] = 0.0;
-                    sigmoid[i] = 0.0;
-                    normalized[i] = 0.0;
-                    continue;
-                }
-                double val = rawVal - min;
-                shifted[i] = val;
-                double kx = kappa * val;
-                double sp = Softplus(kx) / kappa;
-                softplus[i] = sp;
-                double sig = Sigmoid(kx);
-                sigmoid[i] = sig;
-                double mass = sp + epsilon;
-                normalized[i] = mass;
-                sum += mass;
-            }
-
-            if (sum <= 0.0)
-            {
-                Array.Clear(normalized, 0, normalized.Length);
-                return new NormalizationCache(raw, shifted, softplus, sigmoid, normalized, minIdx, 0.0);
-            }
-
-            for (int i = 0; i < normalized.Length; i++)
-                normalized[i] /= sum;
-
-            return new NormalizationCache(raw, shifted, softplus, sigmoid, normalized, minIdx, sum);
+            double av = aRaw[i];
+            double bv = bRaw[i];
+            if (av > 0) aPlus[i] = av; else aMinus[i] = -av;
+            if (bv > 0) bPlus[i] = bv; else bMinus[i] = -bv;
         }
 
-        /// <summary>
-        /// Vector-Jacobian product R^T g_μ for the smooth normalisation map in Eq. (1).
-        /// </summary>
-        internal static double[] ApplyNormalizationVjp(in NormalizationCache cache, double[] gMu)
+        if (!_useConductivityAware)
         {
-            if (gMu == null) throw new ArgumentNullException(nameof(gMu));
-            if (cache.Normalized.Length != gMu.Length)
-                throw new ArgumentException("Gradient vector length mismatch.");
+            var resPlus = w2_misfit_and_grad(aPlus, bPlus, aLoc, bLoc);
+            var resMinus = w2_misfit_and_grad(aMinus, bMinus, aLoc, bLoc);
+            double massPlus = aPlus.Sum();
+            double massMinus = aMinus.Sum();
 
-            int n = gMu.Length;
-            double[] result = new double[n];
+            double[] gradSigned = new double[m];
+            for (int i = 0; i < m; i++)
+                gradSigned[i] = massPlus * resPlus.Grad[i] - massMinus * resMinus.Grad[i];
 
-            double sumSigmoid = 0.0;
-            double sumSigmoidWeighted = 0.0;
-            double meanWeighted = 0.0;
+            double mean = gradSigned.Sum() / m;
+            for (int i = 0; i < m; i++)
+                gradSigned[i] -= mean;
 
-            for (int i = 0; i < n; i++)
-            {
-                sumSigmoid += cache.Sigmoid[i];
-                sumSigmoidWeighted += gMu[i] * cache.Sigmoid[i];
-                meanWeighted += gMu[i] * cache.Normalized[i];
-            }
-            meanWeighted *= cache.Sum;
+            foreach (var (srcIdx, diffIdx) in aMap)
+                gradOut[diffIdx] = gradSigned[srcIdx];
 
-            double sum = cache.Sum;
-            if (sum <= 0.0)
-                return result;
-            int minIdx = cache.MinIndex;
-
-            for (int k = 0; k < n; k++)
-            {
-                double a = gMu[k] * cache.Sigmoid[k];
-                if (k == minIdx)
-                    a -= sumSigmoidWeighted;
-
-                double b = cache.Sigmoid[k];
-                if (k == minIdx)
-                    b -= sumSigmoid;
-
-                double term1 = sum * a;
-                double term2 = meanWeighted * b;
-                result[k] = (term1 - term2) / (sum * sum);
-            }
-
-            return result;
-        }
-        /// <summary>
-        /// Numerically stable softplus implementation that avoids overflow
-        /// and catastrophic cancellation for very large positive or negative
-        /// arguments.  The metric relies on this helper while smoothing the
-        /// electrode histogram prior to the optimal transport solve.
-        /// </summary>
-        /// <param name="x">Input value to be transformed.</param>
-        /// <returns><c>log(1 + exp(x))</c> computed in a stable manner.</returns>
-        private static double Softplus(double x)
-        {
-            if (x > 50) // avoid overflow
-                return x;
-            if (x < -50)
-                return Math.Exp(x);
-            return Log1p(Math.Exp(x));
+            double massTotal = massPlus + massMinus + Tiny;
+            double cost = (massPlus * resPlus.Cost + massMinus * resMinus.Cost) / massTotal;
+            return new OptimalTransportResult(measured, simulated, cost, gradOut);
         }
 
-        /// <summary>
-        /// Evaluates <c>log(1 + x)</c> while maintaining precision for tiny
-        /// arguments where the naive formulation would lose significant
-        /// digits.  This is required because the softplus helper frequently
-        /// forwards very small exponentials when κ is large.
-        /// </summary>
-        /// <param name="x">Offset from unity.</param>
-        /// <returns>Accurate value of <c>log(1 + x)</c>.</returns>
-        private static double Log1p(double x)
-        {
-            // For very small x, use series expansion to avoid loss of precision
-            if (Math.Abs(x) < 1e-4)
-                return x - x * x / 2.0 + x * x * x / 3.0;
-            return Math.Log(1.0 + x);
-        }
+        var sigma = ExtractConductivities(mesh);
+        UpdateGroundCostIfNeeded(mesh, sigma, electrodes, getCoord);
 
-        /// <summary>
-        /// Computes the logistic sigmoid in a branch-safe fashion.  The
-        /// expression is symmetric but we split the domains to avoid overflow
-        /// when evaluating <c>exp(±x)</c> for large magnitudes.
-        /// </summary>
-        /// <param name="x">Input value.</param>
-        /// <returns>Logistic sigmoid σ(x).</returns>
-        private static double Sigmoid(double x)
+        var costMatrix = GetDifferenceCost(leftIndices);
+        var resPlusCa = w2_misfit_and_grad(aPlus, bPlus, costMatrix);
+        var resMinusCa = w2_misfit_and_grad(aMinus, bMinus, costMatrix);
+
+        double massPlusCa = aPlus.Sum();
+        double massMinusCa = aMinus.Sum();
+        double[] gradSignedCa = new double[m];
+        for (int i = 0; i < m; i++)
+            gradSignedCa[i] = massPlusCa * resPlusCa.Grad[i] - massMinusCa * resMinusCa.Grad[i];
+
+        double meanCa = gradSignedCa.Sum() / m;
+        for (int i = 0; i < m; i++)
+            gradSignedCa[i] -= meanCa;
+
+        foreach (var (srcIdx, diffIdx) in aMap)
+            gradOut[diffIdx] = gradSignedCa[srcIdx];
+
+        double totalMass = massPlusCa + massMinusCa + Tiny;
+        double costCa = (massPlusCa * resPlusCa.Cost + massMinusCa * resMinusCa.Cost) / totalMass;
+        return new OptimalTransportResult(measured, simulated, costCa, gradOut);
+    }
+    private static double[] ExtractConductivities(Discretization mesh)
+    {
+        return mesh switch
         {
-            if (x >= 0)
+            FEMMesh fem => fem.ElementsTyped.Select(e => e.Conductivity).ToArray(),
+            LBMGrid lbm => lbm.ElementsTyped.Select(e => e.Conductivity).ToArray(),
+            _ => Array.Empty<double>()
+        };
+    }
+    private void UpdateGroundCostIfNeeded(
+        Discretization mesh,
+        double[] sigma,
+        IReadOnlyList<Electrode> electrodes,
+        Func<Electrode, (double x, double y)> getCoord)
+    {
+        if (!_useConductivityAware)
+            return;
+
+        bool rebuild = _cAmp == null || _euclideanCost == null;
+        if (!rebuild && _lastCostBuildIter >= 0 && (_solveCounter - _lastCostBuildIter) >= Math.Max(1, _config.RecomputeEvery))
+            rebuild = true;
+
+        if (!rebuild && sigma.Length > 0)
+        {
+            if (_sigmaSnapshot == null || _sigmaSnapshot.Length != sigma.Length)
             {
-                double e = Math.Exp(-x);
-                return 1.0 / (1.0 + e);
+                rebuild = true;
             }
             else
             {
-                double e = Math.Exp(x);
-                return e / (1.0 + e);
+                double change = 0.0;
+                for (int i = 0; i < sigma.Length; i++)
+                    change += Math.Abs(sigma[i] - _sigmaSnapshot[i]);
+                if (change >= _config.SigmaChangeTolerance)
+                    rebuild = true;
             }
         }
 
-        /// <summary>
-        /// Squares the conductivity-aware geodesic distances to obtain the
-        /// quadratic ground cost used by the Wasserstein-2 metric.
-        /// </summary>
-        /// <param name="distances">Pairwise soft geodesic distances.</param>
-        /// <returns>Cost matrix with entries <c>d(x, y)^2</c>.</returns>
-        private static double[,] BuildCostMatrix(double[,] distances)
-        {
-            int m = distances.GetLength(0);
-            int n = distances.GetLength(1);
-            var cost = new double[m, n];
-            for (int i = 0; i < m; i++)
-                for (int j = 0; j < n; j++)
-                {
-                    double d = distances[i, j];
-                    cost[i, j] = d * d;
-                }
-            return cost;
-        }
+        if (!rebuild)
+            return;
 
-        /// <summary>
-        /// Builds the purely geometric quadratic cost between electrode
-        /// centroids.  This baseline is blended with the physics-aware ground
-        /// cost when <c>α &lt; 1</c>.
-        /// </summary>
-        /// <param name="electrodePositions">Electrode centroid coordinates.</param>
-        /// <returns>Squared Euclidean distance matrix.</returns>
-        private static double[,] BuildGeometricCost(IReadOnlyList<(double x, double y)> electrodePositions)
+        lock (_costLock)
         {
-            int m = electrodePositions.Count;
-            var cost = new double[m, m];
-            for (int i = 0; i < m; i++)
+            // Double check after acquiring the lock to avoid redundant rebuilds.
+            bool need = _cAmp == null || _euclideanCost == null;
+            if (!need && _lastCostBuildIter >= 0 && (_solveCounter - _lastCostBuildIter) >= Math.Max(1, _config.RecomputeEvery))
+                need = true;
+            if (!need && sigma.Length > 0)
             {
-                for (int j = 0; j < m; j++)
+                if (_sigmaSnapshot == null || _sigmaSnapshot.Length != sigma.Length)
                 {
-                    double dx = electrodePositions[i].x - electrodePositions[j].x;
-                    double dy = electrodePositions[i].y - electrodePositions[j].y;
-                    double d = Math.Sqrt(dx * dx + dy * dy);
-                    cost[i, j] = d * d;
+                    need = true;
+                }
+                else
+                {
+                    double change = 0.0;
+                    for (int i = 0; i < sigma.Length; i++)
+                        change += Math.Abs(sigma[i] - _sigmaSnapshot[i]);
+                    if (change >= _config.SigmaChangeTolerance)
+                        need = true;
                 }
             }
-            return cost;
-        }
 
-        private sealed record OptimalTransportResult(double[,] Plan, double[] SourcePotential, double[] TargetPotential);
+            if (!need)
+                return;
 
-        /// <summary>
-        /// Solves the discrete optimal transport problem and packages both
-        /// the primal transport plan and the dual Kantorovich potentials so
-        /// that the caller can directly reuse them for gradient evaluation.
-        /// </summary>
-        /// <param name="cost">Quadratic ground cost matrix.</param>
-        /// <param name="mu">Source histogram.</param>
-        /// <param name="nu">Target histogram.</param>
-        /// <returns>Optimal plan together with source/target potentials.</returns>
-        private static OptimalTransportResult SolveOptimalTransport(double[,] cost, double[] mu, double[] nu)
-        {
-            var plan = SolveOptimalTransportPrimal(cost, mu, nu, out var alpha, out var beta);
-            return new OptimalTransportResult(plan, alpha, beta);
-        }
+            int k = electrodes.Count;
+            var positions = new (double x, double y)[k];
+            for (int i = 0; i < k; i++)
+                positions[i] = getCoord(electrodes[i]);
 
-        /// <summary>
-        /// Convenience wrapper that creates a non-negative LP variable for the
-        /// OR-Tools solver while documenting the intent of each transport
-        /// decision variable.
-        /// </summary>
-        /// <param name="solver">Active linear solver instance.</param>
-        /// <param name="name">Human-readable variable name.</param>
-        /// <returns>OR-Tools variable constrained to be ≥ 0.</returns>
-        private static Variable MakeNonNegativeVariable(Solver solver, string name)
-        {
-            return solver.MakeNumVar(0.0, double.PositiveInfinity, name);
-        }
-        /// <summary>
-        /// (3) Primal LP: min_Γ Σ Cᵢⱼ Γᵢⱼ subject to row/column marginals.
-        /// </summary>
-        internal static double[,] SolveOptimalTransportPrimal(double[,] cost, double[] mu, double[] nu)
-            => SolveOptimalTransportPrimal(cost, mu, nu, out _, out _);
+            _euclideanCost = ComputeEuclideanCost(positions);
 
-        private static double[,] SolveOptimalTransportPrimal(double[,] cost, double[] mu, double[] nu,
-            out double[] sourcePotential, out double[] targetPotential)
-        {
-            int m = mu.Length;
-            int n = nu.Length;
-            var solver = Solver.CreateSolver("GLOP") ?? throw new InvalidOperationException("OR-Tools GLOP solver unavailable.");
-
-            var planVar = new Variable[m, n];
-            for (int i = 0; i < m; i++)
-                for (int j = 0; j < n; j++)
-                    planVar[i, j] = MakeNonNegativeVariable(solver, $"P[{i},{j}]");
-
-            var row = new Constraint[m];
-            for (int i = 0; i < m; i++)
+            double[,] dsigma = mesh switch
             {
-                row[i] = solver.MakeConstraint(mu[i], mu[i], $"row[{i}]");
-                for (int j = 0; j < n; j++)
-                    row[i].SetCoefficient(planVar[i, j], 1.0);
-            }
-
-            var col = new Constraint[n];
-            for (int j = 0; j < n; j++)
-            {
-                col[j] = solver.MakeConstraint(nu[j], nu[j], $"col[{j}]");
-                for (int i = 0; i < m; i++)
-                    col[j].SetCoefficient(planVar[i, j], 1.0);
-            }
-
-            var objective = solver.Objective();
-            for (int i = 0; i < m; i++)
-                for (int j = 0; j < n; j++)
-                    objective.SetCoefficient(planVar[i, j], cost[i, j]);
-            objective.SetMinimization();
-
-            var status = solver.Solve();
-            if (status != Solver.ResultStatus.OPTIMAL)
-                throw new InvalidOperationException($"Optimal transport primal LP failed with status {status}.");
-
-            var planMatrix = new double[m, n];
-            for (int i = 0; i < m; i++)
-                for (int j = 0; j < n; j++)
-                    planMatrix[i, j] = planVar[i, j].SolutionValue();
-
-            sourcePotential = new double[m];
-            targetPotential = new double[n];
-            for (int i = 0; i < m; i++)
-                sourcePotential[i] = row[i].DualValue();
-            for (int j = 0; j < n; j++)
-                targetPotential[j] = col[j].DualValue();
-
-            return planMatrix;
-        }
-
-        /// <summary>
-        /// Computes the Frobenius inner product between a ground cost and the
-        /// optimal transport plan, i.e. <c>Σᵢⱼ Cᵢⱼ Γᵢⱼ</c>.
-        /// </summary>
-        /// <param name="matrix">Ground cost matrix.</param>
-        /// <param name="plan">Transport plan.</param>
-        /// <returns>Weighted sum of costs.</returns>
-        private static double WeightedSum(double[,] matrix, double[,] plan)
-        {
-            int m = matrix.GetLength(0);
-            int n = matrix.GetLength(1);
-            double sum = 0.0;
-            for (int i = 0; i < m; i++)
-                for (int j = 0; j < n; j++)
-                    sum += matrix[i, j] * plan[i, j];
-            return sum;
-        }
-
-        /// <summary>
-        /// Forms the convex combination of the conductivity-aware and purely
-        /// geometric Kantorovich potentials.  The factor of ½ follows directly
-        /// from the derivative of the quadratic objective with respect to the
-        /// source histogram.
-        /// </summary>
-        /// <param name="alpha">Blend weight favouring physics-aware costs.</param>
-        /// <param name="phys">Source potential from the conductive transport solve.</param>
-        /// <param name="geo">Optional source potential from the geometric solve.</param>
-        /// <returns>Blended source potential g_μ.</returns>
-        private double[] BlendPotentials(double alpha, double[] phys, double[]? geo)
-        {
-            int n = phys.Length;
-            double[] result = new double[n];
-            double physWeight = alpha;
-            double geoWeight = 1.0 - alpha;
-            for (int i = 0; i < n; i++)
-            {
-                double value = physWeight * phys[i];
-                if (geo != null)
-                    value += geoWeight * geo[i];
-                result[i] = 0.5 * value; // Eq. (5): g_μ = ½ α⋆
-            }
-            return result;
-        }
-
-        private (IReadOnlyList<(double x, double y)> positions, SoftGeodesicResult geodesics) PrepareGeodesics(Discretization mesh)
-        {
-            var positions = GetElectrodePositions(mesh);
-            var mapping = MapElectrodesToGraphNodes(mesh, positions);
-            var geodesics = ComputeSoftDistancesAndOccupancies(mesh, mapping);
-            return (positions, geodesics);
-        }
-
-        private static IReadOnlyList<(double x, double y)> GetElectrodePositions(Discretization mesh)
-        {
-            return mesh switch
-            {
-                FEMMesh femMesh => GetElectrodePositionsFEM(femMesh),
-                LBMGrid lbmGrid => GetElectrodePositionsLBM(lbmGrid),
-                _ => throw new NotSupportedException($"ConductivityAwareW2Metric cannot extract electrode positions for discretization type '{mesh.GetType().Name}'."),
+                FEMMesh fem => ConductivityAwareGroundCostBuilder.BuildFromFemMesh(fem, sigma, electrodes, getCoord),
+                LBMGrid lbm => ConductivityAwareGroundCostBuilder.BuildFromLbmGrid(lbm, BuildLbmSigma(lbm, sigma), electrodes, getCoord),
+                _ => throw new NotSupportedException($"Conductivity-aware ground cost not implemented for {mesh.GetType().Name}.")
             };
-        }
 
-        private static IReadOnlyList<(double x, double y)> GetElectrodePositionsFEM(FEMMesh mesh)
-        {
-            var vertices = mesh.GetVertices().ToDictionary(v => v.GlobalId);
-            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
-            var positions = new List<(double x, double y)>(electrodes.Count);
+            double medE = ComputeMedian(_euclideanCost);
+            double medD = ComputeMedianSquared(dsigma);
+            _scale = medD <= Tiny ? 1.0 : medE / medD;
 
-            foreach (var electrode in electrodes)
+            double targetAlpha = Math.Clamp(_config.TargetAlpha, 0.0, 1.0);
+            if (_config.EnableAlphaRamp && targetAlpha > _alphaCurrent)
             {
-                if (electrode.FEMVertexIds.Count == 0)
-                {
-                    if (!vertices.TryGetValue(electrode.MeshId, out var v))
-                        throw new InvalidOperationException($"Electrode {electrode.Id} does not reference any FEM vertex.");
-                    positions.Add((v.X, v.Y));
-                    continue;
-                }
-
-                double sx = 0.0, sy = 0.0;
-                foreach (var id in electrode.FEMVertexIds)
-                {
-                    if (!vertices.TryGetValue(id, out var v))
-                        throw new InvalidOperationException($"Electrode {electrode.Id} references missing FEM vertex {id}.");
-                    sx += v.X;
-                    sy += v.Y;
-                }
-                double inv = 1.0 / electrode.FEMVertexIds.Count;
-                positions.Add((sx * inv, sy * inv));
+                double delta = Math.Max(0.05 * targetAlpha, 0.5 * (targetAlpha - _alphaCurrent));
+                _alphaCurrent = Math.Min(targetAlpha, _alphaCurrent + delta);
+            }
+            else
+            {
+                _alphaCurrent = targetAlpha;
             }
 
-            return positions;
-        }
-
-        private static IReadOnlyList<(double x, double y)> GetElectrodePositionsLBM(LBMGrid mesh)
-        {
-            var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
-            var positions = new List<(double x, double y)>(electrodes.Count);
-
-            foreach (var electrode in electrodes)
+            double[,] blended = new double[k, k];
+            for (int i = 0; i < k; i++)
             {
-                var (x, y) = mesh.ToLattice(electrode.GridId);
-                positions.Add((x, y));
-            }
-
-            return positions;
-        }
-
-        /// <summary>
-        /// Exposes the electrode-to-graph mapping for unit tests.
-        /// </summary>
-        internal int[] DebugElectrodeNodeMapping(FEMMesh mesh)
-        {
-            var positions = GetElectrodePositions(mesh);
-            return MapElectrodesToGraphNodes(mesh, positions);
-        }
-
-        /// <summary>
-        /// Exposes the soft geodesic solver for unit tests.
-        /// </summary>
-        internal SoftGeodesicResult DebugComputeSoftGeodesics(FEMMesh mesh)
-        {
-            var nodes = DebugElectrodeNodeMapping(mesh);
-            return ComputeSoftDistancesAndOccupancies(mesh, nodes);
-        }
-
-        private static Utility.Classes.Discretizer.GraphMesh.Graph GetGraph(Discretization mesh)
-        {
-            return mesh switch
-            {
-                FEMMesh fem => fem.ToGraph(),
-                LBMGrid lbm => lbm.ToGraph(),
-                _ => throw new NotSupportedException($"ConductivityAwareW2Metric cannot build graph for discretization type '{mesh.GetType().Name}'.")
-            };
-        }
-
-        /// <summary>
-        /// Associates each electrode with the nearest vertex in the graph that
-        /// is derived from the FEM mesh.  The mapping provides the bridge
-        /// between electrode boundary conditions and the graph-based geodesic
-        /// solver.
-        /// </summary>
-        /// <param name="mesh">Mesh that defines both the graph and electrodes.</param>
-        /// <param name="electrodePositions">Electrode centroid coordinates.</param>
-        /// <returns>Array mapping electrode indices to graph node indices.</returns>
-        private static int[] MapElectrodesToGraphNodes(Discretization mesh, IReadOnlyList<(double x, double y)> electrodePositions)
-        {
-            var graph = GetGraph(mesh);
-            var vertices = graph.Vertices;
-            int nodeCount = vertices.Count;
-
-            int[] mapping = new int[electrodePositions.Count];
-            for (int i = 0; i < electrodePositions.Count; i++)
-            {
-                double ex = electrodePositions[i].x;
-                double ey = electrodePositions[i].y;
-                double best = double.PositiveInfinity;
-                int bestIdx = 0;
-                for (int idx = 0; idx < nodeCount; idx++)
+                for (int j = 0; j < k; j++)
                 {
-                    var v = vertices[idx];
-                    double dx = ex - v.X;
-                    double dy = ey - v.Y;
-                    double dist2 = dx * dx + dy * dy;
-                    if (dist2 < best)
-                    {
-                        best = dist2;
-                        bestIdx = idx;
-                    }
-                }
-                mapping[i] = bestIdx;
-            }
-            return mapping;
-        }
-
-        /// <summary>
-        /// Runs the conductivity-aware soft geodesic solver for every
-        /// electrode pair and stores the resulting distances and edge
-        /// occupancies.  The occupancies enable efficient reuse during
-        /// gradient back-propagation.
-        /// </summary>
-        /// <param name="mesh">Finite-element mesh providing the conductivity graph.</param>
-        /// <param name="electrodeNodes">Indices of graph nodes attached to electrodes.</param>
-        /// <returns>Distances and edge metadata for subsequent computations.</returns>
-        private SoftGeodesicResult ComputeSoftDistancesAndOccupancies(Discretization mesh, int[] electrodeNodes)
-        {
-            // Build graph data from the discretization.
-            var graph = GetGraph(mesh);
-            int nodeCount = graph.Vertices.Count;
-            var nodeIndex = new Dictionary<int, int>(nodeCount);
-            for (int i = 0; i < nodeCount; i++)
-                nodeIndex[graph.Vertices[i].GlobalId] = i;
-
-            var sigmaField = mesh.ConductivityDistribution.Conductivities;
-            var edges = new List<EdgeInfo>(graph.Edges.Count);
-            var adjacency = new List<DirectedEdge>[nodeCount];
-            for (int i = 0; i < nodeCount; i++) adjacency[i] = new List<DirectedEdge>();
-
-            for (int ei = 0; ei < graph.Edges.Count; ei++)
-            {
-                var e = graph.Edges[ei];
-                int u = nodeIndex[e.Vertices[0].GlobalId];
-                int v = nodeIndex[e.Vertices[1].GlobalId];
-                if (u == v) continue;
-                double dx = e.Vertices[0].X - e.Vertices[1].X;
-                double dy = e.Vertices[0].Y - e.Vertices[1].Y;
-                double length = Math.Sqrt(dx * dx + dy * dy);
-                if (length <= 0.0)
-                    length = 1e-12;
-
-                double sigU = sigmaField.TryGetValue(e.Vertices[0].GlobalId, out var sU) ? sU : 1.0;
-                double sigV = sigmaField.TryGetValue(e.Vertices[1].GlobalId, out var sV) ? sV : 1.0;
-                double sigmaEdge = 0.5 * (Math.Clamp(sigU, _config.SigmaFloor, _config.SigmaCeiling) +
-                                          Math.Clamp(sigV, _config.SigmaFloor, _config.SigmaCeiling));
-                double cost = length * Math.Pow(sigmaEdge, -_config.Beta);
-
-                edges.Add(new EdgeInfo(ei, u, v, length, e.Vertices[0].GlobalId, e.Vertices[1].GlobalId, sigmaEdge, cost));
-                adjacency[u].Add(new DirectedEdge(ei, u, v, cost));
-                adjacency[v].Add(new DirectedEdge(ei, v, u, cost));
-            }
-
-            int m = electrodeNodes.Length;
-            var distances = new double[m, m];
-            var occupancies = new Dictionary<(int source, int target), double[]>();
-
-            for (int targetIdx = 0; targetIdx < m; targetIdx++)
-            {
-                int targetNode = electrodeNodes[targetIdx];
-                var softDistances = SolveSoftDistances(nodeCount, adjacency, targetNode);
-                var transitions = BuildTransitions(nodeCount, adjacency, softDistances, targetNode);
-                var (lu, indexMap) = FactoriseTransitions(transitions, targetNode);
-
-                for (int sourceIdx = 0; sourceIdx < m; sourceIdx++)
-                {
-                    int sourceNode = electrodeNodes[sourceIdx];
-                    double distance = softDistances[sourceNode];
-                    distances[sourceIdx, targetIdx] = distance;
-
-                    var rho = ComputeEdgeOccupancies(nodeCount, edges, transitions, lu, indexMap, sourceNode, targetNode);
-                    occupancies[(sourceIdx, targetIdx)] = rho;
+                    double e = _euclideanCost[i, j];
+                    double d = dsigma[i, j];
+                    double d2 = d * d;
+                    double value = (1.0 - _alphaCurrent) * e + _alphaCurrent * _scale * d2;
+                    if (i == j)
+                        value = 0.0;
+                    blended[i, j] = value;
                 }
             }
 
-            return new SoftGeodesicResult(distances, occupancies, edges);
-        }
+            _cAmp = blended;
+            _cDiff = blended;
+            _lastCostBuildIter = _solveCounter;
 
-        /// <summary>
-        /// (2) Soft Bellman solver implementing d_τ(x) = -τ log Σ exp(-(c(x,y)+d_τ(y))/τ).
-        /// </summary>
-        private double[] SolveSoftDistances(int nodeCount, IList<DirectedEdge>[] adjacency, int target)
-        {
-            double[] d = new double[nodeCount];
-            for (int i = 0; i < nodeCount; i++)
-                d[i] = (i == target) ? 0.0 : 0.0;
-
-            double tau = Math.Max(_config.Tau, 1e-6);
-            double damping = Math.Clamp(_config.BellmanDamping, 0.0, 1.0);
-
-            for (int iter = 0; iter < _config.MaxBellmanIterations; iter++)
+            if (sigma.Length > 0)
             {
-                double maxDelta = 0.0;
-                for (int x = 0; x < nodeCount; x++)
-                {
-                    if (x == target) continue;
-                    var neighbors = adjacency[x];
-                    if (neighbors.Count == 0) continue;
-
-                    double maxVal = double.NegativeInfinity;
-                    for (int k = 0; k < neighbors.Count; k++)
-                    {
-                        double val = -(neighbors[k].Cost + d[neighbors[k].To]) / tau;
-                        if (val > maxVal) maxVal = val;
-                    }
-
-                    double sum = 0.0;
-                    for (int k = 0; k < neighbors.Count; k++)
-                    {
-                        double val = -(neighbors[k].Cost + d[neighbors[k].To]) / tau;
-                        sum += Math.Exp(val - maxVal);
-                    }
-                    double logSum = maxVal + Math.Log(sum);
-                    double candidate = -tau * logSum;
-                    double updated = damping * candidate + (1.0 - damping) * d[x];
-                    double delta = Math.Abs(updated - d[x]);
-                    if (delta > maxDelta) maxDelta = delta;
-                    d[x] = updated;
-                }
-
-                if (maxDelta < _config.BellmanTolerance)
-                    break;
+                _sigmaSnapshot = _sigmaSnapshot != null && _sigmaSnapshot.Length == sigma.Length
+                    ? _sigmaSnapshot
+                    : new double[sigma.Length];
+                Array.Copy(sigma, _sigmaSnapshot, sigma.Length);
             }
-
-            return d;
-        }
-
-        /// <summary>
-        /// Constructs the soft transition probabilities for the entropy
-        /// regularised shortest-path problem.  The resulting Markov chain
-        /// encodes the likelihood of traversing each edge when moving toward
-        /// the target node under the soft Bellman policy.
-        /// </summary>
-        /// <param name="nodeCount">Number of nodes in the graph.</param>
-        /// <param name="adjacency">Weighted adjacency lists.</param>
-        /// <param name="d">Soft distance vector.</param>
-        /// <param name="target">Destination node.</param>
-        /// <returns>Per-node transition probability lists.</returns>
-        private static List<Transition>[] BuildTransitions(int nodeCount, IList<DirectedEdge>[] adjacency, double[] d, int target)
-        {
-            var transitions = new List<Transition>[nodeCount];
-            for (int i = 0; i < nodeCount; i++)
-            {
-                transitions[i] = new List<Transition>();
-                if (i == target) continue;
-                var neighbors = adjacency[i];
-                if (neighbors.Count == 0) continue;
-
-                double maxVal = double.NegativeInfinity;
-                for (int k = 0; k < neighbors.Count; k++)
-                {
-                    double val = -(neighbors[k].Cost + d[neighbors[k].To]);
-                    if (val > maxVal) maxVal = val;
-                }
-
-                double denom = 0.0;
-                for (int k = 0; k < neighbors.Count; k++)
-                {
-                    double val = -(neighbors[k].Cost + d[neighbors[k].To]);
-                    denom += Math.Exp(val - maxVal);
-                }
-                double logDenom = maxVal + Math.Log(denom);
-
-                for (int k = 0; k < neighbors.Count; k++)
-                {
-                    double val = -(neighbors[k].Cost + d[neighbors[k].To]);
-                    double prob = Math.Exp(val - logDenom);
-                    transitions[i].Add(new Transition(neighbors[k].EdgeIndex, neighbors[k].To, prob));
-                }
-            }
-
-            return transitions;
-        }
-
-        /// <summary>
-        /// Builds an LU factorisation of the reduced transition matrix (with
-        /// the absorbing target removed) so that multiple right-hand sides can
-        /// be solved efficiently when accumulating edge occupancies for each
-        /// source electrode.
-        /// </summary>
-        /// <param name="transitions">Transition probabilities towards the target.</param>
-        /// <param name="target">Index of the absorbing target node.</param>
-        /// <returns>LU decomposition and node-index mapping.</returns>
-        private static (LU<double> lu, Dictionary<int, int> indexMap) FactoriseTransitions(List<Transition>[] transitions, int target)
-        {
-            int nodeCount = transitions.Length;
-            var indexMap = new Dictionary<int, int>();
-            int idx = 0;
-            for (int i = 0; i < nodeCount; i++)
-            {
-                if (i == target) continue;
-                indexMap[i] = idx++;
-            }
-
-            var matrix = DenseMatrix.Create(idx, idx, 0.0);
-            for (int i = 0; i < nodeCount; i++)
-            {
-                if (i == target) continue;
-                int row = indexMap[i];
-                matrix[row, row] = 1.0;
-                foreach (var t in transitions[i])
-                {
-                    if (!indexMap.TryGetValue(t.To, out int col))
-                        continue; // transition to absorbing state
-                    matrix[row, col] -= t.Probability;
-                }
-            }
-
-            var lu = matrix.LU();
-            return (lu, indexMap);
-        }
-
-        /// <summary>
-        /// Accumulates expected edge visitation counts for a soft geodesic
-        /// random walk originating from <paramref name="sourceNode"/> and
-        /// terminating at <paramref name="targetNode"/>.
-        /// </summary>
-        /// <param name="nodeCount">Number of vertices in the graph.</param>
-        /// <param name="edges">Edge metadata including σ and geometry.</param>
-        /// <param name="transitions">Soft transition probabilities.</param>
-        /// <param name="lu">LU factorisation of the reduced transition matrix.</param>
-        /// <param name="indexMap">Mapping from node id to LU row index.</param>
-        /// <param name="sourceNode">Start node of the walk.</param>
-        /// <param name="targetNode">Absorbing target node.</param>
-        /// <returns>Expected number of traversals per edge.</returns>
-        private static double[] ComputeEdgeOccupancies(int nodeCount,
-                                                        IReadOnlyList<EdgeInfo> edges,
-                                                        List<Transition>[] transitions,
-                                                        LU<double> lu,
-                                                        Dictionary<int, int> indexMap,
-                                                        int sourceNode,
-                                                        int targetNode)
-        {
-            double[] rho = new double[edges.Count];
-            if (sourceNode == targetNode)
-                return rho;
-            if (!indexMap.TryGetValue(sourceNode, out int sourceIdx))
-                return rho;
-
-            var b = DenseVector.Create(indexMap.Count, 0.0);
-            b[sourceIdx] = 1.0;
-            var eta = lu.Solve(b);
-
-            double[] visitCounts = new double[nodeCount];
-            foreach (var kv in indexMap)
-                visitCounts[kv.Key] = eta[kv.Value];
-
-            foreach (var kv in indexMap)
-            {
-                int node = kv.Key;
-                double visits = visitCounts[node];
-                foreach (var t in transitions[node])
-                {
-                    int edgeIndex = t.EdgeIndex;
-                    double contribution = visits * t.Probability;
-                    rho[edgeIndex] += contribution;
-                }
-            }
-
-            return rho;
-        }
-
-        /// <summary>
-        /// Contracts the optimal transport plan with the edge occupancy
-        /// sensitivities to yield the conductivity derivative of the OT cost
-        /// term.
-        /// </summary>
-        /// <param name="mesh">Source FEM mesh.</param>
-        /// <param name="geodesics">Soft geodesic cache.</param>
-        /// <param name="gamma">Optimal transport plan Γ.</param>
-        /// <returns>Element-indexed gradient contribution.</returns>
-        private Dictionary<int, double> ComputeCostGradient(SoftGeodesicResult geodesics, double[,] gamma)
-        {
-            var gradient = new Dictionary<int, double>();
-
-            foreach (var edge in geodesics.EdgeInfos)
-            {
-                if (!gradient.ContainsKey(edge.ElementU)) gradient[edge.ElementU] = 0.0;
-                if (!gradient.ContainsKey(edge.ElementV)) gradient[edge.ElementV] = 0.0;
-            }
-
-            foreach (var kv in geodesics.Occupancies)
-            {
-                int source = kv.Key.source;
-                int target = kv.Key.target;
-                double distance = geodesics.Distances[source, target];
-                double gammaWeight = gamma[source, target];
-                if (gammaWeight == 0.0 || distance == 0.0)
-                    continue;
-
-                var rho = kv.Value;
-                for (int ei = 0; ei < geodesics.EdgeInfos.Count; ei++)
-                {
-                    double occupancy = rho[ei];
-                    if (occupancy == 0.0) continue;
-                    var edge = geodesics.EdgeInfos[ei];
-                    double sigma = Math.Max(edge.Sigma, 1e-12);
-                    double factor = -_config.Beta * edge.Length * Math.Pow(sigma, -_config.Beta - 1);
-                    double contribution = 0.5 * gammaWeight * distance * occupancy * factor;
-
-                    gradient[edge.ElementU] += contribution;
-                    gradient[edge.ElementV] += contribution;
-                }
-            }
-
-            return gradient;
-        }
-
-        /// <summary>
-        /// Computes the classical FEM adjoint gradient component
-        /// <c>-∇ϕ·∇λ</c> for each conductivity element.
-        /// </summary>
-        /// <param name="mesh">Finite-element mesh used in the forward solve.</param>
-        /// <param name="phi">Forward potential distribution.</param>
-        /// <param name="lambda">Adjoint potential distribution.</param>
-        /// <returns>Dictionary of element gradients.</returns>
-        private static Dictionary<int, double> ComputeAdjointConductivityGradient(FEMMesh mesh, PotentialDistribution phi, PotentialDistribution lambda)
-        {
-            var result = new Dictionary<int, double>();
-            foreach (var element in mesh.ElementsTyped)
-            {
-                var gradPhi = ComputeElementGradient(element, phi);
-                var gradLambda = ComputeElementGradient(element, lambda);
-                double dot = gradPhi.dx * gradLambda.dx + gradPhi.dy * gradLambda.dy;
-                result[element.Id] = -dot * element.Area;
-            }
-            return result;
-        }
-
-        private static Dictionary<int, double> ComputeAdjointConductivityGradient(LBMGrid mesh, PotentialDistribution phi, PotentialDistribution lambda)
-        {
-            var gradPhi = LatticeBoltzmannOperators.CalculateGradient(mesh, phi);
-            var gradLambda = LatticeBoltzmannOperators.CalculateGradient(mesh, lambda);
-
-            var result = new Dictionary<int, double>();
-            foreach (var element in mesh.GetElements().Cast<LBMElement>())
-            {
-                var gPhi = gradPhi.GetVector(element.Id);
-                var gLambda = gradLambda.GetVector(element.Id);
-                double dot = gPhi.X * gLambda.X + gPhi.Y * gLambda.Y;
-                result[element.Id] = -dot;
-            }
-            return result;
-        }
-
-        /// <summary>
-        /// Evaluates the gradient of a nodal potential over a single
-        /// triangular FEM element using the stored basis-function gradients.
-        /// </summary>
-        /// <param name="element">Element for which the gradient is required.</param>
-        /// <param name="potential">Potential values defined at element nodes.</param>
-        /// <returns>Gradient components (∂/∂x, ∂/∂y).</returns>
-        private static (double dx, double dy) ComputeElementGradient(FEMElement element, PotentialDistribution potential)
-        {
-            double gx = 0.0, gy = 0.0;
-            for (int i = 0; i < 3; i++)
-            {
-                int nodeId = element.Vertices[i].GlobalId;
-                double value = potential.Potentials.TryGetValue(nodeId, out var val) ? val : 0.0;
-                gx += value * element.GradPhi[i][0];
-                gy += value * element.GradPhi[i][1];
-            }
-            return (gx, gy);
-        }
-
-        /// <summary>
-        /// Aggregates the adjoint and cost contributions into a single
-        /// conductivity distribution that matches the mesh element ordering.
-        /// </summary>
-        /// <param name="mesh">Mesh describing the element indices.</param>
-        /// <param name="adjoint">Optional PDE adjoint component.</param>
-        /// <param name="cost">Transport-cost component.</param>
-        /// <returns>Combined conductivity gradient.</returns>
-        private static ConductivityDistribution MergeGradientComponents(FEMMesh mesh,
-                                                                         Dictionary<int, double>? adjoint,
-                                                                         Dictionary<int, double> cost)
-        {
-            var merged = new Dictionary<int, double>(mesh.ElementsTyped.Count);
-            foreach (var element in mesh.ElementsTyped)
-            {
-                double adj = 0.0;
-                if (adjoint != null && adjoint.TryGetValue(element.Id, out var a))
-                    adj = a;
-                double c = cost.TryGetValue(element.Id, out var v) ? v : 0.0;
-                merged[element.Id] = adj + c;
-            }
-
-            return new ConductivityDistribution(merged);
-        }
-
-        private static ConductivityDistribution MergeGradientComponents(LBMGrid mesh,
-                                                                         Dictionary<int, double>? adjoint,
-                                                                         Dictionary<int, double> cost)
-        {
-            var elements = mesh.GetElements();
-            var merged = new Dictionary<int, double>(elements.Count);
-            foreach (var element in elements.Cast<LBMElement>())
-            {
-                double adj = 0.0;
-                if (adjoint != null && adjoint.TryGetValue(element.Id, out var a))
-                    adj = a;
-                double c = cost.TryGetValue(element.Id, out var v) ? v : 0.0;
-                merged[element.Id] = adj + c;
-            }
-
-            return new ConductivityDistribution(merged);
-        }
-
-        /// <summary>
-        /// Spreads an electrode-indexed adjoint source vector onto mesh nodes
-        /// by proportionally distributing the values across the FEM vertices
-        /// covered by each electrode.
-        /// </summary>
-        /// <param name="mesh">Mesh containing the electrode definitions.</param>
-        /// <param name="electrodeSource">Adjoint source per electrode.</param>
-        /// <returns>Node-indexed adjoint source.</returns>
-        internal static Dictionary<int, double> LiftElectrodeSourceToNodes(FEMMesh mesh, double[] electrodeSource)
-
-        {
-            var map = new Dictionary<int, double>();
-            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
-            if (electrodeSource.Length != electrodes.Count)
-                throw new ArgumentException("Adjoint source vector size must match electrode count.");
-
-            for (int i = 0; i < electrodes.Count; i++)
-            {
-                var electrode = electrodes[i];
-                double value = electrodeSource[i];
-                if (electrode.FEMVertexIds.Count == 0)
-                {
-                    int node = electrode.MeshId;
-                    map[node] = map.TryGetValue(node, out var existing) ? existing + value : value;
-                    continue;
-                }
-
-                double share = value / electrode.FEMVertexIds.Count;
-                foreach (var node in electrode.FEMVertexIds)
-                    map[node] = map.TryGetValue(node, out var existing) ? existing + share : share;
-            }
-
-            return map;
         }
     }
+    private static double[,] BuildLbmSigma(LBMGrid grid, double[] flat)
+    {
+        var sigma = new double[grid.Nx, grid.Ny];
+        for (int y = 0; y < grid.Ny; y++)
+        {
+            for (int x = 0; x < grid.Nx; x++)
+            {
+                int id = y * grid.Nx + x;
+                double value = id < flat.Length ? flat[id] : 1.0;
+                sigma[x, y] = value;
+            }
+        }
+        return sigma;
+    }
+    private static double[,] ComputeEuclideanCost(IReadOnlyList<(double x, double y)> positions)
+    {
+        int k = positions.Count;
+        var cost = new double[k, k];
+        for (int i = 0; i < k; i++)
+        {
+            cost[i, i] = 0.0;
+            for (int j = i + 1; j < k; j++)
+            {
+                double dx = positions[i].x - positions[j].x;
+                double dy = positions[i].y - positions[j].y;
+                double d2 = dx * dx + dy * dy;
+                cost[i, j] = d2;
+                cost[j, i] = d2;
+            }
+        }
+        return cost;
+    }
+    private static double ComputeMedian(double[,] matrix)
+    {
+        int n = matrix.GetLength(0);
+        if (n <= 1)
+            return 0.0;
+        int count = n * (n - 1) / 2;
+        var values = ArrayPool<double>.Shared.Rent(Math.Max(1, count));
+        try
+        {
+            int idx = 0;
+            for (int i = 0; i < n; i++)
+            {
+                for (int j = i + 1; j < n; j++)
+                {
+                    double v = matrix[i, j];
+                    if (double.IsNaN(v))
+                        continue;
+                    values[idx++] = v;
+                }
+            }
+            if (idx == 0)
+                return 0.0;
+            Array.Sort(values, 0, idx);
+            int mid = idx / 2;
+            if ((idx & 1) == 0)
+                return 0.5 * (values[mid - 1] + values[mid]);
+            return values[mid];
+        }
+        finally
+        {
+            ArrayPool<double>.Shared.Return(values, clearArray: true);
+        }
+    }
+
+    private static double ComputeMedianSquared(double[,] matrix)
+    {
+        int n = matrix.GetLength(0);
+        if (n <= 1)
+            return 0.0;
+        int count = n * (n - 1) / 2;
+        var values = ArrayPool<double>.Shared.Rent(Math.Max(1, count));
+        try
+        {
+            int idx = 0;
+            for (int i = 0; i < n; i++)
+            {
+                for (int j = i + 1; j < n; j++)
+                {
+                    double d = matrix[i, j];
+                    if (d <= TinyDistance)
+                        continue;
+                    double d2 = d * d;
+                    values[idx++] = d2;
+                }
+            }
+            if (idx == 0)
+                return 0.0;
+            Array.Sort(values, 0, idx);
+            int mid = idx / 2;
+            if ((idx & 1) == 0)
+                return 0.5 * (values[mid - 1] + values[mid]);
+            return values[mid];
+        }
+        finally
+        {
+            ArrayPool<double>.Shared.Return(values, clearArray: true);
+        }
+    }
+    private double[,] GetAmplitudeCost(List<int> include)
+    {
+        var baseMatrix = _cAmp ?? throw new InvalidOperationException("Conductivity-aware ground cost not built yet.");
+        int size = include.Count;
+        var scratch = GetScratchMatrix(_amplitudeCostScratch, size);
+        for (int i = 0; i < size; i++)
+        {
+            int row = include[i];
+            for (int j = 0; j < size; j++)
+            {
+                int col = include[j];
+                scratch[i, j] = baseMatrix[row, col];
+            }
+        }
+        return scratch;
+    }
+
+    private double[,] GetDifferenceCost(int[] leftIndices)
+    {
+        var baseMatrix = _cDiff ?? throw new InvalidOperationException("Conductivity-aware ground cost not built yet.");
+        int size = leftIndices.Length;
+        var scratch = GetScratchMatrix(_differenceCostScratch, size);
+        for (int i = 0; i < size; i++)
+        {
+            int row = leftIndices[i];
+            for (int j = 0; j < size; j++)
+            {
+                int col = leftIndices[j];
+                scratch[i, j] = baseMatrix[row, col];
+            }
+        }
+        return scratch;
+    }
+
+    private static double[,] GetScratchMatrix(Dictionary<int, double[,]> pool, int size)
+    {
+        if (!pool.TryGetValue(size, out var matrix))
+        {
+            matrix = new double[size, size];
+            pool[size] = matrix;
+        }
+        return matrix;
+    }
+    private static (double[] raw, (double x, double y)[] loc, List<(int srcIdx, int electrodeIdx)> map)
+        BuildDistribution(double[] raw, IReadOnlyList<Electrode> electrodes, Func<Electrode, (double x, double y)> getCoord, List<int> include)
+    {
+        var values = new List<double>(include.Count);
+        var coords = new List<(double, double)>(include.Count);
+        var mapping = new List<(int, int)>(include.Count);
+
+        foreach (int idx in include)
+        {
+            if (idx < 0 || idx >= raw.Length)
+                continue;
+            double value = raw[idx];
+            if (!double.IsFinite(value))
+                continue;
+            var electrode = electrodes[idx];
+            values.Add(value);
+            coords.Add(getCoord(electrode));
+            mapping.Add((values.Count - 1, idx));
+        }
+
+        return (values.ToArray(), coords.ToArray(), mapping);
+    }
+
+    private static (double[] raw,
+                    (double x, double y)[] loc,
+                    List<(int srcIdx, int diffIdx)> map,
+                    int[] leftElectrodes)
+        BuildDifferenceDistribution(double[] raw,
+                                    IReadOnlyList<Electrode> electrodes,
+                                    Func<Electrode, (double x, double y)> getCoord,
+                                    List<int> include,
+                                    MeasurementPattern? pattern)
+    {
+        var values = new List<double>(include.Count);
+        var coords = new List<(double, double)>(include.Count);
+        var mapping = new List<(int, int)>(include.Count);
+        var leftIndices = new List<int>(include.Count);
+
+        foreach (int diffIdx in include)
+        {
+            if (diffIdx < 0 || diffIdx >= raw.Length)
+                continue;
+
+            double value = raw[diffIdx];
+            if (!double.IsFinite(value))
+                continue;
+
+            int left;
+            int right;
+            if (pattern != null && pattern.TryGetChannel(diffIdx, out var channel))
+            {
+                left = channel.FirstElectrodeIndex;
+                right = channel.SecondElectrodeIndex;
+            }
+            else
+            {
+                left = diffIdx % electrodes.Count;
+                right = (diffIdx + 1) % electrodes.Count;
+            }
+
+            if (left < 0 || left >= electrodes.Count)
+                continue;
+            if (right < 0 || right >= electrodes.Count)
+                continue;
+
+            values.Add(value);
+            coords.Add(getCoord(electrodes[left]));
+            mapping.Add((values.Count - 1, diffIdx));
+            leftIndices.Add(left);
+        }
+
+        return (values.ToArray(), coords.ToArray(), mapping, leftIndices.ToArray());
+    }
+    private static (double x, double y) ToXY(LBMGrid grid, int gridId)
+    {
+        int x = gridId % grid.Nx;
+        int y = gridId / grid.Nx;
+        return (x, y);
+    }
+
+    private static (double x, double y) GetCoord(FEMMesh mesh, Electrode electrode)
+    {
+        if (electrode is not FEMElectrode femElectrode)
+            throw new InvalidOperationException("Expected FEMElectrode when using FEMMesh discretization.");
+
+        if (!femElectrode.PointElectrode && femElectrode.FEMVertexIds.Count > 0)
+        {
+            double sx = 0.0;
+            double sy = 0.0;
+            int count = 0;
+            foreach (int id in femElectrode.FEMVertexIds)
+            {
+                var vertex = mesh.Vertices.FirstOrDefault(v => v.GlobalId == id);
+                if (vertex == null)
+                    continue;
+                sx += vertex.X;
+                sy += vertex.Y;
+                count++;
+            }
+            if (count > 0)
+                return (sx / count, sy / count);
+        }
+
+        var anchor = mesh.Vertices.FirstOrDefault(v => v.GlobalId == femElectrode.MeshId)
+            ?? mesh.Vertices.First();
+        return (anchor.X, anchor.Y);
+    }
+    private sealed class OptimalTransportResult
+    {
+        private readonly double[] _measured;
+        private readonly double[] _simulated;
+
+        public double Cost { get; }
+        public double[] Gradient { get; }
+
+        public OptimalTransportResult(double[] measured, double[] simulated, double cost, double[] gradient)
+        {
+            _measured = measured;
+            _simulated = simulated;
+            Cost = cost;
+            Gradient = gradient;
+        }
+
+        public bool Matches(double[] measured, double[] simulated)
+            => ReferenceEquals(_measured, measured) && ReferenceEquals(_simulated, simulated);
+    }
+
+    public sealed class OTResult
+    {
+        public double Cost { get; }
+        public double[] Grad { get; }
+        public double[,] Plan { get; }
+        public double[] Phi { get; }
+        public double[] Psi { get; }
+
+        public OTResult(double cost, double[] grad, double[,] plan, double[] phi, double[] psi)
+        {
+            Cost = cost;
+            Grad = grad;
+            Plan = plan;
+            Phi = phi;
+            Psi = psi;
+        }
+    }
+    public static OTResult w2_misfit_and_grad(double[] mPred, double[] dObs,
+        (double x, double y)[] x, (double x, double y)[] y)
+    {
+        if (mPred.Length != x.Length || dObs.Length != y.Length)
+            throw new ArgumentException("Mass and coordinate arrays must align.");
+
+        double[] a = (double[])mPred.Clone();
+        double[] b = (double[])dObs.Clone();
+
+        for (int i = 0; i < a.Length; i++)
+            if (!double.IsFinite(a[i]))
+                a[i] = 0.0;
+        for (int j = 0; j < b.Length; j++)
+            if (!double.IsFinite(b[j]))
+                b[j] = 0.0;
+
+        double minA = a.Length > 0 ? a.Min() : 0.0;
+        double minB = b.Length > 0 ? b.Min() : 0.0;
+        if (minA < 0)
+        {
+            for (int i = 0; i < a.Length; i++)
+                a[i] -= minA;
+        }
+        if (minB < 0)
+        {
+            for (int j = 0; j < b.Length; j++)
+                b[j] -= minB;
+        }
+
+        for (int i = 0; i < a.Length; i++)
+            if (a[i] < 0) a[i] = 0.0;
+        for (int j = 0; j < b.Length; j++)
+            if (b[j] < 0) b[j] = 0.0;
+
+        double sumA = a.Sum();
+        double sumB = b.Sum();
+        if (sumA <= Tiny || sumB <= Tiny)
+            return new OTResult(0.0, new double[a.Length], new double[a.Length, b.Length], new double[a.Length], new double[b.Length]);
+
+        for (int i = 0; i < a.Length; i++) a[i] /= sumA;
+        for (int j = 0; j < b.Length; j++) b[j] /= sumB;
+
+        int m = a.Length, n = b.Length;
+        var solver = Solver.CreateSolver("GLOP") ?? throw new InvalidOperationException("OR-Tools LP solver 'GLOP' not available.");
+
+        var plan = new Variable[m, n];
+        var row = new Constraint[m];
+        var col = new Constraint[n];
+
+        for (int i = 0; i < m; i++) row[i] = solver.MakeConstraint(a[i], a[i], $"row[{i}]");
+        for (int j = 0; j < n; j++) col[j] = solver.MakeConstraint(b[j], b[j], $"col[{j}]");
+
+        var obj = solver.Objective();
+        for (int i = 0; i < m; i++)
+        {
+            for (int j = 0; j < n; j++)
+            {
+                plan[i, j] = solver.MakeNumVar(0.0, double.PositiveInfinity, $"P[{i},{j}]");
+                row[i].SetCoefficient(plan[i, j], 1.0);
+                col[j].SetCoefficient(plan[i, j], 1.0);
+
+                double dx = x[i].x - y[j].x;
+                double dy = x[i].y - y[j].y;
+                double cij = dx * dx + dy * dy;
+                obj.SetCoefficient(plan[i, j], cij);
+            }
+        }
+
+        obj.SetMinimization();
+        var status = solver.Solve();
+        if (status != Solver.ResultStatus.OPTIMAL)
+            throw new InvalidOperationException($"W2 primal LP not optimal. Status={status}");
+
+        double[,] P = new double[m, n];
+        for (int i = 0; i < m; i++)
+            for (int j = 0; j < n; j++)
+                P[i, j] = plan[i, j].SolutionValue();
+
+        double cost = 0.5 * obj.Value();
+
+        double[] phi = new double[m];
+        double[] psi = new double[n];
+        for (int i = 0; i < m; i++) phi[i] = row[i].DualValue();
+        for (int j = 0; j < n; j++) psi[j] = col[j].DualValue();
+
+        double[] grad = new double[m];
+        for (int i = 0; i < m; i++) grad[i] = 0.5 * phi[i];
+        double mean = 0.0;
+        for (int i = 0; i < m; i++) mean += grad[i] * a[i];
+        for (int i = 0; i < m; i++) grad[i] -= mean;
+
+        double[] gradRaw = new double[m];
+        for (int i = 0; i < m; i++) gradRaw[i] = grad[i] / sumA;
+
+        return new OTResult(cost, gradRaw, P, phi, psi);
+    }
+    public static OTResult w2_misfit_and_grad(double[] mPred, double[] dObs, double[,] costMatrix)
+    {
+        if (mPred.Length != dObs.Length)
+            throw new ArgumentException("Mass arrays must have the same length when using an explicit cost matrix.");
+        if (costMatrix.GetLength(0) != mPred.Length || costMatrix.GetLength(1) != dObs.Length)
+            throw new ArgumentException("Cost matrix dimensions must match the histogram sizes.");
+
+        double[] a = (double[])mPred.Clone();
+        double[] b = (double[])dObs.Clone();
+        for (int i = 0; i < a.Length; i++)
+            if (!double.IsFinite(a[i]))
+                a[i] = 0.0;
+        for (int j = 0; j < b.Length; j++)
+            if (!double.IsFinite(b[j]))
+                b[j] = 0.0;
+
+        double minA = a.Length > 0 ? a.Min() : 0.0;
+        double minB = b.Length > 0 ? b.Min() : 0.0;
+        if (minA < 0)
+            for (int i = 0; i < a.Length; i++) a[i] -= minA;
+        if (minB < 0)
+            for (int j = 0; j < b.Length; j++) b[j] -= minB;
+
+        for (int i = 0; i < a.Length; i++) if (a[i] < 0) a[i] = 0.0;
+        for (int j = 0; j < b.Length; j++) if (b[j] < 0) b[j] = 0.0;
+
+        double sumA = a.Sum();
+        double sumB = b.Sum();
+        if (sumA <= Tiny || sumB <= Tiny)
+            return new OTResult(0.0, new double[a.Length], new double[a.Length, b.Length], new double[a.Length], new double[b.Length]);
+
+        for (int i = 0; i < a.Length; i++) a[i] /= sumA;
+        for (int j = 0; j < b.Length; j++) b[j] /= sumB;
+
+        int m = a.Length, n = b.Length;
+        var solver = Solver.CreateSolver("GLOP") ?? throw new InvalidOperationException("OR-Tools LP solver 'GLOP' not available.");
+
+        var plan = new Variable[m, n];
+        var row = new Constraint[m];
+        var col = new Constraint[n];
+        for (int i = 0; i < m; i++) row[i] = solver.MakeConstraint(a[i], a[i], $"row[{i}]");
+        for (int j = 0; j < n; j++) col[j] = solver.MakeConstraint(b[j], b[j], $"col[{j}]");
+
+        var obj = solver.Objective();
+        for (int i = 0; i < m; i++)
+        {
+            for (int j = 0; j < n; j++)
+            {
+                plan[i, j] = solver.MakeNumVar(0.0, double.PositiveInfinity, $"P[{i},{j}]");
+                row[i].SetCoefficient(plan[i, j], 1.0);
+                col[j].SetCoefficient(plan[i, j], 1.0);
+                obj.SetCoefficient(plan[i, j], costMatrix[i, j]);
+            }
+        }
+
+        obj.SetMinimization();
+        var status = solver.Solve();
+        if (status != Solver.ResultStatus.OPTIMAL)
+            throw new InvalidOperationException($"W2 primal LP not optimal. Status={status}");
+
+        double[,] P = new double[m, n];
+        for (int i = 0; i < m; i++)
+            for (int j = 0; j < n; j++)
+                P[i, j] = plan[i, j].SolutionValue();
+
+        double cost = 0.5 * obj.Value();
+        double[] phi = new double[m];
+        double[] psi = new double[n];
+        for (int i = 0; i < m; i++) phi[i] = row[i].DualValue();
+        for (int j = 0; j < n; j++) psi[j] = col[j].DualValue();
+
+        double[] grad = new double[m];
+        for (int i = 0; i < m; i++) grad[i] = 0.5 * phi[i];
+        double mean = 0.0;
+        for (int i = 0; i < m; i++) mean += grad[i] * a[i];
+        for (int i = 0; i < m; i++) grad[i] -= mean;
+
+        double[] gradRaw = new double[m];
+        for (int i = 0; i < m; i++) gradRaw[i] = grad[i] / sumA;
+
+        return new OTResult(cost, gradRaw, P, phi, psi);
+    }
+    private static class ConductivityAwareGroundCostBuilder
+    {
+        private sealed record EdgeAccumulator(double Length, double Sigma1, double Sigma2, bool HasSecond);
+
+        public static double[,] BuildFromFemMesh(
+            FEMMesh mesh,
+            double[] elemSigma,
+            IReadOnlyList<Electrode> electrodes,
+            Func<Electrode, (double x, double y)> getCoord)
+        {
+            var vertices = mesh.Vertices;
+            int nodeCount = vertices.Count;
+            var idToIndex = new Dictionary<int, int>(nodeCount);
+            for (int i = 0; i < nodeCount; i++)
+                idToIndex[vertices[i].GlobalId] = i;
+
+            var edgeMap = new Dictionary<(int u, int v), (double length, double sigma1, double sigma2)>();
+            var elements = mesh.ElementsTyped;
+            for (int eIdx = 0; eIdx < elements.Count; eIdx++)
+            {
+                var element = elements[eIdx];
+                double sigma = eIdx < elemSigma.Length ? elemSigma[eIdx] : element.Conductivity;
+                var v = element.Vertices;
+                var triples = new (FEMVertex, FEMVertex)[]
+                {
+                    (v[0], v[1]),
+                    (v[1], v[2]),
+                    (v[2], v[0])
+                };
+                foreach (var (va, vb) in triples)
+                {
+                    int ia = idToIndex[va.GlobalId];
+                    int ib = idToIndex[vb.GlobalId];
+                    var key = ia < ib ? (ia, ib) : (ib, ia);
+                    double dx = va.X - vb.X;
+                    double dy = va.Y - vb.Y;
+                    double len = Math.Sqrt(dx * dx + dy * dy);
+                    if (!edgeMap.TryGetValue(key, out var data))
+                    {
+                        edgeMap[key] = (len, sigma, double.NaN);
+                    }
+                    else
+                    {
+                        edgeMap[key] = (data.length, data.sigma1, sigma);
+                    }
+                }
+            }
+
+            var neighbors = new List<int>[nodeCount];
+            var costs = new List<double>[nodeCount];
+            for (int i = 0; i < nodeCount; i++)
+            {
+                neighbors[i] = new List<int>();
+                costs[i] = new List<double>();
+            }
+
+            foreach (var (key, data) in edgeMap)
+            {
+                double sigmaEdge;
+                if (!double.IsNaN(data.sigma2))
+                {
+                    sigmaEdge = 2.0 * data.sigma1 * data.sigma2 / (data.sigma1 + data.sigma2 + SigmaEps);
+                }
+                else
+                {
+                    sigmaEdge = data.sigma1;
+                }
+
+                sigmaEdge = Math.Max(sigmaEdge, SigmaEps);
+                double cost = data.length / sigmaEdge;
+
+                neighbors[key.u].Add(key.v);
+                costs[key.u].Add(cost);
+                neighbors[key.v].Add(key.u);
+                costs[key.v].Add(cost);
+            }
+
+            int[][] neighborArray = new int[nodeCount][];
+            double[][] costArray = new double[nodeCount][];
+            for (int i = 0; i < nodeCount; i++)
+            {
+                neighborArray[i] = neighbors[i].ToArray();
+                costArray[i] = costs[i].ToArray();
+            }
+
+            int[][] electrodeNodes = new int[electrodes.Count][];
+            for (int i = 0; i < electrodes.Count; i++)
+                electrodeNodes[i] = MapFemElectrode(mesh, electrodes[i], idToIndex, getCoord);
+
+            return ComputeElectrodeDistances(electrodeNodes, neighborArray, costArray);
+        }
+
+        public static double[,] BuildFromLbmGrid(
+            LBMGrid grid,
+            double[,] sigma,
+            IReadOnlyList<Electrode> electrodes,
+            Func<Electrode, (double x, double y)> getCoord)
+        {
+            int nodeCount = grid.Nx * grid.Ny;
+            var neighbors = new List<int>[nodeCount];
+            var costs = new List<double>[nodeCount];
+            for (int i = 0; i < nodeCount; i++)
+            {
+                neighbors[i] = new List<int>(4);
+                costs[i] = new List<double>(4);
+            }
+
+            var directions = new (int dx, int dy)[] { (1, 0), (-1, 0), (0, 1), (0, -1) };
+            for (int y = 0; y < grid.Ny; y++)
+            {
+                for (int x = 0; x < grid.Nx; x++)
+                {
+                    var element = grid.GetElementAt(x, y);
+                    if (element.IsWall)
+                        continue;
+
+                    int id = y * grid.Nx + x;
+                    foreach (var (dx, dy) in directions)
+                    {
+                        int nx = x + dx;
+                        int ny = y + dy;
+                        if (nx < 0 || nx >= grid.Nx || ny < 0 || ny >= grid.Ny)
+                            continue;
+                        var neighbor = grid.GetElementAt(nx, ny);
+                        if (neighbor.IsWall)
+                            continue;
+
+                        int nid = ny * grid.Nx + nx;
+                        double s1 = sigma[x, y];
+                        double s2 = sigma[nx, ny];
+                        double sigmaEdge = 2.0 * s1 * s2 / (s1 + s2 + SigmaEps);
+                        sigmaEdge = Math.Max(sigmaEdge, SigmaEps);
+                        double cost = 1.0 / sigmaEdge;
+                        neighbors[id].Add(nid);
+                        costs[id].Add(cost);
+                    }
+                }
+            }
+
+            int[][] neighborArray = new int[nodeCount][];
+            double[][] costArray = new double[nodeCount][];
+            for (int i = 0; i < nodeCount; i++)
+            {
+                neighborArray[i] = neighbors[i].ToArray();
+                costArray[i] = costs[i].ToArray();
+            }
+
+            int[][] electrodeNodes = new int[electrodes.Count][];
+            for (int i = 0; i < electrodes.Count; i++)
+                electrodeNodes[i] = MapLbmElectrode(grid, electrodes[i]);
+
+            return ComputeElectrodeDistances(electrodeNodes, neighborArray, costArray);
+        }
+
+        private static int[] MapFemElectrode(FEMMesh mesh, Electrode electrode, Dictionary<int, int> idToIndex, Func<Electrode, (double x, double y)> getCoord)
+        {
+            if (electrode is FEMElectrode fem)
+            {
+                var nodes = new List<int>(fem.FEMVertexIds.Count + 1);
+                foreach (int id in fem.FEMVertexIds)
+                {
+                    if (idToIndex.TryGetValue(id, out int idx))
+                        nodes.Add(idx);
+                }
+                if (nodes.Count == 0 && idToIndex.TryGetValue(fem.MeshId, out int meshIdx))
+                    nodes.Add(meshIdx);
+                if (nodes.Count > 0)
+                    return nodes.ToArray();
+            }
+
+            // Fallback: snap to the nearest vertex by Euclidean distance.
+            var pos = getCoord(electrode);
+            double best = double.PositiveInfinity;
+            int bestIdx = 0;
+            for (int i = 0; i < mesh.Vertices.Count; i++)
+            {
+                double dx = mesh.Vertices[i].X - pos.x;
+                double dy = mesh.Vertices[i].Y - pos.y;
+                double d2 = dx * dx + dy * dy;
+                if (d2 < best)
+                {
+                    best = d2;
+                    bestIdx = i;
+                }
+            }
+            return new[] { bestIdx };
+        }
+
+        private static int[] MapLbmElectrode(LBMGrid grid, Electrode electrode)
+        {
+            if (electrode is LBMElectrode lbm)
+                return new[] { lbm.GridId };
+            return new[] { 0 };
+        }
+
+        private static double[,] ComputeElectrodeDistances(int[][] electrodeNodes, int[][] neighbors, double[][] costs)
+        {
+            int nodeCount = neighbors.Length;
+            int electrodeCount = electrodeNodes.Length;
+            var result = new double[electrodeCount, electrodeCount];
+
+            Parallel.For(0, electrodeCount, s =>
+            {
+                var dist = Dijkstra(electrodeNodes[s], neighbors, costs, nodeCount);
+                for (int t = 0; t < electrodeCount; t++)
+                {
+                    double best = double.PositiveInfinity;
+                    var targets = electrodeNodes[t];
+                    for (int k = 0; k < targets.Length; k++)
+                    {
+                        int node = targets[k];
+                        double d = dist[node];
+                        if (d < best)
+                            best = d;
+                    }
+                    if (!double.IsFinite(best))
+                        best = double.MaxValue;
+                    best = Math.Max(best, TinyDistance);
+                    result[s, t] = best;
+                }
+            });
+
+            for (int i = 0; i < electrodeCount; i++)
+            {
+                result[i, i] = 0.0;
+                for (int j = i + 1; j < electrodeCount; j++)
+                {
+                    double sym = 0.5 * (result[i, j] + result[j, i]);
+                    result[i, j] = sym;
+                    result[j, i] = sym;
+                }
+            }
+
+            return result;
+        }
+
+        private static double[] Dijkstra(int[] sources, int[][] neighbors, double[][] costs, int nodeCount)
+        {
+            var dist = new double[nodeCount];
+            Array.Fill(dist, double.PositiveInfinity);
+            var queue = new PriorityQueue<int, double>();
+
+            foreach (int src in sources)
+            {
+                if (src < 0 || src >= nodeCount)
+                    continue;
+                dist[src] = 0.0;
+                queue.Enqueue(src, 0.0);
+            }
+
+            while (queue.TryDequeue(out int node, out double current))
+            {
+                if (current > dist[node])
+                    continue;
+                var neigh = neighbors[node];
+                var weight = costs[node];
+                for (int k = 0; k < neigh.Length; k++)
+                {
+                    int nb = neigh[k];
+                    double alt = current + weight[k];
+                    if (alt < dist[nb])
+                    {
+                        dist[nb] = alt;
+                        queue.Enqueue(nb, alt);
+                    }
+                }
+            }
+
+            return dist;
+        }
+    }
+}
 }
