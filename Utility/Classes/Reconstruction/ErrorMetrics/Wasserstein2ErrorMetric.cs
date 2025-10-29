@@ -346,6 +346,154 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             return new OptimalTransportResult(measured, simulated, cost, gradOut);
         }
 
+        // Signed-split W2 for PotentialDifference with a tiny mass/balance penalty
+        // and optional contrast shaping on magnitudes.
+        // Place inside Wasserstein2ErrorMetric (same class as your other Solve* methods).
+        private OptimalTransportResult SolveDifferencesOt2WithExtension(
+            double[] measured,
+            double[] simulated,
+            IReadOnlyList<Electrode> electrodes,
+            Func<Electrode, (double x, double y)> getCoord,
+            MeasurementPattern? pattern,
+            double lambdaMass = 1e-2,   // small amplitude anchor; try 1e-3..1e-1
+            double gamma = 1.0          // optional contrast on |d|: 1.0 = off; <1 boosts small signals
+        )
+        {
+            if (measured == null || simulated == null)
+                throw new ArgumentNullException("Measured/simulated must be non-null.");
+            if (measured.Length != simulated.Length)
+                throw new ArgumentException("Measured and simulated difference arrays must have identical length.");
+
+            int differenceCount = measured.Length;
+
+            // Keep only finite channels on both sides
+            var include = new List<int>(differenceCount);
+            for (int i = 0; i < differenceCount; i++)
+                if (double.IsFinite(measured[i]) && double.IsFinite(simulated[i]))
+                    include.Add(i);
+
+            if (include.Count == 0)
+                return new OptimalTransportResult(measured, simulated, 0.0, new double[differenceCount]);
+
+            // Build per-channel values and coordinates (uses your existing helper).
+            // IMPORTANT: ensure BuildDifferenceDistribution uses LEFT-electrode coordinates (not midpoints).
+            var (aRaw, aLoc, aMap) = BuildDifferenceDistribution(simulated, electrodes, getCoord, include, pattern);
+            var (bRaw, bLoc, _) = BuildDifferenceDistribution(measured, electrodes, getCoord, include, pattern);
+
+            int m = aRaw.Length;
+            if (m == 0)
+                return new OptimalTransportResult(measured, simulated, 0.0, new double[differenceCount]);
+
+            // Optional monotone contrast shaping on magnitudes to avoid near-uniform histograms.
+            // Keeps sign; apply the SAME transform to both sides.
+            if (gamma != 1.0)
+            {
+                double Pow(double v, double g) => Math.Pow(Math.Abs(v), g) * Math.Sign(v);
+                for (int i = 0; i < m; i++) { aRaw[i] = Pow(aRaw[i], gamma); bRaw[i] = Pow(bRaw[i], gamma); }
+            }
+
+            // Signed split
+            var aPlus = new double[m];
+            var aMinus = new double[m];
+            var bPlus = new double[m];
+            var bMinus = new double[m];
+
+            for (int i = 0; i < m; i++)
+            {
+                double av = aRaw[i], bv = bRaw[i];
+                if (av > 0) aPlus[i] = av; else aMinus[i] = -av;
+                if (bv > 0) bPlus[i] = bv; else bMinus[i] = -bv;
+            }
+
+            // Masses and zero-mass guards
+            const double eps = 1e-12;
+            double massPlusA = 0.0, massMinusA = 0.0;
+            double massPlusB = 0.0, massMinusB = 0.0;
+            int cntPlus = 0, cntMinus = 0;
+
+            for (int i = 0; i < m; i++)
+            {
+                massPlusA += aPlus[i]; massMinusA += aMinus[i];
+                massPlusB += bPlus[i]; massMinusB += bMinus[i];
+                if (aPlus[i] > 0) cntPlus++;
+                if (aMinus[i] > 0) cntMinus++;
+            }
+
+            // Two standard W2 solves (use your existing routine)
+            // If one side has ~zero mass on both measured+simulated, skip its call and set grad=0, cost=0.
+            (double Cost, double[] Grad) resPlus, resMinus;
+
+            if (massPlusA < eps && massPlusB < eps)
+                resPlus = (0.0, new double[m]);
+            else
+            {
+                var otRes = w2_misfit_and_grad(aPlus, bPlus, aLoc, bLoc);
+                resPlus = (otRes.Cost, otRes.Grad);
+            }
+
+            if (massMinusA < eps && massMinusB < eps)
+                resMinus = (0.0, new double[m]);
+            else
+            {
+                var otRes = w2_misfit_and_grad(aPlus, bPlus, aLoc, bLoc);
+                resMinus = (otRes.Cost, otRes.Grad);
+            }
+
+            // Combine gradients with mass reweighting (keeps physical scale)
+            var gradSigned = new double[m];
+            for (int i = 0; i < m; i++)
+                gradSigned[i] = massPlusA * resPlus.Grad[i] - massMinusA * resMinus.Grad[i];
+
+            // ---- Small mass/balance penalty (anchors amplitude; zero-mean by construction) ----
+            // rPlus promotes A^+ ≈ B^+; rMinus promotes A^- ≈ B^-
+            double rPlus = lambdaMass * (massPlusA - massPlusB) / Math.Max(massPlusB, eps);
+            double rMinus = lambdaMass * (massMinusA - massMinusB) / Math.Max(massMinusB, eps);
+
+            if (massPlusA > eps && cntPlus > 0)
+            {
+                double invA = 1.0 / massPlusA;
+                double invN = 1.0 / cntPlus;
+                for (int i = 0; i < m; i++)
+                    if (aPlus[i] > 0)
+                        gradSigned[i] += rPlus * (aPlus[i] * invA - invN);
+            }
+
+            if (massMinusA > eps && cntMinus > 0)
+            {
+                double invA = 1.0 / massMinusA;
+                double invN = 1.0 / cntMinus;
+                for (int i = 0; i < m; i++)
+                    if (aMinus[i] > 0)
+                        gradSigned[i] -= rMinus * (aMinus[i] * invA - invN);
+            }
+            // -------------------------------------------------------------------------------
+
+            // Remove constant mode explicitly (robust for cycle graphs: S^T * 1 = 0)
+            double mean = 0.0;
+            for (int i = 0; i < m; i++) mean += gradSigned[i];
+            mean /= m;
+            for (int i = 0; i < m; i++) gradSigned[i] -= mean;
+
+            // Map back to original difference layout
+            var gradOut = new double[differenceCount];
+            foreach (var (srcIdx, diffIdx) in aMap)
+                gradOut[diffIdx] = gradSigned[srcIdx];
+
+            // Costs for reporting / line-search
+            double massTotA = massPlusA + massMinusA + eps;
+            double costW2 = (massPlusA * resPlus.Cost + massMinusA * resMinus.Cost) / massTotA;
+
+            double costMass = 0.5 * lambdaMass * (
+                Math.Pow((massPlusA - massPlusB) / Math.Max(massPlusB, eps), 2.0) +
+                Math.Pow((massMinusA - massMinusB) / Math.Max(massMinusB, eps), 2.0)
+            );
+
+            double cost = costW2 + costMass;
+
+            return new OptimalTransportResult(measured, simulated, cost, gradOut);
+        }
+
+
 
         private static (double[] raw, (double x, double y)[] loc, List<(int srcIdx, int electrodeIdx)> indexMap)
             BuildDistribution(double[] raw, List<Electrode> electrodes,
