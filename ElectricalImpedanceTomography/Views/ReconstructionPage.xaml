@@ -153,7 +153,7 @@
                                 <Label Grid.Row="5" HorizontalOptions="Start" Text="Error Metric" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Picker Grid.Row="6" HorizontalOptions="Start" ItemsSource="{Binding ErrorMetricOptions}" SelectedItem="{Binding ReconstructionParameters.ErrorMetric}" WidthRequest="150"/>
                                 <Label Grid.Row="7" HorizontalOptions="Start" Text="Regularization" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="8" ItemsSource="{Binding RegularizationTechniqueOptions}" SelectedItem="{Binding ReconstructionParameters.RegularizationTechnique}"/>
+                                <Picker Grid.Row="8" ItemsSource="{Binding RegularizationTechniqueOptions}" SelectedItem="{Binding ReconstructionParameters.RegularizationTechnique}" WidthRequest="150"/>
                                 <Label Grid.Row="9" HorizontalOptions="Start" Text="Optimizer" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Picker Grid.Row="10" ItemsSource="{Binding NumericOptimizerOptions}" SelectedItem="{Binding ReconstructionParameters.NumericOptimizer}"/>
                                 <Label Grid.Row="11" HorizontalOptions="Start" Text="Linear Solver" FontFamily="SF Pro Text" FontAttributes="None"/>

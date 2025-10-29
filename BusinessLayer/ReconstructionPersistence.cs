@@ -174,9 +174,9 @@ namespace BusinessLayer
         /// <param name="gradientStepSize">Optimizer step size for this update.</param>
         /// <param name="redularizationStepSize">Weight for the regularization gradient.</param>
         /// <returns>A frame capturing the gradient and relevant potential fields.</returns>
-        public ReconstructionFrame Step(double[] measurement, BoundaryCondition boundaryCondition, double gradientStepSize, double redularizationStepSize)
+        public ReconstructionFrame Step(double[] measurement, BoundaryCondition boundaryCondition, double gradientStepSize, double regularizationStepSize)
         {
-            _regularizationWeight = redularizationStepSize;
+            _regularizationWeight = regularizationStepSize;
 
             if (_numericOptimizer == null)
                 throw new NullReferenceException("Numeric optimizer is null, check calling code!");
@@ -191,7 +191,7 @@ namespace BusinessLayer
                 // Combine data and regularization gradients before optimizer step
                 var totalGradDict = frame.ConductivityGradient.Conductivities.ToDictionary(
                     kvp => kvp.Key,
-                    kvp => kvp.Value + redularizationStepSize * frame.CalculatedRegularization.GetConductivity(kvp.Key));
+                    kvp => kvp.Value - regularizationStepSize * frame.CalculatedRegularization.GetConductivity(kvp.Key));
                 var totalGrad = new ConductivityDistribution(totalGradDict);
 
                 var sigma = femMesh.GetConductivityDistribution();
@@ -214,7 +214,7 @@ namespace BusinessLayer
 
                 var totalGradDict = frame.ConductivityGradient.Conductivities.ToDictionary(
                     kvp => kvp.Key,
-                    kvp => kvp.Value + redularizationStepSize * frame.CalculatedRegularization.GetConductivity(kvp.Key));
+                    kvp => kvp.Value - regularizationStepSize * frame.CalculatedRegularization.GetConductivity(kvp.Key));
                 var totalGrad = new ConductivityDistribution(totalGradDict);
 
                 var sigma = lbmGrid.GetConductivityDistribution();
@@ -563,11 +563,11 @@ namespace BusinessLayer
             ConductivityDistribution regularization = regularizer.EvaluateGradient(mesh, sigma);
 
             return new ReconstructionFrame(dataGrad,
-                                          phi,
-                                          mu,
-                                          regularization,
-                                          projection.Measured,
-                                          projection.Simulated);
+                                           phi,
+                                           mu,
+                                           regularization,
+                                           projection.Measured,
+                                           projection.Simulated);
         }
 
         /// <summary>
