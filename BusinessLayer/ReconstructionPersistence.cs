@@ -202,7 +202,9 @@ namespace BusinessLayer
                 return new ReconstructionFrame(totalGrad,
                                               frame.CalculatedPotentialDistribution,
                                               frame.CalculatedAdjointDistribution,
-                                              frame.CalculatedRegularization);
+                                              frame.CalculatedRegularization,
+                                              frame.MeasuredElectrodeValues,
+                                              frame.SimulatedElectrodeValues);
             }
             else if (_discretization is LBMGrid lbmGrid)
             {
@@ -223,7 +225,9 @@ namespace BusinessLayer
                 return new ReconstructionFrame(totalGrad,
                                               frame.CalculatedPotentialDistribution,
                                               frame.CalculatedAdjointDistribution,
-                                              frame.CalculatedRegularization);
+                                              frame.CalculatedRegularization,
+                                              frame.MeasuredElectrodeValues,
+                                              frame.SimulatedElectrodeValues);
             }
             else throw new ArgumentOutOfRangeException();
         }
@@ -442,7 +446,12 @@ namespace BusinessLayer
             );
 
             // LBM path in this routine does not compute explicit regularization (left empty)
-            return new ReconstructionFrame(dataGrad, phi, mu, new ConductivityDistribution([]));
+            return new ReconstructionFrame(dataGrad,
+                                          phi,
+                                          mu,
+                                          new ConductivityDistribution([]),
+                                          projection.Measured,
+                                          projection.Simulated);
         }
 
         /// <summary>
@@ -553,7 +562,12 @@ namespace BusinessLayer
             _ = regularizer.EvaluateTerm(mesh, sigma); // evaluate/optionally log; value is not used here
             ConductivityDistribution regularization = regularizer.EvaluateGradient(mesh, sigma);
 
-            return new ReconstructionFrame(dataGrad, phi, mu, regularization);
+            return new ReconstructionFrame(dataGrad,
+                                          phi,
+                                          mu,
+                                          regularization,
+                                          projection.Measured,
+                                          projection.Simulated);
         }
 
         /// <summary>
@@ -1100,7 +1114,12 @@ namespace BusinessLayer
                 )
             );
 
-            return new ReconstructionFrame(dataGrad, phi, mu, new ConductivityDistribution([]));
+            return new ReconstructionFrame(dataGrad,
+                                          phi,
+                                          mu,
+                                          new ConductivityDistribution([]),
+                                          projection.Measured,
+                                          projection.Simulated);
         }
 
         /// <summary>
