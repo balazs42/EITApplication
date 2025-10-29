@@ -1351,16 +1351,43 @@ public partial class ReconstructionPage : ContentPage
         GradientColorbarCanvas.InvalidateSurface();
     }
 
-    private static double CalculateResidual(ConductivityDistribution reconstructed, ConductivityDistribution original)
+    private static double CalculateResidual(ReconstructionResult result)
     {
-        double sum = 0.0;
-        foreach (var kv in reconstructed.Conductivities)
+        if (result.Frames.Count == 0)
+            return 0.0;
+
+        double sumSq = 0.0;
+        int sampleCount = 0;
+
+        foreach (var frame in result.Frames)
         {
-            original.Conductivities.TryGetValue(kv.Key, out double origVal);
-            double diff = kv.Value - origVal;
-            sum += diff * diff;
+            var measured = frame.MeasuredElectrodeValues;
+            var simulated = frame.SimulatedElectrodeValues;
+
+            if (measured == null || simulated == null)
+                continue;
+
+            int length = Math.Min(measured.Length, simulated.Length);
+            for (int i = 0; i < length; i++)
+            {
+                double measuredValue = measured[i];
+                double simulatedValue = simulated[i];
+
+                if (double.IsNaN(measuredValue) || double.IsInfinity(measuredValue))
+                    continue;
+                if (double.IsNaN(simulatedValue) || double.IsInfinity(simulatedValue))
+                    continue;
+
+                double diff = simulatedValue - measuredValue;
+                sumSq += diff * diff;
+                sampleCount++;
+            }
         }
-        return Math.Sqrt(sum);
+
+        if (sampleCount == 0)
+            return 0.0;
+
+        return Math.Sqrt(sumSq / sampleCount);
     }
 
     private async void OnExportClicked(object sender, EventArgs e)
@@ -1460,8 +1487,7 @@ public partial class ReconstructionPage : ContentPage
             if (_currentResult != null)
             {
                 _viewModel.IterationCount = results.Count;
-                _viewModel.Residual = CalculateResidual(_currentResult.ReconstructedConductivityDistribution,
-                                                       _currentResult.OriginalConductivityDistribution);
+                _viewModel.Residual = CalculateResidual(_currentResult);
             }
             Dispatcher.Dispatch(() =>
             {
@@ -1516,8 +1542,7 @@ public partial class ReconstructionPage : ContentPage
             {
                 _currentResult = res;
                 _viewModel.IterationCount = iter;
-                _viewModel.Residual = CalculateResidual(res.ReconstructedConductivityDistribution,
-                                                       res.OriginalConductivityDistribution);
+                _viewModel.Residual = CalculateResidual(res);
             }
             Dispatcher.Dispatch(() => { InvalidateAll(); UpdatePlaybackLabel(); });
         }
