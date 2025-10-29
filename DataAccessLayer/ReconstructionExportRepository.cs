@@ -38,8 +38,7 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
                                      request.DisplayMode);
 
             var initialMetadata = CreateRangeMetadata(initialDistribution);
-            double initialResidual = CalculateResidual(initialDistribution,
-                                                       firstSnapshot.Result.OriginalConductivityDistribution);
+            double initialResidual = CalculateResidual(initialResult);
             initialMetadata.Add(("Residual L2", FormatDouble(initialResidual)));
 
             var initialMetrics = ComputeDistributionMetrics(initialResult, CancellationToken.None);
@@ -108,8 +107,7 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
         {
             var result = results[i];
             var metrics = ComputeDistributionMetrics(result, CancellationToken.None);
-            double residualValue = CalculateResidual(result.ReconstructedConductivityDistribution,
-                                                     result.OriginalConductivityDistribution);
+            double residualValue = CalculateResidual(result);
             double correlationValue = CalculateCorrelation(result.ReconstructedConductivityDistribution,
                                                            result.OriginalConductivityDistribution);
             snapshots.Add(new ReconstructionIterationSnapshot(i + 1, result, metrics, residualValue, correlationValue));
@@ -365,10 +363,10 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
             ? "Potential difference"
             : "Amplitude";
         string setup = pattern.MeasurementSetup == ElectrodeMeasurementSetup.NonActive
-            ? "non-active electrodes"
-            : "active electrodes";
+            ? "Non-active electrodes"
+            : "Active electrodes";
 
-        return $"{representation} - {setup}";
+        return $"{representation}\n{setup}";
     }
 
     private static string FormatCsvValue(double value)
@@ -419,16 +417,43 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
         return (min, max, mean);
     }
 
-    private static double CalculateResidual(ConductivityDistribution reconstructed, ConductivityDistribution original)
+    private static double CalculateResidual(ReconstructionResult result)
     {
-        double sum = 0.0;
-        foreach (var kv in reconstructed.Conductivities)
+        if (result.Frames.Count == 0)
+            return 0.0;
+
+        double sumSq = 0.0;
+        int sampleCount = 0;
+
+        foreach (var frame in result.Frames)
         {
-            original.Conductivities.TryGetValue(kv.Key, out double origVal);
-            double diff = kv.Value - origVal;
-            sum += diff * diff;
+            var measured = frame.MeasuredElectrodeValues;
+            var simulated = frame.SimulatedElectrodeValues;
+
+            if (measured == null || simulated == null)
+                continue;
+
+            int length = Math.Min(measured.Length, simulated.Length);
+            for (int i = 0; i < length; i++)
+            {
+                double measuredValue = measured[i];
+                double simulatedValue = simulated[i];
+
+                if (double.IsNaN(measuredValue) || double.IsInfinity(measuredValue))
+                    continue;
+                if (double.IsNaN(simulatedValue) || double.IsInfinity(simulatedValue))
+                    continue;
+
+                double diff = simulatedValue - measuredValue;
+                sumSq += diff * diff;
+                sampleCount++;
+            }
         }
-        return Math.Sqrt(sum);
+
+        if (sampleCount == 0)
+            return 0.0;
+
+        return Math.Sqrt(sumSq / sampleCount) * 1000.0;
     }
 
     private static double CalculateCorrelation(ConductivityDistribution reconstructed, ConductivityDistribution original)

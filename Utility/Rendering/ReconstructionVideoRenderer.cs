@@ -190,8 +190,18 @@ public static class ReconstructionVideoRenderer
         {
             canvas.DrawText(Label + ":", textX, textY, labelPaint);
             textY += labelPaint.TextSize + 2;
-            canvas.DrawText(Value, textX, textY, valuePaint);
-            textY += valuePaint.TextSize + lineGap;
+
+            var valueLines = Value.Split('\n');
+            for (int i = 0; i < valueLines.Length; i++)
+            {
+                canvas.DrawText(valueLines[i], textX, textY, valuePaint);
+                textY += valuePaint.TextSize;
+
+                if (i < valueLines.Length - 1)
+                    textY += lineGap / 2f;
+            }
+
+            textY += lineGap;
         }
 
         // Save PNG
