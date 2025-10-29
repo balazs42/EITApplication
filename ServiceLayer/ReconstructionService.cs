@@ -63,6 +63,7 @@ namespace ServiceLayer
         private ElectrodeMeasurementSetup _measurementSetup = ElectrodeMeasurementSetup.Active;
         private bool _usePotentialDifferences;
         private MeasurementPattern? _measurementPattern;
+        private ReconstructionProcessContext? _processContext;
 
         /// <summary>
         /// Raised when a full reconstruction result is available (i.e., at the end of a cycle or batch).
@@ -89,47 +90,6 @@ namespace ServiceLayer
         /// Intended for preview/diagnostics. Delegates to the persistence layer.
         /// </summary>
         /// <returns>Predicted potential distribution.</returns>
-        public PotentialDistribution ForwardSolveStepLbm()
-        {
-            try
-            {
-                Workspace.AddLogMessage("Reconstruction Service", "Performing LBM Forward Solve.");
-
-                return _reconstructionPersistence.ForwardSolveStepLbm();
-            }
-            catch (Exception ex)
-            {
-                // Log both to the user workspace and the technical logger, then rethrow.
-                Workspace.AddErrorMessage(ex.Message);
-                _logger.LogError(ex.Message);
-                Console.WriteLine(ex.Message);
-                Debug.WriteLine(ex.Message);
-                throw;
-            }
-        }
-
-        /// <summary>
-        /// Executes a single forward-solve step with the CUDA-accelerated LBM solver.
-        /// </summary>
-        /// <returns>Predicted potential distribution.</returns>
-        public PotentialDistribution ForwardSolveStepLbmCuda()
-        {
-            try
-            {
-                Workspace.AddLogMessage("Reconstruction Service", "Performing LBM Forward Solve (CUDA).");
-
-                return _reconstructionPersistence.ForwardSolveStepLbmCuda();
-            }
-            catch (Exception ex)
-            {
-                Workspace.AddErrorMessage(ex.Message);
-                _logger.LogError(ex.Message);
-                Console.WriteLine(ex.Message);
-                Debug.WriteLine(ex.Message);
-                throw;
-            }
-        }
-
         /// <summary>
         /// Runs a full inverse solve using the LBM solver until convergence or iteration limit.
         /// </summary>
@@ -139,72 +99,6 @@ namespace ServiceLayer
         /// <param name="excitationAmplitude">Current amplitude applied during the solve.</param>
         /// <param name="tolerance">Optional stopping tolerance.</param>
         /// <returns>Final reconstruction result.</returns>
-        public ReconstructionResult InverseSolveLbm(int maxIterationCount,
-                                                    double gradientStepSize,
-                                                    double regularizationWeight,
-                                                    double excitationAmplitude,
-                                                    double tolerance = 1e-6)
-        {
-            try
-            {
-                ReconstructionResult reconstructionResult =
-                    _reconstructionPersistence.InverseSolveLbm(maxIterationCount,
-                                                               gradientStepSize,
-                                                               regularizationWeight,
-                                                               excitationAmplitude,
-                                                               tolerance);
-
-                // Mirror to workspace for UI/history.
-                Workspace.AddReconstructionResultToWorkspace(reconstructionResult);
-
-                return reconstructionResult;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex.Message);
-                Console.WriteLine(ex.Message);
-                Debug.WriteLine(ex.Message);
-                throw;
-            }
-        }
-
-        /// <summary>
-        /// Simulates LBM measurement frames on a given grid and injects optional measurement noise.
-        /// </summary>
-        /// <param name="mesh">LBM grid to simulate on.</param>
-        /// <param name="excitaionAmplitude">Excitation amplitude to apply.</param>
-        /// <returns>Measurement object containing frames and amplitude metadata.</returns>
-        public EITMeasurement SimulateLbmMeasurements(LBMGrid mesh, double excitaionAmplitude)
-        {
-            try
-            {
-                var parameters = Workspace.GetReconstructionParameters();
-                var measurement = _reconstructionPersistence.SimulateLbmMeasurements(mesh, excitaionAmplitude, parameters.DrivePattern);
-
-                // Deep clone frames so the originals remain intact, then apply noise if requested.
-                var noisyFrames = CloneMeasurementsWithNoise(measurement.Frames,
-                    parameters.MeasurementNoiseType,
-                    parameters.MeasurementNoiseAmplitude);
-
-                // Preserve frame size and amplitude information if provided by the simulator.
-                var noisyMeasurement = new EITMeasurement(noisyFrames,
-                    measurement.CurrentAmplitude ?? excitaionAmplitude)
-                {
-                    FrameSize = measurement.FrameSize,
-                    Pattern = measurement.Pattern
-                };
-
-                return noisyMeasurement;
-            }
-            catch(Exception ex)
-            {
-                _logger.LogError(ex.Message);
-                Console.WriteLine(ex.Message);
-                Debug.WriteLine(ex.Message);
-                throw;
-            }
-        }
-
         /// <summary>
         /// Initializes a new reconstruction session for the provided discretization and parameters.
         /// Sets up initial/original conductivity distributions, clears prior state, configures drive
@@ -293,6 +187,7 @@ namespace ServiceLayer
                 // Seed measurement source state; we may swap to real measurements later.
                 _measurementSource = Workspace.GetMeasurementSource();
                 _realMeasurementAmplitude = null;
+                _processContext = ReconstructionProcessContext.Create(parameters, _reconstructionPersistence);
             }
             catch(Exception ex)
             {
@@ -302,154 +197,6 @@ namespace ServiceLayer
                 throw;
             }
         }
-
-        /// <summary>
-        /// Executes a single FEM forward-solve step via the persistence layer.
-        /// </summary>
-        /// <returns>Potential distribution after the solve.</returns>
-        public PotentialDistribution ForwardSolveStepFem()
-        {
-            try
-            {
-                Workspace.AddLogMessage("Reconstruction Service", "Performing FEM forward solve.");
-
-                return _reconstructionPersistence.ForwardSolveStepFem();
-            }
-            catch(Exception ex)
-            {
-                _logger.LogError(ex.Message);
-                Console.WriteLine(ex.Message);
-                Debug.WriteLine(ex.Message);
-                throw;
-            }
-        }
-
-        /// <summary>
-        /// Runs a full inverse solve using the FEM solver until convergence or iteration limit.
-        /// </summary>
-        /// <param name="maxIterCount">Maximum number of optimizer steps.</param>
-        /// <param name="stepSize">Gradient descent step size.</param>
-        /// <param name="regularizationWeight">Regularization weight.</param>
-        /// <param name="excitationAmplitude">Current amplitude applied during the solve.</param>
-        /// <param name="tolerance">Optional stopping tolerance.</param>
-        /// <returns>Final reconstruction result.</returns>
-        public ReconstructionResult InverseSolveFem(int maxIterCount,
-                                                    double stepSize,
-                                                    double regularizationWeight,
-                                                    double excitationAmplitude,
-                                                    double tolerance = 1e-6)
-        {
-            try
-            {
-                var reconstructionResult = _reconstructionPersistence.InverseSolveFem(maxIterCount,
-                                                                                      stepSize,
-                                                                                      regularizationWeight,
-                                                                                      excitationAmplitude,
-                                                                                      tolerance);
-
-                // Record final result for UI/history.
-                Workspace.AddReconstructionResultToWorkspace(reconstructionResult);
-
-                return reconstructionResult;
-            }
-            catch(Exception ex)
-            {
-                _logger.LogError(ex.Message);
-                Console.WriteLine(ex.Message);
-                Debug.WriteLine(ex.Message);
-                throw;
-            }
-        }
-
-        /// <summary>
-        /// Executes a single FEM inverse step using the provided mesh, measurement, and boundary condition.
-        /// The measurement vector is mapped to the solver's electrode ordering and padded/truncated as required.
-        /// </summary>
-        /// <param name="mesh">FEM discretization.</param>
-        /// <param name="measurement">Raw measurement frame (may omit driven electrodes).</param>
-        /// <param name="boundaryCondition">Boundary condition encoding electrode roles and currents.</param>
-        /// <param name="stepSize">Gradient descent step size.</param>
-        /// <returns>Reconstruction frame for this step.</returns>
-        public ReconstructionFrame InverseSolveStepFem(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double stepSize)
-        {
-            try
-            {
-                var femBc = boundaryCondition as FEMBoundaryCondition
-                             ?? throw new ArgumentException("Boundary condition must be FEMBoundaryCondition", nameof(boundaryCondition));
-
-                // Ensure the measurement vector respects the per-electrode measuring/drive state encoded in the boundary condition.
-                var preparedMeasurement = PrepareMeasurementFrame(measurement, femBc.GetElectrodes().Cast<Electrode>().ToList());
-
-                ReconstructionFrame frame = _reconstructionPersistence.InverseSolveStepFem(mesh, femBc, preparedMeasurement, stepSize);
-
-                // Surface intermediate frame to workspace consumers and subscribers.
-                Workspace.AddReconstructionFrameToWorkspace(frame);
-
-                return frame;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex.Message);
-                Console.WriteLine(ex.Message);
-                Debug.WriteLine(ex.Message);
-                throw;
-            }
-        }
-
-        /// <summary>
-        /// Executes a single CUDA-accelerated LBM inverse step.
-        /// </summary>
-        /// <param name="mesh">LBM grid.</param>
-        /// <param name="measurement">Measurement frame.</param>
-        /// <param name="boundaryCondition">Boundary condition describing the applied pattern.</param>
-        /// <returns>Reconstruction frame for this step.</returns>
-        public ReconstructionFrame InverseSolveStepLbmCuda(LBMGrid mesh, double[] measurement, LBMBoundaryCondition boundaryCondition)
-        {
-            try
-            {
-                var frame = _reconstructionPersistence.InverseSolveStepLbmCuda(mesh, boundaryCondition, measurement);
-
-                Workspace.AddReconstructionFrameToWorkspace(frame);
-
-                return frame;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex.Message);
-                Console.WriteLine(ex.Message);
-                Debug.WriteLine(ex.Message);
-                throw;
-            }
-        }
-
-        /// <summary>
-        /// Simulates FEM measurement frames on the provided mesh and injects optional measurement noise.
-        /// </summary>
-        /// <param name="mesh">FEM discretization to simulate on.</param>
-        /// <param name="excitationAmplitude">Excitation current amplitude.</param>
-        /// <returns>List of measurement frames.</returns>
-        public List<double[]> SimulateFemMeasurements(FEMMesh mesh, double excitationAmplitude)
-        {
-            try
-            {
-                var parameters = Workspace.GetReconstructionParameters();
-                var frames = _reconstructionPersistence.SimulateFemMeasurements(mesh, excitationAmplitude, parameters.DrivePattern);
-
-                // Clone and apply the requested noise model.
-                return CloneMeasurementsWithNoise(frames,
-                    parameters.MeasurementNoiseType,
-                    parameters.MeasurementNoiseAmplitude);
-            }
-            catch(Exception ex)
-            {
-                _logger.LogError(ex.Message);
-                Console.WriteLine(ex.Message);
-                Debug.WriteLine(ex.Message);
-                throw;
-            }
-        }
-
-        #region Background reconstruction
 
         /// <summary>
         /// Computes the (excitation, ground) electrode indices for a given step within the drive-pattern cycle.
@@ -564,29 +311,19 @@ namespace ServiceLayer
                 _realMeasurementAmplitude = null;
             }
 
-            // Retrieve the original discretization for simulation (kept unchanged by deep copy inside persistence).
             var original = Workspace.GetOriginalDiscretization()
                            ?? throw new NullReferenceException("Original mesh not set.");
 
-            if (_discretization is FEMMesh && original is FEMMesh femOrig)
-            {
-                var frames = _reconstructionPersistence.SimulateFemMeasurements(femOrig, _excitationAmplitude, _drivePattern);
-                _simulatedMeasurements = CloneMeasurementsWithNoise(frames, _measurementNoiseType, _measurementNoiseAmplitude);
-                _realMeasurementAmplitude = null;
+            var context = _processContext ?? throw new InvalidOperationException("Reconstruction process is not initialized.");
+            if (context.SimulateMeasurements == null)
+                throw new InvalidOperationException($"Measurement simulation is not available for {context.Solver} reconstructions.");
 
-                AdoptMeasurementMetadata(Workspace.GetMeasurementPattern(), _simulatedMeasurements, electrodeCount);
-            }
-            else if (_discretization is LBMGrid && original is LBMGrid lbmOrig)
-            {
-                var measurement = _reconstructionPersistence.SimulateLbmMeasurements(lbmOrig, _excitationAmplitude, _drivePattern);
-                _simulatedMeasurements = CloneMeasurementsWithNoise(measurement.Frames, _measurementNoiseType, _measurementNoiseAmplitude);
-                _realMeasurementAmplitude = null;
-                AdoptMeasurementMetadata(measurement.Pattern, _simulatedMeasurements, electrodeCount);
-            }
-            else
-            {
-                throw new InvalidOperationException("Mesh type mismatch between original and reconstruction meshes.");
-            }
+            var batch = context.SimulateMeasurements(original, _excitationAmplitude, _drivePattern);
+
+            _simulatedMeasurements = CloneMeasurementsWithNoise(batch.Frames, _measurementNoiseType, _measurementNoiseAmplitude);
+            _realMeasurementAmplitude = null;
+
+            AdoptMeasurementMetadata(batch.Pattern, _simulatedMeasurements, electrodeCount, batch.MeasurementSetup);
         }
 
         /// <summary>
@@ -752,7 +489,10 @@ namespace ServiceLayer
             Workspace.SetMeasurementPattern(null);
         }
 
-        private void AdoptMeasurementMetadata(MeasurementPattern? pattern, IReadOnlyList<double[]> frames, int electrodeCount)
+        private void AdoptMeasurementMetadata(MeasurementPattern? pattern,
+                                              IReadOnlyList<double[]> frames,
+                                              int electrodeCount,
+                                              ElectrodeMeasurementSetup? enforcedSetup = null)
         {
             if (pattern != null)
             {
@@ -771,6 +511,12 @@ namespace ServiceLayer
                 _measurementPattern = pattern;
                 Workspace.SetMeasurementPattern(pattern);
                 return;
+            }
+
+            if (enforcedSetup.HasValue && _measurementSetup != enforcedSetup.Value)
+            {
+                _measurementSetup = enforcedSetup.Value;
+                Workspace.SetElectrodeMeasurementSetup(_measurementSetup);
             }
 
             UpdateMeasurementOptionsFromFrames(electrodeCount, frames);
@@ -1125,54 +871,53 @@ namespace ServiceLayer
 
         #endregion
 
-        /// <summary>
-        /// Delegates a graph-based forward solve to the persistence layer. Converts the mesh to a resistor
-        /// network internally and solves the discrete Laplace equation with CEM boundary conditions.
-        /// </summary>
-        /// <param name="mesh">Mesh to be solved.</param>
-        /// <returns>Mesh carrying the predicted potentials.</returns>
-        public FEMMesh SolveGraphForward(FEMMesh mesh)
+        private sealed record ReconstructionProcessContext(
+            DifferentialEquationSolver Solver,
+            Func<IDiscretization, double, DrivePattern, MeasurementBatch>? SimulateMeasurements)
         {
-            try
-            {
-                return _reconstructionPersistence.SolveGraphForward(mesh);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex.Message);
-                Console.WriteLine(ex.Message);
-                Debug.WriteLine(ex.Message);
-                throw;
-            }
+            public static ReconstructionProcessContext Create(EITReconstructionParameters parameters,
+                                                              IReconstructionPersistence persistence) =>
+                parameters.DifferentialEquationSolver switch
+                {
+                    DifferentialEquationSolver.FEM => new ReconstructionProcessContext(
+                        DifferentialEquationSolver.FEM,
+                        (discretization, amplitude, drivePattern) =>
+                        {
+                            if (discretization is not FEMMesh mesh)
+                                throw new InvalidOperationException("FEM reconstruction requires a FEM mesh.");
+
+                            var frames = persistence.SimulateFemMeasurements(mesh, amplitude, drivePattern);
+                            return MeasurementBatch.FromFem(frames);
+                        }),
+                    DifferentialEquationSolver.LBM => new ReconstructionProcessContext(
+                        DifferentialEquationSolver.LBM,
+                        (discretization, amplitude, drivePattern) =>
+                        {
+                            if (discretization is not LBMGrid grid)
+                                throw new InvalidOperationException("LBM reconstruction requires an LBM grid.");
+
+                            var measurement = persistence.SimulateLbmMeasurements(grid, amplitude, drivePattern);
+                            return MeasurementBatch.FromLbm(measurement);
+                        }),
+                    DifferentialEquationSolver.Graph => new ReconstructionProcessContext(DifferentialEquationSolver.Graph, null),
+                    _ => new ReconstructionProcessContext(parameters.DifferentialEquationSolver, null)
+                };
         }
 
-        /// <summary>
-        /// Executes a single graph-based inverse update. The measured and simulated electrode potentials define
-        /// an adjoint load whose solution yields a conductance gradient; a step is taken along this gradient on
-        /// the underlying network.
-        /// </summary>
-        /// <param name="mesh">Mesh whose conductivities will be updated.</param>
-        /// <param name="measurement">Measured electrode potentials.</param>
-        /// <param name="boundaryCondition">Applied current pattern.</param>
-        /// <param name="stepSize">Gradient descent step size.</param>
-        /// <returns>Reconstruction result containing updated fields.</returns>
-        public ReconstructionResult InverseSolveStepGraph(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double stepSize)
+        private sealed record MeasurementBatch(
+            List<double[]> Frames,
+            double? Amplitude,
+            MeasurementPattern? Pattern,
+            ElectrodeMeasurementSetup MeasurementSetup)
         {
-            try
-            {
-                ReconstructionResult reconstructionResult = _reconstructionPersistence.InverseSolveStepGraph(mesh, measurement, boundaryCondition, stepSize);
+            public static MeasurementBatch FromFem(List<double[]> frames) =>
+                new(frames, null, null, ElectrodeMeasurementSetup.Active);
 
-                Workspace.AddReconstructionResultToWorkspace(reconstructionResult);
-
-                return reconstructionResult;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex.Message);
-                Console.WriteLine(ex.Message);
-                Debug.WriteLine(ex.Message);
-                throw;
-            }
+            public static MeasurementBatch FromLbm(EITMeasurement measurement) =>
+                new(measurement.Frames,
+                    null,
+                    measurement.Pattern,
+                    measurement.Pattern?.MeasurementSetup ?? ElectrodeMeasurementSetup.Active);
         }
 
         // --- Persistence ---
@@ -1237,21 +982,6 @@ namespace ServiceLayer
         /// <summary>
         /// Runs a full inverse solve using the CUDA-accelerated LBM solver until convergence or iteration limit.
         /// </summary>
-        public ReconstructionResult InverseSolveLbmCuda(int maxIterationCount,
-                                                        double gradientStepSize,
-                                                        double regularizationWeight,
-                                                        double excitationAmplitude,
-                                                        double tolerance = 1e-6)
-        {
-            try
-            {
-                ReconstructionResult reconstructionResult =
-                    _reconstructionPersistence.InverseSolveLbmCuda(maxIterationCount,
-                                                                    gradientStepSize,
-                                                                    regularizationWeight,
-                                                                    excitationAmplitude,
-                                                                    tolerance);
-
                 Workspace.AddReconstructionResultToWorkspace(reconstructionResult);
 
                 return reconstructionResult;
