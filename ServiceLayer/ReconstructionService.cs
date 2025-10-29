@@ -869,7 +869,6 @@ namespace ServiceLayer
             });
         }
 
-        #endregion
 
         private sealed record ReconstructionProcessContext(
             DifferentialEquationSolver Solver,
@@ -969,22 +968,6 @@ namespace ServiceLayer
                 Workspace.SetReconstructionFrames([.. frames.SelectMany(r => r.Frames)]);
                 Workspace.SetInitialConductivityDistribution(frames.FirstOrDefault()?.InitialConductivitiyDistribution);
                 return frames;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex.Message);
-                Console.WriteLine(ex.Message);
-                Debug.WriteLine(ex.Message);
-                throw;
-            }
-        }
-
-        /// <summary>
-        /// Runs a full inverse solve using the CUDA-accelerated LBM solver until convergence or iteration limit.
-        /// </summary>
-                Workspace.AddReconstructionResultToWorkspace(reconstructionResult);
-
-                return reconstructionResult;
             }
             catch (Exception ex)
             {
