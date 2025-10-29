@@ -740,7 +740,8 @@ namespace ElectricalImpedanceTomography.ViewModels
             if (sampleCount == 0)
                 return 0.0;
 
-            return Math.Sqrt(sumSq / sampleCount);
+            // * 1000 for mV
+            return Math.Sqrt(sumSq / sampleCount) * 1000;
         }
 
         private double CalculateCorrelation(ConductivityDistribution reconstructed, ConductivityDistribution original)
