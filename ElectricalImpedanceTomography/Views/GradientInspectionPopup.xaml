@@ -8,10 +8,11 @@
     <Grid RowDefinitions="Auto,*,Auto"
           BackgroundColor="{AppThemeBinding Light=#1E2A3C, Dark=#0C101A}">
         <Grid Row="0"
-              ColumnDefinitions="*,Auto"
+              ColumnDefinitions="Auto,*,Auto"
               Padding="16"
               BackgroundColor="{AppThemeBinding Light=#24354F, Dark=#141B2A}">
             <Label Text="Gradient Trajectory"
+                   Grid.Column="0"
                    FontAttributes="Bold"
                    FontSize="18"
                    TextColor="#F0F4FF"
@@ -19,10 +20,35 @@
             <HorizontalStackLayout Grid.Column="1"
                                     Spacing="12"
                                     VerticalOptions="Center">
+                <Image x:Name="PrevStepButton"
+                       Source="icon_next_player.png"
+                       HeightRequest="32"
+                       WidthRequest="32"
+                       Rotation="180"
+                       IsEnabled="False"
+                       Opacity="0.35">
+                    <Image.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnPreviousGradientTapped"/>
+                    </Image.GestureRecognizers>
+                </Image>
+                <Image x:Name="NextStepButton"
+                       Source="icon_next_player.png"
+                       HeightRequest="32"
+                       WidthRequest="32"
+                       IsEnabled="False"
+                       Opacity="0.35">
+                    <Image.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnNextGradientTapped"/>
+                    </Image.GestureRecognizers>
+                </Image>
                 <Label x:Name="SelectionLabel"
                        Text="No gradient data yet"
                        TextColor="#A8B6D6"
                        VerticalOptions="Center"/>
+            </HorizontalStackLayout>
+            <HorizontalStackLayout Grid.Column="2"
+                                    Spacing="12"
+                                    VerticalOptions="Center">
                 <Button Text="Reset View"
                         Clicked="OnResetViewClicked"
                         BackgroundColor="#2C3D59"
@@ -55,22 +81,48 @@
             </Border>
         </Grid>
         <Grid Row="2"
-              ColumnDefinitions="Auto,*,Auto"
-              Padding="16,8,16,16"
-              ColumnSpacing="12">
-            <Label Text="Zoom"
-                   TextColor="#F0F4FF"
-                   VerticalOptions="Center"/>
-            <Slider x:Name="ZoomSlider"
-                    Grid.Column="1"
-                    Minimum="1"
-                    Maximum="12"
-                    ValueChanged="OnZoomSliderValueChanged"/>
-            <Label x:Name="ZoomValueLabel"
-                   Grid.Column="2"
-                   Text="1.0×"
-                   TextColor="#A8B6D6"
-                   VerticalOptions="Center"/>
+              Padding="16,8,16,16">
+            <Grid ColumnDefinitions="Auto,*,Auto"
+                  RowDefinitions="Auto,Auto"
+                  ColumnSpacing="12"
+                  RowSpacing="12">
+                <Label Text="Zoom"
+                       Grid.Column="0"
+                       Grid.Row="0"
+                       TextColor="#F0F4FF"
+                       VerticalOptions="Center"/>
+                <Slider x:Name="ZoomSlider"
+                        Grid.Column="1"
+                        Grid.Row="0"
+                        Minimum="1"
+                        Maximum="12"
+                        ValueChanged="OnZoomSliderValueChanged"/>
+                <Label x:Name="ZoomValueLabel"
+                       Grid.Column="2"
+                       Grid.Row="0"
+                       Text="1.0×"
+                       TextColor="#A8B6D6"
+                       VerticalOptions="Center"/>
+
+                <Label Text="Scale"
+                       Grid.Column="0"
+                       Grid.Row="1"
+                       TextColor="#F0F4FF"
+                       VerticalOptions="Center"/>
+                <Slider x:Name="ScaleSlider"
+                        Grid.Column="1"
+                        Grid.Row="1"
+                        Minimum="0.1"
+                        Maximum="20"
+                        Value="1"
+                        ValueChanged="OnScaleSliderValueChanged"/>
+                <Label x:Name="ScaleValueLabel"
+                       Grid.Column="2"
+                       Grid.Row="1"
+                       Text="1.0× (auto 1.0×)"
+                       TextColor="#A8B6D6"
+                       VerticalOptions="Center"/>
+            </Grid>
         </Grid>
     </Grid>
 </toolkit:Popup>

@@ -5,6 +5,7 @@ using Microsoft.Maui.ApplicationModel;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
 using SkiaSharp.Views.Maui.Controls;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -16,7 +17,10 @@ public partial class GradientInspectionPopup : Popup
     private readonly ReconstructionPageViewModel _viewModel;
     private readonly List<ReconstructionPageViewModel.GradientHistorySample> _samples = new();
     private readonly List<Point3D> _points = new();
+    private readonly List<Point3D> _rawPoints = new();
     private readonly List<(int Index, SKPoint Point)> _projectedPoints = new();
+    private readonly List<GradientStep> _steps = new();
+    private readonly List<double> _stepAngles = new();
 
     private float _trajectoryRadius = 1f;
     private float _planeY;
@@ -28,8 +32,46 @@ public partial class GradientInspectionPopup : Popup
     private bool _isDragging;
     private SKPoint? _lastDragPoint;
     private int _selectedIndex = -1;
+    private double _minNorm = double.PositiveInfinity;
+    private double _maxNorm = double.NegativeInfinity;
+    private double _minAngle = double.PositiveInfinity;
+    private double _maxAngle = double.NegativeInfinity;
+    private float _autoScale = 1f;
+    private float _manualScale = 1f;
+    private bool _suppressScaleSliderEvent;
+    private ValleySurface? _valleySurface;
 
-    private readonly record struct Point3D(float X, float Y, float Z, int Iteration, double Norm);
+    private static readonly SKColor PrimaryPlaneFill = new(64, 128, 255, 60);
+    private static readonly SKColor PrimaryPlaneStroke = new(64, 128, 255, 140);
+    private static readonly SKColor SecondaryPlaneFill = new(255, 209, 102, 45);
+    private static readonly SKColor SecondaryPlaneStroke = new(255, 209, 102, 140);
+    private static readonly SKColor AngleColdColor = SKColor.Parse("#3A9CED");
+    private static readonly SKColor AngleNeutralColor = SKColor.Parse("#FFD166");
+    private static readonly SKColor AngleHotColor = SKColor.Parse("#FF7F6B");
+
+    private readonly record struct Point3D(float X, float Y, float Z, int Iteration, double Norm)
+    {
+        public Vector3 ToVector() => new(X, Y, Z);
+    }
+
+    private readonly record struct GradientStep(int StartIndex,
+                                                int EndIndex,
+                                                Point3D Start,
+                                                Point3D End,
+                                                double Norm,
+                                                double AngleDegrees);
+
+    private sealed class ValleySurface
+    {
+        public ValleySurface(Vector3[,] grid)
+        {
+            Grid = grid;
+        }
+
+        public Vector3[,] Grid { get; }
+        public int Rows => Grid.GetLength(0);
+        public int Columns => Grid.GetLength(1);
+    }
 
     public GradientInspectionPopup(ReconstructionPageViewModel viewModel)
     {
@@ -88,15 +130,26 @@ public partial class GradientInspectionPopup : Popup
 
     private void RebuildTrajectory()
     {
+        _rawPoints.Clear();
         _points.Clear();
+        _steps.Clear();
+        _stepAngles.Clear();
+        _valleySurface = null;
+        _minNorm = double.PositiveInfinity;
+        _maxNorm = double.NegativeInfinity;
+        _minAngle = double.PositiveInfinity;
+        _maxAngle = double.NegativeInfinity;
 
         if (_samples.Count == 0)
         {
             EmptyStateLabel.IsVisible = true;
             _trajectoryRadius = 1f;
             _planeY = 0f;
+            _autoScale = 1f;
             _cameraDistance = Math.Max(_cameraDistance, _defaultCameraDistance);
             UpdateZoomSlider();
+            UpdateScaleSlider();
+            UpdateScaleLabel();
             return;
         }
 
@@ -129,8 +182,7 @@ public partial class GradientInspectionPopup : Popup
 
         var basis = BuildOrthonormalBasis(centered, dimension);
 
-        double maxRadius = 0.0;
-        double minY = double.MaxValue;
+        double maxRadiusRaw = 0.0;
 
         for (int i = 0; i < centered.Count; i++)
         {
@@ -139,23 +191,51 @@ public partial class GradientInspectionPopup : Popup
             double y = basis.Count > 1 ? Dot(c, basis[1]) : 0.0;
             double z = basis.Count > 2 ? Dot(c, basis[2]) : 0.0;
 
-            var point = new Point3D((float)x, (float)y, (float)z, _samples[i].Iteration, _samples[i].Norm);
-            _points.Add(point);
+            var rawPoint = new Point3D((float)x, (float)y, (float)z, _samples[i].Iteration, _samples[i].Norm);
+            _rawPoints.Add(rawPoint);
+
+            if (rawPoint.Norm < _minNorm)
+                _minNorm = rawPoint.Norm;
+            if (rawPoint.Norm > _maxNorm)
+                _maxNorm = rawPoint.Norm;
 
             double radius = Math.Sqrt(x * x + y * y + z * z);
-            if (radius > maxRadius)
-                maxRadius = radius;
-            if (y < minY)
-                minY = y;
+            if (radius > maxRadiusRaw)
+                maxRadiusRaw = radius;
         }
 
-        _trajectoryRadius = maxRadius > 1e-6 ? (float)maxRadius : 1f;
-        _planeY = (float)(minY - 0.2 * _trajectoryRadius);
-        _defaultCameraDistance = Math.Max(_trajectoryRadius * 3f, 4f);
-        if (_cameraDistance <= 0f)
-            _cameraDistance = _defaultCameraDistance;
+        for (int i = 1; i < _rawPoints.Count; i++)
+        {
+            double angle = ComputeGradientAngle(_samples[i - 1].Vector, _samples[i].Vector);
+            if (!double.IsFinite(angle))
+                angle = 0.0;
+
+            if (angle < _minAngle)
+                _minAngle = angle;
+            if (angle > _maxAngle)
+                _maxAngle = angle;
+
+            _stepAngles.Add(angle);
+        }
+
+        if (_minNorm == double.PositiveInfinity || _maxNorm == double.NegativeInfinity)
+        {
+            _minNorm = 0.0;
+            _maxNorm = 1.0;
+        }
+
+        if (_minAngle == double.PositiveInfinity)
+        {
+            _minAngle = 0.0;
+            _maxAngle = 0.0;
+        }
+
+        _autoScale = ComputeAutoScale((float)maxRadiusRaw);
+        ApplyScaleToRawPoints();
 
         UpdateZoomSlider();
+        UpdateScaleSlider();
+        UpdateScaleLabel();
         GradientCanvas.InvalidateSurface();
     }
 
@@ -167,17 +247,196 @@ public partial class GradientInspectionPopup : Popup
             SelectionLabel.Text = _samples.Count == 0
                 ? "No gradient data yet"
                 : "Select a sample to inspect";
+            UpdateNavigationButtons();
+            UpdateValleySurface();
             GradientCanvas.InvalidateSurface();
             return;
         }
 
-        if (_selectedIndex == index)
-            return;
-
         _selectedIndex = index;
         var sample = _samples[index];
         SelectionLabel.Text = $"Iteration {sample.Iteration}: ‖∇J‖ = {sample.Norm:F4}";
+        UpdateNavigationButtons();
+        UpdateValleySurface();
         GradientCanvas.InvalidateSurface();
+    }
+
+    private void ApplyScaleToRawPoints()
+    {
+        _points.Clear();
+        _steps.Clear();
+        _valleySurface = null;
+
+        if (_rawPoints.Count == 0)
+        {
+            _trajectoryRadius = 1f;
+            _planeY = 0f;
+            return;
+        }
+
+        float totalScale = Math.Clamp(_autoScale * _manualScale, 0.01f, 1000f);
+
+        double maxRadius = 0.0;
+        double minY = double.MaxValue;
+
+        for (int i = 0; i < _rawPoints.Count; i++)
+        {
+            var raw = _rawPoints[i];
+            var scaled = new Point3D(raw.X * totalScale,
+                                     raw.Y * totalScale,
+                                     raw.Z * totalScale,
+                                     raw.Iteration,
+                                     raw.Norm);
+            _points.Add(scaled);
+
+            double radius = Math.Sqrt(scaled.X * scaled.X + scaled.Y * scaled.Y + scaled.Z * scaled.Z);
+            if (radius > maxRadius)
+                maxRadius = radius;
+            if (scaled.Y < minY)
+                minY = scaled.Y;
+        }
+
+        for (int i = 1; i < _points.Count; i++)
+        {
+            double angle = i - 1 < _stepAngles.Count ? _stepAngles[i - 1] : 0.0;
+            _steps.Add(new GradientStep(i - 1, i, _points[i - 1], _points[i], _samples[i].Norm, angle));
+        }
+
+        if (minY == double.MaxValue)
+            minY = 0.0;
+
+        _trajectoryRadius = maxRadius > 1e-6 ? (float)maxRadius : 1f;
+        _planeY = (float)(minY - 0.2 * _trajectoryRadius);
+        _defaultCameraDistance = Math.Max(_trajectoryRadius * 3f, 4f);
+        if (_cameraDistance <= 0f)
+            _cameraDistance = _defaultCameraDistance;
+
+        UpdateValleySurface();
+    }
+
+    private void UpdateNavigationButtons()
+    {
+        if (PrevStepButton == null || NextStepButton == null)
+            return;
+
+        bool hasSamples = _samples.Count > 0;
+        int visibleCount = GetVisibleSampleCount();
+
+        bool canStepBack = hasSamples && visibleCount > 1;
+        bool canStepForward = hasSamples && (_selectedIndex < _samples.Count - 1) && _selectedIndex >= 0;
+
+        if (_selectedIndex < 0 && hasSamples)
+            canStepForward = true;
+
+        SetNavigationButtonState(PrevStepButton, canStepBack);
+        SetNavigationButtonState(NextStepButton, canStepForward);
+    }
+
+    private static void SetNavigationButtonState(Image button, bool enabled)
+    {
+        button.IsEnabled = enabled;
+        button.Opacity = enabled ? 1.0 : 0.35;
+    }
+
+    private int GetVisibleSampleCount()
+    {
+        if (_points.Count == 0)
+            return 0;
+
+        if (_selectedIndex < 0 || _selectedIndex >= _points.Count)
+            return _points.Count;
+
+        return _selectedIndex + 1;
+    }
+
+    private void UpdateScaleSlider()
+    {
+        if (ScaleSlider == null)
+            return;
+
+        double minimum = 0.1;
+        double maximum = 20.0;
+
+        _suppressScaleSliderEvent = true;
+        ScaleSlider.Minimum = minimum;
+        ScaleSlider.Maximum = maximum;
+        _manualScale = (float)Math.Clamp(_manualScale, minimum, maximum);
+        ScaleSlider.Value = _manualScale;
+        ScaleSlider.IsEnabled = _samples.Count > 0;
+        _suppressScaleSliderEvent = false;
+    }
+
+    private void UpdateScaleLabel()
+    {
+        if (ScaleValueLabel == null)
+            return;
+
+        float total = Math.Clamp(_autoScale * _manualScale, 0.01f, 1000f);
+        ScaleValueLabel.Text = _samples.Count == 0
+            ? "1.0× (auto 1.0×)"
+            : $"{total:0.##}× (auto {_autoScale:0.##}×)";
+    }
+
+    private void OnScaleSliderValueChanged(object? sender, ValueChangedEventArgs e)
+    {
+        if (_suppressScaleSliderEvent)
+            return;
+
+        _manualScale = (float)e.NewValue;
+        ApplyScaleToRawPoints();
+        UpdateScaleLabel();
+        GradientCanvas.InvalidateSurface();
+    }
+
+    private void UpdateValleySurface()
+    {
+        _valleySurface = null;
+
+        int visibleCount = GetVisibleSampleCount();
+        if (visibleCount < 4)
+            return;
+
+        var visiblePoints = _points.Take(visibleCount).ToList();
+        var axes = ComputePrincipalAxes(visiblePoints);
+        if (axes == null)
+            return;
+
+        var axisA = axes[0];
+        var axisB = axes[1];
+        var normal = axes[2];
+
+        if (axisA.LengthSquared() < 1e-9f || axisB.LengthSquared() < 1e-9f || normal.LengthSquared() < 1e-9f)
+            return;
+
+        axisA = Vector3.Normalize(axisA);
+        axisB = Vector3.Normalize(axisB);
+        normal = Vector3.Normalize(normal);
+
+        var centroid = ComputeCentroid(visiblePoints);
+
+        float extentA = 0f;
+        float extentB = 0f;
+        float extentNormal = 0f;
+
+        foreach (var point in visiblePoints)
+        {
+            var diff = point.ToVector() - centroid;
+            extentA = Math.Max(extentA, Math.Abs(Vector3.Dot(diff, axisA)));
+            extentB = Math.Max(extentB, Math.Abs(Vector3.Dot(diff, axisB)));
+            extentNormal = Math.Max(extentNormal, Math.Abs(Vector3.Dot(diff, normal)));
+        }
+
+        extentA = Math.Max(extentA * 1.35f, _trajectoryRadius * 0.3f);
+        extentB = Math.Max(extentB * 1.35f, _trajectoryRadius * 0.3f);
+        extentNormal = Math.Max(extentNormal * 1.2f, _trajectoryRadius * 0.15f);
+
+        if (!TryFitQuadraticSurface(visiblePoints, centroid, axisA, axisB, normal, out var coefficients))
+        {
+            _valleySurface = BuildPlanarValley(centroid, axisA, axisB, extentA, extentB);
+            return;
+        }
+
+        _valleySurface = BuildQuadraticValley(coefficients, centroid, axisA, axisB, normal, extentA, extentB, extentNormal);
     }
 
     private void UpdateZoomSlider()
@@ -218,6 +477,26 @@ public partial class GradientInspectionPopup : Popup
         GradientCanvas.InvalidateSurface();
     }
 
+    private void OnPreviousGradientTapped(object? sender, TappedEventArgs e)
+    {
+        if (_samples.Count == 0)
+            return;
+
+        int target = _selectedIndex <= 0 ? 0 : _selectedIndex - 1;
+        if (_selectedIndex != target)
+            _viewModel.SetSelectedGradientIndex(target);
+    }
+
+    private void OnNextGradientTapped(object? sender, TappedEventArgs e)
+    {
+        if (_samples.Count == 0)
+            return;
+
+        int target = _selectedIndex < 0 ? 0 : Math.Min(_selectedIndex + 1, _samples.Count - 1);
+        if (_selectedIndex != target)
+            _viewModel.SetSelectedGradientIndex(target);
+    }
+
     private void OnGradientCanvasPaintSurface(object? sender, SKPaintSurfaceEventArgs e)
     {
         var canvas = e.Surface.Canvas;
@@ -225,7 +504,8 @@ public partial class GradientInspectionPopup : Popup
 
         canvas.Clear(SKColor.Parse("#0B111C"));
 
-        if (_points.Count == 0)
+        int visibleCount = GetVisibleSampleCount();
+        if (_points.Count == 0 || visibleCount == 0)
             return;
 
         _projectionScale = Math.Min(info.Width, info.Height) * 0.6f;
@@ -235,40 +515,23 @@ public partial class GradientInspectionPopup : Popup
 
         DrawGroundPlane(canvas, viewport, cameraPosition, forward, right, up);
         DrawAxes(canvas, viewport, cameraPosition, forward, right, up);
+        DrawErrorValley(canvas, viewport, cameraPosition, forward, right, up);
 
         _projectedPoints.Clear();
-        using var path = new SKPath();
-        bool started = false;
+        var projectionMap = new Dictionary<int, SKPoint>(visibleCount);
 
-        var linePaint = new SKPaint
+        for (int i = 0; i < visibleCount; i++)
         {
-            Style = SKPaintStyle.Stroke,
-            Color = SKColor.Parse("#3A9CED"),
-            StrokeWidth = 2f,
-            IsAntialias = true
-        };
-
-        foreach (var point in _points.Select((p, i) => (Index: i, Point: p)))
-        {
-            var projected = ProjectPoint(point.Point, viewport, cameraPosition, forward, right, up);
+            var projected = ProjectPoint(_points[i], viewport, cameraPosition, forward, right, up);
             if (projected.HasValue)
             {
                 var pt = projected.Value;
-                _projectedPoints.Add((point.Index, pt));
-                if (!started)
-                {
-                    path.MoveTo(pt);
-                    started = true;
-                }
-                else
-                {
-                    path.LineTo(pt);
-                }
+                _projectedPoints.Add((i, pt));
+                projectionMap[i] = pt;
             }
         }
 
-        if (started)
-            canvas.DrawPath(path, linePaint);
+        DrawGradientSteps(canvas, projectionMap);
 
         using var pointPaint = new SKPaint { Style = SKPaintStyle.Fill, Color = SKColor.Parse("#E3EDFF"), IsAntialias = true };
         using var selectedPaint = new SKPaint { Style = SKPaintStyle.Fill, Color = SKColor.Parse("#FFD166"), IsAntialias = true };
@@ -361,6 +624,408 @@ public partial class GradientInspectionPopup : Popup
 
         if (bestIndex >= 0 && bestDistance <= threshold)
             _viewModel.SetSelectedGradientIndex(bestIndex);
+    }
+
+    private void DrawGradientSteps(SKCanvas canvas, IReadOnlyDictionary<int, SKPoint> projections)
+    {
+        if (_steps.Count == 0)
+            return;
+
+        int visibleLastIndex = GetVisibleSampleCount() - 1;
+        if (visibleLastIndex <= 0)
+            return;
+
+        using var strokePaint = new SKPaint
+        {
+            Style = SKPaintStyle.Stroke,
+            IsAntialias = true,
+            StrokeCap = SKStrokeCap.Round
+        };
+
+        using var headPaint = new SKPaint
+        {
+            Style = SKPaintStyle.Fill,
+            IsAntialias = true
+        };
+
+        foreach (var step in _steps)
+        {
+            if (step.EndIndex > visibleLastIndex)
+                break;
+
+            if (!projections.TryGetValue(step.StartIndex, out var start)
+                || !projections.TryGetValue(step.EndIndex, out var end))
+            {
+                continue;
+            }
+
+            var direction = new SKPoint(end.X - start.X, end.Y - start.Y);
+            float length = MathF.Sqrt(direction.X * direction.X + direction.Y * direction.Y);
+            if (length < 2f)
+                continue;
+
+            var color = ColorForAngle(step.AngleDegrees);
+            float thickness = ThicknessForNorm(step.Norm);
+            float headLength = MathF.Max(thickness * 4f, 8f);
+            float headWidth = MathF.Max(thickness * 3f, headLength * 0.55f);
+
+            var unit = new SKPoint(direction.X / length, direction.Y / length);
+            var headBase = new SKPoint(end.X - unit.X * headLength, end.Y - unit.Y * headLength);
+            var perpendicular = new SKPoint(-unit.Y, unit.X);
+
+            strokePaint.Color = color;
+            strokePaint.StrokeWidth = thickness;
+            canvas.DrawLine(start, headBase, strokePaint);
+
+            var left = new SKPoint(headBase.X + perpendicular.X * headWidth * 0.5f,
+                                   headBase.Y + perpendicular.Y * headWidth * 0.5f);
+            var right = new SKPoint(headBase.X - perpendicular.X * headWidth * 0.5f,
+                                    headBase.Y - perpendicular.Y * headWidth * 0.5f);
+
+            using var headPath = new SKPath();
+            headPath.MoveTo(end);
+            headPath.LineTo(left);
+            headPath.LineTo(right);
+            headPath.Close();
+
+            headPaint.Color = color.WithAlpha(210);
+            canvas.DrawPath(headPath, headPaint);
+        }
+    }
+
+    private void DrawErrorValley(SKCanvas canvas,
+                                 SKRect viewport,
+                                 Vector3 cameraPosition,
+                                 Vector3 forward,
+                                 Vector3 right,
+                                 Vector3 up)
+    {
+        if (_valleySurface == null)
+            return;
+
+        var surface = _valleySurface;
+        using var fillPaint = new SKPaint { Style = SKPaintStyle.Fill, Color = PrimaryPlaneFill, IsAntialias = true };
+        using var strokePaint = new SKPaint { Style = SKPaintStyle.Stroke, Color = PrimaryPlaneStroke, StrokeWidth = 1.3f, IsAntialias = true };
+        using var contourPaint = new SKPaint { Style = SKPaintStyle.Stroke, Color = SecondaryPlaneStroke.WithAlpha(160), StrokeWidth = 1f, IsAntialias = true };
+
+        for (int row = 0; row < surface.Rows - 1; row++)
+        {
+            for (int col = 0; col < surface.Columns - 1; col++)
+            {
+                var p00 = surface.Grid[row, col];
+                var p10 = surface.Grid[row + 1, col];
+                var p11 = surface.Grid[row + 1, col + 1];
+                var p01 = surface.Grid[row, col + 1];
+
+                var s00 = ProjectPoint(new Point3D(p00.X, p00.Y, p00.Z, 0, 0), viewport, cameraPosition, forward, right, up);
+                var s10 = ProjectPoint(new Point3D(p10.X, p10.Y, p10.Z, 0, 0), viewport, cameraPosition, forward, right, up);
+                var s11 = ProjectPoint(new Point3D(p11.X, p11.Y, p11.Z, 0, 0), viewport, cameraPosition, forward, right, up);
+                var s01 = ProjectPoint(new Point3D(p01.X, p01.Y, p01.Z, 0, 0), viewport, cameraPosition, forward, right, up);
+
+                if (!s00.HasValue || !s10.HasValue || !s11.HasValue || !s01.HasValue)
+                    continue;
+
+                using var patch = new SKPath();
+                patch.MoveTo(s00.Value);
+                patch.LineTo(s10.Value);
+                patch.LineTo(s11.Value);
+                patch.LineTo(s01.Value);
+                patch.Close();
+
+                canvas.DrawPath(patch, fillPaint);
+                canvas.DrawPath(patch, strokePaint);
+            }
+        }
+
+        int rowStep = Math.Max(1, surface.Rows / 6);
+        for (int row = 0; row < surface.Rows; row += rowStep)
+            DrawSurfacePolyline(canvas, surface, true, row, viewport, cameraPosition, forward, right, up, contourPaint);
+
+        int columnStep = Math.Max(1, surface.Columns / 6);
+        for (int col = 0; col < surface.Columns; col += columnStep)
+            DrawSurfacePolyline(canvas, surface, false, col, viewport, cameraPosition, forward, right, up, contourPaint);
+    }
+
+    private void DrawSurfacePolyline(SKCanvas canvas,
+                                     ValleySurface surface,
+                                     bool alongRows,
+                                     int fixedIndex,
+                                     SKRect viewport,
+                                     Vector3 cameraPosition,
+                                     Vector3 forward,
+                                     Vector3 right,
+                                     Vector3 up,
+                                     SKPaint paint)
+    {
+        using var path = new SKPath();
+        bool hasSegment = false;
+        int length = alongRows ? surface.Columns : surface.Rows;
+
+        for (int step = 0; step < length; step++)
+        {
+            var point = alongRows ? surface.Grid[fixedIndex, step] : surface.Grid[step, fixedIndex];
+            var projected = ProjectPoint(new Point3D(point.X, point.Y, point.Z, 0, 0), viewport, cameraPosition, forward, right, up);
+            if (!projected.HasValue)
+            {
+                if (hasSegment)
+                {
+                    canvas.DrawPath(path, paint);
+                    path.Reset();
+                    hasSegment = false;
+                }
+                continue;
+            }
+
+            if (!hasSegment)
+            {
+                path.MoveTo(projected.Value);
+                hasSegment = true;
+            }
+            else
+            {
+                path.LineTo(projected.Value);
+            }
+        }
+
+        if (hasSegment)
+            canvas.DrawPath(path, paint);
+    }
+
+    private ValleySurface BuildQuadraticValley(double[] coefficients,
+                                               Vector3 centroid,
+                                               Vector3 axisA,
+                                               Vector3 axisB,
+                                               Vector3 normal,
+                                               float extentA,
+                                               float extentB,
+                                               float extentNormal)
+    {
+        const int resolution = 28;
+        var grid = new Vector3[resolution, resolution];
+
+        for (int row = 0; row < resolution; row++)
+        {
+            float tRow = resolution == 1 ? 0f : row / (float)(resolution - 1);
+            float u = -extentA + (2f * extentA) * tRow;
+
+            for (int col = 0; col < resolution; col++)
+            {
+                float tCol = resolution == 1 ? 0f : col / (float)(resolution - 1);
+                float v = -extentB + (2f * extentB) * tCol;
+
+                double w = coefficients[0] * u * u +
+                           coefficients[1] * v * v +
+                           coefficients[2] * u * v +
+                           coefficients[3] * u +
+                           coefficients[4] * v +
+                           coefficients[5];
+
+                w = Math.Clamp(w, -extentNormal, extentNormal);
+
+                var point = centroid + axisA * u + axisB * v + normal * (float)w;
+                grid[row, col] = point;
+            }
+        }
+
+        return new ValleySurface(grid);
+    }
+
+    private ValleySurface BuildPlanarValley(Vector3 centroid,
+                                            Vector3 axisA,
+                                            Vector3 axisB,
+                                            float extentA,
+                                            float extentB)
+    {
+        const int resolution = 20;
+        var grid = new Vector3[resolution, resolution];
+
+        for (int row = 0; row < resolution; row++)
+        {
+            float tRow = resolution == 1 ? 0f : row / (float)(resolution - 1);
+            float u = -extentA + (2f * extentA) * tRow;
+
+            for (int col = 0; col < resolution; col++)
+            {
+                float tCol = resolution == 1 ? 0f : col / (float)(resolution - 1);
+                float v = -extentB + (2f * extentB) * tCol;
+                grid[row, col] = centroid + axisA * u + axisB * v;
+            }
+        }
+
+        return new ValleySurface(grid);
+    }
+
+    private static bool TryFitQuadraticSurface(List<Point3D> points,
+                                               Vector3 centroid,
+                                               Vector3 axisA,
+                                               Vector3 axisB,
+                                               Vector3 normal,
+                                               out double[] coefficients)
+    {
+        coefficients = Array.Empty<double>();
+        if (points.Count < 4)
+            return false;
+
+        const int terms = 6;
+        var ata = new double[terms, terms];
+        var atb = new double[terms];
+
+        foreach (var point in points)
+        {
+            var diff = point.ToVector() - centroid;
+            double u = Vector3.Dot(diff, axisA);
+            double v = Vector3.Dot(diff, axisB);
+            double w = Vector3.Dot(diff, normal);
+
+            var row = new[]
+            {
+                u * u,
+                v * v,
+                u * v,
+                u,
+                v,
+                1.0
+            };
+
+            for (int i = 0; i < terms; i++)
+            {
+                atb[i] += row[i] * w;
+                for (int j = 0; j < terms; j++)
+                    ata[i, j] += row[i] * row[j];
+            }
+        }
+
+        double regularization = 1e-6 * points.Count;
+        for (int i = 0; i < terms; i++)
+            ata[i, i] += regularization;
+
+        return TrySolveLinearSystem(ata, atb, out coefficients);
+    }
+
+    private static bool TrySolveLinearSystem(double[,] matrix, double[] rhs, out double[] solution)
+    {
+        int n = rhs.Length;
+        solution = new double[n];
+
+        var a = (double[,])matrix.Clone();
+        var b = (double[])rhs.Clone();
+
+        for (int pivot = 0; pivot < n; pivot++)
+        {
+            int bestRow = pivot;
+            double bestValue = Math.Abs(a[pivot, pivot]);
+            for (int row = pivot + 1; row < n; row++)
+            {
+                double value = Math.Abs(a[row, pivot]);
+                if (value > bestValue)
+                {
+                    bestValue = value;
+                    bestRow = row;
+                }
+            }
+
+            if (bestValue < 1e-12)
+                return false;
+
+            if (bestRow != pivot)
+            {
+                for (int col = pivot; col < n; col++)
+                {
+                    (a[pivot, col], a[bestRow, col]) = (a[bestRow, col], a[pivot, col]);
+                }
+
+                (b[pivot], b[bestRow]) = (b[bestRow], b[pivot]);
+            }
+
+            double diag = a[pivot, pivot];
+            for (int col = pivot; col < n; col++)
+                a[pivot, col] /= diag;
+            b[pivot] /= diag;
+
+            for (int row = 0; row < n; row++)
+            {
+                if (row == pivot)
+                    continue;
+
+                double factor = a[row, pivot];
+                if (Math.Abs(factor) < 1e-12)
+                    continue;
+
+                for (int col = pivot; col < n; col++)
+                    a[row, col] -= factor * a[pivot, col];
+                b[row] -= factor * b[pivot];
+            }
+        }
+
+        for (int i = 0; i < n; i++)
+            solution[i] = b[i];
+        return true;
+    }
+
+    private static float ComputeAutoScale(float rawRadius)
+    {
+        if (!float.IsFinite(rawRadius) || rawRadius <= 0f)
+            return 1f;
+
+        const float targetRadius = 1.4f;
+        const float minimumRadius = 1e-3f;
+
+        float clamped = Math.Max(rawRadius, minimumRadius);
+        if (clamped >= targetRadius * 0.75f)
+            return 1f;
+
+        float scale = targetRadius / clamped;
+        return Math.Clamp(scale, 1f, 500f);
+    }
+
+    private float ThicknessForNorm(double norm)
+    {
+        if (!double.IsFinite(norm) || !double.IsFinite(_minNorm) || !double.IsFinite(_maxNorm))
+            return 3.5f;
+
+        double range = _maxNorm - _minNorm;
+        if (range < 1e-9)
+            return 3.5f;
+
+        double normalized = (norm - _minNorm) / range;
+        normalized = Math.Clamp(normalized, 0.0, 1.0);
+        return 2.5f + (float)normalized * 3.5f;
+    }
+
+    private SKColor ColorForAngle(double angle)
+    {
+        if (!double.IsFinite(angle))
+            angle = 0.0;
+
+        double min = double.IsFinite(_minAngle) ? _minAngle : 0.0;
+        double max = double.IsFinite(_maxAngle) ? _maxAngle : min + 1.0;
+        double range = max - min;
+        if (range < 1e-6)
+            range = 1.0;
+
+        double normalized = (angle - min) / range;
+        normalized = Math.Clamp(normalized, 0.0, 1.0);
+
+        if (normalized < 0.5)
+        {
+            float t = (float)(normalized * 2.0);
+            return InterpolateColor(AngleColdColor, AngleNeutralColor, t);
+        }
+
+        {
+            float t = (float)((normalized - 0.5) * 2.0);
+            return InterpolateColor(AngleNeutralColor, AngleHotColor, t);
+        }
+    }
+
+    private static SKColor InterpolateColor(SKColor start, SKColor end, float t)
+    {
+        t = Math.Clamp(t, 0f, 1f);
+        byte r = (byte)(start.Red + (end.Red - start.Red) * t);
+        byte g = (byte)(start.Green + (end.Green - start.Green) * t);
+        byte b = (byte)(start.Blue + (end.Blue - start.Blue) * t);
+        byte a = (byte)(start.Alpha + (end.Alpha - start.Alpha) * t);
+        return new SKColor(r, g, b, a);
     }
 
     private (Vector3 Position, Vector3 Forward, Vector3 Right, Vector3 Up) GetCameraFrame()
@@ -484,6 +1149,186 @@ public partial class GradientInspectionPopup : Popup
                 canvas.DrawLine(origin.Value, projected.Value, axisPaint);
             }
         }
+    }
+
+    private static Vector3 ComputeCentroid(List<Point3D> points)
+    {
+        if (points.Count == 0)
+            return Vector3.Zero;
+
+        Vector3 sum = Vector3.Zero;
+        foreach (var point in points)
+            sum += point.ToVector();
+
+        return sum / points.Count;
+    }
+
+    private static Vector3[]? ComputePrincipalAxes(List<Point3D> points)
+    {
+        if (points.Count == 0)
+            return null;
+
+        var centroid = ComputeCentroid(points);
+
+        double xx = 0, xy = 0, xz = 0, yy = 0, yz = 0, zz = 0;
+
+        foreach (var point in points)
+        {
+            var diff = point.ToVector() - centroid;
+            double dx = diff.X;
+            double dy = diff.Y;
+            double dz = diff.Z;
+
+            xx += dx * dx;
+            xy += dx * dy;
+            xz += dx * dz;
+            yy += dy * dy;
+            yz += dy * dz;
+            zz += dz * dz;
+        }
+
+        double inv = 1.0 / points.Count;
+        xx *= inv;
+        xy *= inv;
+        xz *= inv;
+        yy *= inv;
+        yz *= inv;
+        zz *= inv;
+
+        var matrix = new double[3, 3]
+        {
+            { xx, xy, xz },
+            { xy, yy, yz },
+            { xz, yz, zz }
+        };
+
+        var decomposition = JacobiEigenDecomposition(matrix);
+        if (decomposition == null)
+            return null;
+
+        var (vectors, values) = decomposition.Value;
+        var order = new[] { 0, 1, 2 };
+        Array.Sort(order, (a, b) => values[b].CompareTo(values[a]));
+
+        return new[]
+        {
+            vectors[order[0]],
+            vectors[order[1]],
+            vectors[order[2]]
+        };
+    }
+
+    private static (Vector3[] Vectors, double[] Values)? JacobiEigenDecomposition(double[,] matrix)
+    {
+        const int n = 3;
+        var a = (double[,])matrix.Clone();
+        var v = new double[n, n];
+        for (int i = 0; i < n; i++)
+            v[i, i] = 1.0;
+
+        for (int iteration = 0; iteration < 25; iteration++)
+        {
+            int p = 0, q = 1;
+            double max = Math.Abs(a[0, 1]);
+            for (int i = 0; i < n - 1; i++)
+            {
+                for (int j = i + 1; j < n; j++)
+                {
+                    double value = Math.Abs(a[i, j]);
+                    if (value > max)
+                    {
+                        max = value;
+                        p = i;
+                        q = j;
+                    }
+                }
+            }
+
+            if (max < 1e-10)
+                break;
+
+            double app = a[p, p];
+            double aqq = a[q, q];
+            double apq = a[p, q];
+
+            double theta = (aqq - app) / (2.0 * apq);
+            double t = Math.Sign(theta) / (Math.Abs(theta) + Math.Sqrt(theta * theta + 1.0));
+            double c = 1.0 / Math.Sqrt(t * t + 1.0);
+            double s = t * c;
+            double tau = s / (1.0 + c);
+
+            a[p, p] = app - t * apq;
+            a[q, q] = aqq + t * apq;
+            a[p, q] = a[q, p] = 0.0;
+
+            for (int i = 0; i < n; i++)
+            {
+                if (i == p || i == q)
+                    continue;
+
+                double aip = a[i, p];
+                double aiq = a[i, q];
+
+                a[i, p] = aip - s * (aiq + tau * aip);
+                a[p, i] = a[i, p];
+
+                a[i, q] = aiq + s * (aip - tau * aiq);
+                a[q, i] = a[i, q];
+            }
+
+            for (int i = 0; i < n; i++)
+            {
+                double vip = v[i, p];
+                double viq = v[i, q];
+
+                v[i, p] = vip - s * (viq + tau * vip);
+                v[i, q] = viq + s * (vip - tau * viq);
+            }
+        }
+
+        var eigenValues = new double[n];
+        var eigenVectors = new Vector3[n];
+
+        for (int i = 0; i < n; i++)
+        {
+            eigenValues[i] = a[i, i];
+            var vec = new Vector3((float)v[0, i], (float)v[1, i], (float)v[2, i]);
+            if (vec.LengthSquared() > 1e-9f)
+                vec = Vector3.Normalize(vec);
+            eigenVectors[i] = vec;
+        }
+
+        return (eigenVectors, eigenValues);
+    }
+
+    private static double ComputeGradientAngle(IReadOnlyList<double> a, IReadOnlyList<double> b)
+    {
+        if (a.Count == 0 || b.Count == 0)
+            return 0.0;
+
+        double dot = 0.0;
+        double normA = 0.0;
+        double normB = 0.0;
+        int length = Math.Min(a.Count, b.Count);
+
+        for (int i = 0; i < length; i++)
+        {
+            double ai = a[i];
+            double bi = b[i];
+            dot += ai * bi;
+            normA += ai * ai;
+            normB += bi * bi;
+        }
+
+        if (normA < 1e-12 || normB < 1e-12)
+            return 0.0;
+
+        double denom = Math.Sqrt(normA * normB);
+        if (denom < 1e-12)
+            return 0.0;
+
+        double cos = Math.Clamp(dot / denom, -1.0, 1.0);
+        return Math.Acos(cos) * 180.0 / Math.PI;
     }
 
     private static List<double[]> BuildOrthonormalBasis(List<double[]> vectors, int dimension)
