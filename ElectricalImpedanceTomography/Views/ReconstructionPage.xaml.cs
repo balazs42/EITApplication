@@ -28,6 +28,7 @@ public partial class ReconstructionPage : ContentPage
 
     private ReconstructionResult? _currentResult;
     private ReconstructionFrame? _currentFrame;
+    private GradientInspectionPopup? _gradientPopup;
 
     // FEM transform helpers
     private float _scale, _marginX, _marginY, _meshWidth, _meshHeight, _minX, _minY, _canvasHeight;
@@ -114,6 +115,8 @@ public partial class ReconstructionPage : ContentPage
         _viewModel.ReconstructionUpdated += OnReconstructionUpdated;
         _viewModel.ReconstructionFrameUpdated += OnReconstructionFrameUpdated;
         _viewModel.SelectedTrendMetricHistoryChanged += OnSelectedTrendMetricHistoryChanged;
+        _viewModel.GradientInspectionRequested += OnGradientInspectionRequested;
+        _viewModel.GradientSelectionChanged += OnGradientSelectionChanged;
 
         StepButton.IsEnabled = false;
         PlayButton.IsVisible = true;
@@ -323,6 +326,48 @@ public partial class ReconstructionPage : ContentPage
 
     private void OnSelectedTrendMetricHistoryChanged(object? sender, EventArgs e)
         => MainThread.BeginInvokeOnMainThread(() => MetricTrendCanvas.InvalidateSurface());
+
+    private async void OnGradientInspectionRequested(object? sender, EventArgs e)
+    {
+        if (_gradientPopup != null)
+            return;
+
+        var popup = new GradientInspectionPopup(_viewModel);
+        _gradientPopup = popup;
+        popup.Closed += OnGradientPopupClosed;
+        await this.ShowPopupAsync(popup);
+    }
+
+    private void OnGradientPopupClosed(object? sender, PopupClosedEventArgs e)
+    {
+        if (_gradientPopup is GradientInspectionPopup popup)
+        {
+            popup.Closed -= OnGradientPopupClosed;
+            _gradientPopup = null;
+        }
+    }
+
+    private void OnGradientSelectionChanged(object? sender, int index)
+    {
+        if (index < 0)
+            return;
+
+        var sample = _viewModel.GetGradientSample(index);
+        if (sample is null)
+            return;
+
+        Dispatcher.Dispatch(() =>
+        {
+            double target = sample.FrameIndex;
+            if (Math.Abs(PlaybackSlider.Value - target) < 0.01)
+                return;
+
+            _sliderChanging = true;
+            PlaybackSlider.Value = Math.Clamp(target, PlaybackSlider.Minimum, PlaybackSlider.Maximum);
+            _sliderChanging = false;
+            UpdatePlaybackLabel();
+        });
+    }
 
     #region Drawing helpers
     private void ComputeFemTransform(FEMMesh mesh, SKImageInfo info)
@@ -1545,6 +1590,8 @@ public partial class ReconstructionPage : ContentPage
                 _viewModel.Residual = CalculateResidual(res);
             }
             Dispatcher.Dispatch(() => { InvalidateAll(); UpdatePlaybackLabel(); });
+
+            _viewModel.SnapGradientSelectionToFrame(index);
         }
     }
 

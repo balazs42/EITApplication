@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<toolkit:Popup xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+               xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+               xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+               xmlns:skia="clr-namespace:SkiaSharp.Views.Maui.Controls;assembly=SkiaSharp.Views.Maui.Controls"
+               x:Class="ElectricalImpedanceTomography.Views.GradientInspectionPopup"
+               Size="640,480"
+               CanBeDismissedByTappingOutside="True">
+    <Grid RowDefinitions="Auto,*,Auto"
+          BackgroundColor="{AppThemeBinding Light=#1E2A3C, Dark=#0C101A}">
+        <Grid Row="0"
+              ColumnDefinitions="*,Auto"
+              Padding="16"
+              BackgroundColor="{AppThemeBinding Light=#24354F, Dark=#141B2A}">
+            <Label Text="Gradient Trajectory"
+                   FontAttributes="Bold"
+                   FontSize="18"
+                   TextColor="#F0F4FF"
+                   VerticalOptions="Center"/>
+            <HorizontalStackLayout Grid.Column="1"
+                                    Spacing="12"
+                                    VerticalOptions="Center">
+                <Label x:Name="SelectionLabel"
+                       Text="No gradient data yet"
+                       TextColor="#A8B6D6"
+                       VerticalOptions="Center"/>
+                <Button Text="Reset View"
+                        Clicked="OnResetViewClicked"
+                        BackgroundColor="#2C3D59"
+                        TextColor="#E5EEFF"
+                        Padding="16,8"
+                        FontSize="12"
+                        CornerRadius="8"/>
+            </HorizontalStackLayout>
+        </Grid>
+        <Grid Row="1" Padding="16">
+            <Border StrokeShape="RoundRectangle 16"
+                    StrokeThickness="1"
+                    Stroke="#2F405C"
+                    BackgroundColor="{AppThemeBinding Light=#0F1724, Dark=#070B12}">
+                <Grid>
+                    <skia:SKCanvasView x:Name="GradientCanvas"
+                                       PaintSurface="OnGradientCanvasPaintSurface"
+                                       EnableTouchEvents="True"
+                                       Touch="OnGradientCanvasTouch"/>
+                    <Label x:Name="EmptyStateLabel"
+                           Text="Gradient samples will appear here as the reconstruction progresses."
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center"
+                           TextColor="#A8B6D6"
+                           FontSize="14"
+                           HorizontalTextAlignment="Center"
+                           Margin="24"
+                           IsVisible="False"/>
+                </Grid>
+            </Border>
+        </Grid>
+        <Grid Row="2"
+              ColumnDefinitions="Auto,*,Auto"
+              Padding="16,8,16,16"
+              ColumnSpacing="12">
+            <Label Text="Zoom"
+                   TextColor="#F0F4FF"
+                   VerticalOptions="Center"/>
+            <Slider x:Name="ZoomSlider"
+                    Grid.Column="1"
+                    Minimum="1"
+                    Maximum="12"
+                    ValueChanged="OnZoomSliderValueChanged"/>
+            <Label x:Name="ZoomValueLabel"
+                   Grid.Column="2"
+                   Text="1.0×"
+                   TextColor="#A8B6D6"
+                   VerticalOptions="Center"/>
+        </Grid>
+    </Grid>
+</toolkit:Popup>

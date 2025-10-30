@@ -575,6 +575,9 @@
                                                             <Border.GestureRecognizers>
                                                                 <TapGestureRecognizer Command="{Binding Source={x:Reference ReconstructionPageRoot}, Path=BindingContext.SelectTrendMetricCommand}"
                                                                                       CommandParameter="{Binding Key}"/>
+                                                                <TapGestureRecognizer NumberOfTapsRequired="2"
+                                                                                      Command="{Binding Source={x:Reference ReconstructionPageRoot}, Path=BindingContext.RequestGradientInspectionCommand}"
+                                                                                      CommandParameter="{Binding Key}"/>
                                                             </Border.GestureRecognizers>
                                                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                                                                 <Label Text="{Binding Name}" FontAttributes="Italic" FontSize="12" TextColor="#9DAAD3">
