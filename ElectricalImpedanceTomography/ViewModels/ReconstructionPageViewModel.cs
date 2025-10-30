@@ -263,6 +263,13 @@ namespace ElectricalImpedanceTomography.ViewModels
         private ReconstructionResult? _latestResult;
         private ReconstructionFrame? _latestFrame;
         private Dictionary<int, double>? _previousGradientSnapshot;
+        private readonly List<GradientHistorySample> _gradientHistory = new();
+        private List<int>? _gradientElementOrder;
+        private Dictionary<int, int>? _gradientElementIndexMap;
+        private int _selectedGradientIndex = -1;
+        public event EventHandler? GradientHistoryChanged;
+        public event EventHandler<int>? GradientSelectionChanged;
+        public event EventHandler? GradientInspectionRequested;
         private IErrorMetric? _cachedErrorMetric;
         private ErrorMetric _cachedErrorMetricChoice;
 
@@ -501,6 +508,110 @@ namespace ElectricalImpedanceTomography.ViewModels
         public IReadOnlyList<double> GetSelectedTrendHistorySnapshot()
             => GetTrendHistorySnapshot(SelectedTrendMetricKey);
 
+        public IReadOnlyList<GradientHistorySample> GetGradientHistorySnapshot()
+        {
+            lock (_gradientLock)
+            {
+                return _gradientHistory
+                    .Select(sample => new GradientHistorySample(sample.Iteration,
+                                                                  sample.GetVectorCopy(),
+                                                                  sample.Norm,
+                                                                  sample.FrameIndex))
+                    .ToList();
+            }
+        }
+
+        public GradientHistorySample? GetGradientSample(int index)
+        {
+            lock (_gradientLock)
+            {
+                if (index < 0 || index >= _gradientHistory.Count)
+                    return null;
+
+                var sample = _gradientHistory[index];
+                return new GradientHistorySample(sample.Iteration,
+                                                 sample.GetVectorCopy(),
+                                                 sample.Norm,
+                                                 sample.FrameIndex);
+            }
+        }
+
+        public int SelectedGradientIndex
+        {
+            get
+            {
+                lock (_gradientLock)
+                {
+                    return _selectedGradientIndex;
+                }
+            }
+        }
+
+        public int GradientHistoryCount
+        {
+            get
+            {
+                lock (_gradientLock)
+                {
+                    return _gradientHistory.Count;
+                }
+            }
+        }
+
+        public void SetSelectedGradientIndex(int index)
+        {
+            if (index < -1)
+                return;
+
+            bool changed = false;
+            lock (_gradientLock)
+            {
+                if (index >= _gradientHistory.Count)
+                    return;
+
+                if (_selectedGradientIndex == index)
+                    return;
+
+                _selectedGradientIndex = index;
+                changed = true;
+            }
+
+            if (changed)
+                GradientSelectionChanged?.Invoke(this, index);
+        }
+
+        public void SnapGradientSelectionToFrame(int frameIndex)
+        {
+            if (frameIndex < 0)
+                frameIndex = 0;
+
+            int targetIndex;
+            lock (_gradientLock)
+            {
+                if (_gradientHistory.Count == 0)
+                    return;
+
+                targetIndex = -1;
+                for (int i = 0; i < _gradientHistory.Count; i++)
+                {
+                    if (_gradientHistory[i].FrameIndex <= frameIndex)
+                        targetIndex = i;
+                    else
+                        break;
+                }
+
+                if (targetIndex < 0)
+                    targetIndex = 0;
+
+                if (targetIndex == _selectedGradientIndex)
+                    return;
+
+                _selectedGradientIndex = targetIndex;
+            }
+
+            GradientSelectionChanged?.Invoke(this, targetIndex);
+        }
+
         public void ResetReconstructionMetrics()
         {
             ResetMetricsCore();
@@ -550,6 +661,8 @@ namespace ElectricalImpedanceTomography.ViewModels
             _hasPendingTrendUpdate = false;
             _reconstructionStopwatch.Reset();
 
+            ClearGradientHistory();
+
             RaiseSelectedTrendMetricHistoryChanged();
 
             lock (_metricUpdateLock)
@@ -566,6 +679,28 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
 
             ResetDynamicMetrics();
+        }
+
+        private void ClearGradientHistory()
+        {
+            bool hadHistory;
+            int previousIndex;
+            lock (_gradientLock)
+            {
+                hadHistory = _gradientHistory.Count > 0;
+                previousIndex = _selectedGradientIndex;
+                _gradientHistory.Clear();
+                _gradientElementOrder = null;
+                _gradientElementIndexMap = null;
+                _previousGradientSnapshot = null;
+                _selectedGradientIndex = -1;
+            }
+
+            if (hadHistory || previousIndex != -1)
+            {
+                GradientHistoryChanged?.Invoke(this, EventArgs.Empty);
+                GradientSelectionChanged?.Invoke(this, -1);
+            }
         }
 
         private void ResetDynamicMetrics()
@@ -880,6 +1015,8 @@ namespace ElectricalImpedanceTomography.ViewModels
                             {
                                 _previousGradientSnapshot = fieldMetrics.GradientSnapshot;
                             }
+
+                            RecordGradientSnapshot(fieldMetrics);
                         }
                     }
                 });
@@ -1106,6 +1243,58 @@ namespace ElectricalImpedanceTomography.ViewModels
                                     regularizationRange,
                                     regularizationEnergy,
                                     gradientSnapshot);
+        }
+
+        private void RecordGradientSnapshot(FieldMetrics fieldMetrics)
+        {
+            if (fieldMetrics.GradientSnapshot == null || fieldMetrics.GradientSnapshot.Count == 0)
+                return;
+
+            int selectedIndex;
+
+            lock (_gradientLock)
+            {
+                var snapshot = fieldMetrics.GradientSnapshot;
+
+                if (_gradientElementOrder is null || _gradientElementIndexMap is null)
+                {
+                    _gradientElementOrder = snapshot.Keys.ToList();
+                    _gradientElementIndexMap = new Dictionary<int, int>(_gradientElementOrder.Count);
+                    for (int i = 0; i < _gradientElementOrder.Count; i++)
+                        _gradientElementIndexMap[_gradientElementOrder[i]] = i;
+                }
+                else
+                {
+                    foreach (var key in snapshot.Keys)
+                    {
+                        if (!_gradientElementIndexMap.ContainsKey(key))
+                        {
+                            _gradientElementIndexMap[key] = _gradientElementOrder.Count;
+                            _gradientElementOrder.Add(key);
+                        }
+                    }
+                }
+
+                if (_gradientElementOrder is null)
+                    return;
+
+                double[] vector = new double[_gradientElementOrder.Count];
+                for (int i = 0; i < _gradientElementOrder.Count; i++)
+                {
+                    int key = _gradientElementOrder[i];
+                    snapshot.TryGetValue(key, out double value);
+                    vector[i] = value;
+                }
+
+                int frameIndex = Math.Max(Workspace.GetReconstructionFrames().Count - 1, 0);
+                var sample = new GradientHistorySample(IterationCount, vector, fieldMetrics.GradientNorm, frameIndex);
+                _gradientHistory.Add(sample);
+                _selectedGradientIndex = _gradientHistory.Count - 1;
+                selectedIndex = _selectedGradientIndex;
+            }
+
+            GradientHistoryChanged?.Invoke(this, EventArgs.Empty);
+            GradientSelectionChanged?.Invoke(this, selectedIndex);
         }
 
         private static double ComputeGradientAngle(Dictionary<int, double> previous, Dictionary<int, double> current)
@@ -2055,6 +2244,41 @@ namespace ElectricalImpedanceTomography.ViewModels
                 return;
 
             SelectedTrendMetricKey = metricKey;
+        }
+
+        [RelayCommand]
+        private void RequestGradientInspection(string metricKey)
+        {
+            if (string.IsNullOrWhiteSpace(metricKey))
+                return;
+
+            if (metricKey == MetricKeys.GradientNorm
+                || metricKey == MetricKeys.GradientAngleChange
+                || metricKey == MetricKeys.PotentialRange
+                || metricKey == MetricKeys.AdjointRange)
+            {
+                GradientInspectionRequested?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        public sealed class GradientHistorySample
+        {
+            private readonly double[] _vector;
+
+            public GradientHistorySample(int iteration, double[] vector, double norm, int frameIndex)
+            {
+                Iteration = iteration;
+                _vector = vector;
+                Norm = norm;
+                FrameIndex = frameIndex;
+            }
+
+            public int Iteration { get; }
+            public double Norm { get; }
+            public int FrameIndex { get; }
+            public IReadOnlyList<double> Vector => Array.AsReadOnly(_vector);
+
+            internal double[] GetVectorCopy() => (double[])_vector.Clone();
         }
 
         private readonly record struct ReconstructionParametersSnapshot(
