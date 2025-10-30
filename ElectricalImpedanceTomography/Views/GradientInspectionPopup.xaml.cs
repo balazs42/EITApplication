@@ -281,7 +281,21 @@ public partial class GradientInspectionPopup : Popup
 
         _selectedIndex = index;
         var sample = _samples[index];
-        SelectionLabel.Text = $"Iteration {sample.Iteration}: ‖∇J‖ = {sample.Norm:F4}";
+        string iterationLabel;
+        if (sample.CollapsedCount > 1 && sample.FirstIteration != sample.Iteration)
+        {
+            iterationLabel = $"Iterations {sample.FirstIteration}–{sample.Iteration} ({sample.CollapsedCount} steps)";
+        }
+        else if (sample.CollapsedCount > 1)
+        {
+            iterationLabel = $"Iteration {sample.Iteration} ({sample.CollapsedCount} steps)";
+        }
+        else
+        {
+            iterationLabel = $"Iteration {sample.Iteration}";
+        }
+
+        SelectionLabel.Text = $"{iterationLabel}: ‖∇J‖ = {sample.Norm:F4}";
         UpdateNavigationButtons();
         UpdateValleySurface();
         GradientCanvas.InvalidateSurface();
