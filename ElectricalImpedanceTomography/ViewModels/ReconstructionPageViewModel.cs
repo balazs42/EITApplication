@@ -959,8 +959,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 token.ThrowIfCancellationRequested();
 
                 frame ??= result?.Frames.LastOrDefault();
-                var aggregatedGradient = result != null ? ComputeCycleGradient(result) : null;
-                var fieldMetrics = ComputeFieldMetrics(frame, aggregatedGradient, token);
+                var fieldMetrics = ComputeFieldMetrics(frame, token);
 
                 token.ThrowIfCancellationRequested();
 
@@ -1205,17 +1204,12 @@ namespace ElectricalImpedanceTomography.ViewModels
             return new MeasurementMetrics(rmse, mae, mape, misfit);
         }
 
-        private FieldMetrics ComputeFieldMetrics(ReconstructionFrame? frame,
-                                                 Dictionary<int, double>? aggregatedGradient,
-                                                 CancellationToken token)
+        private FieldMetrics ComputeFieldMetrics(ReconstructionFrame? frame, CancellationToken token)
         {
             if (frame == null)
                 return FieldMetrics.Empty;
 
-            var gradient = aggregatedGradient ?? frame.ConductivityGradient.Conductivities;
-            if (gradient == null || gradient.Count == 0)
-                return FieldMetrics.Empty;
-
+            var gradient = frame.ConductivityGradient.Conductivities;
             double gradientNorm = 0.0;
             foreach (var kv in gradient)
             {
@@ -1225,16 +1219,15 @@ namespace ElectricalImpedanceTomography.ViewModels
             gradientNorm = Math.Sqrt(gradientNorm);
 
             double? gradientAngle = null;
-            if (aggregatedGradient != null)
+            Dictionary<int, double>? previous;
+            lock (_gradientLock)
             {
-                Dictionary<int, double>? previous;
-                lock (_gradientLock)
-                {
-                    previous = _previousGradientSnapshot;
-                }
+                previous = _previousGradientSnapshot;
+            }
 
-                if (previous != null && previous.Count > 0 && gradient.Count > 0)
-                    gradientAngle = ComputeGradientAngle(previous, gradient);
+            if (previous != null && previous.Count > 0 && gradient.Count > 0)
+            {
+                gradientAngle = ComputeGradientAngle(previous, gradient);
             }
 
             var potentialRange = ComputeRange(frame.CalculatedPotentialDistribution?.Potentials);
@@ -1242,9 +1235,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             var regularizationRange = ComputeRange(frame.CalculatedRegularization?.Conductivities);
             double regularizationEnergy = ComputeRegularizationEnergy(frame.CalculatedRegularization?.Conductivities, token);
 
-            var gradientSnapshot = aggregatedGradient != null
-                ? new Dictionary<int, double>(aggregatedGradient)
-                : null;
+            var gradientSnapshot = new Dictionary<int, double>(gradient);
 
             return new FieldMetrics(true,
                                     gradientNorm,
@@ -1254,42 +1245,6 @@ namespace ElectricalImpedanceTomography.ViewModels
                                     regularizationRange,
                                     regularizationEnergy,
                                     gradientSnapshot);
-        }
-
-        private static Dictionary<int, double>? ComputeCycleGradient(ReconstructionResult result)
-        {
-            if (result.Frames.Count == 0)
-                return null;
-
-            var accumulator = new Dictionary<int, double>();
-            int contributingFrames = 0;
-
-            foreach (var frame in result.Frames)
-            {
-                var gradient = frame.ConductivityGradient?.Conductivities;
-                if (gradient == null || gradient.Count == 0)
-                    continue;
-
-                contributingFrames++;
-
-                foreach (var kvp in gradient)
-                {
-                    if (accumulator.TryGetValue(kvp.Key, out double existing))
-                        accumulator[kvp.Key] = existing + kvp.Value;
-                    else
-                        accumulator[kvp.Key] = kvp.Value;
-                }
-            }
-
-            if (accumulator.Count == 0 || contributingFrames == 0)
-                return null;
-
-            double scale = 1.0 / contributingFrames;
-            var keys = accumulator.Keys.ToArray();
-            foreach (var key in keys)
-                accumulator[key] *= scale;
-
-            return accumulator;
         }
 
         private void RecordGradientSnapshot(FieldMetrics fieldMetrics)

@@ -14,7 +14,6 @@ namespace ElectricalImpedanceTomography.Views;
 
 public partial class GradientInspectionPopup : Popup
 {
-    private const int SimplifiedArrowThreshold = 1000;
     private readonly ReconstructionPageViewModel _viewModel;
     private readonly List<ReconstructionPageViewModel.GradientHistorySample> _samples = new();
     private readonly List<Point3D> _points = new();
@@ -749,12 +748,6 @@ public partial class GradientInspectionPopup : Popup
         if (visibleLastIndex <= 0)
             return;
 
-        if (visibleLastIndex + 1 > SimplifiedArrowThreshold)
-        {
-            DrawSimplifiedGradientPath(canvas, projections, visibleLastIndex);
-            return;
-        }
-
         using var strokePaint = new SKPaint
         {
             Style = SKPaintStyle.Stroke,
@@ -811,41 +804,6 @@ public partial class GradientInspectionPopup : Popup
             headPaint.Color = color.WithAlpha(210);
             canvas.DrawPath(headPath, headPaint);
         }
-    }
-
-    private void DrawSimplifiedGradientPath(SKCanvas canvas,
-                                            IReadOnlyDictionary<int, SKPoint> projections,
-                                            int visibleLastIndex)
-    {
-        using var pathPaint = new SKPaint
-        {
-            Style = SKPaintStyle.Stroke,
-            IsAntialias = true,
-            StrokeWidth = 2.5f,
-            Color = AngleNeutralColor.WithAlpha(200)
-        };
-
-        using var path = new SKPath();
-        bool hasPoint = false;
-
-        for (int i = 0; i <= visibleLastIndex; i++)
-        {
-            if (!projections.TryGetValue(i, out var point))
-                continue;
-
-            if (!hasPoint)
-            {
-                path.MoveTo(point);
-                hasPoint = true;
-            }
-            else
-            {
-                path.LineTo(point);
-            }
-        }
-
-        if (hasPoint)
-            canvas.DrawPath(path, pathPaint);
     }
 
     private void DrawErrorValley(SKCanvas canvas,
