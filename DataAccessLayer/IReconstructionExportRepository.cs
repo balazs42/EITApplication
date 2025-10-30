@@ -18,4 +18,5 @@ public sealed record ReconstructionExportRequest(IDiscretization Discretization,
                                                   PotentialDisplayMode DisplayMode,
                                                   string TargetDirectory,
                                                   ConductivityDistribution InitialDistribution,
-                                                  MeasurementPattern? MeasurementPattern);
+                                                  MeasurementPattern? MeasurementPattern,
+                                                  ReconstructionConfigurationSnapshot Configuration);
