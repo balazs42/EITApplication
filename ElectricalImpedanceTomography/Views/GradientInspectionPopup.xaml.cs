@@ -23,7 +23,6 @@ public partial class GradientInspectionPopup : Popup
     private readonly List<double> _stepAngles = new();
 
     private float _trajectoryRadius = 1f;
-    private float _planeY;
     private float _cameraDistance;
     private float _defaultCameraDistance = 5f;
     private float _yaw = 45f;
@@ -232,6 +231,17 @@ public partial class GradientInspectionPopup : Popup
 
         _autoScale = ComputeAutoScale((float)maxRadiusRaw);
         ApplyScaleToRawPoints();
+
+        var previous = new Point3D(0f, 0f, 0f, -1, 0.0);
+        for (int i = 0; i < _points.Count; i++)
+        {
+            float norm = (float)_samples[i].Norm;
+            float angle = (float)(_samples[i].Angle ?? 0.0);
+            _maxNormValue = Math.Max(_maxNormValue, norm);
+            _maxAngleMagnitude = Math.Max(_maxAngleMagnitude, MathF.Abs(angle));
+            _arrowSegments.Add(new ArrowSegment(previous, _points[i], norm, angle, i));
+            previous = _points[i];
+        }
 
         UpdateZoomSlider();
         UpdateScaleSlider();
@@ -461,6 +471,26 @@ public partial class GradientInspectionPopup : Popup
         ZoomValueLabel.Text = $"{normalized:0.0}×";
     }
 
+    private void UpdateNavigationButtons()
+    {
+        if (PreviousButton is null || NextButton is null)
+            return;
+
+        if (_samples.Count == 0)
+        {
+            PreviousButton.IsEnabled = false;
+            NextButton.IsEnabled = false;
+            return;
+        }
+
+        int index = _selectedIndex;
+        if (index < 0)
+            index = _samples.Count - 1;
+
+        PreviousButton.IsEnabled = index > 0;
+        NextButton.IsEnabled = index < _samples.Count - 1;
+    }
+
     private void OnZoomSliderValueChanged(object? sender, ValueChangedEventArgs e)
     {
         _cameraDistance = (float)e.NewValue;
@@ -546,6 +576,62 @@ public partial class GradientInspectionPopup : Popup
         }
     }
 
+    private void DrawArrow(SKCanvas canvas, SKPoint start, SKPoint end, ArrowSegment segment)
+    {
+        float dx = end.X - start.X;
+        float dy = end.Y - start.Y;
+        float length = MathF.Sqrt(dx * dx + dy * dy);
+        if (length < 1e-3f)
+            return;
+
+        float normFactor = _maxNormValue > 1e-6f ? segment.Norm / _maxNormValue : 0f;
+        normFactor = Math.Clamp(normFactor, 0f, 1f);
+        float strokeWidth = 2f + 3f * normFactor;
+
+        float angleFactor = _maxAngleMagnitude > 1e-6f ? MathF.Min(MathF.Abs(segment.Angle) / _maxAngleMagnitude, 1f) : 0f;
+        float hue = 40f + 200f * (1f - angleFactor);
+        var color = SKColor.FromHsv(hue, 70f, 95f);
+
+        using var linePaint = new SKPaint
+        {
+            Style = SKPaintStyle.Stroke,
+            Color = color,
+            StrokeWidth = strokeWidth,
+            IsAntialias = true,
+            StrokeCap = SKStrokeCap.Round
+        };
+
+        float arrowLength = MathF.Min(16f + 18f * normFactor, length * 0.45f);
+        float unitX = dx / length;
+        float unitY = dy / length;
+
+        var arrowBase = new SKPoint(end.X - unitX * arrowLength, end.Y - unitY * arrowLength);
+        canvas.DrawLine(start, arrowBase, linePaint);
+
+        float headWidth = arrowLength * 0.6f;
+        float perpX = -unitY;
+        float perpY = unitX;
+
+        var left = new SKPoint(arrowBase.X + perpX * headWidth * 0.5f,
+                               arrowBase.Y + perpY * headWidth * 0.5f);
+        var right = new SKPoint(arrowBase.X - perpX * headWidth * 0.5f,
+                                arrowBase.Y - perpY * headWidth * 0.5f);
+
+        using var headPaint = new SKPaint
+        {
+            Style = SKPaintStyle.Fill,
+            Color = color.WithAlpha(220),
+            IsAntialias = true
+        };
+
+        using var headPath = new SKPath();
+        headPath.MoveTo(end);
+        headPath.LineTo(left);
+        headPath.LineTo(right);
+        headPath.Close();
+        canvas.DrawPath(headPath, headPaint);
+    }
+
     private void OnGradientCanvasTouch(object? sender, SKTouchEventArgs e)
     {
         switch (e.ActionType)
@@ -599,6 +685,36 @@ public partial class GradientInspectionPopup : Popup
         ZoomSlider.Value = newDistance;
         UpdateZoomLabel();
         GradientCanvas.InvalidateSurface();
+    }
+
+    private void OnPreviousClicked(object? sender, EventArgs e)
+    {
+        if (_samples.Count == 0)
+            return;
+
+        int index = _selectedIndex;
+        if (index < 0)
+            index = _samples.Count - 1;
+
+        if (index <= 0)
+            return;
+
+        _viewModel.SetSelectedGradientIndex(index - 1);
+    }
+
+    private void OnNextClicked(object? sender, EventArgs e)
+    {
+        if (_samples.Count == 0)
+            return;
+
+        int index = _selectedIndex;
+        if (index < 0)
+            index = _samples.Count - 1;
+
+        if (index >= _samples.Count - 1)
+            return;
+
+        _viewModel.SetSelectedGradientIndex(index + 1);
     }
 
     private void TrySelectPoint(SKPoint location)
@@ -1076,9 +1192,11 @@ public partial class GradientInspectionPopup : Popup
                                  Vector3 cameraPosition,
                                  Vector3 forward,
                                  Vector3 right,
-                                 Vector3 up)
+                                 Vector3 up,
+                                 float planeY,
+                                 float radius)
     {
-        float size = Math.Max(_trajectoryRadius * 2.5f, 2f);
+        float size = Math.Max(radius * 2.2f, 2f);
         int divisions = 6;
 
         using var fillPaint = new SKPaint { Style = SKPaintStyle.Fill, Color = new SKColor(24, 32, 48, 120) };
@@ -1086,10 +1204,10 @@ public partial class GradientInspectionPopup : Popup
 
         var corners = new[]
         {
-            ProjectPoint(new Point3D(-size, _planeY, -size, 0, 0), viewport, cameraPosition, forward, right, up),
-            ProjectPoint(new Point3D(size, _planeY, -size, 0, 0), viewport, cameraPosition, forward, right, up),
-            ProjectPoint(new Point3D(size, _planeY, size, 0, 0), viewport, cameraPosition, forward, right, up),
-            ProjectPoint(new Point3D(-size, _planeY, size, 0, 0), viewport, cameraPosition, forward, right, up)
+            ProjectPoint(new Point3D(-size, planeY, -size, 0, 0), viewport, cameraPosition, forward, right, up),
+            ProjectPoint(new Point3D(size, planeY, -size, 0, 0), viewport, cameraPosition, forward, right, up),
+            ProjectPoint(new Point3D(size, planeY, size, 0, 0), viewport, cameraPosition, forward, right, up),
+            ProjectPoint(new Point3D(-size, planeY, size, 0, 0), viewport, cameraPosition, forward, right, up)
         };
 
         if (corners.All(p => p.HasValue))
@@ -1107,13 +1225,13 @@ public partial class GradientInspectionPopup : Popup
         for (int i = -divisions; i <= divisions; i++)
         {
             float t = size * i / divisions;
-            var startX = ProjectPoint(new Point3D(t, _planeY, -size, 0, 0), viewport, cameraPosition, forward, right, up);
-            var endX = ProjectPoint(new Point3D(t, _planeY, size, 0, 0), viewport, cameraPosition, forward, right, up);
+            var startX = ProjectPoint(new Point3D(t, planeY, -size, 0, 0), viewport, cameraPosition, forward, right, up);
+            var endX = ProjectPoint(new Point3D(t, planeY, size, 0, 0), viewport, cameraPosition, forward, right, up);
             if (startX.HasValue && endX.HasValue)
                 canvas.DrawLine(startX.Value, endX.Value, strokePaint);
 
-            var startZ = ProjectPoint(new Point3D(-size, _planeY, t, 0, 0), viewport, cameraPosition, forward, right, up);
-            var endZ = ProjectPoint(new Point3D(size, _planeY, t, 0, 0), viewport, cameraPosition, forward, right, up);
+            var startZ = ProjectPoint(new Point3D(-size, planeY, t, 0, 0), viewport, cameraPosition, forward, right, up);
+            var endZ = ProjectPoint(new Point3D(size, planeY, t, 0, 0), viewport, cameraPosition, forward, right, up);
             if (startZ.HasValue && endZ.HasValue)
                 canvas.DrawLine(startZ.Value, endZ.Value, strokePaint);
         }
@@ -1124,9 +1242,10 @@ public partial class GradientInspectionPopup : Popup
                           Vector3 cameraPosition,
                           Vector3 forward,
                           Vector3 right,
-                          Vector3 up)
+                          Vector3 up,
+                          float radius)
     {
-        float length = Math.Max(_trajectoryRadius * 1.2f, 1.2f);
+        float length = Math.Max(radius * 1.2f, 1.2f);
         var origin = ProjectPoint(new Point3D(0, 0, 0, 0, 0), viewport, cameraPosition, forward, right, up);
         if (!origin.HasValue)
             return;

@@ -516,7 +516,8 @@ namespace ElectricalImpedanceTomography.ViewModels
                     .Select(sample => new GradientHistorySample(sample.Iteration,
                                                                   sample.GetVectorCopy(),
                                                                   sample.Norm,
-                                                                  sample.FrameIndex))
+                                                                  sample.FrameIndex,
+                                                                  sample.Angle))
                     .ToList();
             }
         }
@@ -532,7 +533,8 @@ namespace ElectricalImpedanceTomography.ViewModels
                 return new GradientHistorySample(sample.Iteration,
                                                  sample.GetVectorCopy(),
                                                  sample.Norm,
-                                                 sample.FrameIndex);
+                                                 sample.FrameIndex,
+                                                 sample.Angle);
             }
         }
 
@@ -1287,7 +1289,11 @@ namespace ElectricalImpedanceTomography.ViewModels
                 }
 
                 int frameIndex = Math.Max(Workspace.GetReconstructionFrames().Count - 1, 0);
-                var sample = new GradientHistorySample(IterationCount, vector, fieldMetrics.GradientNorm, frameIndex);
+                var sample = new GradientHistorySample(IterationCount,
+                                                       vector,
+                                                       fieldMetrics.GradientNorm,
+                                                       frameIndex,
+                                                       fieldMetrics.GradientAngle);
                 _gradientHistory.Add(sample);
                 _selectedGradientIndex = _gradientHistory.Count - 1;
                 selectedIndex = _selectedGradientIndex;
@@ -2265,17 +2271,23 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             private readonly double[] _vector;
 
-            public GradientHistorySample(int iteration, double[] vector, double norm, int frameIndex)
+            public GradientHistorySample(int iteration,
+                                         double[] vector,
+                                         double norm,
+                                         int frameIndex,
+                                         double? angle)
             {
                 Iteration = iteration;
                 _vector = vector;
                 Norm = norm;
                 FrameIndex = frameIndex;
+                Angle = angle;
             }
 
             public int Iteration { get; }
             public double Norm { get; }
             public int FrameIndex { get; }
+            public double? Angle { get; }
             public IReadOnlyList<double> Vector => Array.AsReadOnly(_vector);
 
             internal double[] GetVectorCopy() => (double[])_vector.Clone();
