@@ -18,6 +18,7 @@ using Utility.Rendering;
 
 using Workspace = Utility.Classes.Application.Workspace;
 using Utility.Exports;
+using CommunityToolkit.Maui.Core;
 
 namespace ElectricalImpedanceTomography.Views;
 

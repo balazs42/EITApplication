@@ -1,3 +1,4 @@
+using CommunityToolkit.Maui.Core;
 using CommunityToolkit.Maui.Views;
 using ElectricalImpedanceTomography.ViewModels;
 using Microsoft.Maui.ApplicationModel;
