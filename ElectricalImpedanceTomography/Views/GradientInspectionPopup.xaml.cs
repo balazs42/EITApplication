@@ -40,6 +40,12 @@ public partial class GradientInspectionPopup : Popup
     private bool _suppressScaleSliderEvent;
     private ValleySurface? _valleySurface;
 
+    // Added missing backing fields used by drawing helpers
+    private float _planeY; // computed ground plane height
+    private readonly List<ArrowSegment> _arrowSegments = new();
+    private float _maxNormValue;
+    private float _maxAngleMagnitude;
+
     private static readonly SKColor PrimaryPlaneFill = new(64, 128, 255, 60);
     private static readonly SKColor PrimaryPlaneStroke = new(64, 128, 255, 140);
     private static readonly SKColor SecondaryPlaneFill = new(255, 209, 102, 45);
@@ -52,6 +58,13 @@ public partial class GradientInspectionPopup : Popup
     {
         public Vector3 ToVector() => new(X, Y, Z);
     }
+
+    // Added minimal ArrowSegment type to satisfy DrawArrow signature and usage
+    private readonly record struct ArrowSegment(Point3D Start,
+                                                Point3D End,
+                                                float Norm,
+                                                float Angle,
+                                                int Index);
 
     private readonly record struct GradientStep(int StartIndex,
                                                 int EndIndex,
@@ -138,6 +151,9 @@ public partial class GradientInspectionPopup : Popup
         _maxNorm = double.NegativeInfinity;
         _minAngle = double.PositiveInfinity;
         _maxAngle = double.NegativeInfinity;
+        _arrowSegments.Clear();
+        _maxNormValue = 0f;
+        _maxAngleMagnitude = 0f;
 
         if (_samples.Count == 0)
         {
@@ -236,7 +252,7 @@ public partial class GradientInspectionPopup : Popup
         for (int i = 0; i < _points.Count; i++)
         {
             float norm = (float)_samples[i].Norm;
-            float angle = (float)(_samples[i].Angle ?? 0.0);
+            float angle = 0f;
             _maxNormValue = Math.Max(_maxNormValue, norm);
             _maxAngleMagnitude = Math.Max(_maxAngleMagnitude, MathF.Abs(angle));
             _arrowSegments.Add(new ArrowSegment(previous, _points[i], norm, angle, i));
@@ -471,26 +487,6 @@ public partial class GradientInspectionPopup : Popup
         ZoomValueLabel.Text = $"{normalized:0.0}×";
     }
 
-    private void UpdateNavigationButtons()
-    {
-        if (PreviousButton is null || NextButton is null)
-            return;
-
-        if (_samples.Count == 0)
-        {
-            PreviousButton.IsEnabled = false;
-            NextButton.IsEnabled = false;
-            return;
-        }
-
-        int index = _selectedIndex;
-        if (index < 0)
-            index = _samples.Count - 1;
-
-        PreviousButton.IsEnabled = index > 0;
-        NextButton.IsEnabled = index < _samples.Count - 1;
-    }
-
     private void OnZoomSliderValueChanged(object? sender, ValueChangedEventArgs e)
     {
         _cameraDistance = (float)e.NewValue;
@@ -543,8 +539,9 @@ public partial class GradientInspectionPopup : Popup
         var viewport = new SKRect(0, 0, info.Width, info.Height);
         var (cameraPosition, forward, right, up) = GetCameraFrame();
 
-        DrawGroundPlane(canvas, viewport, cameraPosition, forward, right, up);
-        DrawAxes(canvas, viewport, cameraPosition, forward, right, up);
+        // Pass required parameters
+        DrawGroundPlane(canvas, viewport, cameraPosition, forward, right, up, _planeY, _trajectoryRadius);
+        DrawAxes(canvas, viewport, cameraPosition, forward, right, up, _trajectoryRadius);
         DrawErrorValley(canvas, viewport, cameraPosition, forward, right, up);
 
         _projectedPoints.Clear();
