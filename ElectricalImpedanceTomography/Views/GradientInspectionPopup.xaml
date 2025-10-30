@@ -13,6 +13,7 @@
               BackgroundColor="{AppThemeBinding Light=#24354F, Dark=#141B2A}">
             <Label Text="Gradient Trajectory"
                    FontAttributes="Bold"
+                   FontFamily="SF Pro Text"
                    FontSize="18"
                    TextColor="#F0F4FF"
                    VerticalOptions="Center"/>
@@ -22,7 +23,8 @@
                 <HorizontalStackLayout Spacing="4"
                                         VerticalOptions="Center">
                     <ImageButton x:Name="PreviousButton"
-                                 Source="icon_back2.png"
+                                 Source="icon_next_player.png"
+                                 Rotation="180"
                                  BackgroundColor="Transparent"
                                  WidthRequest="32"
                                  HeightRequest="32"
