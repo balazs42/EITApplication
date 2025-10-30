@@ -1,6 +1,8 @@
 using SkiaSharp;
 using System.Globalization;
+using System.IO;
 using System.Text;
+using System.Text.Json;
 using Utility.Classes;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Measurement;
@@ -91,6 +93,7 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
 
             WriteIterationMetricsCsv(request.TargetDirectory, snapshots);
             WriteGradientMetricsCsv(request.TargetDirectory, request.Frames);
+            WriteConfigurationSnapshot(request.TargetDirectory, request.Configuration);
 
             return DataExportResult.CreateSuccess(request.TargetDirectory);
         }
@@ -98,6 +101,21 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
         {
             return DataExportResult.CreateFailure("Export Failed", ex.Message);
         }
+    }
+
+    private static void WriteConfigurationSnapshot(string directory, ReconstructionConfigurationSnapshot configuration)
+    {
+        if (configuration == null)
+            return;
+
+        var options = new JsonSerializerOptions
+        {
+            WriteIndented = true
+        };
+
+        string json = JsonSerializer.Serialize(configuration, options);
+        string path = Path.Combine(directory, "reconstruction_configuration.json");
+        File.WriteAllText(path, json);
     }
 
     private static List<ReconstructionIterationSnapshot> CreateIterationSnapshots(IReadOnlyList<ReconstructionResult> results)
