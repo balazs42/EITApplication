@@ -29,6 +29,7 @@ public partial class ReconstructionPage : ContentPage
 
     private ReconstructionResult? _currentResult;
     private ReconstructionFrame? _currentFrame;
+    private ConductivityDistribution? _currentAggregatedGradient;
     private GradientInspectionPopup? _gradientPopup;
 
     // FEM transform helpers
@@ -283,6 +284,7 @@ public partial class ReconstructionPage : ContentPage
     {
         _currentResult = result;
         _currentFrame = result.Frames.LastOrDefault();
+        UpdateAggregatedGradient(result);
         var frames = Workspace.GetReconstructionFrames();
         Dispatcher.Dispatch(() =>
         {
@@ -995,7 +997,7 @@ public partial class ReconstructionPage : ContentPage
     private void OnGradientCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
         var discretization = GetDiscretization();
-        var cd = _currentFrame?.ConductivityGradient;
+        var cd = GetActiveGradientDistribution();
         if (discretization is FEMMesh fem && cd != null)
             DrawFemConductivity(e.Surface.Canvas, e.Info, fem, cd, _hoverGradientLines, _hoverGradientPt);
         else if (discretization is LBMGrid lbm && cd != null)
@@ -1098,7 +1100,7 @@ public partial class ReconstructionPage : ContentPage
 
     private void OnGradientColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
-        var cd = _currentFrame?.ConductivityGradient;
+        var cd = GetActiveGradientDistribution();
         if (cd != null)
         {
             var discretization = GetDiscretization();
@@ -1334,7 +1336,7 @@ public partial class ReconstructionPage : ContentPage
             { _hoverGradientLines = null; _hoverGradientPt = null; view.InvalidateSurface(); e.Handled = true; return; }
             ComputeFemTransform(fem, new SKImageInfo((int)view.CanvasSize.Width, (int)view.CanvasSize.Height));
             _hoverGradientLines = null;
-            var cd = _currentFrame?.ConductivityGradient;
+            var cd = GetActiveGradientDistribution();
             if (cd != null)
             {
                 foreach (var elem in fem.GetElements().Cast<FEMElement>())
@@ -1361,7 +1363,7 @@ public partial class ReconstructionPage : ContentPage
             if (e.ActionType == SKTouchAction.Released)
             { _hoverGradientLines = null; _hoverGradientPt = null; view.InvalidateSurface(); e.Handled = true; return; }
             var el = lbm.GetElementAt(col, row);
-            var cd = _currentFrame?.ConductivityGradient;
+            var cd = GetActiveGradientDistribution();
             if (cd != null)
             {
                 double val = cd.Conductivities[el.Id];
@@ -1379,6 +1381,52 @@ public partial class ReconstructionPage : ContentPage
             Enum.GetNames(typeof(PotentialDisplayMode)));
         if (Enum.TryParse(choice, out PotentialDisplayMode mode))
             PotentialModePicker.SelectedIndex = (int)mode;
+    }
+
+    private void UpdateAggregatedGradient(ReconstructionResult? result)
+    {
+        _currentAggregatedGradient = BuildAggregatedGradient(result);
+    }
+
+    private static ConductivityDistribution? BuildAggregatedGradient(ReconstructionResult? result)
+    {
+        if (result == null || result.Frames.Count == 0)
+            return null;
+
+        var accumulator = new Dictionary<int, double>();
+        int contributingFrames = 0;
+
+        foreach (var frame in result.Frames)
+        {
+            var gradient = frame.ConductivityGradient?.Conductivities;
+            if (gradient == null || gradient.Count == 0)
+                continue;
+
+            contributingFrames++;
+
+            foreach (var kvp in gradient)
+            {
+                if (accumulator.TryGetValue(kvp.Key, out double existing))
+                    accumulator[kvp.Key] = existing + kvp.Value;
+                else
+                    accumulator[kvp.Key] = kvp.Value;
+            }
+        }
+
+        if (accumulator.Count == 0 || contributingFrames == 0)
+            return null;
+
+        double scale = 1.0 / contributingFrames;
+        var keys = accumulator.Keys.ToList();
+        foreach (var key in keys)
+            accumulator[key] *= scale;
+
+        return new ConductivityDistribution(accumulator);
+    }
+
+    private ConductivityDistribution? GetActiveGradientDistribution()
+    {
+        return _currentAggregatedGradient ?? _currentFrame?.ConductivityGradient;
     }
 
     private void InvalidateAll()
@@ -1526,6 +1574,7 @@ public partial class ReconstructionPage : ContentPage
             var frames = Workspace.GetReconstructionFrames();
 
             _currentFrame = frames.LastOrDefault();
+            UpdateAggregatedGradient(_currentResult);
 
             PlaybackSlider.Maximum = frames.Count > 0 ? frames.Count - 1 : 0;
             PlaybackSlider.Value = PlaybackSlider.Maximum;
@@ -1589,6 +1638,7 @@ public partial class ReconstructionPage : ContentPage
                 _currentResult = res;
                 _viewModel.IterationCount = iter;
                 _viewModel.Residual = CalculateResidual(res);
+                UpdateAggregatedGradient(res);
             }
             Dispatcher.Dispatch(() => { InvalidateAll(); UpdatePlaybackLabel(); });
 
@@ -1700,6 +1750,7 @@ public partial class ReconstructionPage : ContentPage
         // Clear current visuals to initial state
         _currentResult = null;
         _currentFrame = null;
+        _currentAggregatedGradient = null;
         PlaybackSlider.Maximum = 0;
         PlaybackSlider.Value = 0;
         UpdatePlaybackLabel();
