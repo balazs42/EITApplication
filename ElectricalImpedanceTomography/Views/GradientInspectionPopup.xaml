@@ -19,6 +19,23 @@
             <HorizontalStackLayout Grid.Column="1"
                                     Spacing="12"
                                     VerticalOptions="Center">
+                <HorizontalStackLayout Spacing="4"
+                                        VerticalOptions="Center">
+                    <ImageButton x:Name="PreviousButton"
+                                 Source="icon_back2.png"
+                                 BackgroundColor="Transparent"
+                                 WidthRequest="32"
+                                 HeightRequest="32"
+                                 Padding="6"
+                                 Clicked="OnPreviousClicked"/>
+                    <ImageButton x:Name="NextButton"
+                                 Source="icon_next_player.png"
+                                 BackgroundColor="Transparent"
+                                 WidthRequest="32"
+                                 HeightRequest="32"
+                                 Padding="6"
+                                 Clicked="OnNextClicked"/>
+                </HorizontalStackLayout>
                 <Label x:Name="SelectionLabel"
                        Text="No gradient data yet"
                        TextColor="#A8B6D6"
