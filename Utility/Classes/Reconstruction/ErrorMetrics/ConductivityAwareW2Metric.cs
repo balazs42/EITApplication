@@ -1144,4 +1144,3 @@ public sealed class ConductivityAwareW2Metric : IErrorMetric
         }
     }
 }
-}

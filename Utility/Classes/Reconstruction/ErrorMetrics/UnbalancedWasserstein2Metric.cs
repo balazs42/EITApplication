@@ -147,52 +147,6 @@ public sealed class UnbalancedWasserstein2Metric : IErrorMetric
         return (double[])result.Gradient.Clone();
     }
 
-    /// <summary>
-    /// Public helper that evaluates the amplitude-based WFR misfit when the
-    /// caller already provides electrode coordinates.
-    /// </summary>
-    public OptimalTransportResult EvaluateAmplitude(double[] measured, double[] simulated, (double x, double y)[] coordinates)
-    {
-        var cost = BuildEuclideanCost(coordinates, _amplitudeCostScratch);
-        return ComputeAmplitude(measured, simulated, coordinates, cost);
-    }
-
-    /// <summary>
-    /// Public helper that evaluates the amplitude-based WFR misfit using a
-    /// precomputed ground cost matrix.
-    /// </summary>
-    public OptimalTransportResult EvaluateAmplitude(double[] measured, double[] simulated, double[,] costMatrix)
-    {
-        return ComputeAmplitude(measured, simulated, null, costMatrix);
-    }
-
-    /// <summary>
-    /// Public helper mirroring the difference-mode evaluation.  The caller
-    /// provides measurement channels so the solver can associate each entry
-    /// with its left electrode location.
-    /// </summary>
-    public OptimalTransportResult EvaluateDifference(
-        double[] measuredDiff,
-        double[] simulatedDiff,
-        IReadOnlyList<MeasurementChannel> channels,
-        Func<int, (double x, double y)> leftElectrodeCoordinate,
-        double[,]? costMatrix = null)
-    {
-        if (channels == null) throw new ArgumentNullException(nameof(channels));
-        if (leftElectrodeCoordinate == null) throw new ArgumentNullException(nameof(leftElectrodeCoordinate));
-
-        int count = channels.Count;
-        var coords = new (double x, double y)[count];
-        var mapping = new List<(int srcIdx, int diffIdx)>(count);
-        for (int i = 0; i < count; i++)
-        {
-            coords[i] = leftElectrodeCoordinate(channels[i].FirstElectrodeIndex);
-            mapping.Add((i, channels[i].TargetIndex));
-        }
-
-        double[,] ground = costMatrix ?? BuildEuclideanCost(coords, _differenceCostScratch);
-        return ComputeDifference(measuredDiff, simulatedDiff, coords, mapping, ground);
-    }
 
     private OptimalTransportResult Solve(IDiscretization discretization, double[] measured, double[] simulated)
     {
