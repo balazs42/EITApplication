@@ -1,5 +1,6 @@
 using CommunityToolkit.Maui.Core;
 using CommunityToolkit.Maui.Views;
+using CommunityToolkit.Mvvm.ComponentModel;
 using ElectricalImpedanceTomography.ViewModels;
 using Microsoft.Maui.ApplicationModel;
 using SkiaSharp;
@@ -59,7 +60,7 @@ public partial class GradientInspectionPopup : Popup
         public Vector3 ToVector() => new(X, Y, Z);
     }
 
-    // Added minimal ArrowSegment type to satisfy DrawArrow signature and usage
+    // Minimal ArrowSegment type
     private readonly record struct ArrowSegment(Point3D Start,
                                                 Point3D End,
                                                 float Norm,
@@ -170,67 +171,71 @@ public partial class GradientInspectionPopup : Popup
 
         EmptyStateLabel.IsVisible = false;
 
-        int dimension = _samples[0].Vector.Count;
-        if (dimension <= 0)
-            dimension = 1;
-
-        var mean = new double[dimension];
-        foreach (var sample in _samples)
-        {
-            int length = Math.Min(sample.Vector.Count, dimension);
-            for (int i = 0; i < length; i++)
-                mean[i] += sample.Vector[i];
-        }
-        for (int i = 0; i < dimension; i++)
-            mean[i] /= _samples.Count;
-
-        var centered = new List<double[]>(_samples.Count);
-        for (int i = 0; i < _samples.Count; i++)
-        {
-            var vec = _samples[i].GetVectorCopy();
-            if (vec.Length < dimension)
-                Array.Resize(ref vec, dimension);
-            for (int j = 0; j < dimension; j++)
-                vec[j] -= mean[j];
-            centered.Add(vec);
-        }
-
-        var basis = BuildOrthonormalBasis(centered, dimension);
-
+        // Build a synthetic 3D trajectory using gradient norm as step length
+        // and the inter-step angle to steer the direction (yaw/pitch).
         double maxRadiusRaw = 0.0;
 
-        for (int i = 0; i < centered.Count; i++)
+        // Precompute step angles from samples (angle at step i corresponds to vector from i-1 to i)
+        for (int i = 1; i < _samples.Count; i++)
         {
-            var c = centered[i];
-            double x = basis.Count > 0 ? Dot(c, basis[0]) : 0.0;
-            double y = basis.Count > 1 ? Dot(c, basis[1]) : 0.0;
-            double z = basis.Count > 2 ? Dot(c, basis[2]) : 0.0;
-
-            var rawPoint = new Point3D((float)x, (float)y, (float)z, _samples[i].Iteration, _samples[i].Norm);
-            _rawPoints.Add(rawPoint);
-
-            if (rawPoint.Norm < _minNorm)
-                _minNorm = rawPoint.Norm;
-            if (rawPoint.Norm > _maxNorm)
-                _maxNorm = rawPoint.Norm;
-
-            double radius = Math.Sqrt(x * x + y * y + z * z);
-            if (radius > maxRadiusRaw)
-                maxRadiusRaw = radius;
-        }
-
-        for (int i = 1; i < _rawPoints.Count; i++)
-        {
-            double angle = ComputeGradientAngle(_samples[i - 1].Vector, _samples[i].Vector);
+            double angle = _samples[i].Angle ?? 0.0;
             if (!double.IsFinite(angle))
                 angle = 0.0;
+            _stepAngles.Add(angle);
 
             if (angle < _minAngle)
                 _minAngle = angle;
             if (angle > _maxAngle)
                 _maxAngle = angle;
+        }
 
-            _stepAngles.Add(angle);
+        // Initialize at origin with a forward direction along +X
+        var current = new Vector3(0f, 0f, 0f);
+        double yawRad = 0.0;   // rotation around Y axis
+        double pitchRad = 0.0; // rotation around X axis
+
+        const double yawFactor = Math.PI / 180.0 * 0.65;   // 0.65 rad per 100 deg
+        const double pitchFactor = Math.PI / 180.0 * 0.35; // 0.35 rad per 100 deg
+
+        for (int i = 0; i < _samples.Count; i++)
+        {
+            var s = _samples[i];
+
+            // Track min/max norm for thickness mapping
+            if (s.Norm < _minNorm)
+                _minNorm = s.Norm;
+            if (s.Norm > _maxNorm)
+                _maxNorm = s.Norm;
+
+            if (i > 0)
+            {
+                double angleDeg = _stepAngles[Math.Min(i - 1, _stepAngles.Count - 1)];
+
+                // Derive a sign from local angle trend to introduce orientation variation
+                double prev = i > 1 ? _stepAngles[i - 2] : angleDeg;
+                int sign = Math.Sign(angleDeg - prev);
+                if (sign == 0) sign = 1;
+
+                yawRad += sign * angleDeg * yawFactor;
+                pitchRad += sign * angleDeg * pitchFactor;
+
+                // Compute unit direction from yaw/pitch
+                float cx = (float)(Math.Cos(pitchRad) * Math.Cos(yawRad));
+                float cy = (float)(Math.Sin(pitchRad));
+                float cz = (float)(Math.Cos(pitchRad) * Math.Sin(yawRad));
+                var dir = Vector3.Normalize(new Vector3(cx, cy, cz));
+
+                // Step length proportional to norm (auto-scaling will normalize visually)
+                float stepLen = (float)Math.Max(s.Norm, 0.0);
+                current += dir * stepLen;
+            }
+
+            var rawPoint = new Point3D(current.X, current.Y, current.Z, s.Iteration, s.Norm);
+            _rawPoints.Add(rawPoint);
+
+            double radius = Math.Sqrt(current.X * current.X + current.Y * current.Y + current.Z * current.Z);
+            if (radius > maxRadiusRaw)
+                maxRadiusRaw = radius;
         }
 
         if (_minNorm == double.PositiveInfinity || _maxNorm == double.NegativeInfinity)
@@ -252,7 +257,7 @@ public partial class GradientInspectionPopup : Popup
         for (int i = 0; i < _points.Count; i++)
         {
             float norm = (float)_samples[i].Norm;
-            float angle = 0f;
+            float angle = (float)((i > 0 && i - 1 < _stepAngles.Count) ? _stepAngles[i - 1] : 0.0);
             _maxNormValue = Math.Max(_maxNormValue, norm);
             _maxAngleMagnitude = Math.Max(_maxAngleMagnitude, MathF.Abs(angle));
             _arrowSegments.Add(new ArrowSegment(previous, _points[i], norm, angle, i));
@@ -430,53 +435,8 @@ public partial class GradientInspectionPopup : Popup
 
     private void UpdateValleySurface()
     {
+        // Disable error valley for simplified gradient metrics (no vector space trajectory)
         _valleySurface = null;
-
-        int visibleCount = GetVisibleSampleCount();
-        if (visibleCount < 4)
-            return;
-
-        var visiblePoints = _points.Take(visibleCount).ToList();
-        var axes = ComputePrincipalAxes(visiblePoints);
-        if (axes == null)
-            return;
-
-        var axisA = axes[0];
-        var axisB = axes[1];
-        var normal = axes[2];
-
-        if (axisA.LengthSquared() < 1e-9f || axisB.LengthSquared() < 1e-9f || normal.LengthSquared() < 1e-9f)
-            return;
-
-        axisA = Vector3.Normalize(axisA);
-        axisB = Vector3.Normalize(axisB);
-        normal = Vector3.Normalize(normal);
-
-        var centroid = ComputeCentroid(visiblePoints);
-
-        float extentA = 0f;
-        float extentB = 0f;
-        float extentNormal = 0f;
-
-        foreach (var point in visiblePoints)
-        {
-            var diff = point.ToVector() - centroid;
-            extentA = Math.Max(extentA, Math.Abs(Vector3.Dot(diff, axisA)));
-            extentB = Math.Max(extentB, Math.Abs(Vector3.Dot(diff, axisB)));
-            extentNormal = Math.Max(extentNormal, Math.Abs(Vector3.Dot(diff, normal)));
-        }
-
-        extentA = Math.Max(extentA * 1.35f, _trajectoryRadius * 0.3f);
-        extentB = Math.Max(extentB * 1.35f, _trajectoryRadius * 0.3f);
-        extentNormal = Math.Max(extentNormal * 1.2f, _trajectoryRadius * 0.15f);
-
-        if (!TryFitQuadraticSurface(visiblePoints, centroid, axisA, axisB, normal, out var coefficients))
-        {
-            _valleySurface = BuildPlanarValley(centroid, axisA, axisB, extentA, extentB);
-            return;
-        }
-
-        _valleySurface = BuildQuadraticValley(coefficients, centroid, axisA, axisB, normal, extentA, extentB, extentNormal);
     }
 
     private void UpdateZoomSlider()
@@ -553,7 +513,7 @@ public partial class GradientInspectionPopup : Popup
         var viewport = new SKRect(0, 0, info.Width, info.Height);
         var (cameraPosition, forward, right, up) = GetCameraFrame();
 
-        // Pass required parameters
+        // Environment
         DrawGroundPlane(canvas, viewport, cameraPosition, forward, right, up, _planeY, _trajectoryRadius);
         DrawAxes(canvas, viewport, cameraPosition, forward, right, up, _trajectoryRadius);
         DrawErrorValley(canvas, viewport, cameraPosition, forward, right, up);
