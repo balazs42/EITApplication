@@ -25,7 +25,7 @@
             <HorizontalStackLayout Grid.Column="1"
                                     Spacing="12"
                                     VerticalOptions="Center">
-                    <Image x:Name="PrevStepButton"
+                <Image x:Name="PrevStepButton"
                        Source="icon_next_player.png"
                        HeightRequest="32"
                        WidthRequest="32"
@@ -46,10 +46,28 @@
                         <TapGestureRecognizer Tapped="OnNextGradientTapped"/>
                     </Image.GestureRecognizers>
                 </Image>
+                <VerticalStackLayout Spacing="4"
+                                      VerticalOptions="Center"
+                                      WidthRequest="240">
+                    <Slider x:Name="GradientSlider"
+                            Minimum="0"
+                            Maximum="0"
+                            IsEnabled="False"
+                            ValueChanged="OnGradientSliderValueChanged"
+                            HorizontalOptions="FillAndExpand"/>
+                    <Label x:Name="GradientIndexLabel"
+                           Text="0 / 0"
+                           HorizontalOptions="Center"
+                           TextColor="#A8B6D6"
+                           FontSize="12"/>
+                </VerticalStackLayout>
                 <Label x:Name="SelectionLabel"
                        Text="No gradient data yet"
                        TextColor="#A8B6D6"
-                       VerticalOptions="Center"/>
+                       LineBreakMode="WordWrap"
+                       MaxLines="2"
+                       VerticalOptions="Center"
+                       HorizontalOptions="StartAndExpand"/>
             </HorizontalStackLayout>
             <HorizontalStackLayout Grid.Column="2"
                                     Spacing="12"
@@ -88,7 +106,7 @@
         <Grid Row="2"
               Padding="16,8,16,16">
             <Grid ColumnDefinitions="Auto,*,Auto"
-                  RowDefinitions="Auto,Auto"
+                  RowDefinitions="Auto,Auto,Auto"
                   ColumnSpacing="12"
                   RowSpacing="12">
                 <Label Text="Zoom"
@@ -125,6 +143,25 @@
                        Grid.Column="2"
                        Grid.Row="1"
                        Text="1.0× (auto 1.0×)"
+                       TextColor="#A8B6D6"
+                       VerticalOptions="Center"/>
+
+                <Label Text="Surface Opacity"
+                       Grid.Column="0"
+                       Grid.Row="2"
+                       TextColor="#F0F4FF"
+                       VerticalOptions="Center"/>
+                <Slider x:Name="SurfaceOpacitySlider"
+                        Grid.Column="1"
+                        Grid.Row="2"
+                        Minimum="0.05"
+                        Maximum="1"
+                        Value="0.68"
+                        ValueChanged="OnSurfaceOpacitySliderValueChanged"/>
+                <Label x:Name="SurfaceOpacityValueLabel"
+                       Grid.Column="2"
+                       Grid.Row="2"
+                       Text="68%"
                        TextColor="#A8B6D6"
                        VerticalOptions="Center"/>
             </Grid>
