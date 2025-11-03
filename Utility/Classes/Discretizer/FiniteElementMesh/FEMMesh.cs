@@ -1,4 +1,6 @@
 ﻿using Utility.Classes.Factories;
+using System.Linq;
+using Utility.Classes.VirtualElectrodes;
 
 namespace Utility.Classes.Discretizer.FiniteElementMesh
 {
@@ -345,7 +347,7 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
         /// Each electrode spans <paramref name="nodesPerElectrode"/> consecutive boundary nodes (>=1).
         /// Sets z-contact and approximates length from geometry (falls back to <paramref name="lengthHint"/>).
         /// </summary>
-        public void PlaceEquidistantElectrodes(int numElectrodes, double zContact, double lengthHint, int nodesPerElectrode = 1)
+        public void PlaceEquidistantElectrodes(int numElectrodes, double zContact, double lengthHint, int nodesPerElectrode = 1, VirtualElectrodeSettings? virtualElectrodeSettings = null)
         {
             // Clear previous electrode flags on vertices
             foreach (var v in Vertices)
@@ -417,7 +419,8 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
                     current: 0.0,
                     zContact: zContact,
                     voltage: 0.0,
-                    pointElectrode: assigned.Count == 1);
+                    pointElectrode: assigned.Count == 1,
+                    isVirtual: false);
                 electrode.PointElectrode = assigned.Count == 1;
                 electrode.FEMVertexIds.AddRange(assigned);
                 double arcLength = ComputeElectrodeLength(assigned);
@@ -425,11 +428,11 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
                 electrodes.Add(electrode);
 
                 pos += step; // advance to next target position
-            }
+        }
 
-            // Clear any remaining vertex electrode flags that were not assigned
-            for (int idx = 0; idx < boundary.Count; idx++)
-            {
+        // Clear any remaining vertex electrode flags that were not assigned
+        for (int idx = 0; idx < boundary.Count; idx++)
+        {
                 if (!used[idx])
                 {
                     boundary[idx].IsElectrode = false;
@@ -438,6 +441,208 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
             }
 
             SetElectrodes(electrodes);
+
+            if (virtualElectrodeSettings != null)
+                ApplyVirtualElectrodes(virtualElectrodeSettings, zContact);
+        }
+
+        public void ApplyVirtualElectrodes(VirtualElectrodeSettings settings, double defaultZContact)
+        {
+            if (settings == null)
+                throw new ArgumentNullException(nameof(settings));
+
+            if (_electrodes.Count > 0)
+            {
+                var idLookup = _electrodes.ToDictionary(e => e.Id);
+                foreach (var vertex in Vertices)
+                {
+                    if (!vertex.IsElectrode || vertex.ElectrodeId < 0)
+                        continue;
+
+                    if (idLookup.TryGetValue(vertex.ElectrodeId, out var electrode) && electrode.IsVirtual)
+                    {
+                        vertex.IsElectrode = false;
+                        vertex.ElectrodeId = -1;
+                    }
+                }
+
+                var realElectrodes = _electrodes.Where(e => !e.IsVirtual).OrderBy(e => e.Id).Cast<FEMElectrode>().ToList();
+                SetElectrodes(realElectrodes);
+            }
+
+            if (!settings.UseVirtualElectrodes || settings.VirtualElectrodesPerGap <= 0 || _electrodes.Count < 2)
+                return;
+
+            if (_orderedBoundaryVertices.Count == 0)
+                BuildEdgeTopology();
+
+            var boundary = _orderedBoundaryVertices;
+            if (boundary.Count == 0)
+                return;
+
+            int perGap = Math.Max(1, settings.VirtualElectrodesPerGap);
+            double cx = boundary.Average(v => v.X);
+            double cy = boundary.Average(v => v.Y);
+            var boundaryAngles = new double[boundary.Count];
+            for (int i = 0; i < boundary.Count; i++)
+                boundaryAngles[i] = NormalizeAngle(Math.Atan2(boundary[i].Y - cy, boundary[i].X - cx));
+
+            var usedBoundaryIndices = new bool[boundary.Count];
+            var orderedReal = _electrodes.Cast<FEMElectrode>()
+                .Select(e => (Electrode: e, Angle: ComputeElectrodeAngle(e, cx, cy)))
+                .OrderBy(entry => entry.Angle)
+                .ToList();
+
+            foreach (var (electrode, _) in orderedReal)
+            {
+                foreach (int vid in GetElectrodeVertexIds(electrode))
+                {
+                    if (_boundaryOrderLookup.TryGetValue(vid, out int boundaryIndex))
+                    {
+                        usedBoundaryIndices[boundaryIndex] = true;
+                        var vertex = boundary[boundaryIndex];
+                        vertex.IsElectrode = true;
+                        vertex.ElectrodeId = electrode.Id;
+                    }
+                }
+            }
+
+            var augmented = new List<FEMElectrode>(_electrodes.Cast<FEMElectrode>());
+            int nextId = augmented.Count;
+
+            for (int i = 0; i < orderedReal.Count; i++)
+            {
+                var current = orderedReal[i];
+                var next = orderedReal[(i + 1) % orderedReal.Count];
+                double span = AngleDelta(current.Angle, next.Angle);
+
+                double leftZ = current.Electrode.ZContact;
+                double rightZ = next.Electrode.ZContact;
+                double zContact = (double.IsFinite(leftZ) && double.IsFinite(rightZ))
+                    ? 0.5 * (leftZ + rightZ)
+                    : defaultZContact;
+
+                for (int k = 0; k < perGap; k++)
+                {
+                    double fraction = (k + 1.0) / (perGap + 1.0);
+                    double targetAngle = NormalizeAngle(current.Angle + span * fraction);
+                    int boundaryIndex = FindClosestAvailableBoundaryVertex(targetAngle, boundaryAngles, usedBoundaryIndices);
+                    if (boundaryIndex < 0)
+                        continue;
+
+                    var vertex = boundary[boundaryIndex];
+                    usedBoundaryIndices[boundaryIndex] = true;
+
+                    var virtualElectrode = new FEMElectrode(
+                        id: nextId,
+                        meshId: vertex.GlobalId,
+                        current: 0.0,
+                        zContact: zContact,
+                        voltage: 0.0,
+                        isExcitation: false,
+                        isGround: false,
+                        isMeasuring: true,
+                        pointElectrode: true,
+                        isVirtual: true)
+                    {
+                        PointElectrode = true
+                    };
+                    virtualElectrode.FEMVertexIds.Add(vertex.GlobalId);
+                    virtualElectrode.Length = ComputeElectrodeLength(new List<int> { vertex.GlobalId });
+
+                    vertex.IsElectrode = true;
+                    vertex.ElectrodeId = nextId;
+
+                    augmented.Add(virtualElectrode);
+                    nextId++;
+                }
+            }
+
+            SetElectrodes(augmented);
+        }
+
+        public Dictionary<int, double> GetElectrodeAngles()
+        {
+            if (_orderedBoundaryVertices.Count == 0)
+                BuildEdgeTopology();
+
+            var boundary = _orderedBoundaryVertices;
+            double cx = boundary.Count > 0 ? boundary.Average(v => v.X) : 0.0;
+            double cy = boundary.Count > 0 ? boundary.Average(v => v.Y) : 0.0;
+            var angles = new Dictionary<int, double>(_electrodes.Count);
+
+            foreach (var electrode in _electrodes.Cast<FEMElectrode>())
+                angles[electrode.Id] = ComputeElectrodeAngle(electrode, cx, cy);
+
+            return angles;
+        }
+
+        private static double NormalizeAngle(double angle)
+        {
+            double twoPi = Math.PI * 2.0;
+            double result = angle % twoPi;
+            if (result < 0)
+                result += twoPi;
+            return result;
+        }
+
+        private static double AngleDelta(double from, double to)
+        {
+            double delta = NormalizeAngle(to - from);
+            if (delta <= 0)
+                delta += Math.PI * 2.0;
+            return delta;
+        }
+
+        private double ComputeElectrodeAngle(FEMElectrode electrode, double cx, double cy)
+        {
+            var ids = GetElectrodeVertexIds(electrode).ToList();
+            if (ids.Count == 0)
+                return 0.0;
+
+            double avgX = 0.0;
+            double avgY = 0.0;
+            foreach (int vid in ids)
+            {
+                var vertex = GetVertexById(vid);
+                avgX += vertex.X;
+                avgY += vertex.Y;
+            }
+            avgX /= ids.Count;
+            avgY /= ids.Count;
+            return NormalizeAngle(Math.Atan2(avgY - cy, avgX - cx));
+        }
+
+        private IEnumerable<int> GetElectrodeVertexIds(FEMElectrode electrode)
+        {
+            if (electrode.FEMVertexIds != null && electrode.FEMVertexIds.Count > 0)
+                return electrode.FEMVertexIds;
+            if (electrode.MeshId >= 0)
+                return new[] { electrode.MeshId };
+            return Array.Empty<int>();
+        }
+
+        private static int FindClosestAvailableBoundaryVertex(double targetAngle, double[] boundaryAngles, bool[] used)
+        {
+            int bestIndex = -1;
+            double bestScore = double.MaxValue;
+            double twoPi = Math.PI * 2.0;
+
+            for (int i = 0; i < boundaryAngles.Length; i++)
+            {
+                if (used[i])
+                    continue;
+
+                double diff = Math.Abs(boundaryAngles[i] - targetAngle);
+                diff = Math.Min(diff, twoPi - diff);
+                if (diff < bestScore)
+                {
+                    bestScore = diff;
+                    bestIndex = i;
+                }
+            }
+
+            return bestIndex;
         }
 
         /// <summary>

@@ -17,6 +17,7 @@ public partial class MeshingPage : ContentPage
     private readonly SKPaint _lbmDefault = new() { Style = SKPaintStyle.Fill, Color = SKColors.White };
     private readonly SKPaint _lbmWall = new() { Style = SKPaintStyle.Fill, Color = SKColors.Black };
     private readonly SKPaint _lbmElectrode = new() { Style = SKPaintStyle.Fill, Color = SKColors.Orange };
+    private readonly SKPaint _lbmVirtualElectrode = new() { Style = SKPaintStyle.Fill, Color = SKColor.Parse("#AA00FF") };
     private readonly SKPaint _lbmStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.LightGray, StrokeWidth = 1 };
     private readonly SKPaint _lbmSelected = new() { Style = SKPaintStyle.Fill, Color = SKColors.LimeGreen };
     private readonly SKPaint _lbmGradientFill = new() { Style = SKPaintStyle.Fill };
@@ -25,6 +26,7 @@ public partial class MeshingPage : ContentPage
     private readonly SKPaint _femStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1 };
     private readonly SKPaint _femFill = new() { Style = SKPaintStyle.Fill };
     private readonly SKPaint _electrodeFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.Yellow };
+    private readonly SKPaint _virtualElectrodeFill = new() { Style = SKPaintStyle.Fill, Color = SKColor.Parse("#AA00FF") };
     private readonly SKPaint _electrodeSegmentStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Gold, StrokeWidth = 3, IsAntialias = true };
     private readonly SKPaint _pointFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.SkyBlue };
 
@@ -175,6 +177,9 @@ public partial class MeshingPage : ContentPage
             minConductivity = Math.Min(defaultConductivity, conductiveElements.Min(el => el.Conductivity));
         }
 
+        var electrodeLookup = grid.ElectrodesTyped.Cast<LBMElectrode>()
+            .ToDictionary(e => e.Id, e => e.IsVirtual);
+
         for (int y = 0; y < grid.Ny; y++)
         {
             for (int x = 0; x < grid.Nx; x++)
@@ -184,7 +189,10 @@ public partial class MeshingPage : ContentPage
                 if (_selectedCells.Contains(el.Id))
                     fill = _lbmSelected;
                 else if (el.IsElectrode)
-                    fill = _lbmElectrode;
+                {
+                    bool isVirtual = el.ElectrodeId >= 0 && electrodeLookup.TryGetValue(el.ElectrodeId, out bool value) && value;
+                    fill = isVirtual ? _lbmVirtualElectrode : _lbmElectrode;
+                }
                 else if (el.IsWall)
                     fill = _lbmWall;
                 else if (Math.Abs(el.Conductivity - defaultConductivity) > 1e-6)
@@ -252,8 +260,14 @@ public partial class MeshingPage : ContentPage
             canvas.DrawLine(start, end, _electrodeSegmentStroke);
         }
 
+        var femElectrodes = mesh.ElectrodesTyped.Cast<FEMElectrode>().ToDictionary(e => e.Id);
         foreach (var v in mesh.Vertices.Where(v => v.IsElectrode))
-            canvas.DrawCircle(ToCanvas(v), 4f, _electrodeFill);
+        {
+            var fill = _electrodeFill;
+            if (v.ElectrodeId >= 0 && femElectrodes.TryGetValue(v.ElectrodeId, out var electrode) && electrode.IsVirtual)
+                fill = _virtualElectrodeFill;
+            canvas.DrawCircle(ToCanvas(v), 4f, fill);
+        }
     }
 
         private async void OnClearClicked(object sender, EventArgs e)

@@ -27,6 +27,7 @@
 
         public bool IsWall { get; set; }
         public bool IsElectrode { get; set; }
+        public int ElectrodeId { get; set; } = -1;
         
         public LBMElement() { }
         public LBMElement(bool isWall)

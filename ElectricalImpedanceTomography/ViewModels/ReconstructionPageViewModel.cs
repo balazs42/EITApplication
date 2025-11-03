@@ -23,6 +23,7 @@ using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Factories;
 using Utility.Classes.Measurement;
 using Utility.Classes.ReconstructionParameters;
+using Utility.Classes.VirtualElectrodes;
 using Utility.Exports;
 using Utility.Rendering;
 
@@ -47,6 +48,14 @@ namespace ElectricalImpedanceTomography.ViewModels
         private bool _updatingDrivePatternSelection;
         private EITReconstructionParameters? _trackedParameters;
         private MeasurementSourceOption _selectedMeasurementSource = Workspace.GetMeasurementSource();
+
+        public VirtualElectrodeSettings VirtualElectrodeSettings => ReconstructionParameters.VirtualElectrodeSettings;
+
+        public IEnumerable<VirtualElectrodeMethod> VirtualElectrodeMethods { get; } = Enum.GetValues<VirtualElectrodeMethod>();
+
+        public bool IsLinearCombinationMethod => VirtualElectrodeSettings.UseVirtualElectrodes && VirtualElectrodeSettings.Method == VirtualElectrodeMethod.LinearCombination;
+        public bool IsHarrachMethod => VirtualElectrodeSettings.UseVirtualElectrodes && VirtualElectrodeSettings.Method == VirtualElectrodeMethod.HarrachSensitivityInterpolation;
+        public bool IsNdMethod => VirtualElectrodeSettings.UseVirtualElectrodes && VirtualElectrodeSettings.Method == VirtualElectrodeMethod.NdMapSpectralInterpolation;
 
         [ObservableProperty]
         private int iterationCount = 0;
@@ -195,6 +204,18 @@ namespace ElectricalImpedanceTomography.ViewModels
             ElectrodeMeasurementSetupLabel = FormatMeasurementSetupLabel(Workspace.GetElectrodeMeasurementSetup());
         }
 
+        private void OnVirtualElectrodeSettingsChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(VirtualElectrodeSettings.Method) ||
+                e.PropertyName == nameof(VirtualElectrodeSettings.UseVirtualElectrodes) ||
+                string.IsNullOrEmpty(e.PropertyName))
+            {
+                OnPropertyChanged(nameof(IsLinearCombinationMethod));
+                OnPropertyChanged(nameof(IsHarrachMethod));
+                OnPropertyChanged(nameof(IsNdMethod));
+            }
+        }
+
         [ObservableProperty]
         private string name = string.Empty;
 
@@ -337,6 +358,8 @@ namespace ElectricalImpedanceTomography.ViewModels
             RefreshMeasurementSourceSelection();
             ElectrodeMeasurementSetupLabel = FormatMeasurementSetupLabel(Workspace.GetElectrodeMeasurementSetup());
             Workspace.ElectrodeMeasurementSetupChanged += OnElectrodeMeasurementSetupChanged;
+
+            VirtualElectrodeSettings.PropertyChanged += OnVirtualElectrodeSettingsChanged;
 
             //UpdateMetric(MetricKeys.ErrorMetric, ReconstructionParameters.ErrorMetric.ToString());
             //UpdateMetric(MetricKeys.RegularizationWeight, FormatDouble(RegularizationWeight, "G3"));

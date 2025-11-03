@@ -162,6 +162,25 @@
                                                     Value="{Binding FemElectrodeNodeCount}"
                                                     Max="{Binding BoundaryFEMVertexCount}"/>
 
+                    <HorizontalStackLayout Margin="0,4,0,0" Spacing="12">
+                        <Label Text="Use virtual electrodes"
+                               VerticalOptions="Center"
+                               TextColor="{AppThemeBinding Light=#9DAAD3, Dark=White}"/>
+                        <Switch IsToggled="{Binding VirtualElectrodeSettings.UseVirtualElectrodes}"/>
+                    </HorizontalStackLayout>
+
+                    <HorizontalStackLayout Margin="0,2,0,0"
+                                            Spacing="12"
+                                            IsVisible="{Binding VirtualElectrodeSettings.UseVirtualElectrodes}">
+                        <Label Text="Virtual per gap"
+                               VerticalOptions="Center"
+                               TextColor="{AppThemeBinding Light=#9DAAD3, Dark=White}"/>
+                        <Entry Text="{Binding VirtualElectrodeSettings.VirtualElectrodesPerGap}"
+                               WidthRequest="60"
+                               HorizontalTextAlignment="End"
+                               Keyboard="Numeric"/>
+                    </HorizontalStackLayout>
+
                     <Grid ColumnDefinitions="Auto, *"
                           ColumnSpacing="12"
                           IsVisible="{Binding InhomogenityEditing}">
@@ -299,6 +318,25 @@
                                                     MinusImageSource="icon_minus2.png"
                                                     Value="{Binding ElectrodeContactImpedance}"
                                                     Max="10"/>
+
+                    <HorizontalStackLayout Margin="0,4,0,0" Spacing="12">
+                        <Label Text="Use virtual electrodes"
+                               VerticalOptions="Center"
+                               TextColor="{AppThemeBinding Light=#9DAAD3, Dark=White}"/>
+                        <Switch IsToggled="{Binding VirtualElectrodeSettings.UseVirtualElectrodes}"/>
+                    </HorizontalStackLayout>
+
+                    <HorizontalStackLayout Margin="0,2,0,0"
+                                            Spacing="12"
+                                            IsVisible="{Binding VirtualElectrodeSettings.UseVirtualElectrodes}">
+                        <Label Text="Virtual per gap"
+                               VerticalOptions="Center"
+                               TextColor="{AppThemeBinding Light=#9DAAD3, Dark=White}"/>
+                        <Entry Text="{Binding VirtualElectrodeSettings.VirtualElectrodesPerGap}"
+                               WidthRequest="60"
+                               HorizontalTextAlignment="End"
+                               Keyboard="Numeric"/>
+                    </HorizontalStackLayout>
                 </VerticalStackLayout>
             </Border>
 

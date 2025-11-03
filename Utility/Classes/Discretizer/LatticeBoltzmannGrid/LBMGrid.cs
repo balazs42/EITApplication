@@ -1,6 +1,8 @@
 ﻿using System.Text.Json.Serialization;
+using System.Linq;
 using Utility.Classes.Discretizer.GraphMesh;
 using Utility.Classes.Factories;
+using Utility.Classes.VirtualElectrodes;
 
 namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
 {
@@ -126,20 +128,150 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
         /// by ray‐casting from the outer radius toward the center until a non‐wall
         /// cell is found along each ray.
         /// </summary>
-        public void PlaceEquidistantElectrodes(int numElectrodes)
+        public void PlaceEquidistantElectrodes(int numElectrodes, VirtualElectrodeSettings? virtualElectrodeSettings = null)
         {
             foreach (var el in _elements)
+            {
                 el.IsElectrode = false;
+                el.ElectrodeId = -1;
+            }
 
             _electrodes.Clear();
 
             if (numElectrodes <= 0)
                 return;
 
+            var boundaryRing = GetBoundaryRing();
+            if (boundaryRing.Count == 0)
+                return;
+
+            var boundaryCells = boundaryRing.Select(pair => pair.Cell).ToList();
+            int count = boundaryCells.Count;
+            double step = count / (double)numElectrodes;
+            double pos = 0.0;
+            for (int i = 0; i < numElectrodes; i++)
+            {
+                int idx = (int)Math.Floor(pos) % count;
+                var cell = boundaryCells[idx];
+                cell.IsElectrode = true;
+                cell.ElectrodeId = i;
+                var electrode = new LBMElectrode(i, cell.Id, 0.0, 0.0, 0.0, isVirtual: false);
+                _electrodes.Add(electrode);
+                pos += step;
+            }
+
+            if (virtualElectrodeSettings != null)
+                ApplyVirtualElectrodes(virtualElectrodeSettings);
+        }
+
+        public void ApplyVirtualElectrodes(VirtualElectrodeSettings settings)
+        {
+            if (settings == null)
+                throw new ArgumentNullException(nameof(settings));
+
+            if (_electrodes.Count > 0)
+            {
+                var idLookup = _electrodes.ToDictionary(e => e.Id);
+                foreach (var cell in _elements)
+                {
+                    if (!cell.IsElectrode || cell.ElectrodeId < 0)
+                        continue;
+
+                    if (idLookup.TryGetValue(cell.ElectrodeId, out var electrode) && electrode.IsVirtual)
+                    {
+                        cell.IsElectrode = false;
+                        cell.ElectrodeId = -1;
+                    }
+                }
+
+                var realElectrodes = _electrodes.Where(e => !e.IsVirtual).OrderBy(e => e.Id).Cast<LBMElectrode>().ToList();
+                SetElectrodes(realElectrodes);
+            }
+
+            if (!settings.UseVirtualElectrodes || settings.VirtualElectrodesPerGap <= 0 || _electrodes.Count < 2)
+                return;
+
+            var boundaryRing = GetBoundaryRing();
+            if (boundaryRing.Count == 0)
+                return;
+
+            var boundaryCells = boundaryRing.Select(p => p.Cell).ToList();
+            var boundaryAngles = boundaryRing.Select(p => p.Angle).ToArray();
+            var boundaryLookup = boundaryCells
+                .Select((cell, idx) => new { cell.Id, Index = idx })
+                .ToDictionary(x => x.Id, x => x.Index);
+
+            var orderedReal = _electrodes.Cast<LBMElectrode>()
+                .Select(e => (Electrode: e, Angle: ComputeCellAngle(e.GridId)))
+                .OrderBy(entry => entry.Angle)
+                .ToList();
+
+            var used = new bool[boundaryCells.Count];
+            foreach (var (electrode, _) in orderedReal)
+            {
+                if (boundaryLookup.TryGetValue(electrode.GridId, out int idx))
+                {
+                    used[idx] = true;
+                    var cell = boundaryCells[idx];
+                    cell.IsElectrode = true;
+                    cell.ElectrodeId = electrode.Id;
+                }
+            }
+
+            var augmented = new List<LBMElectrode>(_electrodes.Cast<LBMElectrode>());
+            int nextId = augmented.Count;
+            int perGap = Math.Max(1, settings.VirtualElectrodesPerGap);
+
+            for (int i = 0; i < orderedReal.Count; i++)
+            {
+                var current = orderedReal[i];
+                var next = orderedReal[(i + 1) % orderedReal.Count];
+                double span = AngleDelta(current.Angle, next.Angle);
+
+                double leftZ = current.Electrode.ZContact;
+                double rightZ = next.Electrode.ZContact;
+                double zContact = (double.IsFinite(leftZ) && double.IsFinite(rightZ))
+                    ? 0.5 * (leftZ + rightZ)
+                    : 0.0;
+
+                for (int k = 0; k < perGap; k++)
+                {
+                    double fraction = (k + 1.0) / (perGap + 1.0);
+                    double targetAngle = NormalizeAngle(current.Angle + span * fraction);
+                    int boundaryIndex = FindClosestAvailableBoundaryIndex(targetAngle, boundaryAngles, used);
+                    if (boundaryIndex < 0)
+                        continue;
+
+                    var cell = boundaryCells[boundaryIndex];
+                    used[boundaryIndex] = true;
+                    cell.IsElectrode = true;
+                    cell.ElectrodeId = nextId;
+
+                    var virtualElectrode = new LBMElectrode(
+                        id: nextId,
+                        gridId: cell.Id,
+                        current: 0.0,
+                        potential: 0.0,
+                        contactImpedance: zContact,
+                        isExcitation: false,
+                        isGround: false,
+                        isMeasuring: true,
+                        isVirtual: true);
+
+                    augmented.Add(virtualElectrode);
+                    nextId++;
+                }
+            }
+
+            SetElectrodes(augmented);
+        }
+
+        private List<(LBMElement Cell, double Angle)> GetBoundaryRing()
+        {
             double cx = (Nx - 1) / 2.0;
             double cy = (Ny - 1) / 2.0;
+            var boundary = new List<(LBMElement Cell, double Angle)>();
 
-            var boundary = new List<LBMElement>();
             for (int y = 0; y < Ny; y++)
             {
                 for (int x = 0; x < Nx; x++)
@@ -148,36 +280,76 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                     if (cell.IsWall)
                         continue;
 
-                    bool isBoundary = false;
                     if (x == 0 || x == Nx - 1 || y == 0 || y == Ny - 1)
-                        continue; // outer walls are already walls
+                        continue;
+
                     if (_grid[x - 1, y].IsWall || _grid[x + 1, y].IsWall ||
                         _grid[x, y - 1].IsWall || _grid[x, y + 1].IsWall)
-                        isBoundary = true;
-
-                    if (isBoundary)
-                        boundary.Add(cell);
+                    {
+                        double angle = NormalizeAngle(Math.Atan2(y - cy, x - cx));
+                        boundary.Add((cell, angle));
+                    }
                 }
             }
 
-            boundary = [.. boundary.OrderBy(el =>
-                {
-                    var (bx, by) = ToLattice(el.Id);
-                    return Math.Atan2(by - cy, bx - cx);
-                })];
+            boundary.Sort((a, b) => a.Angle.CompareTo(b.Angle));
+            return boundary;
+        }
 
-            int count = (boundary.Count > 0) ? boundary.Count : 1;
-            double step = count / (double)numElectrodes;
-            double pos = 0.0;
-            for (int i = 0; i < numElectrodes; i++)
+        private double ComputeCellAngle(int gridId)
+        {
+            var (x, y) = ToLattice(gridId);
+            double cx = (Nx - 1) / 2.0;
+            double cy = (Ny - 1) / 2.0;
+            return NormalizeAngle(Math.Atan2(y - cy, x - cx));
+        }
+
+        private static double NormalizeAngle(double angle)
+        {
+            double twoPi = Math.PI * 2.0;
+            double result = angle % twoPi;
+            if (result < 0)
+                result += twoPi;
+            return result;
+        }
+
+        private static double AngleDelta(double from, double to)
+        {
+            double delta = NormalizeAngle(to - from);
+            if (delta <= 0)
+                delta += Math.PI * 2.0;
+            return delta;
+        }
+
+        private static int FindClosestAvailableBoundaryIndex(double targetAngle, double[] boundaryAngles, bool[] used)
+        {
+            int bestIndex = -1;
+            double bestScore = double.MaxValue;
+            double twoPi = Math.PI * 2.0;
+
+            for (int i = 0; i < boundaryAngles.Length; i++)
             {
-                int idx = (int)Math.Floor(pos) % count;
-                var cell = boundary[idx];
-                cell.IsElectrode = true;
-                var electrode = new LBMElectrode(i, cell.Id, 0.0, 0.0, 0.0);
-                _electrodes.Add(electrode);
-                pos += step;
+                if (used[i])
+                    continue;
+
+                double diff = Math.Abs(boundaryAngles[i] - targetAngle);
+                diff = Math.Min(diff, twoPi - diff);
+                if (diff < bestScore)
+                {
+                    bestScore = diff;
+                    bestIndex = i;
+                }
             }
+
+            return bestIndex;
+        }
+
+        public Dictionary<int, double> GetElectrodeAngles()
+        {
+            var angles = new Dictionary<int, double>(_electrodes.Count);
+            foreach (var electrode in _electrodes.Cast<LBMElectrode>())
+                angles[electrode.Id] = ComputeCellAngle(electrode.GridId);
+            return angles;
         }
 
         public void RebuildGrid()
@@ -240,6 +412,7 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                 dst.Conductivity = src.Conductivity;
                 dst.IsWall = src.IsWall;
                 dst.IsElectrode = src.IsElectrode;
+                dst.ElectrodeId = src.ElectrodeId;
 
                 for (int k = 0; k < 9; k++) 
                     dst.Fi[k] = src.Fi[k];
@@ -255,7 +428,8 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                     contactImpedance: e.ZContact,
                     isExcitation: e.IsExcitation,
                     isGround: e.IsGround,
-                    isMeasuring: e.IsMeasuring)).ToList();
+                    isMeasuring: e.IsMeasuring,
+                    isVirtual: e.IsVirtual)).ToList();
 
             copy.SetElectrodes(electrodes);
 

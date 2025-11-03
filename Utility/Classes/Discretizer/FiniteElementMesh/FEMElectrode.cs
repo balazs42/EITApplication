@@ -22,7 +22,7 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
         /// </summary>
         public bool PointElectrode { get; set; } = true;
 
-        public FEMElectrode(int meshId, List<int> femVertexIds, double current = double.NaN, double zContact = 0.1, double voltage = double.NaN, bool pointElectrode = true)
+        public FEMElectrode(int meshId, List<int> femVertexIds, double current = double.NaN, double zContact = 0.1, double voltage = double.NaN, bool pointElectrode = true, bool isVirtual = false)
         {
             MeshId = meshId;
             Current = current;
@@ -31,9 +31,10 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
             if (femVertexIds != null)
                 FEMVertexIds.AddRange(femVertexIds);
             PointElectrode = pointElectrode;
+            IsVirtual = isVirtual;
         }
 
-        public FEMElectrode(int id, int meshId, double current, double zContact, double voltage, bool isExcitation = false, bool isGround = false, bool isMeasuring = false, bool pointElectrode = true)
+        public FEMElectrode(int id, int meshId, double current, double zContact, double voltage, bool isExcitation = false, bool isGround = false, bool isMeasuring = false, bool pointElectrode = true, bool isVirtual = false)
         {
             Id = id;
             MeshId = meshId;
@@ -44,9 +45,10 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
             IsGround = isGround;
             IsMeasuring = isMeasuring;
             PointElectrode = pointElectrode;
+            IsVirtual = isVirtual;
         }
 
-        public FEMElectrode(int id, IEnumerable<int> femVertexIds, double current = double.NaN, double zContact = 0.1, double voltage = double.NaN, bool isExcitation = false, bool isGround = false, bool isMeasuring = false)
+        public FEMElectrode(int id, IEnumerable<int> femVertexIds, double current = double.NaN, double zContact = 0.1, double voltage = double.NaN, bool isExcitation = false, bool isGround = false, bool isMeasuring = false, bool isVirtual = false)
         {
             if (femVertexIds == null)
                 throw new ArgumentNullException(nameof(femVertexIds));
@@ -65,6 +67,7 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
             IsMeasuring = isMeasuring;
             PointElectrode = ids.Count == 1;
             FEMVertexIds.AddRange(ids);
+            IsVirtual = isVirtual;
         }
     }
 }
