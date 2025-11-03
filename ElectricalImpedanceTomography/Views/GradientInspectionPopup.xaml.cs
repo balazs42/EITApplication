@@ -44,6 +44,9 @@ public partial class GradientInspectionPopup : Popup
     private bool _suppressScaleSliderEvent;
     private bool _suppressGradientSliderEvent;
     private bool _suppressOpacitySliderEvent;
+    private float _surfaceDepthPrecision = 0.65f;
+    private bool _suppressDepthSliderEvent;
+    private bool _surfaceUpdatePending;
     private ValleySurface? _valleySurface;
     private float _surfaceOpacity = 0.68f;
     private bool _isGradientSliderDragging;
@@ -299,6 +302,7 @@ public partial class GradientInspectionPopup : Popup
             UpdateScaleSlider();
             UpdateScaleLabel();
             UpdateSurfaceOpacitySlider();
+            UpdateSurfaceDepthSlider();
             return;
         }
 
@@ -402,6 +406,7 @@ public partial class GradientInspectionPopup : Popup
         UpdateScaleSlider();
         UpdateScaleLabel();
         UpdateSurfaceOpacitySlider();
+        UpdateSurfaceDepthSlider();
         GradientCanvas.InvalidateSurface();
     }
 
@@ -433,7 +438,7 @@ public partial class GradientInspectionPopup : Popup
                 : "Select a sample to inspect";
             UpdateNavigationButtons();
             UpdateGradientSlider();
-            UpdateValleySurface();
+            RequestSurfaceUpdate();
             GradientCanvas.InvalidateSurface();
             return;
         }
@@ -460,7 +465,7 @@ public partial class GradientInspectionPopup : Popup
         SelectionLabel.Text = $"{iterationLabel}: {normDescriptor} = {sample.Norm:F4}";
         UpdateNavigationButtons();
         UpdateGradientSlider();
-        UpdateValleySurface();
+        RequestSurfaceUpdate();
         GradientCanvas.InvalidateSurface();
     }
 
@@ -541,7 +546,7 @@ public partial class GradientInspectionPopup : Popup
         if (_cameraDistance <= 0f)
             _cameraDistance = _defaultCameraDistance;
 
-        UpdateValleySurface();
+        RequestSurfaceUpdate();
     }
 
     private void UpdateNavigationButtons()
@@ -690,6 +695,7 @@ public partial class GradientInspectionPopup : Popup
     private void OnGradientSliderDragStarted(object? sender, EventArgs e)
     {
         _isGradientSliderDragging = true;
+        _surfaceUpdatePending = false;
     }
 
     private void OnGradientSliderDragCompleted(object? sender, EventArgs e)
@@ -723,6 +729,7 @@ public partial class GradientInspectionPopup : Popup
         }
 
         UpdateGradientIndexLabel();
+        ProcessPendingSurfaceUpdate();
     }
 
     private void UpdateSurfaceOpacitySlider()
@@ -745,6 +752,39 @@ public partial class GradientInspectionPopup : Popup
             return;
 
         SurfaceOpacityValueLabel.Text = $"{_surfaceOpacity:0%}";
+    }
+
+    private void UpdateSurfaceDepthSlider()
+    {
+        if (ValleyDepthSlider == null)
+            return;
+
+        _suppressDepthSliderEvent = true;
+        ValleyDepthSlider.Minimum = 0.25;
+        ValleyDepthSlider.Maximum = 1.0;
+        ValleyDepthSlider.Value = Math.Clamp(_surfaceDepthPrecision, 0.25f, 1f);
+        ValleyDepthSlider.IsEnabled = _displaySamples.Count > 0;
+        _suppressDepthSliderEvent = false;
+        UpdateSurfaceDepthLabel();
+    }
+
+    private void UpdateSurfaceDepthLabel()
+    {
+        if (ValleyDepthValueLabel == null)
+            return;
+
+        ValleyDepthValueLabel.Text = $"{_surfaceDepthPrecision:0%}";
+    }
+
+    private void OnValleyDepthSliderValueChanged(object? sender, ValueChangedEventArgs e)
+    {
+        if (_suppressDepthSliderEvent)
+            return;
+
+        _surfaceDepthPrecision = (float)Math.Clamp(e.NewValue, 0.25, 1.0);
+        UpdateSurfaceDepthLabel();
+        RequestSurfaceUpdate();
+        GradientCanvas.InvalidateSurface();
     }
 
     private void CancelSurfaceRebuild()
@@ -773,6 +813,27 @@ public partial class GradientInspectionPopup : Popup
         GradientCanvas.InvalidateSurface();
     }
 
+    private void RequestSurfaceUpdate()
+    {
+        if (_isGradientSliderDragging)
+        {
+            _surfaceUpdatePending = true;
+            return;
+        }
+
+        _surfaceUpdatePending = false;
+        UpdateValleySurface();
+    }
+
+    private void ProcessPendingSurfaceUpdate()
+    {
+        if (!_surfaceUpdatePending)
+            return;
+
+        _surfaceUpdatePending = false;
+        UpdateValleySurface();
+    }
+
     private void UpdateValleySurface()
     {
         int visibleCount = GetVisibleSampleCount();
@@ -796,6 +857,7 @@ public partial class GradientInspectionPopup : Popup
 
         var cts = new CancellationTokenSource();
         _surfaceRebuildCts = cts;
+        float depthPrecision = _surfaceDepthPrecision;
 
         Task.Run(() =>
         {
@@ -805,6 +867,7 @@ public partial class GradientInspectionPopup : Popup
                 surface = BuildValleySurfaceSnapshot(pointSnapshot,
                                                      sampleSnapshot,
                                                      _trajectoryRadius,
+                                                     depthPrecision,
                                                      cts.Token);
             }
             catch (OperationCanceledException)
@@ -841,11 +904,13 @@ public partial class GradientInspectionPopup : Popup
     private ValleySurface? BuildValleySurfaceSnapshot(Point3D[] points,
                                                       GradientDisplaySample[] samples,
                                                       float trajectoryRadius,
+                                                      float depthPrecision,
                                                       CancellationToken token)
     {
         if (points.Length < 4 || samples.Length == 0)
             return null;
 
+        float precision = MathF.Clamp(depthPrecision, 0.25f, 1f);
         var fitPoints = new List<Point3D>(points);
         var vectors = new Vector3[points.Length];
         Vector3 centroid = Vector3.Zero;
@@ -917,9 +982,10 @@ public partial class GradientInspectionPopup : Popup
             projections.Add(new SampleProjection(u, v, w, norm, collapsed));
         }
 
-        float extentA = MathF.Max(maxAbsU * 1.35f, trajectoryRadius * 0.6f);
-        float extentB = MathF.Max(maxAbsV * 1.35f, trajectoryRadius * 0.6f);
-        float extentNormal = MathF.Max(maxAbsW * 1.6f, MathF.Max(trajectoryRadius * 0.35f, 0.3f));
+        float extentA = MathF.Max(maxAbsU * (1.1f + 0.4f * precision), trajectoryRadius * (0.45f + 0.3f * precision));
+        float extentB = MathF.Max(maxAbsV * (1.1f + 0.4f * precision), trajectoryRadius * (0.45f + 0.3f * precision));
+        float extentNormalBase = MathF.Max(maxAbsW * (1.2f + 0.6f * precision), MathF.Max(trajectoryRadius * (0.2f + 0.5f * precision), 0.25f));
+        float extentNormal = extentNormalBase * (0.9f + 0.65f * precision);
 
         if (!TryFitQuadraticSurface(fitPoints, centroid, axisA, axisB, normal, out var coefficients))
             return BuildPlanarValley(centroid, axisA, axisB, extentA, extentB);
@@ -933,6 +999,7 @@ public partial class GradientInspectionPopup : Popup
                                             extentA,
                                             extentB,
                                             extentNormal,
+                                            precision,
                                             token);
     }
 
@@ -945,9 +1012,12 @@ public partial class GradientInspectionPopup : Popup
                                                        float extentA,
                                                        float extentB,
                                                        float extentNormal,
+                                                       float precision,
                                                        CancellationToken token)
     {
-        int resolution = Math.Clamp(samples.Count / 6, 32, 72);
+        float precisionClamped = MathF.Clamp(precision, 0.25f, 1f);
+        int baseResolution = Math.Clamp(samples.Count / 6, 32, 72);
+        int resolution = Math.Clamp((int)(baseResolution * (0.9f + 0.7f * precisionClamped)), 32, 110);
         var grid = new Vector3[resolution, resolution];
         float minElevation = float.PositiveInfinity;
         float maxElevation = float.NegativeInfinity;
@@ -985,15 +1055,18 @@ public partial class GradientInspectionPopup : Popup
 
             double baseHeight = EvaluateQuadratic(coefficients, sample.U, sample.V);
             float residual = (float)(sample.Height - baseHeight);
-            residuals[i] = residual;
-            maxResidual = MathF.Max(maxResidual, MathF.Abs(residual));
+            float depthStrength = 0.65f + 0.9f * precisionClamped;
+            residuals[i] = residual * depthStrength;
+            maxResidual = MathF.Max(maxResidual, MathF.Abs(residuals[i]));
 
             double normFactor = double.IsFinite(sample.Norm)
                 ? Math.Clamp((sample.Norm - minNorm) / normRange, 0.0, 1.0)
                 : 0.0;
 
             float collapsedFactor = MathF.Log(1f + MathF.Max(sample.CollapsedCount, 1));
-            weights[i] = 0.7f + (float)normFactor * 0.8f + collapsedFactor * 0.25f;
+            float normWeight = (float)normFactor * (0.55f + 0.9f * precisionClamped);
+            float collapsedWeight = collapsedFactor * (0.2f + 0.35f * precisionClamped);
+            weights[i] = 0.55f + 0.35f * (1f - precisionClamped) + normWeight + collapsedWeight;
         }
 
         if (maxResidual > extentNormal)
@@ -1003,8 +1076,14 @@ public partial class GradientInspectionPopup : Popup
                 residuals[i] *= scale;
         }
 
-        float kernelRadius = ComputeKernelRadius(samples, extentA, extentB);
+        float kernelRadiusBase = ComputeKernelRadius(samples, extentA, extentB);
+        float kernelRadius = MathF.Max(kernelRadiusBase * (1.2f - 0.5f * precisionClamped), 0.08f);
         float kernelRadiusSq = kernelRadius * kernelRadius;
+        float innerRadiusSq = kernelRadiusSq * (0.25f + 0.25f * precisionClamped);
+        float midRadiusSq = kernelRadiusSq * (0.7f + 0.2f * precisionClamped);
+        float anchorRadiusSq = kernelRadiusSq * (0.36f + 0.28f * precisionClamped);
+        float fadeRadius = kernelRadius * (1.55f - 0.35f * precisionClamped);
+        double residualStrength = 0.85 + 0.95 * precisionClamped;
 
         for (int row = 0; row < resolution; row++)
         {
@@ -1021,6 +1100,8 @@ public partial class GradientInspectionPopup : Popup
                 double adjusted = 0.0;
                 double weightSum = 0.0;
                 double nearest = double.PositiveInfinity;
+                double anchorHeight = 0.0;
+                double anchorWeight = 0.0;
 
                 for (int i = 0; i < samples.Count; i++)
                 {
@@ -1032,24 +1113,49 @@ public partial class GradientInspectionPopup : Popup
                     if (distance < nearest)
                         nearest = distance;
 
-                    double influence = Math.Exp(-distanceSq / Math.Max(1e-6f, kernelRadiusSq * 0.8f));
-                    if (distanceSq < kernelRadiusSq * 0.35f)
-                        influence *= 1.75;
+                    double influence = Math.Exp(-distanceSq / Math.Max(1e-6f, kernelRadiusSq * (0.75f - 0.2f * precisionClamped)));
+                    if (distanceSq <= innerRadiusSq)
+                    {
+                        influence *= 1.6 + 1.4 * precisionClamped;
+                    }
+                    else if (distanceSq <= midRadiusSq)
+                    {
+                        influence *= 1.05 + 0.95 * precisionClamped;
+                    }
+                    else
+                    {
+                        influence *= 0.55 + 0.6 * (1f - precisionClamped);
+                    }
 
-                    influence *= weights[i];
-                    adjusted += residuals[i] * influence;
-                    weightSum += influence;
+                    double weightedInfluence = influence * weights[i];
+                    adjusted += residuals[i] * weightedInfluence;
+                    weightSum += weightedInfluence;
+
+                    if (distanceSq <= anchorRadiusSq)
+                    {
+                        double anchorInfluence = Math.Exp(-distanceSq / Math.Max(1e-6f, anchorRadiusSq * (0.75f - 0.25f * precisionClamped)));
+                        anchorHeight += sample.Height * anchorInfluence;
+                        anchorWeight += anchorInfluence;
+                    }
                 }
 
-                double residualAdjustment = weightSum > 1e-6 ? adjusted / weightSum : 0.0;
+                double residualAdjustment = weightSum > 1e-6 ? (adjusted / weightSum) * residualStrength : 0.0;
 
-                if (nearest > kernelRadius * 1.8f)
+                if (nearest > fadeRadius)
                 {
-                    double fade = Math.Exp(-Math.Pow((nearest - kernelRadius * 1.8f) / (kernelRadius * 1.2f + 1e-6f), 2));
+                    double fade = Math.Exp(-Math.Pow((nearest - fadeRadius) / (fadeRadius * (0.85 + 0.4 * (1f - precisionClamped)) + 1e-6f), 2));
                     residualAdjustment *= fade;
                 }
 
                 double height = baseHeight + residualAdjustment;
+
+                if (anchorWeight > 1e-6)
+                {
+                    double anchorAverage = anchorHeight / anchorWeight;
+                    double blend = 0.2 + 0.55 * precisionClamped;
+                    height = height * (1.0 - blend) + anchorAverage * blend;
+                }
+
                 height = Math.Clamp(height, -extentNormal, extentNormal);
 
                 var point = centroid + axisA * u + axisB * v + normal * (float)height;
