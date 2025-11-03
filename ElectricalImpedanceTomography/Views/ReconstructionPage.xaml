@@ -200,7 +200,7 @@
                                        Text="{Binding ReconstructionParameters.MeasurementNoiseAmplitude}"
                                        Keyboard="Numeric"
                                        IsEnabled="{Binding IsNoiseAmplitudeEnabled}"/>
-                                
+
                                 <Label Grid.Row="13"
                                        HorizontalOptions="Start"
                                        Text="Conductivity Bounds [S]"
@@ -215,6 +215,50 @@
                                            Placeholder="Max"
                                            Keyboard="Numeric"
                                            Text="{Binding ReconstructionParameters.ConductivityMaximumBound}"/>
+                                </Grid>
+
+                                <Label Grid.Row="15"
+                                       HorizontalOptions="Start"
+                                       Text="Virtual Electrode Method"
+                                       FontFamily="SF Pro Text"
+                                       FontAttributes="None"
+                                       IsVisible="{Binding VirtualElectrodeSettings.UseVirtualElectrodes}"/>
+                                <Picker Grid.Row="16"
+                                        ItemsSource="{Binding VirtualElectrodeMethods}"
+                                        SelectedItem="{Binding VirtualElectrodeSettings.Method}"
+                                        IsVisible="{Binding VirtualElectrodeSettings.UseVirtualElectrodes}"/>
+
+                                <Grid Grid.Row="17" ColumnDefinitions="Auto,*" ColumnSpacing="8"
+                                      IsVisible="{Binding IsLinearCombinationMethod}">
+                                    <Label Text="Alpha (0..1)"
+                                           VerticalOptions="Center"
+                                           FontFamily="SF Pro Text"/>
+                                    <Entry Grid.Column="1"
+                                           Text="{Binding VirtualElectrodeSettings.LinearCombinationAlpha}"
+                                           Keyboard="Numeric"
+                                           HorizontalTextAlignment="End"/>
+                                </Grid>
+
+                                <Grid Grid.Row="18" ColumnDefinitions="Auto,*" ColumnSpacing="8"
+                                      IsVisible="{Binding IsHarrachMethod}">
+                                    <Label Text="Harrach λ"
+                                           VerticalOptions="Center"
+                                           FontFamily="SF Pro Text"/>
+                                    <Entry Grid.Column="1"
+                                           Text="{Binding VirtualElectrodeSettings.HarrachLambda}"
+                                           Keyboard="Numeric"
+                                           HorizontalTextAlignment="End"/>
+                                </Grid>
+
+                                <Grid Grid.Row="19" ColumnDefinitions="Auto,*" ColumnSpacing="8"
+                                      IsVisible="{Binding IsNdMethod}">
+                                    <Label Text="ND Max Mode"
+                                           VerticalOptions="Center"
+                                           FontFamily="SF Pro Text"/>
+                                    <Entry Grid.Column="1"
+                                           Text="{Binding VirtualElectrodeSettings.NdMaxMode}"
+                                           Keyboard="Numeric"
+                                           HorizontalTextAlignment="End"/>
                                 </Grid>
                             </Grid>
                         </Border>

@@ -9,6 +9,7 @@ using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Measurement;
+using Utility.Classes.VirtualElectrodes;
 
 using Workspace = Utility.Classes.Application.Workspace;
 
@@ -94,9 +95,12 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public event Action? MeshChanged;
 
+        public VirtualElectrodeSettings VirtualElectrodeSettings => Workspace.GetReconstructionParameters().VirtualElectrodeSettings;
+
         public MeshingPageViewModel(IDAQService dAQService)
         {
             _daqService = dAQService;
+            VirtualElectrodeSettings.PropertyChanged += (_, _) => ReapplyVirtualElectrodeLayout();
         }
 
         public IDiscretization? GetCurrentMesh() => _currentDiscretization;
@@ -249,7 +253,12 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         private void ApplyFemElectrodeLayout(FEMMesh mesh)
         {
-            mesh.PlaceEquidistantElectrodes(ElectrodeCount, ElectrodeContactImpedance, ElectrodeSize, Math.Max(1, FemElectrodeNodeCount));
+            mesh.PlaceEquidistantElectrodes(
+                ElectrodeCount,
+                ElectrodeContactImpedance,
+                ElectrodeSize,
+                Math.Max(1, FemElectrodeNodeCount),
+                VirtualElectrodeSettings);
         }
 
         private LBMGrid GenerateLBMGrid()
@@ -281,6 +290,26 @@ namespace ElectricalImpedanceTomography.ViewModels
             return MeshFactory.CreateLBMGridFromPerimeter(Nx, Ny, pts, ElectrodeCount);
         }
 
+        private void ReapplyVirtualElectrodeLayout()
+        {
+            if (_currentDiscretization is FEMMesh fem)
+            {
+                fem.ApplyVirtualElectrodes(VirtualElectrodeSettings, ElectrodeContactImpedance);
+            }
+            else if (_currentDiscretization is LBMGrid lbm)
+            {
+                lbm.ApplyVirtualElectrodes(VirtualElectrodeSettings);
+            }
+
+            if (_currentDiscretization != null)
+            {
+                Workspace.SetDiscretization(_currentDiscretization);
+                Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
+            }
+
+            MeshChanged?.Invoke();
+        }
+
         // Removed old CustomPerimeter parsing workflow
 
         public void RefreshConductivity()
@@ -300,9 +329,16 @@ namespace ElectricalImpedanceTomography.ViewModels
             var electrodes = new List<LBMElectrode>();
             int id = 0;
             foreach (var el in mesh.ElementsTyped)
-                if (el.IsElectrode)
-                    electrodes.Add(new LBMElectrode(id++, el.Id, 0.0, 0.0, ElectrodeContactImpedance));
+            {
+                if (!el.IsElectrode)
+                    continue;
+
+                el.ElectrodeId = id;
+                electrodes.Add(new LBMElectrode(id++, el.Id, 0.0, 0.0, ElectrodeContactImpedance));
+            }
             mesh.SetElectrodes(electrodes);
+            if (VirtualElectrodeSettings.UseVirtualElectrodes)
+                mesh.ApplyVirtualElectrodes(VirtualElectrodeSettings);
 
             Workspace.SetDiscretization(_currentDiscretization);
             Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
@@ -345,6 +381,8 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
 
             mesh.SetElectrodes(updated);
+            if (VirtualElectrodeSettings.UseVirtualElectrodes)
+                mesh.ApplyVirtualElectrodes(VirtualElectrodeSettings, ElectrodeContactImpedance);
 
             Workspace.SetDiscretization(_currentDiscretization);
             Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
@@ -420,12 +458,12 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             if (_currentDiscretization is LBMGrid lbm)
             {
-                lbm.PlaceEquidistantElectrodes(value);
+                lbm.PlaceEquidistantElectrodes(value, VirtualElectrodeSettings);
                 RefreshLbmElectrodes();
             }
             else if (_currentDiscretization is FEMMesh fem)
             {
-                fem.PlaceEquidistantElectrodes(value, ElectrodeContactImpedance, ElectrodeSize, FemElectrodeNodeCount);
+                fem.PlaceEquidistantElectrodes(value, ElectrodeContactImpedance, ElectrodeSize, FemElectrodeNodeCount, VirtualElectrodeSettings);
             }
 
             _currentDiscretization.Metadata.Parameters["electrodeCount"] = value.ToString();

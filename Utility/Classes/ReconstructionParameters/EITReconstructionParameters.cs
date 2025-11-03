@@ -2,6 +2,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Utility.Classes.Factories;
 using Utility.Classes.Measurement;
+using Utility.Classes.VirtualElectrodes;
 
 namespace Utility.Classes.ReconstructionParameters
 {
@@ -47,6 +48,9 @@ namespace Utility.Classes.ReconstructionParameters
 
         [ObservableProperty]
         private double conductivityMaximumBound = 10.0;
+
+        [ObservableProperty]
+        private VirtualElectrodeSettings virtualElectrodeSettings = new();
 
         public DiscretizationType Mesh = DiscretizationType.FEM;
 

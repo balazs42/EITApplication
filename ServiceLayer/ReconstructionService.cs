@@ -8,6 +8,7 @@ using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.ReconstructionParameters;
 using Utility.Classes.Factories;
+using Utility.Classes.VirtualElectrodes;
 using Utility.Logger;
 
 using Workspace = Utility.Classes.Application.Workspace;
@@ -537,6 +538,14 @@ namespace ServiceLayer
             if (electrodes.Count == 0)
                 return measurement;
 
+            var virtualSettings = Workspace.GetReconstructionParameters().VirtualElectrodeSettings;
+            if (virtualSettings.UseVirtualElectrodes)
+            {
+                var estimator = VirtualElectrodeEstimatorFactory.Create(virtualSettings);
+                var context = BuildForwardContext(electrodes);
+                measurement = estimator.CompleteElectrodePotentials(electrodes, measurement, virtualSettings, context);
+            }
+
             // Build the measurement pattern for the current electrode roles so
             // that the sanitiser knows which entries to retain (Options 1 & 4)
             // or which potential differences to form (Options 2 & 3).
@@ -551,6 +560,32 @@ namespace ServiceLayer
             // contribute to the residual (e.g. driven electrodes in non-active
             // modes) so downstream metrics can ignore them naturally.
             return pattern.MapMeasurement(measurement);
+        }
+
+        private ForwardModelContext BuildForwardContext(IReadOnlyList<Electrode> electrodes)
+        {
+            if (_discretization is FEMMesh fem)
+            {
+                return new ForwardModelContext
+                {
+                    ElectrodeAngles = fem.GetElectrodeAngles(),
+                    RealElectrodeCount = electrodes.Count(e => !e.IsVirtual)
+                };
+            }
+
+            if (_discretization is LBMGrid lbm)
+            {
+                return new ForwardModelContext
+                {
+                    ElectrodeAngles = lbm.GetElectrodeAngles(),
+                    RealElectrodeCount = electrodes.Count(e => !e.IsVirtual)
+                };
+            }
+
+            return new ForwardModelContext
+            {
+                RealElectrodeCount = electrodes.Count(e => !e.IsVirtual)
+            };
         }
 
         /// <summary>
