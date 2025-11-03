@@ -54,6 +54,8 @@
                             Maximum="0"
                             IsEnabled="False"
                             ValueChanged="OnGradientSliderValueChanged"
+                            DragStarted="OnGradientSliderDragStarted"
+                            DragCompleted="OnGradientSliderDragCompleted"
                             HorizontalOptions="FillAndExpand"/>
                     <Label x:Name="GradientIndexLabel"
                            Text="0 / 0"

@@ -10,6 +10,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace ElectricalImpedanceTomography.Views;
 
@@ -44,6 +46,9 @@ public partial class GradientInspectionPopup : Popup
     private bool _suppressOpacitySliderEvent;
     private ValleySurface? _valleySurface;
     private float _surfaceOpacity = 0.68f;
+    private bool _isGradientSliderDragging;
+    private int? _pendingSliderSelection;
+    private CancellationTokenSource? _surfaceRebuildCts;
 
     // Added missing backing fields used by drawing helpers
     private float _planeY; // computed ground plane height
@@ -98,6 +103,12 @@ public partial class GradientInspectionPopup : Popup
         public double EffectiveStepLength => Norm * Math.Max(1, CollapsedCount);
     }
 
+    private readonly record struct SampleProjection(float U,
+                                                     float V,
+                                                     float Height,
+                                                     double Norm,
+                                                     int CollapsedCount);
+
     private sealed class ValleySurface
     {
         public ValleySurface(Vector3[,] grid,
@@ -140,6 +151,7 @@ public partial class GradientInspectionPopup : Popup
         Closed -= OnPopupClosed;
         _viewModel.GradientHistoryChanged -= OnGradientHistoryChanged;
         _viewModel.GradientSelectionChanged -= OnExternalSelectionChanged;
+        CancelSurfaceRebuild();
     }
 
     private void OnGradientHistoryChanged(object? sender, EventArgs e)
@@ -414,6 +426,8 @@ public partial class GradientInspectionPopup : Popup
         if (index < 0 || index >= _displaySamples.Count)
         {
             _selectedIndex = -1;
+            if (!_isGradientSliderDragging)
+                _pendingSliderSelection = null;
             SelectionLabel.Text = _displaySamples.Count == 0
                 ? "No gradient data yet"
                 : "Select a sample to inspect";
@@ -425,6 +439,8 @@ public partial class GradientInspectionPopup : Popup
         }
 
         _selectedIndex = index;
+        if (!_isGradientSliderDragging)
+            _pendingSliderSelection = null;
         var sample = _displaySamples[index];
         string iterationLabel;
         if (sample.CollapsedCount > 1 && sample.FirstIteration != sample.Iteration)
@@ -448,7 +464,7 @@ public partial class GradientInspectionPopup : Popup
         GradientCanvas.InvalidateSurface();
     }
 
-    private void RequestSelectionChange(int displayIndex)
+    private void RequestSelectionChange(int displayIndex, bool commitToViewModel = true)
     {
         if (displayIndex < 0 || displayIndex >= _displaySamples.Count)
             return;
@@ -456,6 +472,12 @@ public partial class GradientInspectionPopup : Popup
         int sourceIndex = GetSourceIndexForDisplayIndex(displayIndex);
         if (sourceIndex < 0)
             return;
+
+        if (!commitToViewModel)
+        {
+            UpdateSelection(displayIndex);
+            return;
+        }
 
         if (_viewModel.SelectedGradientIndex != sourceIndex)
         {
@@ -652,8 +674,53 @@ public partial class GradientInspectionPopup : Popup
             _suppressGradientSliderEvent = false;
         }
 
+        bool commitToViewModel = !_isGradientSliderDragging;
+
+        if (_isGradientSliderDragging)
+            _pendingSliderSelection = target;
+        else
+            _pendingSliderSelection = null;
+
         if (_selectedIndex != target)
-            RequestSelectionChange(target);
+            RequestSelectionChange(target, commitToViewModel);
+
+        UpdateGradientIndexLabel();
+    }
+
+    private void OnGradientSliderDragStarted(object? sender, EventArgs e)
+    {
+        _isGradientSliderDragging = true;
+    }
+
+    private void OnGradientSliderDragCompleted(object? sender, EventArgs e)
+    {
+        _isGradientSliderDragging = false;
+
+        if (_displaySamples.Count == 0)
+        {
+            _pendingSliderSelection = null;
+            return;
+        }
+
+        int target;
+        if (_pendingSliderSelection.HasValue)
+        {
+            target = _pendingSliderSelection.Value;
+        }
+        else
+        {
+            double sliderValue = GradientSlider?.Value ?? _selectedIndex;
+            target = (int)Math.Round(sliderValue);
+        }
+
+        target = Math.Clamp(target, 0, _displaySamples.Count - 1);
+        _pendingSliderSelection = null;
+
+        if (_selectedIndex != target
+            || _viewModel.SelectedGradientIndex != GetSourceIndexForDisplayIndex(target))
+        {
+            RequestSelectionChange(target, commitToViewModel: true);
+        }
 
         UpdateGradientIndexLabel();
     }
@@ -680,6 +747,22 @@ public partial class GradientInspectionPopup : Popup
         SurfaceOpacityValueLabel.Text = $"{_surfaceOpacity:0%}";
     }
 
+    private void CancelSurfaceRebuild()
+    {
+        var existing = Interlocked.Exchange(ref _surfaceRebuildCts, null);
+        if (existing != null)
+        {
+            try
+            {
+                existing.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Ignore - the token source was already disposed elsewhere.
+            }
+        }
+    }
+
     private void OnSurfaceOpacitySliderValueChanged(object? sender, ValueChangedEventArgs e)
     {
         if (_suppressOpacitySliderEvent)
@@ -695,44 +778,105 @@ public partial class GradientInspectionPopup : Popup
         int visibleCount = GetVisibleSampleCount();
         if (visibleCount < 4)
         {
+            CancelSurfaceRebuild();
             _valleySurface = null;
             return;
         }
 
-        var fitPoints = _points.Take(visibleCount).ToList();
-        if (fitPoints.Count < 4)
+        var pointSnapshot = _points.Take(visibleCount).ToArray();
+        var sampleSnapshot = _displaySamples.Take(visibleCount).ToArray();
+        if (pointSnapshot.Length < 4)
         {
+            CancelSurfaceRebuild();
             _valleySurface = null;
             return;
         }
 
-        var vectors = new List<Vector3>(fitPoints.Count);
+        CancelSurfaceRebuild();
+
+        var cts = new CancellationTokenSource();
+        _surfaceRebuildCts = cts;
+
+        Task.Run(() =>
+        {
+            ValleySurface? surface = null;
+            try
+            {
+                surface = BuildValleySurfaceSnapshot(pointSnapshot,
+                                                     sampleSnapshot,
+                                                     _trajectoryRadius,
+                                                     cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                surface = null;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[GradientInspectionPopup] Surface rebuild failed: {ex}");
+            }
+
+            if (cts.IsCancellationRequested || !ReferenceEquals(_surfaceRebuildCts, cts))
+            {
+                cts.Dispose();
+                return;
+            }
+
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (cts.IsCancellationRequested || !ReferenceEquals(_surfaceRebuildCts, cts))
+                {
+                    cts.Dispose();
+                    return;
+                }
+
+                _valleySurface = surface;
+                _surfaceRebuildCts = null;
+                GradientCanvas.InvalidateSurface();
+                cts.Dispose();
+            });
+        });
+    }
+
+    private ValleySurface? BuildValleySurfaceSnapshot(Point3D[] points,
+                                                      GradientDisplaySample[] samples,
+                                                      float trajectoryRadius,
+                                                      CancellationToken token)
+    {
+        if (points.Length < 4 || samples.Length == 0)
+            return null;
+
+        var fitPoints = new List<Point3D>(points);
+        var vectors = new Vector3[points.Length];
         Vector3 centroid = Vector3.Zero;
-        foreach (var point in fitPoints)
+        for (int i = 0; i < points.Length; i++)
         {
-            var vector = point.ToVector();
-            vectors.Add(vector);
+            token.ThrowIfCancellationRequested();
+            var vector = points[i].ToVector();
+            vectors[i] = vector;
             centroid += vector;
         }
 
-        centroid /= vectors.Count;
+        centroid /= points.Length;
 
         Vector3 axisA = vectors[^1] - vectors[0];
         if (axisA.LengthSquared() < 1e-6f)
         {
             axisA = Vector3.Zero;
-            for (int i = 1; i < vectors.Count; i++)
+            for (int i = 1; i < vectors.Length; i++)
+            {
+                token.ThrowIfCancellationRequested();
                 axisA += vectors[i] - vectors[i - 1];
+            }
         }
-        if (axisA.LengthSquared() < 1e-6f)
-            axisA = Vector3.UnitX;
-        else
-            axisA = Vector3.Normalize(axisA);
+
+        axisA = axisA.LengthSquared() < 1e-6f ? Vector3.UnitX : Vector3.Normalize(axisA);
 
         Vector3 lateralAccum = Vector3.Zero;
-        foreach (var vector in vectors)
+        for (int i = 0; i < vectors.Length; i++)
         {
-            var diff = vector - centroid;
+            token.ThrowIfCancellationRequested();
+            var diff = vectors[i] - centroid;
             var projected = axisA * Vector3.Dot(diff, axisA);
             lateralAccum += diff - projected;
         }
@@ -752,35 +896,211 @@ public partial class GradientInspectionPopup : Popup
         float maxAbsU = 0f;
         float maxAbsV = 0f;
         float maxAbsW = 0f;
-        foreach (var vector in vectors)
+        var projections = new List<SampleProjection>(points.Length);
+
+        for (int i = 0; i < points.Length; i++)
         {
-            var diff = vector - centroid;
+            token.ThrowIfCancellationRequested();
+
+            var diff = vectors[i] - centroid;
             float u = Vector3.Dot(diff, axisA);
             float v = Vector3.Dot(diff, axisB);
             float w = Vector3.Dot(diff, normal);
+
             maxAbsU = MathF.Max(maxAbsU, MathF.Abs(u));
             maxAbsV = MathF.Max(maxAbsV, MathF.Abs(v));
             maxAbsW = MathF.Max(maxAbsW, MathF.Abs(w));
+
+            double norm = i < samples.Length ? samples[i].Norm : 0.0;
+            int collapsed = i < samples.Length ? Math.Max(1, samples[i].CollapsedCount) : 1;
+
+            projections.Add(new SampleProjection(u, v, w, norm, collapsed));
         }
 
-        float extentA = MathF.Max(maxAbsU * 1.35f, _trajectoryRadius * 0.6f);
-        float extentB = MathF.Max(maxAbsV * 1.35f, _trajectoryRadius * 0.6f);
-        float extentNormal = MathF.Max(maxAbsW * 1.6f, MathF.Max(_trajectoryRadius * 0.35f, 0.3f));
+        float extentA = MathF.Max(maxAbsU * 1.35f, trajectoryRadius * 0.6f);
+        float extentB = MathF.Max(maxAbsV * 1.35f, trajectoryRadius * 0.6f);
+        float extentNormal = MathF.Max(maxAbsW * 1.6f, MathF.Max(trajectoryRadius * 0.35f, 0.3f));
 
         if (!TryFitQuadraticSurface(fitPoints, centroid, axisA, axisB, normal, out var coefficients))
+            return BuildPlanarValley(centroid, axisA, axisB, extentA, extentB);
+
+        return BuildEnhancedQuadraticValley(coefficients,
+                                            projections,
+                                            centroid,
+                                            axisA,
+                                            axisB,
+                                            normal,
+                                            extentA,
+                                            extentB,
+                                            extentNormal,
+                                            token);
+    }
+
+    private ValleySurface BuildEnhancedQuadraticValley(double[] coefficients,
+                                                       IReadOnlyList<SampleProjection> samples,
+                                                       Vector3 centroid,
+                                                       Vector3 axisA,
+                                                       Vector3 axisB,
+                                                       Vector3 normal,
+                                                       float extentA,
+                                                       float extentB,
+                                                       float extentNormal,
+                                                       CancellationToken token)
+    {
+        int resolution = Math.Clamp(samples.Count / 6, 32, 72);
+        var grid = new Vector3[resolution, resolution];
+        float minElevation = float.PositiveInfinity;
+        float maxElevation = float.NegativeInfinity;
+
+        double minNorm = double.PositiveInfinity;
+        double maxNorm = double.NegativeInfinity;
+        foreach (var sample in samples)
         {
-            _valleySurface = BuildPlanarValley(centroid, axisA, axisB, extentA, extentB);
-            return;
+            token.ThrowIfCancellationRequested();
+            if (!double.IsFinite(sample.Norm))
+                continue;
+
+            if (sample.Norm < minNorm)
+                minNorm = sample.Norm;
+            if (sample.Norm > maxNorm)
+                maxNorm = sample.Norm;
         }
 
-        _valleySurface = BuildQuadraticValley(coefficients,
-                                              centroid,
-                                              axisA,
-                                              axisB,
-                                              normal,
-                                              extentA,
-                                              extentB,
-                                              extentNormal);
+        if (!double.IsFinite(minNorm) || !double.IsFinite(maxNorm))
+        {
+            minNorm = 0.0;
+            maxNorm = 1.0;
+        }
+
+        double normRange = Math.Max(1e-9, maxNorm - minNorm);
+
+        var residuals = new float[samples.Count];
+        var weights = new float[samples.Count];
+        float maxResidual = 0f;
+
+        for (int i = 0; i < samples.Count; i++)
+        {
+            token.ThrowIfCancellationRequested();
+            var sample = samples[i];
+
+            double baseHeight = EvaluateQuadratic(coefficients, sample.U, sample.V);
+            float residual = (float)(sample.Height - baseHeight);
+            residuals[i] = residual;
+            maxResidual = MathF.Max(maxResidual, MathF.Abs(residual));
+
+            double normFactor = double.IsFinite(sample.Norm)
+                ? Math.Clamp((sample.Norm - minNorm) / normRange, 0.0, 1.0)
+                : 0.0;
+
+            float collapsedFactor = MathF.Log(1f + MathF.Max(sample.CollapsedCount, 1));
+            weights[i] = 0.7f + (float)normFactor * 0.8f + collapsedFactor * 0.25f;
+        }
+
+        if (maxResidual > extentNormal)
+        {
+            float scale = MathF.Min(1f, extentNormal / MathF.Max(maxResidual, 1e-5f));
+            for (int i = 0; i < residuals.Length; i++)
+                residuals[i] *= scale;
+        }
+
+        float kernelRadius = ComputeKernelRadius(samples, extentA, extentB);
+        float kernelRadiusSq = kernelRadius * kernelRadius;
+
+        for (int row = 0; row < resolution; row++)
+        {
+            token.ThrowIfCancellationRequested();
+            float tRow = resolution == 1 ? 0f : row / (float)(resolution - 1);
+            float u = -extentA + (2f * extentA) * tRow;
+
+            for (int col = 0; col < resolution; col++)
+            {
+                float tCol = resolution == 1 ? 0f : col / (float)(resolution - 1);
+                float v = -extentB + (2f * extentB) * tCol;
+
+                double baseHeight = EvaluateQuadratic(coefficients, u, v);
+                double adjusted = 0.0;
+                double weightSum = 0.0;
+                double nearest = double.PositiveInfinity;
+
+                for (int i = 0; i < samples.Count; i++)
+                {
+                    var sample = samples[i];
+                    float du = u - sample.U;
+                    float dv = v - sample.V;
+                    double distanceSq = du * du + dv * dv;
+                    double distance = Math.Sqrt(distanceSq);
+                    if (distance < nearest)
+                        nearest = distance;
+
+                    double influence = Math.Exp(-distanceSq / Math.Max(1e-6f, kernelRadiusSq * 0.8f));
+                    if (distanceSq < kernelRadiusSq * 0.35f)
+                        influence *= 1.75;
+
+                    influence *= weights[i];
+                    adjusted += residuals[i] * influence;
+                    weightSum += influence;
+                }
+
+                double residualAdjustment = weightSum > 1e-6 ? adjusted / weightSum : 0.0;
+
+                if (nearest > kernelRadius * 1.8f)
+                {
+                    double fade = Math.Exp(-Math.Pow((nearest - kernelRadius * 1.8f) / (kernelRadius * 1.2f + 1e-6f), 2));
+                    residualAdjustment *= fade;
+                }
+
+                double height = baseHeight + residualAdjustment;
+                height = Math.Clamp(height, -extentNormal, extentNormal);
+
+                var point = centroid + axisA * u + axisB * v + normal * (float)height;
+                grid[row, col] = point;
+
+                float elevation = Vector3.Dot(point - centroid, normal);
+                if (elevation < minElevation)
+                    minElevation = elevation;
+                if (elevation > maxElevation)
+                    maxElevation = elevation;
+            }
+        }
+
+        return new ValleySurface(grid, centroid, normal, minElevation, maxElevation);
+    }
+
+    private static float ComputeKernelRadius(IReadOnlyList<SampleProjection> samples,
+                                             float extentA,
+                                             float extentB)
+    {
+        if (samples.Count < 2)
+            return MathF.Max(MathF.Max(extentA, extentB) * 0.25f, 0.1f);
+
+        float totalDistance = 0f;
+        int count = 0;
+        for (int i = 1; i < samples.Count; i++)
+        {
+            float du = samples[i].U - samples[i - 1].U;
+            float dv = samples[i].V - samples[i - 1].V;
+            float distance = MathF.Sqrt(du * du + dv * dv);
+            if (distance > 1e-4f)
+            {
+                totalDistance += distance;
+                count++;
+            }
+        }
+
+        float average = count > 0 ? totalDistance / count : MathF.Max(extentA, extentB) / MathF.Max(samples.Count, 1);
+        float maxExtent = MathF.Max(extentA, extentB);
+        float radius = Math.Clamp(average * 2.4f, maxExtent * 0.15f, maxExtent * 0.8f);
+        return MathF.Max(radius, 0.1f);
+    }
+
+    private static double EvaluateQuadratic(double[] coefficients, float u, float v)
+    {
+        return coefficients[0] * u * u +
+               coefficients[1] * v * v +
+               coefficients[2] * u * v +
+               coefficients[3] * u +
+               coefficients[4] * v +
+               coefficients[5];
     }
 
     private void UpdateZoomSlider()
@@ -1257,59 +1577,6 @@ public partial class GradientInspectionPopup : Popup
         t = Math.Clamp(t, 0f, 1f);
         var closest = a + ab * t;
         return Vector3.Distance(point, closest);
-    }
-
-    private ValleySurface BuildQuadraticValley(double[] coefficients,
-                                               Vector3 centroid,
-                                               Vector3 axisA,
-                                               Vector3 axisB,
-                                               Vector3 normal,
-                                               float extentA,
-                                               float extentB,
-                                               float extentNormal)
-    {
-        const int resolution = 28;
-        var grid = new Vector3[resolution, resolution];
-        float minElevation = float.PositiveInfinity;
-        float maxElevation = float.NegativeInfinity;
-
-        for (int row = 0; row < resolution; row++)
-        {
-            float tRow = resolution == 1 ? 0f : row / (float)(resolution - 1);
-            float u = -extentA + (2f * extentA) * tRow;
-
-            for (int col = 0; col < resolution; col++)
-            {
-                float tCol = resolution == 1 ? 0f : col / (float)(resolution - 1);
-                float v = -extentB + (2f * extentB) * tCol;
-
-                double w = coefficients[0] * u * u +
-                           coefficients[1] * v * v +
-                           coefficients[2] * u * v +
-                           coefficients[3] * u +
-                           coefficients[4] * v +
-                           coefficients[5];
-
-                w = Math.Clamp(w, -extentNormal, extentNormal);
-
-                var point = centroid + axisA * u + axisB * v + normal * (float)w;
-                grid[row, col] = point;
-
-                float elevation = Vector3.Dot(point - centroid, normal);
-                if (elevation < minElevation)
-                    minElevation = elevation;
-                if (elevation > maxElevation)
-                    maxElevation = elevation;
-            }
-        }
-
-        if (!float.IsFinite(minElevation) || !float.IsFinite(maxElevation))
-        {
-            minElevation = -extentNormal;
-            maxElevation = extentNormal;
-        }
-
-        return new ValleySurface(grid, centroid, normal, minElevation, maxElevation);
     }
 
     private ValleySurface BuildPlanarValley(Vector3 centroid,
