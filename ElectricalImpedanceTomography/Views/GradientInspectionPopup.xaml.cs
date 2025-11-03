@@ -2338,7 +2338,7 @@ public partial class GradientInspectionPopup : Popup
     private void InitializeRotationControls()
     {
         _autoRotateTimer = Dispatcher.CreateTimer();
-        _autoRotateTimer.Interval = TimeSpan.FromMilliseconds(16);
+        _autoRotateTimer.Interval = TimeSpan.FromMilliseconds(1);
         _autoRotateTimer.Tick += OnAutoRotateTimerTick;
 
         if (AutoRotateAxisPicker != null)

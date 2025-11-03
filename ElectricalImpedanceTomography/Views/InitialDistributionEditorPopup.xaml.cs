@@ -1,3 +1,4 @@
+using CommunityToolkit.Maui.Core;
 using CommunityToolkit.Maui.Views;
 using ElectricalImpedanceTomography.Helpers;
 using ElectricalImpedanceTomography.ViewModels;
@@ -61,9 +62,10 @@ public partial class InitialDistributionEditorPopup : Popup
         Close();
     }
 
-    protected override void OnClosed(PopupClosedEventArgs e)
+    protected override Task OnClosed(object? result, bool wasDismissedByTappingOutsideOfPopup, CancellationToken token = default)
     {
-        base.OnClosed(e);
+        base.OnClosed(result, wasDismissedByTappingOutsideOfPopup, token);
         _viewModel.DistributionUpdated -= OnDistributionUpdated;
+        return Task.CompletedTask;
     }
 }

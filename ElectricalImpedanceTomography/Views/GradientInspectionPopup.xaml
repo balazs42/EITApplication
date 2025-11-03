@@ -136,13 +136,14 @@
                                     Maximum="20"
                                     Value="1"
                                     ValueChanged="OnScaleSliderValueChanged"/>
-                            <!--<Label x:Name="ScaleValueLabel"
+                            <Label x:Name="ScaleValueLabel"
+                                   IsVisible="False"
                                    Grid.Column="2"
                                    Grid.Row="1"
                                    Text="1.0× (auto 1.0×)"
                                    TextColor="#A8B6D6"
                                    VerticalOptions="Center"/>
-                            -->
+                            
                             <Label Text="Surface Opacity"
                                    Grid.Column="0"
                                    Grid.Row="2"

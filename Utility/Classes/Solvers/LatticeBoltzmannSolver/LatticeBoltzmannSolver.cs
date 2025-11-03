@@ -28,13 +28,13 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         // LBM stability constants
         private const double TauSafetyEpsilon = 1e-6;          // Small value to prevent numerical instability
         private const double MinTau = 0.5 + TauSafetyEpsilon; // Minimum relaxation time for stability
-        private const double ElectrodeFluxCoefficient = 0.25; // Gentle relaxation factor for Neumann electrode corrections
+        private const double ElectrodeFluxCoefficient = 0.75; // Gentle relaxation factor for Neumann electrode corrections
 
         // CUDA kernel management - static to share across solver instances
         private static readonly object _cudaKernelLock = new(); // Thread-safe kernel compilation
 
         // Pre-compiled CUDA kernels for LBM operations
-        private static System.Action<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>>? _initializeKernel;
+        private static System.Action<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<double>, ArrayView<double>>? _initializeKernel;
         private static System.Action<Index1D, ArrayView<double>, ArrayView<int>, ArrayView<double>, double, double, ArrayView<double>>? _collisionKernel;
         private static System.Action<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>>? _streamKernel;
         private static System.Action<Index1D, UpdateKernelParams>? _updateKernel;
@@ -399,7 +399,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
                     for (int dir = 0; dir < 9; dir++)
                     {
-                        double population = element.Fi[dir];
+                        double fi = element.Fi[dir];
                         var neighbour = element.Neighbors[dir];
 
                         if (neighbour is not null && !neighbour.IsWall)
@@ -407,7 +407,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                             // Normal streaming: place Fi in the same directional slot
                             // of the neighbour cell.  Only one population flows through
                             // each link so a direct assignment is safe and conservative.
-                            neighbour.Fi_next[dir] = population;
+                            neighbour.Fi_next[dir] = fi;
                         }
                         else
                         {
@@ -415,7 +415,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                             // domain or is a wall cell, so we reverse the population into
                             // the opposite discrete velocity direction.
                             int reflected = opposite[dir];
-                            element.Fi_next[reflected] = population;
+                            element.Fi_next[reflected] = fi;
                         }
                     }
                 }
@@ -488,36 +488,6 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             return pd;
         }
 
-        /// <summary>
-        /// Determines the discrete velocity direction that points from the electrode
-        /// element towards the exterior wall.  This is used to decide which populations
-        /// represent the outward normal and the inward facing counterpart when enforcing
-        /// the conservative electrode flux corrections.
-        /// </summary>
-        private static int FindOutwardNormalDirection(LBMElement element, int[] opposite)
-        {
-            int outwardDirection = -1;
-
-            for (int dir = 1; dir < 9; dir++)
-            {
-                var neighbor = element.Neighbors[dir];
-                bool neighborIsWall = neighbor is null || neighbor.IsWall;
-                if (!neighborIsWall)
-                    continue;
-
-                int inward = opposite[dir];
-                var interiorNeighbor = element.Neighbors[inward];
-                if (interiorNeighbor is null || interiorNeighbor.IsWall)
-                    continue;
-
-                // Prefer axial directions (1-4) over diagonal ones to minimise
-                // numerical anisotropy when multiple wall candidates exist.
-                if (outwardDirection < 0 || (dir < 5 && outwardDirection >= 5))
-                    outwardDirection = dir;
-            }
-
-            return outwardDirection;
-        }
 
         /// <summary>
         /// Applies the mixed Neumann/Dirichlet electrode boundary conditions on the
@@ -531,85 +501,126 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             double[] weights,
             int[] opposite)
         {
+            // Same relaxation factor as used in the CUDA kernels.
+            const double alpha = ElectrodeFluxCoefficient;
+
             foreach (var electrode in electrodes)
             {
                 var element = electrode.Element;
                 int elementIndex = electrode.ElementIndex;
 
-                // Rebuild the Dirichlet anchor for the ground electrode: we overwrite
-                // every population with the equilibrium state that corresponds to the
-                // prescribed ground potential.  Because the populations sum to φ, this
-                // operation pins the gauge of the potential field without injecting or
-                // removing mass/charge from the lattice.
+                // ---------------------------------------------------------------------
+                // 1. Dirichlet anchor for ground electrode (pins the gauge)
+                // ---------------------------------------------------------------------
                 double phiBoundary = phi[elementIndex];
+
                 if (electrode.IsGround)
                 {
                     double anchorPhi = electrode.Potential;
+
+                    // Overwrite all populations with equilibrium at the ground potential.
                     for (int k = 0; k < 9; k++)
                         element.Fi[k] = weights[k] * anchorPhi;
+
                     phiBoundary = anchorPhi;
                     phi[elementIndex] = anchorPhi;
                 }
 
-                int outward = FindOutwardNormalDirection(element, opposite);
+                // ---------------------------------------------------------------------
+                // 2. Find outward normal direction: link to a wall with fluid on the
+                //    opposite side (i.e. a wall-interior pair). Prefer cardinal over
+                //    diagonal directions, just like in the CUDA UpdateKernel.
+                // ---------------------------------------------------------------------
+                int outward = -1;
+
+                for (int dir = 1; dir < 9; dir++) // skip rest direction 0
+                {
+                    var nb = element.Neighbors[dir];
+                    if (nb is null || !nb.IsWall)
+                        continue;
+
+                    int inwardCandidate = opposite[dir];
+                    var interiorCand = element.Neighbors[inwardCandidate];
+
+                    // Need a true interior fluid cell behind the boundary face
+                    if (interiorCand is null || interiorCand.IsWall)
+                        continue;
+
+                    // First acceptable direction, or prefer cardinal (1–4) over diagonal (5–8)
+                    if (outward < 0 || (dir < 5 && outward >= 5))
+                        outward = dir;
+                }
+
                 if (outward < 0)
                     continue; // No clear wall normal -> nothing to correct.
 
                 int inward = opposite[outward];
                 var interior = element.Neighbors[inward];
+
                 if (interior is null || interior.IsWall)
                     continue; // No interior fluid cell to exchange flux with.
 
                 if (!elementIndexLookup.TryGetValue(interior.Id, out int interiorIndex))
                     continue;
 
+                // ---------------------------------------------------------------------
+                // 3. Discrete Neumann flux on that link
+                // ---------------------------------------------------------------------
                 double phiInterior = phi[interiorIndex];
-                double dPhi = phiInterior - phiBoundary; // Discrete normal gradient.
+                double phiBoundaryCell = phi[elementIndex]; // may have been anchored above
 
-                // Average conductivity guarantees symmetry of the discrete flux and
-                // handles discontinuous materials at the electrode interface.
                 double sigmaBoundary = element.Conductivity;
                 double sigmaInterior = interior.Conductivity;
                 double sigmaAvg = 0.5 * (sigmaBoundary + sigmaInterior);
+
                 if (sigmaAvg <= 0.0)
-                    continue; // Perfect insulator -> nothing to exchange.
+                    continue; // Perfect insulator -> no flux through this face.
 
-                // Convert the potential gradient (and optional imposed current) into a
-                // conservative population correction along the inward pointing link.
-                double flux = sigmaAvg * dPhi + electrode.Current;
-                double deltaFi = ElectrodeFluxCoefficient * flux * weights[inward];
+                // Discrete normal flux along the inward link:
+                //   j_n ≈ sigmaAvg * (phiInterior - phiBoundaryCell)
+                //
+                // Then superimpose the prescribed electrode current (per cell) in the
+                // same sign convention.  Positive electrode.Current increases inward
+                // flux, negative decreases it.
+                double flux = sigmaAvg * (phiInterior - phiBoundaryCell) + Math.Abs(electrode.Current);
+                double deltaFi = alpha * flux * weights[inward];
 
+                // ---------------------------------------------------------------------
+                // 4. Conservative population correction (modified bounce-back)
+                // ---------------------------------------------------------------------
                 if (electrode.IsExcitation)
                 {
-                    // Source electrode: bias populations so that more charge enters the
-                    // domain.  Adding to the inward population and subtracting the same
-                    // amount from the outward one preserves ΣFi exactly.
+                    // Source electrode: inject current into the domain; bias the inward
+                    // population and counter-bias the outward one to keep ΣFi constant.
                     element.Fi[inward] += deltaFi;
                     element.Fi[outward] -= deltaFi;
                 }
                 else if (electrode.IsGround)
                 {
-                    // Sink electrode: draw current out of the domain by inverting the
-                    // source rule while still preserving the local population sum.
+                    // Ground electrode acting as sink: reverse the flux direction while
+                    // still preserving the local population sum.
                     element.Fi[inward] -= deltaFi;
                     element.Fi[outward] += deltaFi;
                 }
                 else
                 {
-                    // Measurement electrodes are treated as floating: they keep the
-                    // anchored potential (if any) but do not impose additional flux.
+                    // Floating / measurement electrode: only the potential anchor (if
+                    // any) is enforced, no additional flux correction.
                     continue;
                 }
 
-                // Update the cached macroscopic potential so that subsequent boundary
-                // processing (and the convergence monitor) operate on the corrected
-                // distribution.  The correction is conservative so φ remains anchored.
+                // ---------------------------------------------------------------------
+                // 5. Update cached macroscopic potential at the electrode cell so that
+                //    subsequent iterations and convergence check see the corrected φ.
+                // ---------------------------------------------------------------------
                 double updatedPhi = 0.0;
                 for (int k = 0; k < 9; k++)
                     updatedPhi += element.Fi[k];
+
                 phi[elementIndex] = updatedPhi;
             }
         }
+
 
         /// <summary>
         /// GPU-accelerated implementation of LBM forward solver using CUDA kernels.
