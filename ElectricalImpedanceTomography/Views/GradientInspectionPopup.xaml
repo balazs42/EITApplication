@@ -103,7 +103,7 @@
                                  Opacity="0.6"/>
 
                         <Grid ColumnDefinitions="Auto,*,Auto"
-                              RowDefinitions="Auto,Auto,Auto,Auto"
+                              RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto"
                               ColumnSpacing="12"
                               RowSpacing="12">
                             <Label Text="Zoom"
@@ -178,6 +178,47 @@
                                    Grid.Column="2"
                                    Grid.Row="3"
                                    Text="65%"
+                                   TextColor="#A8B6D6"
+                                   VerticalOptions="Center"/>
+
+                            <Label Text="Auto Rotate"
+                                   Grid.Column="0"
+                                   Grid.Row="4"
+                                   TextColor="#F0F4FF"
+                                   VerticalOptions="Center"/>
+                            <HorizontalStackLayout Grid.Column="1"
+                                                    Grid.Row="4"
+                                                    Spacing="12"
+                                                    VerticalOptions="Center">
+                                <Switch x:Name="AutoRotateSwitch"
+                                        Toggled="OnAutoRotateToggled"/>
+                                <Picker x:Name="AutoRotateAxisPicker"
+                                        Title="Axis"
+                                        WidthRequest="120"
+                                        SelectedIndexChanged="OnAutoRotateAxisChanged">
+                                    <Picker.Items>
+                                        <x:String>X</x:String>
+                                        <x:String>Y</x:String>
+                                        <x:String>Z</x:String>
+                                    </Picker.Items>
+                                </Picker>
+                            </HorizontalStackLayout>
+
+                            <Label Text="Rotation Speed"
+                                   Grid.Column="0"
+                                   Grid.Row="5"
+                                   TextColor="#F0F4FF"
+                                   VerticalOptions="Center"/>
+                            <Slider x:Name="AutoRotateSpeedSlider"
+                                    Grid.Column="1"
+                                    Grid.Row="5"
+                                    Minimum="2"
+                                    Maximum="90"
+                                    ValueChanged="OnAutoRotateSpeedChanged"/>
+                            <Label x:Name="AutoRotateSpeedValueLabel"
+                                   Grid.Column="2"
+                                   Grid.Row="5"
+                                   Text="0°/s"
                                    TextColor="#A8B6D6"
                                    VerticalOptions="Center"/>
                         </Grid>
