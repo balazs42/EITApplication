@@ -7,6 +7,7 @@ using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Measurement;
+using Utility.Classes.VirtualElectrodes;
 using Utility.Exports;
 using Utility.Rendering;
 using Workspace = Utility.Classes.Application.Workspace;
@@ -111,6 +112,7 @@ public sealed class ReconstructionExportService : IReconstructionExportService
 
         var meshSnapshot = CreateMeshSnapshot(discretization);
         var initialSnapshot = CreateInitialDistributionSnapshot(parameters.InitialDistributionType.ToString(), initialDistribution);
+        var virtualElectrodeSnapshot = CreateVirtualElectrodeSnapshot(parameters.VirtualElectrodeSettings);
 
         return new ReconstructionConfigurationSnapshot(
             DateTime.UtcNow,
@@ -118,8 +120,18 @@ public sealed class ReconstructionExportService : IReconstructionExportService
             workspaceSection,
             measurementSnapshot,
             meshSnapshot,
-            initialSnapshot);
+            initialSnapshot,
+            virtualElectrodeSnapshot);
     }
+
+    private static VirtualElectrodeConfigurationSnapshot CreateVirtualElectrodeSnapshot(VirtualElectrodeSettings settings)
+        => new(
+            settings.UseVirtualElectrodes,
+            settings.Method,
+            settings.VirtualElectrodesPerGap,
+            settings.LinearCombinationAlpha,
+            settings.HarrachLambda,
+            settings.NdMaxMode);
 
     private static MeshConfigurationSnapshot CreateMeshSnapshot(IDiscretization discretization)
     {
