@@ -3,6 +3,8 @@ using CommunityToolkit.Maui.Views;
 using CommunityToolkit.Mvvm.ComponentModel;
 using ElectricalImpedanceTomography.ViewModels;
 using Microsoft.Maui.ApplicationModel;
+using Microsoft.Maui.Controls;
+using Microsoft.Maui.Dispatching;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
 using SkiaSharp.Views.Maui.Controls;
@@ -31,6 +33,7 @@ public partial class GradientInspectionPopup : Popup
     private float _defaultCameraDistance = 5f;
     private float _yaw = 45f;
     private float _pitch = 20f;
+    private float _roll;
     private float _projectionScale = 1f;
     private bool _isDragging;
     private SKPoint? _lastDragPoint;
@@ -52,6 +55,12 @@ public partial class GradientInspectionPopup : Popup
     private bool _isGradientSliderDragging;
     private int? _pendingSliderSelection;
     private CancellationTokenSource? _surfaceRebuildCts;
+    private bool _isAutoRotateEnabled;
+    private RotationAxisOption _autoRotationAxis = RotationAxisOption.Y;
+    private float _autoRotationSpeed = 20f;
+    private bool _suppressRotationSpeedSliderEvent;
+    private IDispatcherTimer? _autoRotateTimer;
+    private DateTime _lastAutoRotateTick;
 
     // Added missing backing fields used by drawing helpers
     private float _planeY; // computed ground plane height
@@ -106,6 +115,13 @@ public partial class GradientInspectionPopup : Popup
         public double EffectiveStepLength => Norm * Math.Max(1, CollapsedCount);
     }
 
+    private enum RotationAxisOption
+    {
+        X = 0,
+        Y = 1,
+        Z = 2
+    }
+
     private readonly record struct SampleProjection(float U,
                                                      float V,
                                                      float Height,
@@ -141,6 +157,8 @@ public partial class GradientInspectionPopup : Popup
         InitializeComponent();
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
 
+        InitializeRotationControls();
+
         LoadData();
         UpdateSelection(_viewModel.SelectedGradientIndex);
 
@@ -155,6 +173,7 @@ public partial class GradientInspectionPopup : Popup
         _viewModel.GradientHistoryChanged -= OnGradientHistoryChanged;
         _viewModel.GradientSelectionChanged -= OnExternalSelectionChanged;
         CancelSurfaceRebuild();
+        StopAutoRotate();
     }
 
     private void OnGradientHistoryChanged(object? sender, EventArgs e)
@@ -1243,6 +1262,8 @@ public partial class GradientInspectionPopup : Popup
         _yaw = 45f;
         _pitch = 20f;
         _cameraDistance = _defaultCameraDistance;
+        _roll = 0f;
+        _lastAutoRotateTick = DateTime.UtcNow;
         UpdateZoomSlider();
         GradientCanvas.InvalidateSurface();
     }
@@ -1380,6 +1401,7 @@ public partial class GradientInspectionPopup : Popup
             case SKTouchAction.Pressed:
                 _isDragging = true;
                 _lastDragPoint = e.Location;
+                _lastAutoRotateTick = DateTime.UtcNow;
                 e.Handled = true;
                 break;
             case SKTouchAction.Moved:
@@ -1910,6 +1932,7 @@ public partial class GradientInspectionPopup : Popup
     {
         float yawRad = DegreesToRadians(_yaw);
         float pitchRad = DegreesToRadians(_pitch);
+        float rollRad = DegreesToRadians(_roll);
         float distance = Math.Max(_cameraDistance, 0.5f);
 
         var position = new Vector3(
@@ -1922,6 +1945,13 @@ public partial class GradientInspectionPopup : Popup
         if (right.LengthSquared() < 1e-6f)
             right = Vector3.UnitX;
         var up = Vector3.Normalize(Vector3.Cross(right, forward));
+
+        if (Math.Abs(_roll) > 1e-3f)
+        {
+            var rotation = Matrix4x4.CreateFromAxisAngle(forward, rollRad);
+            right = Vector3.Normalize(Vector3.TransformNormal(right, rotation));
+            up = Vector3.Normalize(Vector3.Cross(right, forward));
+        }
 
         return (position, forward, right, up);
     }
@@ -2292,4 +2322,136 @@ public partial class GradientInspectionPopup : Popup
     }
 
     private static float DegreesToRadians(float degrees) => (float)(Math.PI / 180.0) * degrees;
+
+    private static float NormalizeAngle(float degrees)
+    {
+        float normalized = degrees % 360f;
+        return normalized < 0f ? normalized + 360f : normalized;
+    }
+
+    private static float NormalizeAngleSigned(float degrees)
+    {
+        float normalized = NormalizeAngle(degrees);
+        return normalized > 180f ? normalized - 360f : normalized;
+    }
+
+    private void InitializeRotationControls()
+    {
+        _autoRotateTimer = Dispatcher.CreateTimer();
+        _autoRotateTimer.Interval = TimeSpan.FromMilliseconds(16);
+        _autoRotateTimer.Tick += OnAutoRotateTimerTick;
+
+        if (AutoRotateAxisPicker != null)
+            AutoRotateAxisPicker.SelectedIndex = (int)_autoRotationAxis;
+
+        if (AutoRotateSpeedSlider != null)
+        {
+            _suppressRotationSpeedSliderEvent = true;
+            AutoRotateSpeedSlider.Value = _autoRotationSpeed;
+            _suppressRotationSpeedSliderEvent = false;
+        }
+
+        UpdateAutoRotateSpeedLabel();
+        UpdateAutoRotateSliderState();
+    }
+
+    private void OnAutoRotateToggled(object? sender, ToggledEventArgs e)
+    {
+        _isAutoRotateEnabled = e.Value;
+        _lastAutoRotateTick = DateTime.UtcNow;
+        UpdateAutoRotateSliderState();
+        if (_isAutoRotateEnabled)
+            StartAutoRotate();
+        else
+            StopAutoRotate();
+    }
+
+    private void OnAutoRotateAxisChanged(object? sender, EventArgs e)
+    {
+        if (AutoRotateAxisPicker?.SelectedIndex is int index && index >= 0)
+        {
+            _autoRotationAxis = (RotationAxisOption)index;
+            _lastAutoRotateTick = DateTime.UtcNow;
+        }
+    }
+
+    private void OnAutoRotateSpeedChanged(object? sender, ValueChangedEventArgs e)
+    {
+        if (_suppressRotationSpeedSliderEvent)
+            return;
+
+        _autoRotationSpeed = (float)e.NewValue;
+        UpdateAutoRotateSpeedLabel();
+        _lastAutoRotateTick = DateTime.UtcNow;
+    }
+
+    private void UpdateAutoRotateSpeedLabel()
+    {
+        if (AutoRotateSpeedValueLabel != null)
+            AutoRotateSpeedValueLabel.Text = $"{_autoRotationSpeed:0}°/s";
+    }
+
+    private void UpdateAutoRotateSliderState()
+    {
+        if (AutoRotateSpeedSlider != null)
+            AutoRotateSpeedSlider.IsEnabled = true;
+        if (AutoRotateAxisPicker != null)
+            AutoRotateAxisPicker.IsEnabled = true;
+        if (AutoRotateSwitch != null && AutoRotateSwitch.IsToggled != _isAutoRotateEnabled)
+            AutoRotateSwitch.IsToggled = _isAutoRotateEnabled;
+    }
+
+    private void StartAutoRotate()
+    {
+        if (_autoRotateTimer == null)
+            return;
+
+        _lastAutoRotateTick = DateTime.UtcNow;
+        if (!_autoRotateTimer.IsRunning)
+            _autoRotateTimer.Start();
+    }
+
+    private void StopAutoRotate()
+    {
+        if (_autoRotateTimer == null)
+            return;
+
+        if (_autoRotateTimer.IsRunning)
+            _autoRotateTimer.Stop();
+    }
+
+    private void OnAutoRotateTimerTick(object? sender, EventArgs e)
+    {
+        if (!_isAutoRotateEnabled)
+            return;
+
+        var now = DateTime.UtcNow;
+        if (_lastAutoRotateTick == default)
+        {
+            _lastAutoRotateTick = now;
+            return;
+        }
+
+        double elapsedSeconds = (now - _lastAutoRotateTick).TotalSeconds;
+        _lastAutoRotateTick = now;
+
+        if (elapsedSeconds <= 0)
+            return;
+
+        float delta = _autoRotationSpeed * (float)elapsedSeconds;
+        switch (_autoRotationAxis)
+        {
+            case RotationAxisOption.X:
+                _pitch = NormalizeAngleSigned(_pitch + delta);
+                break;
+            case RotationAxisOption.Y:
+                _yaw = NormalizeAngle(_yaw + delta);
+                break;
+            case RotationAxisOption.Z:
+                _roll = NormalizeAngle(_roll + delta);
+                break;
+        }
+
+        GradientCanvas?.InvalidateSurface();
+    }
 }
