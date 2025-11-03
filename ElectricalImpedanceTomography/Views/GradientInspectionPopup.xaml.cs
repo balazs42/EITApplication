@@ -910,7 +910,7 @@ public partial class GradientInspectionPopup : Popup
         if (points.Length < 4 || samples.Length == 0)
             return null;
 
-        float precision = MathF.Clamp(depthPrecision, 0.25f, 1f);
+        float precision = Math.Clamp(depthPrecision, 0.25f, 1f);
         var fitPoints = new List<Point3D>(points);
         var vectors = new Vector3[points.Length];
         Vector3 centroid = Vector3.Zero;
@@ -1015,7 +1015,7 @@ public partial class GradientInspectionPopup : Popup
                                                        float precision,
                                                        CancellationToken token)
     {
-        float precisionClamped = MathF.Clamp(precision, 0.25f, 1f);
+        float precisionClamped = Math.Clamp(precision, 0.25f, 1f);
         int baseResolution = Math.Clamp(samples.Count / 6, 32, 72);
         int resolution = Math.Clamp((int)(baseResolution * (0.9f + 0.7f * precisionClamped)), 32, 110);
         var grid = new Vector3[resolution, resolution];

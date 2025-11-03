@@ -241,12 +241,12 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 if (el.IsWall)
                 {
                     el.Conductivity = 0.0;
+                    sigmaDist.Conductivities[el.Id] = 0.0;
                     continue;
                 }
 
                 el.Conductivity = SanitizeConductivity(sigmaDist.GetConductivity(el.Id));
             }
-
             // PHASE 1: Initialize distribution functions
             foreach (var el in elements)
             {
@@ -257,9 +257,6 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     el.Fi_next[k] = 0.0;
                     el.Fi[k] = isWall ? 0.0 : weights[k];
                 }
-
-                if (isWall)
-                    continue;
             }
 
             // PHASE 2: Mark electrode cells for boundary condition enforcement

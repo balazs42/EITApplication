@@ -5,7 +5,7 @@
                xmlns:viewmodels="clr-namespace:ElectricalImpedanceTomography.ViewModels"
                xmlns:skia="clr-namespace:SkiaSharp.Views.Maui.Controls;assembly=SkiaSharp.Views.Maui.Controls"
                x:Class="ElectricalImpedanceTomography.Views.GradientInspectionPopup"
-               Size="840,680">
+               Size="1000,800">
     <Border Stroke="Transparent" StrokeShape="RoundRectangle 10" BackgroundColor="Transparent">
         
 
@@ -67,12 +67,12 @@
                                 </Image>
                                 <Slider x:Name="GradientSlider"
                                         Minimum="0"
+                                        WidthRequest="100"
                                         Maximum="0"
                                         IsEnabled="False"
                                         ValueChanged="OnGradientSliderValueChanged"
                                         DragStarted="OnGradientSliderDragStarted"
-                                        DragCompleted="OnGradientSliderDragCompleted"
-                                        HorizontalOptions="FillAndExpand"/>
+                                        DragCompleted="OnGradientSliderDragCompleted"/>
                                 <Image x:Name="NextStepButton"
                                        Source="icon_next_player.png"
                                        HeightRequest="28"
@@ -136,13 +136,13 @@
                                     Maximum="20"
                                     Value="1"
                                     ValueChanged="OnScaleSliderValueChanged"/>
-                            <Label x:Name="ScaleValueLabel"
+                            <!--<Label x:Name="ScaleValueLabel"
                                    Grid.Column="2"
                                    Grid.Row="1"
                                    Text="1.0× (auto 1.0×)"
                                    TextColor="#A8B6D6"
                                    VerticalOptions="Center"/>
-
+                            -->
                             <Label Text="Surface Opacity"
                                    Grid.Column="0"
                                    Grid.Row="2"

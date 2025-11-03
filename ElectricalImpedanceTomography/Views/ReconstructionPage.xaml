@@ -240,7 +240,7 @@
                             <VerticalStackLayout Grid.Row="4">
                                 <Label Text="Drive Pattern:" FontAttributes="Bold" FontSize="Small" VerticalOptions="Center"/>
                                 <Grid ColumnDefinitions="Auto, Auto, Auto, Auto" ColumnSpacing="0" HorizontalOptions="Center">
-                                    <Label Grid.Column="0" Margin="5" Text="Adjecent" VerticalOptions="Center" HorizontalOptions="Start" FontAttributes="None"/>
+                                    <Label Grid.Column="0" Margin="5" Text="Adjacent" VerticalOptions="Center" HorizontalOptions="Start" FontAttributes="None"/>
                                     <CheckBox Grid.Column="1"
                                               VerticalOptions="Center"
                                               IsChecked="{Binding AdjecentDrivePattern}"
