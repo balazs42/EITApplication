@@ -51,6 +51,8 @@ namespace ElectricalImpedanceTomography.ViewModels
         [ObservableProperty]
         private int iterationCount = 0;
 
+        public bool CanEditInitialDistribution => IterationCount == 0;
+
         [ObservableProperty]
         private double residual = 1.0;
 
@@ -729,6 +731,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             UpdateMetric(MetricKeys.IterationCount, value.ToString(CultureInfo.InvariantCulture));
             UpdateIterationsPerSecond();
             UpdateTimePerIteration();
+            OnPropertyChanged(nameof(CanEditInitialDistribution));
         }
 
         partial void OnResidualChanged(double value)

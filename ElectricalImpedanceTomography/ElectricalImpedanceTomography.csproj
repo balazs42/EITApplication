@@ -83,6 +83,9 @@
           <Compile Update="Controls\PlusMinusEntryControl.xaml.cs">
             <DependentUpon>PlusMinusEntryControl.xaml</DependentUpon>
           </Compile>
+          <Compile Update="Views\InitialDistributionEditorPopup.xaml.cs">
+            <DependentUpon>InitialDistributionEditorPopup.xaml</DependentUpon>
+          </Compile>
           <Compile Update="Views\VideoExportProgressPopup.xaml.cs">
             <DependentUpon>VideoExportProgressPopup.xaml</DependentUpon>
           </Compile>
@@ -108,6 +111,9 @@
             <Generator>MSBuild:Compile</Generator>
           </MauiXaml>
           <MauiXaml Update="Controls\PlusMinusEntryControl.xaml">
+            <Generator>MSBuild:Compile</Generator>
+          </MauiXaml>
+          <MauiXaml Update="Views\InitialDistributionEditorPopup.xaml">
             <Generator>MSBuild:Compile</Generator>
           </MauiXaml>
           <MauiXaml Update="Views\MeshingPage.xaml">

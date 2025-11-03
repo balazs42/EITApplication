@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<toolkit:Popup xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+               xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+               xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+               xmlns:skia="clr-namespace:SkiaSharp.Views.Maui.Controls;assembly=SkiaSharp.Views.Maui.Controls"
+               xmlns:viewmodels="clr-namespace:ElectricalImpedanceTomography.ViewModels"
+               x:Class="ElectricalImpedanceTomography.Views.InitialDistributionEditorPopup"
+               x:DataType="viewmodels:InitialDistributionEditorViewModel"
+               Size="900,620">
+    <Border Stroke="Transparent"
+            StrokeShape="RoundRectangle 12"
+            BackgroundColor="Transparent">
+        <Grid RowDefinitions="Auto,*"
+              BackgroundColor="{AppThemeBinding Light=#1C2739, Dark=#101926}">
+            <Grid Row="0"
+                  ColumnDefinitions="*,Auto"
+                  Padding="20,16"
+                  BackgroundColor="{AppThemeBinding Light=#24354D, Dark=#182232}">
+                <Label Text="Initial Distribution Editor"
+                       VerticalOptions="Center"
+                       FontAttributes="Bold"
+                       FontFamily="SF Pro Text"
+                       FontSize="18"
+                       TextColor="#F0F4FF" />
+                <Button Grid.Column="1"
+                        Text="Close"
+                        Clicked="OnCloseClicked"
+                        BackgroundColor="#2E3C55"
+                        TextColor="#E5EEFF"
+                        Padding="18,8"
+                        CornerRadius="10" />
+            </Grid>
+
+            <Grid Row="1"
+                  ColumnDefinitions="*,320"
+                  ColumnSpacing="18"
+                  Padding="20">
+                <Border Grid.Column="0"
+                        StrokeThickness="1"
+                        Stroke="#2E3C55"
+                        BackgroundColor="{AppThemeBinding Light=#172132, Dark=#0C131F}"
+                        StrokeShape="RoundRectangle 12">
+                    <VerticalStackLayout Padding="20"
+                                         Spacing="20"
+                                         HorizontalOptions="Center">
+                        <Label Text="Preview"
+                               FontAttributes="Bold"
+                               FontFamily="SF Pro Text"
+                               TextColor="#F0F4FF"
+                               HorizontalOptions="Center" />
+                        <skia:SKCanvasView x:Name="PreviewCanvas"
+                                           HeightRequest="360"
+                                           WidthRequest="360"
+                                           PaintSurface="OnPreviewCanvasPaintSurface" />
+                        <skia:SKCanvasView x:Name="PreviewColorbarCanvas"
+                                           HeightRequest="20"
+                                           WidthRequest="360"
+                                           PaintSurface="OnColorbarCanvasPaintSurface" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Grid.Column="1"
+                        StrokeThickness="1"
+                        Stroke="#2E3C55"
+                        BackgroundColor="{AppThemeBinding Light=#1C273A, Dark=#121A29}"
+                        StrokeShape="RoundRectangle 12">
+                    <ScrollView>
+                        <VerticalStackLayout Padding="20"
+                                             Spacing="18">
+                            <Label Text="Distribution Type"
+                                   FontAttributes="Bold"
+                                   FontFamily="SF Pro Text"
+                                   TextColor="#F0F4FF" />
+                            <Picker ItemsSource="{Binding AvailableModes}"
+                                    SelectedItem="{Binding SelectedMode}"
+                                    TextColor="#F0F4FF"
+                                    TitleColor="#9DAAD3"
+                                    BackgroundColor="#23334A" />
+
+                            <Label Text="Background Conductivity [S]"
+                                   FontAttributes="Bold"
+                                   FontFamily="SF Pro Text"
+                                   TextColor="#F0F4FF" />
+                            <Entry Text="{Binding BackgroundConductivity, Mode=TwoWay}"
+                                   Keyboard="Numeric"
+                                   BackgroundColor="#23334A"
+                                   TextColor="#F0F4FF" />
+
+                            <VerticalStackLayout Spacing="10"
+                                                  IsVisible="{Binding IsRandomMode}">
+                                <Label Text="Randomized Percent"
+                                       FontAttributes="Bold"
+                                       FontFamily="SF Pro Text"
+                                       TextColor="#F0F4FF" />
+                                <Slider Minimum="0"
+                                        Maximum="100"
+                                        Value="{Binding RandomPercent, Mode=TwoWay}" />
+                                <Label Text="{Binding RandomPercentLabel}"
+                                       FontFamily="SF Pro Text"
+                                       FontSize="12"
+                                       TextColor="#A8B6D6" />
+                            </VerticalStackLayout>
+
+                            <VerticalStackLayout Spacing="10"
+                                                  IsVisible="{Binding IsCloseToTargetMode}">
+                                <Label Text="Distortion Strength"
+                                       FontAttributes="Bold"
+                                       FontFamily="SF Pro Text"
+                                       TextColor="#F0F4FF" />
+                                <Slider Minimum="0"
+                                        Maximum="100"
+                                        Value="{Binding DistortionStrength, Mode=TwoWay}" />
+                                <Label Text="{Binding DistortionLabel}"
+                                       FontFamily="SF Pro Text"
+                                       FontSize="12"
+                                       TextColor="#A8B6D6" />
+                            </VerticalStackLayout>
+
+                            <Label Text="Adjust the parameters to customise the starting conductivity distribution."
+                                   FontFamily="SF Pro Text"
+                                   FontSize="12"
+                                   TextColor="#93A3C7"
+                                   LineBreakMode="WordWrap" />
+                        </VerticalStackLayout>
+                    </ScrollView>
+                </Border>
+            </Grid>
+        </Grid>
+    </Border>
+</toolkit:Popup>
