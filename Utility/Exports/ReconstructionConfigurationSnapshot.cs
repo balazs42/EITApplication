@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Utility.Classes.VirtualElectrodes;
 
 namespace Utility.Exports;
 
@@ -9,7 +10,8 @@ public sealed record ReconstructionConfigurationSnapshot(
     WorkspaceParameterSection Workspace,
     MeasurementConfigurationSnapshot Measurement,
     MeshConfigurationSnapshot Mesh,
-    InitialDistributionSnapshot InitialDistribution);
+    InitialDistributionSnapshot InitialDistribution,
+    VirtualElectrodeConfigurationSnapshot VirtualElectrodes);
 
 public sealed record ReconstructionParameterSection(
     string DifferentialEquationSolver,
@@ -61,3 +63,11 @@ public sealed record InitialDistributionSnapshot(
     double Maximum,
     double Mean,
     double StandardDeviation);
+
+public sealed record VirtualElectrodeConfigurationSnapshot(
+    bool UseVirtualElectrodes,
+    VirtualElectrodeMethod Method,
+    int VirtualElectrodesPerGap,
+    double LinearCombinationAlpha,
+    double HarrachLambda,
+    int NdMaxMode);

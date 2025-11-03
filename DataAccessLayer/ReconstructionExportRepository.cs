@@ -6,6 +6,7 @@ using System.Text.Json;
 using Utility.Classes;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Measurement;
+using Utility.Classes.VirtualElectrodes;
 using Utility.Exports;
 using Utility.Rendering;
 
@@ -29,6 +30,9 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
             var initialDistribution = request.InitialDistribution;
             var initialResult = CreateInitialDistributionResult(firstSnapshot.Result, initialDistribution);
 
+            var originalMetadata = CreateRangeMetadata(latestSnapshot.Result.OriginalConductivityDistribution);
+            AppendSetupMetadata(originalMetadata, request.MeasurementPattern, request.Configuration);
+
             ReconstructionVideoRenderer.SaveDistributionSnapshot(request.TargetDirectory,
                                      "original_distribution.png",
                                      request.Discretization,
@@ -36,7 +40,7 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
                                      latestSnapshot.Result,
                                      ReconstructionVideoRenderer.DistributionSnapshotType.Original,
                                      "Original Conductivity Distribution",
-                                     CreateRangeMetadata(latestSnapshot.Result.OriginalConductivityDistribution),
+                                     originalMetadata,
                                      request.DisplayMode);
 
             var initialMetadata = CreateRangeMetadata(initialDistribution);
@@ -50,7 +54,7 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
                 initialMetadata.Add(("MAE", FormatDouble(metrics.Mae)));
                 initialMetadata.Add(("RMSE", FormatDouble(metrics.Rmse)));
             }
-            initialMetadata.Add(("Measurement Mode", DescribeMeasurementPattern(request.MeasurementPattern)));
+            AppendSetupMetadata(initialMetadata, request.MeasurementPattern, request.Configuration);
 
             ReconstructionVideoRenderer.SaveDistributionSnapshot(request.TargetDirectory,
                                      "initial_distribution.png",
@@ -73,7 +77,7 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
                 finalMetadata.Add(("SSIM", FormatDouble(metrics.Ssim)));
             }
             finalMetadata.Add(("Correlation", FormatDouble(latestSnapshot.Correlation)));
-            finalMetadata.Add(("Measurement Mode", DescribeMeasurementPattern(request.MeasurementPattern)));
+            AppendSetupMetadata(finalMetadata, request.MeasurementPattern, request.Configuration);
 
             ReconstructionVideoRenderer.SaveDistributionSnapshot(request.TargetDirectory,
                                      "reconstructed_distribution_latest.png",
@@ -89,7 +93,9 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
                                      request.Discretization,
                                      request.RenderFrame,
                                      snapshots,
-                                     request.DisplayMode);
+                                     request.DisplayMode,
+                                     request.MeasurementPattern,
+                                     request.Configuration);
 
             WriteIterationMetricsCsv(request.TargetDirectory, snapshots);
             WriteGradientMetricsCsv(request.TargetDirectory, request.Frames);
@@ -138,7 +144,9 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
                                                 IDiscretization discretization,
                                                 ReconstructionFrame fallbackFrame,
                                                 IReadOnlyList<ReconstructionIterationSnapshot> snapshots,
-                                                PotentialDisplayMode mode)
+                                                PotentialDisplayMode mode,
+                                                MeasurementPattern? measurementPattern,
+                                                ReconstructionConfigurationSnapshot configuration)
     {
         var metricSnapshots = snapshots.Where(s => s.Metrics.HasValue).ToList();
 
@@ -161,6 +169,8 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
                     ("Residual L2", FormatDouble(maeSnapshot.Residual)),
                     ("Correlation", FormatDouble(maeSnapshot.Correlation))
                 };
+
+                AppendSetupMetadata(metadata, measurementPattern, configuration);
 
                 ReconstructionVideoRenderer.SaveDistributionSnapshot(directory,
                                          "best_mae_distribution.png",
@@ -190,6 +200,8 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
                     ("Residual L2", FormatDouble(ssimSnapshot.Residual)),
                     ("Correlation", FormatDouble(ssimSnapshot.Correlation))
                 };
+
+                AppendSetupMetadata(metadata, measurementPattern, configuration);
 
                 ReconstructionVideoRenderer.SaveDistributionSnapshot(directory,
                                          "best_ssim_distribution.png",
@@ -224,6 +236,8 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
                 metadata.Add(("SSIM", FormatDouble(metrics.Ssim)));
             }
 
+            AppendSetupMetadata(metadata, measurementPattern, configuration);
+
             ReconstructionVideoRenderer.SaveDistributionSnapshot(directory,
                                      "best_residual_distribution.png",
                                      discretization,
@@ -256,6 +270,8 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
                 metadata.Add(("RMSE", FormatDouble(metrics.Rmse)));
                 metadata.Add(("SSIM", FormatDouble(metrics.Ssim)));
             }
+
+            AppendSetupMetadata(metadata, measurementPattern, configuration);
 
             ReconstructionVideoRenderer.SaveDistributionSnapshot(directory,
                                      "best_correlation_distribution.png",
@@ -372,6 +388,14 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
         };
     }
 
+    private static void AppendSetupMetadata(List<(string Label, string Value)> metadata,
+                                            MeasurementPattern? pattern,
+                                            ReconstructionConfigurationSnapshot? configuration)
+    {
+        metadata.Add(("Virtual Electrodes", DescribeVirtualElectrodeSettings(configuration?.VirtualElectrodes)));
+        metadata.Add(("Measurement Mode", DescribeMeasurementPattern(pattern)));
+    }
+
     private static string DescribeMeasurementPattern(MeasurementPattern? pattern)
     {
         if (pattern == null)
@@ -386,6 +410,47 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
 
         return $"{representation}\n{setup}";
     }
+
+    private static string DescribeVirtualElectrodeSettings(VirtualElectrodeConfigurationSnapshot? snapshot)
+    {
+        if (snapshot == null)
+            return "Unknown";
+
+        if (!snapshot.UseVirtualElectrodes)
+            return "Disabled";
+
+        var lines = new List<string>
+        {
+            "Enabled",
+            $"Method: {GetVirtualElectrodeMethodDisplayName(snapshot.Method)}",
+            $"Per Gap: {snapshot.VirtualElectrodesPerGap.ToString(CultureInfo.InvariantCulture)}"
+        };
+
+        switch (snapshot.Method)
+        {
+            case VirtualElectrodeMethod.LinearCombination:
+                lines.Add($"Alpha: {FormatDouble(snapshot.LinearCombinationAlpha)}");
+                break;
+            case VirtualElectrodeMethod.HarrachSensitivityInterpolation:
+                lines.Add($"Lambda: {FormatDouble(snapshot.HarrachLambda)}");
+                break;
+            case VirtualElectrodeMethod.NdMapSpectralInterpolation:
+                lines.Add($"Max Mode: {snapshot.NdMaxMode.ToString(CultureInfo.InvariantCulture)}");
+                break;
+        }
+
+        return string.Join('\n', lines);
+    }
+
+    private static string GetVirtualElectrodeMethodDisplayName(VirtualElectrodeMethod method)
+        => method switch
+        {
+            VirtualElectrodeMethod.GeometricInterpolation => "Geometric Interpolation",
+            VirtualElectrodeMethod.LinearCombination => "Linear Combination",
+            VirtualElectrodeMethod.HarrachSensitivityInterpolation => "Harrach Sensitivity",
+            VirtualElectrodeMethod.NdMapSpectralInterpolation => "ND Map Spectral",
+            _ => "None"
+        };
 
     private static string FormatCsvValue(double value)
     {
