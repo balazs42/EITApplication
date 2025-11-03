@@ -19,6 +19,7 @@ using Utility.Rendering;
 using Workspace = Utility.Classes.Application.Workspace;
 using Utility.Exports;
 using CommunityToolkit.Maui.Core;
+using Utility.Classes.Factories;
 
 namespace ElectricalImpedanceTomography.Views;
 
@@ -168,6 +169,12 @@ public partial class ReconstructionPage : ContentPage
     private void UpdateExportButtonState()
         => ExportVideoButton.IsEnabled = Workspace.GetReconstructionFrames().Count > 0;
 
+    private void OnInitialDistributionEdited(object? sender, EventArgs e)
+    {
+        InitialDistributionCanvas.InvalidateSurface();
+        InitialColorbarCanvas.InvalidateSurface();
+    }
+
     #region Simulation control
     private async void OnPlayButtonClicked(object sender, EventArgs e)
     {
@@ -216,6 +223,32 @@ public partial class ReconstructionPage : ContentPage
             PlayButton.IsVisible = true;
             PauseButton.IsVisible = false;
         }
+    }
+
+    private async void OnEditInitialDistributionClicked(object sender, EventArgs e)
+    {
+        if (!_viewModel.CanEditInitialDistribution)
+            return;
+
+        var discretization = GetDiscretization();
+        if (discretization == null)
+        {
+            await DisplayAlert("No Mesh", "You should create or load a mesh before editing the initial distribution!", "Ok");
+            return;
+        }
+
+        var initial = Workspace.GetInitialConductivityDistribution() ?? discretization.GetConductivityDistribution();
+        var original = Workspace.GetOriginalConductivityDistribution();
+        var popup = new InitialDistributionEditorPopup(discretization,
+                                                       initial,
+                                                       original,
+                                                       _viewModel.ReconstructionParameters.InitialDistributionType);
+        popup.DistributionChanged += OnInitialDistributionEdited;
+        await this.ShowPopupAsync(popup);
+        popup.DistributionChanged -= OnInitialDistributionEdited;
+
+        InitialDistributionCanvas.InvalidateSurface();
+        InitialColorbarCanvas.InvalidateSurface();
     }
 
     private async void OnPauseButtonClicked(object sender, EventArgs e)
