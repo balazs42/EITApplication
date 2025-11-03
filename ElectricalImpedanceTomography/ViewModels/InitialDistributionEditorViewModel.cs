@@ -24,6 +24,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         private IDiscretization? _discretization;
         private ConductivityDistribution? _originalDistribution;
         private ConductivityDistribution? _currentDistribution;
+        private ConductivityDistribution? _initialDistribution;
 
         private bool _suppressUpdates;
         private bool _isInitialized;
@@ -67,6 +68,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 ? new ConductivityDistribution(originalDistribution.Conductivities)
                 : null;
 
+            _initialDistribution = new ConductivityDistribution(initialDistribution.Conductivities);
             _currentDistribution = new ConductivityDistribution(initialDistribution.Conductivities);
 
             double minBound = ConductivityClipper.MinimumBound;
@@ -259,14 +261,20 @@ namespace ElectricalImpedanceTomography.ViewModels
                     break;
 
                 case InitialDistributionEditorMode.CloseToTarget:
-                    var source = _originalDistribution ?? _discretization.GetConductivityDistribution();
+                    var source = _originalDistribution
+                                 ?? _initialDistribution
+                                 ?? _currentDistribution;
                     double distortion = Math.Clamp(DistortionStrength / 100.0, 0.0, 1.0);
 
-                    foreach (var pair in source.Conductivities)
+                    foreach (var element in elements)
                     {
+                        double baseValue = BackgroundConductivity;
+                        if (source != null && source.Conductivities.TryGetValue(element.Id, out double existing))
+                            baseValue = existing;
+
                         double noise = (_random.NextDouble() * 2.0 - 1.0) * distortion;
-                        double perturbed = pair.Value * (1.0 + noise);
-                        values[pair.Key] = perturbed;
+                        double perturbed = baseValue * (1.0 + noise);
+                        values[element.Id] = perturbed;
                     }
                     break;
 
