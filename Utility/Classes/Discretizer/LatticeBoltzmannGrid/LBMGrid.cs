@@ -188,7 +188,7 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                 SetElectrodes(realElectrodes);
             }
 
-            if (!settings.UseVirtualElectrodes || settings.VirtualElectrodesPerGap <= 0 || _electrodes.Count < 2)
+            if (!settings.ShouldApplyVirtualElectrodes() || settings.VirtualElectrodesPerGap <= 0 || _electrodes.Count < 2)
                 return;
 
             var boundaryRing = GetBoundaryRing();

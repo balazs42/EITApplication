@@ -54,5 +54,14 @@ namespace Utility.Classes.VirtualElectrodes
 
         [ObservableProperty]
         private double gpNoiseVariance = 1e-6;
+
+        /// <summary>
+        /// Indicates whether virtual electrodes should actively participate in the
+        /// reconstruction workflow.  Selecting "None" as the estimation method is
+        /// treated as an explicit request to disable virtual electrode processing
+        /// even if the UI toggle is enabled.
+        /// </summary>
+        public bool ShouldApplyVirtualElectrodes()
+            => UseVirtualElectrodes && Method != VirtualElectrodeMethod.None;
     }
 }

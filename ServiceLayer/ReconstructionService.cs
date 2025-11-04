@@ -1,4 +1,5 @@
 ﻿using BusinessLayer;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using Utility.Classes;
@@ -155,8 +156,11 @@ namespace ServiceLayer
                 _useOmpParallelization = parameters.UseOmpParallelization;
 
                 // Determine frames per cycle based on electrode count and pattern.
-                var electrodeCount = discretization.GetElectrodes().Count;
-                _framesPerCycle = electrodeCount > 0 ? Math.Max(1, _drivePatternStrategy.GetCycleLength(electrodeCount)) : 1;
+                var electrodes = discretization.GetElectrodes();
+                int driveElectrodeCount = GetDriveElectrodeCount(electrodes);
+                _framesPerCycle = driveElectrodeCount > 0
+                    ? Math.Max(1, _drivePatternStrategy.GetCycleLength(driveElectrodeCount))
+                    : 1;
 
                 // Store noise settings for subsequent simulations/import handling.
                 _measurementNoiseType = parameters.MeasurementNoiseType;
@@ -205,6 +209,19 @@ namespace ServiceLayer
         /// <param name="electrodeCount">Number of electrodes.</param>
         /// <param name="stepIndex">Index of the step within the overall sequence.</param>
         /// <returns>Tuple of excitation and ground indices.</returns>
+        private static int GetDriveElectrodeCount(IEnumerable<Electrode> electrodes)
+        {
+            if (electrodes == null)
+                return 0;
+
+            var electrodeList = electrodes as IList<Electrode> ?? electrodes.ToList();
+            if (electrodeList.Count == 0)
+                return 0;
+
+            int realCount = electrodeList.Count(e => !e.IsVirtual);
+            return realCount > 0 ? realCount : electrodeList.Count;
+        }
+
         private (int ExcitationIndex, int GroundIndex) GetDrivePatternPair(int electrodeCount, int stepIndex)
         {
             if (electrodeCount <= 0)
@@ -237,10 +254,18 @@ namespace ServiceLayer
                 el.Potential = 0.0;
             }
 
-            var (excitationIndex, groundIndex) = GetDrivePatternPair(electrodes.Count, stepIndex);
+            var realElectrodes = electrodes
+                .Select((el, idx) => (Electrode: el, Index: idx))
+                .Where(pair => !pair.Electrode.IsVirtual)
+                .ToList();
+
+            if (realElectrodes.Count == 0)
+                return;
+
+            var (excitationIndex, groundIndex) = GetDrivePatternPair(realElectrodes.Count, stepIndex);
 
             // Assign excitation electrode and inject current.
-            var excitation = electrodes[excitationIndex];
+            var excitation = realElectrodes[excitationIndex].Electrode;
             excitation.IsExcitation = true;
             excitation.IsMeasuring = false;
 
@@ -249,7 +274,7 @@ namespace ServiceLayer
             excitation.Current = excitationAmplitude;
 
             // Assign ground electrode and sink the same current.
-            var ground = electrodes[groundIndex];
+            var ground = realElectrodes[groundIndex].Electrode;
             ground.IsGround = true;
             ground.IsMeasuring = false;
 
@@ -288,8 +313,8 @@ namespace ServiceLayer
 
             int electrodeCount = _discretization switch
             {
-                FEMMesh fem => fem.GetElectrodes().Count,
-                LBMGrid lbm => lbm.GetElectrodes().Count,
+                FEMMesh fem => GetDriveElectrodeCount(fem.GetElectrodes().Cast<Electrode>()),
+                LBMGrid lbm => GetDriveElectrodeCount(lbm.GetElectrodes().Cast<Electrode>()),
                 _ => 0
             };
 
@@ -539,7 +564,7 @@ namespace ServiceLayer
                 return measurement;
 
             var virtualSettings = Workspace.GetReconstructionParameters().VirtualElectrodeSettings;
-            if (virtualSettings.UseVirtualElectrodes)
+            if (virtualSettings.ShouldApplyVirtualElectrodes())
             {
                 var estimator = VirtualElectrodeEstimatorFactory.Create(virtualSettings);
                 var context = BuildForwardContext(electrodes);
@@ -621,13 +646,13 @@ namespace ServiceLayer
                 // excitation pair.  Electrode roles must be reconfigured for
                 // each frame so that the boundary condition reflects the
                 // rotating drive pattern.
-                int electrodeCount = femMesh.GetElectrodes().Count;
-                int cycleLength = Math.Max(1, _drivePatternStrategy.GetCycleLength(electrodeCount));
+                var electrodes = femMesh.GetElectrodes().Cast<FEMElectrode>().ToList();
+                int driveElectrodeCount = GetDriveElectrodeCount(electrodes.Cast<Electrode>());
+                int cycleLength = Math.Max(1, _drivePatternStrategy.GetCycleLength(driveElectrodeCount));
                 int stepIndex = _simMeasurementIndex % cycleLength;
                 var measurement = _simulatedMeasurements[stepIndex];
 
                 // Recompute electrode roles for this step and build BC.
-                var electrodes = femMesh.GetElectrodes().Cast<FEMElectrode>().ToList();
                 double effectiveAmplitude = _realMeasurementAmplitude ?? _excitationAmplitude;
                 ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, stepIndex);
 
@@ -671,8 +696,8 @@ namespace ServiceLayer
 
                 // Determine the current drive-pattern step and attach the boundary condition.
                 var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
-                int electrodeCount = electrodes.Count;
-                int cycleLength = Math.Max(1, _drivePatternStrategy.GetCycleLength(electrodeCount));
+                int driveElectrodeCount = GetDriveElectrodeCount(electrodes.Cast<Electrode>());
+                int cycleLength = Math.Max(1, _drivePatternStrategy.GetCycleLength(driveElectrodeCount));
                 int stepIndex = _simMeasurementIndex % cycleLength;
                 double effectiveAmplitude = _realMeasurementAmplitude ?? _excitationAmplitude;
                 ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, stepIndex);
