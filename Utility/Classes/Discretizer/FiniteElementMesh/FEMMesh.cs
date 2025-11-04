@@ -470,7 +470,7 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
                 SetElectrodes(realElectrodes);
             }
 
-            if (!settings.UseVirtualElectrodes || settings.VirtualElectrodesPerGap <= 0 || _electrodes.Count < 2)
+            if (!settings.ShouldApplyVirtualElectrodes() || settings.VirtualElectrodesPerGap <= 0 || _electrodes.Count < 2)
                 return;
 
             if (_orderedBoundaryVertices.Count == 0)

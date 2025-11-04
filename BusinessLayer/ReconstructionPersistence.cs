@@ -1210,10 +1210,15 @@ namespace BusinessLayer
             LBMGrid deepCopy = (LBMGrid)mesh.DeepCopy();
             Workspace.UpdateCurrentGlobalLbmElectrodes(deepCopy);
             var electrodes = Workspace.GetCurrentGlobalLbmElectrodes();
-            int electrodeCount = electrodes.Count;
+            var virtualSettings = Workspace.GetReconstructionParameters().VirtualElectrodeSettings;
+            bool applyVirtuals = virtualSettings.ShouldApplyVirtualElectrodes();
+            var realElectrodes = electrodes.Where(e => !e.IsVirtual).ToList();
+            int electrodeCount = realElectrodes.Count;
 
             var strategy = DrivePatternStrategyProvider.GetStrategy(drivePattern);
-            int cycleLength = Math.Max(1, strategy.GetCycleLength(electrodeCount));
+            int cycleLength = electrodeCount > 0
+                ? Math.Max(1, strategy.GetCycleLength(electrodeCount))
+                : 1;
 
             var frames = new List<double[]>(cycleLength);
 
@@ -1231,14 +1236,20 @@ namespace BusinessLayer
                     el.Current = 0.0;
                 }
 
-                var (excitationIndex, groundIndex) = strategy.GetElectrodePair(electrodeCount, i);
+                if (electrodeCount > 0)
+                {
+                    var (excitationIndex, groundIndex) = strategy.GetElectrodePair(electrodeCount, i);
 
-                electrodes[excitationIndex].IsExcitation = true;
-                electrodes[excitationIndex].IsMeasuring = false;
-                electrodes[excitationIndex].Current = exciationAmplitude;
-                electrodes[groundIndex].IsGround = true;
-                electrodes[groundIndex].IsMeasuring = false;
-                electrodes[groundIndex].Current = -exciationAmplitude;
+                    var excitation = realElectrodes[excitationIndex];
+                    excitation.IsExcitation = true;
+                    excitation.IsMeasuring = false;
+                    excitation.Current = exciationAmplitude;
+
+                    var ground = realElectrodes[groundIndex];
+                    ground.IsGround = true;
+                    ground.IsMeasuring = false;
+                    ground.Current = -exciationAmplitude;
+                }
 
                 LBMBoundaryCondition boundaryCondition = new LBMBoundaryCondition(electrodes);
                 Workspace.SetCurrentGlobalLbmBoundaryCondition(boundaryCondition);
@@ -1252,7 +1263,10 @@ namespace BusinessLayer
                                                               measurementSetup,
                                                               _usePotentialDifferences);
                 referencePattern ??= pattern;
-                frames.Add(pattern.ExtractRawMeasurement(electrodePotentials));
+                var raw = pattern.ExtractRawMeasurement(electrodePotentials);
+                frames.Add(applyVirtuals
+                    ? FilterVirtualMeasurementChannels(pattern, electrodeProjectionList, raw)
+                    : raw);
             }
 
             Workspace.SetMeasurementPattern(referencePattern);
@@ -1498,10 +1512,15 @@ namespace BusinessLayer
 
             FEMMesh deepCopy = (FEMMesh)mesh.DeepCopy();
             var electrodes = deepCopy.GetElectrodes().ToList();
-            int electrodeCount = electrodes.Count();
+            var virtualSettings = Workspace.GetReconstructionParameters().VirtualElectrodeSettings;
+            bool applyVirtuals = virtualSettings.ShouldApplyVirtualElectrodes();
+            var realElectrodes = electrodes.Where(e => !e.IsVirtual).ToList();
+            int electrodeCount = realElectrodes.Count;
 
             var strategy = DrivePatternStrategyProvider.GetStrategy(drivePattern);
-            int cycleLength = Math.Max(1, strategy.GetCycleLength(electrodeCount));
+            int cycleLength = electrodeCount > 0
+                ? Math.Max(1, strategy.GetCycleLength(electrodeCount))
+                : 1;
 
             MeasurementPattern? referencePattern = null;
 
@@ -1518,13 +1537,19 @@ namespace BusinessLayer
                 }
 
                 // Set new electrode setup
-                var (excitationIndex, groundIndex) = strategy.GetElectrodePair(electrodeCount, i);
-                electrodes[excitationIndex].IsExcitation = true;
-                electrodes[excitationIndex].IsMeasuring = false;
-                electrodes[excitationIndex].Current = excitationAmplitude;
-                electrodes[groundIndex].IsGround = true;
-                electrodes[groundIndex].IsMeasuring = false;
-                electrodes[groundIndex].Current = -excitationAmplitude;
+                if (electrodeCount > 0)
+                {
+                    var (excitationIndex, groundIndex) = strategy.GetElectrodePair(electrodeCount, i);
+                    var excitation = realElectrodes[excitationIndex];
+                    excitation.IsExcitation = true;
+                    excitation.IsMeasuring = false;
+                    excitation.Current = excitationAmplitude;
+
+                    var ground = realElectrodes[groundIndex];
+                    ground.IsGround = true;
+                    ground.IsMeasuring = false;
+                    ground.Current = -excitationAmplitude;
+                }
 
                 FEMMesh result = SolveFemForward(deepCopy);
 
@@ -1535,11 +1560,47 @@ namespace BusinessLayer
                                                               measurementSetup,
                                                               _usePotentialDifferences);
                 referencePattern ??= pattern;
-                measurements.Add(pattern.ExtractRawMeasurement(potentials));
+                var raw = pattern.ExtractRawMeasurement(potentials);
+                measurements.Add(applyVirtuals
+                    ? FilterVirtualMeasurementChannels(pattern, electrodeProjectionList, raw)
+                    : raw);
             }
 
             Workspace.SetMeasurementPattern(referencePattern);
             return measurements;
+        }
+
+        private static double[] FilterVirtualMeasurementChannels(MeasurementPattern pattern,
+                                                                  IList<Electrode> electrodes,
+                                                                  double[] raw)
+        {
+            if (pattern == null)
+                throw new ArgumentNullException(nameof(pattern));
+            if (electrodes == null)
+                throw new ArgumentNullException(nameof(electrodes));
+            if (raw == null)
+                throw new ArgumentNullException(nameof(raw));
+
+            var filtered = new List<double>(raw.Length);
+            var channels = pattern.Channels;
+            for (int idx = 0; idx < channels.Count; idx++)
+            {
+                var channel = channels[idx];
+                bool involvesVirtual = false;
+
+                if (channel.FirstElectrodeIndex >= 0 && channel.FirstElectrodeIndex < electrodes.Count)
+                    involvesVirtual |= electrodes[channel.FirstElectrodeIndex].IsVirtual;
+
+                if (channel.SecondElectrodeIndex >= 0 && channel.SecondElectrodeIndex < electrodes.Count)
+                    involvesVirtual |= electrodes[channel.SecondElectrodeIndex].IsVirtual;
+
+                if (involvesVirtual)
+                    continue;
+
+                filtered.Add(raw[idx]);
+            }
+
+            return filtered.ToArray();
         }
 
         #endregion
