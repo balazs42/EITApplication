@@ -2,7 +2,7 @@
 using System.Linq;
 using Utility.Classes.Discretizer.GraphMesh;
 using Utility.Classes.Factories;
-using Utility.Classes.VirtualElectrodes;
+using Utility.Classes.Reconstruction.VirtualElectrodes;
 
 namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
 {

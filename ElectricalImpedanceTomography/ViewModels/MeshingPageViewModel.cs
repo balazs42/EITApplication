@@ -9,9 +9,9 @@ using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Measurement;
-using Utility.Classes.VirtualElectrodes;
 
 using Workspace = Utility.Classes.Application.Workspace;
+using Utility.Classes.Reconstruction.VirtualElectrodes;
 
 namespace ElectricalImpedanceTomography.ViewModels
 {

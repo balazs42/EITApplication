@@ -2,7 +2,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Utility.Classes.Factories;
 using Utility.Classes.Measurement;
-using Utility.Classes.VirtualElectrodes;
+using Utility.Classes.Reconstruction.VirtualElectrodes;
 
 namespace Utility.Classes.ReconstructionParameters
 {

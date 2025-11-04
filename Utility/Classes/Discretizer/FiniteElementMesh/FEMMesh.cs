@@ -1,6 +1,6 @@
 ﻿using Utility.Classes.Factories;
 using System.Linq;
-using Utility.Classes.VirtualElectrodes;
+using Utility.Classes.Reconstruction.VirtualElectrodes;
 
 namespace Utility.Classes.Discretizer.FiniteElementMesh
 {

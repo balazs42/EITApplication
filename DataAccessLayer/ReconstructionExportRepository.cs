@@ -6,7 +6,7 @@ using System.Text.Json;
 using Utility.Classes;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Measurement;
-using Utility.Classes.VirtualElectrodes;
+using Utility.Classes.Reconstruction.VirtualElectrodes;
 using Utility.Exports;
 using Utility.Rendering;
 

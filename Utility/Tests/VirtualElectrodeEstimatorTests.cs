@@ -1,7 +1,6 @@
-using System;
-using System.Collections.Generic;
 using Utility.Classes.Discretizer;
-using Utility.Classes.VirtualElectrodes;
+using Utility.Classes.Reconstruction.VirtualElectrodes;
+using Utility.Classes.Reconstruction.VirtualElectrodes.Estimators;
 using Xunit;
 
 namespace Utility.Tests;

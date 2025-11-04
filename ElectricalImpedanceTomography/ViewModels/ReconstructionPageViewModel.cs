@@ -23,13 +23,13 @@ using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Factories;
 using Utility.Classes.Measurement;
 using Utility.Classes.ReconstructionParameters;
-using Utility.Classes.VirtualElectrodes;
 using Utility.Exports;
 using Utility.Rendering;
 
 using Workspace = Utility.Classes.Application.Workspace;
 using Timer = System.Timers.Timer;
 using ElectricalImpedanceTomography.Helpers;
+using Utility.Classes.Reconstruction.VirtualElectrodes;
 
 namespace ElectricalImpedanceTomography.ViewModels
 {

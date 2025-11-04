@@ -9,11 +9,11 @@ using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.ReconstructionParameters;
 using Utility.Classes.Factories;
-using Utility.Classes.VirtualElectrodes;
 using Utility.Logger;
 
 using Workspace = Utility.Classes.Application.Workspace;
 using Utility.Exports;
+using Utility.Classes.Reconstruction.VirtualElectrodes;
 
 namespace ServiceLayer
 {

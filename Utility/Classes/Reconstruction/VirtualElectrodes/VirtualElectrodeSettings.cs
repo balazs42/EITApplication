@@ -1,6 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace Utility.Classes.VirtualElectrodes
+namespace Utility.Classes.Reconstruction.VirtualElectrodes
 {
     public enum VirtualElectrodeMethod
     {

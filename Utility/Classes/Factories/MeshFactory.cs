@@ -1,8 +1,9 @@
-﻿using Utility.Classes.Discretizer;
-using MIConvexHull;
+﻿using MIConvexHull;
+using System.Xml.Linq;
+using Utility.Classes.Application;
+using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
-using Utility.Classes.Application;
 
 namespace Utility.Classes.Factories
 {
@@ -125,6 +126,9 @@ namespace Utility.Classes.Factories
                     int next = (i + 1) % boundaryFEMVertexCount;
                     if (TryCreateElement(center, firstRing[i], firstRing[next], eid, innerRadius, inhomogeneityValue, out var element))
                     {
+                        if (element is null)
+                            throw new NullReferenceException();
+
                         elements.Add(element);
                         eid = element.Id + 1;
                     }
@@ -142,12 +146,18 @@ namespace Utility.Classes.Factories
 
                     if (TryCreateElement(innerRing[i], outerRing[i], outerRing[next], eid, innerRadius, inhomogeneityValue, out var first))
                     {
+                        if (first is null)
+                            throw new NullReferenceException();
+
                         elements.Add(first);
                         eid = first.Id + 1;
                     }
 
                     if (TryCreateElement(innerRing[i], outerRing[next], innerRing[next], eid, innerRadius, inhomogeneityValue, out var second))
                     {
+                        if (second is null)
+                            throw new NullReferenceException();
+
                         elements.Add(second);
                         eid = second.Id + 1;
                     }
@@ -274,6 +284,9 @@ namespace Utility.Classes.Factories
 
                 if (TryCreateElement(a, b, c, eid, out var element))
                 {
+                    if (element is null)
+                        throw new NullReferenceException();
+
                     elements.Add(element);
                     eid = element.Id + 1;
                 }
@@ -368,6 +381,9 @@ namespace Utility.Classes.Factories
         {
             if (!TryCreateElement(a, b, c, elementId, out element))
                 return false;
+
+            if (element is null)
+                throw new NullReferenceException();
 
             ApplyLayeredConductivity(element, innerRadius, inhomogeneityValue);
             return true;

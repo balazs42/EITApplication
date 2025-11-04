@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Utility.Classes.VirtualElectrodes;
+using Utility.Classes.Reconstruction.VirtualElectrodes;
 
 namespace Utility.Exports;
 

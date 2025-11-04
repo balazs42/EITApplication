@@ -77,6 +77,9 @@ namespace Utility.Classes.Reconstruction.NumericOptimizers
                 return;
             }
 
+            if (_elementOrder == null)
+                throw new NullReferenceException();
+
             if (_inverseHessian == null || _inverseHessian.GetLength(0) != _elementOrder.Count)
             {
                 ResetInverseHessian();
