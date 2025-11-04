@@ -35,6 +35,9 @@ namespace Utility.Classes.VirtualElectrodes
                 VirtualElectrodeMethod.LinearCombination => new LinearCombinationVirtualElectrodeEstimator(),
                 VirtualElectrodeMethod.HarrachSensitivityInterpolation => new HarrachVirtualElectrodeEstimator(),
                 VirtualElectrodeMethod.NdMapSpectralInterpolation => new NdMapVirtualElectrodeEstimator(),
+                VirtualElectrodeMethod.MaximumLikelihoodFourier => new MaximumLikelihoodVirtualElectrodeEstimator(),
+                VirtualElectrodeMethod.BayesianFourier => new BayesianFourierVirtualElectrodeEstimator(),
+                VirtualElectrodeMethod.GaussianProcessRegression => new GaussianProcessVirtualElectrodeEstimator(),
                 _ => new PassthroughVirtualElectrodeEstimator(),
             };
         }
@@ -193,6 +196,266 @@ namespace Utility.Classes.VirtualElectrodes
             }
 
             return VirtualElectrodeHelpers.MergeVoltages(electrodes, values);
+        }
+    }
+
+    internal sealed class MaximumLikelihoodVirtualElectrodeEstimator : IVirtualElectrodeEstimator
+    {
+        public double[] CompleteElectrodePotentials(IReadOnlyList<Electrode> electrodes, double[] measuredVoltages, VirtualElectrodeSettings settings, ForwardModelContext? forwardContext = null)
+        {
+            try
+            {
+                var values = VirtualElectrodeHelpers.BuildMeasuredLookup(electrodes, measuredVoltages);
+                var (realOrder, angles) = VirtualElectrodeHelpers.PrepareOrdering(electrodes, forwardContext);
+                if (realOrder.Count == 0)
+                {
+                    var fallback = new GeometricVirtualElectrodeEstimator();
+                    return fallback.CompleteElectrodePotentials(electrodes, measuredVoltages, settings, forwardContext);
+                }
+
+                int n = realOrder.Count;
+                int kMax = Math.Max(1, settings.FourierOrder);
+                while (1 + 2 * kMax > n && kMax > 1)
+                    kMax--;
+
+                if (1 + 2 * kMax > n)
+                {
+                    var fallback = new GeometricVirtualElectrodeEstimator();
+                    return fallback.CompleteElectrodePotentials(electrodes, measuredVoltages, settings, forwardContext);
+                }
+
+                int parameterCount = 1 + 2 * kMax;
+                var phi = Matrix<double>.Build.Dense(n, parameterCount);
+                var y = Vector.Build.Dense(n);
+
+                for (int i = 0; i < n; i++)
+                {
+                    var (id, angle) = realOrder[i];
+                    double measurement = values.TryGetValue(id, out var mv) ? mv : 0.0;
+                    y[i] = measurement;
+                    phi[i, 0] = 1.0;
+                    for (int k = 1; k <= kMax; k++)
+                    {
+                        phi[i, k] = Math.Cos(k * angle);
+                        phi[i, kMax + k] = Math.Sin(k * angle);
+                    }
+                }
+
+                double lambda = Math.Max(settings.MlRegularization, 0.0);
+                var lhs = phi.TransposeThisAndMultiply(phi);
+                if (lambda > 0.0)
+                    lhs += Matrix<double>.Build.DenseIdentity(parameterCount) * lambda;
+                var rhs = phi.TransposeThisAndMultiply(y);
+                var thetaHat = lhs.Solve(rhs);
+
+                bool invalid = false;
+                foreach (var electrode in electrodes)
+                {
+                    double angle = angles[electrode.Id];
+                    double prediction = thetaHat[0];
+                    for (int k = 1; k <= kMax; k++)
+                    {
+                        prediction += thetaHat[k] * Math.Cos(k * angle) + thetaHat[kMax + k] * Math.Sin(k * angle);
+                    }
+
+                    if (double.IsNaN(prediction) || double.IsInfinity(prediction))
+                    {
+                        invalid = true;
+                        break;
+                    }
+
+                    if (electrode.IsVirtual || !values.ContainsKey(electrode.Id))
+                        values[electrode.Id] = prediction;
+                }
+
+                if (invalid)
+                {
+                    var fallback = new GeometricVirtualElectrodeEstimator();
+                    return fallback.CompleteElectrodePotentials(electrodes, measuredVoltages, settings, forwardContext);
+                }
+
+                return VirtualElectrodeHelpers.MergeVoltages(electrodes, values);
+            }
+            catch
+            {
+                var fallback = new GeometricVirtualElectrodeEstimator();
+                return fallback.CompleteElectrodePotentials(electrodes, measuredVoltages, settings, forwardContext);
+            }
+        }
+    }
+
+    internal sealed class BayesianFourierVirtualElectrodeEstimator : IVirtualElectrodeEstimator
+    {
+        public double[] CompleteElectrodePotentials(IReadOnlyList<Electrode> electrodes, double[] measuredVoltages, VirtualElectrodeSettings settings, ForwardModelContext? forwardContext = null)
+        {
+            try
+            {
+                var values = VirtualElectrodeHelpers.BuildMeasuredLookup(electrodes, measuredVoltages);
+                var (realOrder, angles) = VirtualElectrodeHelpers.PrepareOrdering(electrodes, forwardContext);
+                if (realOrder.Count == 0)
+                {
+                    var fallback = new GeometricVirtualElectrodeEstimator();
+                    return fallback.CompleteElectrodePotentials(electrodes, measuredVoltages, settings, forwardContext);
+                }
+
+                int n = realOrder.Count;
+                int kMax = Math.Max(1, settings.FourierOrder);
+                while (1 + 2 * kMax > n && kMax > 1)
+                    kMax--;
+
+                if (1 + 2 * kMax > n)
+                {
+                    var fallback = new GeometricVirtualElectrodeEstimator();
+                    return fallback.CompleteElectrodePotentials(electrodes, measuredVoltages, settings, forwardContext);
+                }
+
+                int parameterCount = 1 + 2 * kMax;
+                var phi = Matrix<double>.Build.Dense(n, parameterCount);
+                var y = Vector.Build.Dense(n);
+
+                for (int i = 0; i < n; i++)
+                {
+                    var (id, angle) = realOrder[i];
+                    double measurement = values.TryGetValue(id, out var mv) ? mv : 0.0;
+                    y[i] = measurement;
+                    phi[i, 0] = 1.0;
+                    for (int k = 1; k <= kMax; k++)
+                    {
+                        phi[i, k] = Math.Cos(k * angle);
+                        phi[i, kMax + k] = Math.Sin(k * angle);
+                    }
+                }
+
+                double sigma2 = Math.Max(settings.BayesNoiseVariance, 1e-12);
+                double tau2 = Math.Max(settings.BayesPriorVariance, 1e-12);
+
+                var phiTphi = phi.TransposeThisAndMultiply(phi);
+                var identity = Matrix<double>.Build.DenseIdentity(parameterCount);
+                var lhs = (1.0 / sigma2) * phiTphi + (1.0 / tau2) * identity;
+                var rhs = (1.0 / sigma2) * phi.TransposeThisAndMultiply(y);
+                var thetaHat = lhs.Solve(rhs);
+
+                bool invalid = false;
+                foreach (var electrode in electrodes)
+                {
+                    double angle = angles[electrode.Id];
+                    double prediction = thetaHat[0];
+                    for (int k = 1; k <= kMax; k++)
+                    {
+                        prediction += thetaHat[k] * Math.Cos(k * angle) + thetaHat[kMax + k] * Math.Sin(k * angle);
+                    }
+
+                    if (double.IsNaN(prediction) || double.IsInfinity(prediction))
+                    {
+                        invalid = true;
+                        break;
+                    }
+
+                    if (electrode.IsVirtual || !values.ContainsKey(electrode.Id))
+                        values[electrode.Id] = prediction;
+                }
+
+                if (invalid)
+                {
+                    var fallback = new GeometricVirtualElectrodeEstimator();
+                    return fallback.CompleteElectrodePotentials(electrodes, measuredVoltages, settings, forwardContext);
+                }
+
+                return VirtualElectrodeHelpers.MergeVoltages(electrodes, values);
+            }
+            catch
+            {
+                var fallback = new GeometricVirtualElectrodeEstimator();
+                return fallback.CompleteElectrodePotentials(electrodes, measuredVoltages, settings, forwardContext);
+            }
+        }
+    }
+
+    internal sealed class GaussianProcessVirtualElectrodeEstimator : IVirtualElectrodeEstimator
+    {
+        public double[] CompleteElectrodePotentials(IReadOnlyList<Electrode> electrodes, double[] measuredVoltages, VirtualElectrodeSettings settings, ForwardModelContext? forwardContext = null)
+        {
+            try
+            {
+                var values = VirtualElectrodeHelpers.BuildMeasuredLookup(electrodes, measuredVoltages);
+                var (realOrder, angles) = VirtualElectrodeHelpers.PrepareOrdering(electrodes, forwardContext);
+                if (realOrder.Count == 0)
+                {
+                    var fallback = new GeometricVirtualElectrodeEstimator();
+                    return fallback.CompleteElectrodePotentials(electrodes, measuredVoltages, settings, forwardContext);
+                }
+
+                int n = realOrder.Count;
+                var y = Vector.Build.Dense(n);
+                var realAngles = new double[n];
+
+                for (int i = 0; i < n; i++)
+                {
+                    var (id, angle) = realOrder[i];
+                    realAngles[i] = angle;
+                    y[i] = values.TryGetValue(id, out var mv) ? mv : 0.0;
+                }
+
+                double sigmaF2 = Math.Max(settings.GpSignalVariance, 1e-12);
+                double lengthScale = Math.Max(settings.GpLengthScale, 1e-6);
+                double sigmaN2 = Math.Max(settings.GpNoiseVariance, 1e-12);
+
+                var kernel = Matrix<double>.Build.Dense(n, n);
+                for (int i = 0; i < n; i++)
+                {
+                    for (int j = 0; j < n; j++)
+                    {
+                        double diff = Math.Abs(realAngles[i] - realAngles[j]);
+                        double distance = Math.Min(diff, 2.0 * Math.PI - diff);
+                        double ratio = distance / lengthScale;
+                        double value = sigmaF2 * Math.Exp(-0.5 * ratio * ratio);
+                        if (i == j)
+                            value += sigmaN2;
+                        kernel[i, j] = value;
+                    }
+                }
+
+                var alpha = kernel.Solve(y);
+
+                bool invalid = false;
+                foreach (var electrode in electrodes)
+                {
+                    if (!electrode.IsVirtual && values.ContainsKey(electrode.Id))
+                        continue;
+
+                    double angle = angles[electrode.Id];
+                    var kStar = Vector.Build.Dense(n);
+                    for (int i = 0; i < n; i++)
+                    {
+                        double diff = Math.Abs(angle - realAngles[i]);
+                        double distance = Math.Min(diff, 2.0 * Math.PI - diff);
+                        double ratio = distance / lengthScale;
+                        kStar[i] = sigmaF2 * Math.Exp(-0.5 * ratio * ratio);
+                    }
+
+                    double prediction = kStar.DotProduct(alpha);
+                    if (double.IsNaN(prediction) || double.IsInfinity(prediction))
+                    {
+                        invalid = true;
+                        break;
+                    }
+
+                    values[electrode.Id] = prediction;
+                }
+
+                if (invalid)
+                {
+                    var fallback = new GeometricVirtualElectrodeEstimator();
+                    return fallback.CompleteElectrodePotentials(electrodes, measuredVoltages, settings, forwardContext);
+                }
+
+                return VirtualElectrodeHelpers.MergeVoltages(electrodes, values);
+            }
+            catch
+            {
+                var fallback = new GeometricVirtualElectrodeEstimator();
+                return fallback.CompleteElectrodePotentials(electrodes, measuredVoltages, settings, forwardContext);
+            }
         }
     }
 
