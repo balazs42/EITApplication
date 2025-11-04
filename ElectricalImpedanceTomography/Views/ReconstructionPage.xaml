@@ -185,7 +185,7 @@
                         <Border Grid.Column="1"
                                 Style="{StaticResource PanelSectionBorderStyle}"
                                 BackgroundColor="{AppThemeBinding Light=#25324A, Dark=#25324A}">
-                            <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
+                            <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
                                 <Label Grid.Row="0" Text="Parameters" FontSize="Medium" FontAttributes="Bold" Margin="0,0,0,12"/>
                                 <Label Grid.Row="3" HorizontalOptions="Start" Text="Max Iteration Count" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Entry Grid.Row="4" Text="{Binding MaxIterationCount}"/>
@@ -226,7 +226,8 @@
                                 <Picker Grid.Row="16"
                                         ItemsSource="{Binding VirtualElectrodeMethods}"
                                         SelectedItem="{Binding VirtualElectrodeSettings.Method}"
-                                        IsVisible="{Binding VirtualElectrodeSettings.UseVirtualElectrodes}"/>
+                                        IsVisible="{Binding VirtualElectrodeSettings.UseVirtualElectrodes}"
+                                        MaximumWidthRequest="150"/>
 
                                 <Grid Grid.Row="17" ColumnDefinitions="Auto,*" ColumnSpacing="8"
                                       IsVisible="{Binding IsLinearCombinationMethod}">
@@ -239,7 +240,7 @@
                                            HorizontalTextAlignment="End"/>
                                 </Grid>
 
-                                <Grid Grid.Row="18" ColumnDefinitions="Auto,*" ColumnSpacing="8"
+                                <Grid Grid.Row="17" ColumnDefinitions="Auto,*" ColumnSpacing="8"
                                       IsVisible="{Binding IsHarrachMethod}">
                                     <Label Text="Harrach λ"
                                            VerticalOptions="Center"
@@ -250,7 +251,7 @@
                                            HorizontalTextAlignment="End"/>
                                 </Grid>
 
-                                <Grid Grid.Row="19" ColumnDefinitions="Auto,*" ColumnSpacing="8"
+                                <Grid Grid.Row="17" ColumnDefinitions="Auto,*" ColumnSpacing="8"
                                       IsVisible="{Binding IsNdMethod}">
                                     <Label Text="ND Max Mode"
                                            VerticalOptions="Center"

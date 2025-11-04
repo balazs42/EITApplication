@@ -4,6 +4,8 @@ using MathNet.Numerics.LinearAlgebra;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 
+using Vector = MathNet.Numerics.LinearAlgebra.Vector<double>;
+
 namespace Utility.Classes.VirtualElectrodes
 {
     public interface IVirtualElectrodeEstimator
@@ -221,12 +223,12 @@ namespace Utility.Classes.VirtualElectrodes
                 ? matrix.SubMatrix(realCount, matrix.RowCount - realCount, 0, matrix.ColumnCount)
                 : Matrix<double>.Build.Dense(0, matrix.ColumnCount);
 
-            var rhs = Vector<double>.Build.DenseOfArray(measuredVoltages);
+            var rhs = MathNet.Numerics.LinearAlgebra.Vector<double>.Build.DenseOfArray(measuredVoltages);
             var lhs = realBlock.TransposeThisAndMultiply(realBlock);
             lhs += Matrix<double>.Build.DenseIdentity(lhs.RowCount) * Math.Max(settings.HarrachLambda, 1e-8);
             var solution = lhs.Solve(realBlock.TransposeThisAndMultiply(rhs));
 
-            var predictedVirtual = virtBlock.RowCount > 0 ? virtBlock * solution : Vector<double>.Build.Dense(0);
+            var predictedVirtual = virtBlock.RowCount > 0 ? virtBlock * solution : MathNet.Numerics.LinearAlgebra.Vector<double>.Build.Dense(0);
             var values = VirtualElectrodeHelpers.BuildMeasuredLookup(electrodes, measuredVoltages);
 
             int index = 0;
