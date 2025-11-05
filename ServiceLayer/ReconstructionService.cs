@@ -13,7 +13,6 @@ using Utility.Logger;
 
 using Workspace = Utility.Classes.Application.Workspace;
 using Utility.Exports;
-using Utility.Classes.Reconstruction.VirtualElectrodes;
 
 namespace ServiceLayer
 {
@@ -32,6 +31,7 @@ namespace ServiceLayer
     public class ReconstructionService : IReconstructionService
     {
         private readonly IReconstructionPersistence _reconstructionPersistence;
+        private readonly IMeasurementService _measurementService;
         private readonly ILogger _logger;
 
         // Background reconstruction state
@@ -44,28 +44,14 @@ namespace ServiceLayer
         private double _stepSize;                                           // Optimizer step size for inverse steps
         private double _regularizationWeight;                               // Regularization weight sent to the persistence layer
         private double _excitationAmplitude;                                // Current amplitude applied to the excitation electrode
-        private List<double[]> _simulatedMeasurements = [];                 // Synthetic/real measurement frames for a cycle
         private int _simMeasurementIndex;                                   // Index of the current frame within a cycle
         private List<ReconstructionFrame> _currentCycleFrames = [];         // Frames accumulated within the active cycle
         private ConductivityDistribution? _originalSigma;                   // Ground-truth conductivities (for comparison)
         private ConductivityDistribution? _initialSigma;                    // Starting conductivities for the current iteration/cycle
-        private int _framesPerCycle;                                        // Number of frames in one drive-pattern cycle
-        private MeasurementNoiseType _measurementNoiseType = MeasurementNoiseType.None; // Noise model used for simulated/loaded frames
-        private double _measurementNoiseAmplitude;                          // Noise amplitude (linear or in dB if negative)
         private DrivePattern _drivePattern = DrivePattern.Adjecent;         // Selected electrode drive pattern
         private IDrivePatternStrategy _drivePatternStrategy = DrivePatternStrategyProvider.GetStrategy(DrivePattern.Adjecent); // Drive pattern strategy implementation
-        private readonly Random _noiseRandom = new();                       // PRNG for noise injection
         private bool _useOmpParallelization;                                // Exposed from parameters to persistence (not used directly here)
-        private MeasurementSourceOption _measurementSource = MeasurementSourceOption.Simulated; // Source of frames (real or simulated)
-        private double? _realMeasurementAmplitude;                          // Optional amplitude carried with imported measurements
-
-        // Tracks whether the currently loaded measurements include voltages on the driven electrodes
-        // ("active") or omit them ("non-active").  This flag is mirrored to the workspace so that
-        // the UI can communicate the acquisition mode to the user.
-        private ElectrodeMeasurementSetup _measurementSetup = ElectrodeMeasurementSetup.Active;
         private bool _usePotentialDifferences;
-        private MeasurementPattern? _measurementPattern;
-        private ReconstructionProcessContext? _processContext;
 
         /// <summary>
         /// Raised when a full reconstruction result is available (i.e., at the end of a cycle or batch).
@@ -81,9 +67,12 @@ namespace ServiceLayer
         /// </summary>
         /// <param name="reconstructionPersistence">Persistence layer that executes forward/inverse computations.</param>
         /// <param name="logger">Logger used for diagnostics.</param>
-        public ReconstructionService(IReconstructionPersistence reconstructionPersistence, ILogger logger)
+        public ReconstructionService(IReconstructionPersistence reconstructionPersistence,
+                                     IMeasurementService measurementService,
+                                     ILogger logger)
         {
             _reconstructionPersistence = reconstructionPersistence;
+            _measurementService = measurementService;
             _logger = logger;
         }
 
@@ -120,7 +109,6 @@ namespace ServiceLayer
                 _discretization = discretization;
 
                 // Reset per-run buffers/counters.
-                _simulatedMeasurements.Clear();
                 _simMeasurementIndex = 0;
                 _currentCycleFrames.Clear();
 
@@ -144,44 +132,27 @@ namespace ServiceLayer
                 _reconstructionPersistence.SetConductivityDistributions(_originalSigma, _initialSigma);
                 _reconstructionPersistence.InitializeReconstruction(discretization, parameters, reinit);
 
-                // Default to active measurement setup (frames include driven electrodes), unless we learn otherwise later.
-                _measurementSetup = ElectrodeMeasurementSetup.Active;
-                Workspace.SetElectrodeMeasurementSetup(ElectrodeMeasurementSetup.Active);
-                _measurementPattern = null;
-                Workspace.SetMeasurementPattern(null);
-
                 // Configure drive pattern and potential parallelization flag (consumed in persistence layer).
                 _drivePattern = parameters.DrivePattern;
                 _drivePatternStrategy = DrivePatternStrategyProvider.GetStrategy(_drivePattern);
                 _useOmpParallelization = parameters.UseOmpParallelization;
-
-                // Determine frames per cycle based on electrode count and pattern.
-                var electrodes = discretization.GetElectrodes();
-                int driveElectrodeCount = GetDriveElectrodeCount(electrodes);
-                _framesPerCycle = driveElectrodeCount > 0
-                    ? Math.Max(1, _drivePatternStrategy.GetCycleLength(driveElectrodeCount))
-                    : 1;
-
-                // Store noise settings for subsequent simulations/import handling.
-                _measurementNoiseType = parameters.MeasurementNoiseType;
-                _measurementNoiseAmplitude = parameters.MeasurementNoiseAmplitude;
                 _usePotentialDifferences = parameters.UsePotentialDifferences;
 
-                if (_measurementNoiseType == MeasurementNoiseType.None || Math.Abs(_measurementNoiseAmplitude) <= double.Epsilon)
+                if (parameters.MeasurementNoiseType == MeasurementNoiseType.None || Math.Abs(parameters.MeasurementNoiseAmplitude) <= double.Epsilon)
                     Workspace.AddLogMessage("Reconstruction Service", "Measurement noise disabled.");
                 else
                 {
                     // Negative amplitudes are interpreted as dB; convert to linear for logging clarity.
-                    double linearAmplitude = _measurementNoiseAmplitude < 0.0
-                        ? Math.Pow(10.0, _measurementNoiseAmplitude / 20.0)
-                        : Math.Abs(_measurementNoiseAmplitude);
+                    double linearAmplitude = parameters.MeasurementNoiseAmplitude < 0.0
+                        ? Math.Pow(10.0, parameters.MeasurementNoiseAmplitude / 20.0)
+                        : Math.Abs(parameters.MeasurementNoiseAmplitude);
 
-                    string amplitudeDescriptor = _measurementNoiseAmplitude < 0.0
-                        ? string.Format("{0:G4} dB -> {1:G4}", _measurementNoiseAmplitude, linearAmplitude)
+                    string amplitudeDescriptor = parameters.MeasurementNoiseAmplitude < 0.0
+                        ? string.Format("{0:G4} dB -> {1:G4}", parameters.MeasurementNoiseAmplitude, linearAmplitude)
                         : linearAmplitude.ToString("G4");
 
                     Workspace.AddLogMessage("Reconstruction Service",
-                        $"Measurement noise enabled: {_measurementNoiseType} (amplitude {amplitudeDescriptor}).");
+                        $"Measurement noise enabled: {parameters.MeasurementNoiseType} (amplitude {amplitudeDescriptor}).");
                 }
 
                 Workspace.AddLogMessage("Reconstruction Service",
@@ -189,10 +160,11 @@ namespace ServiceLayer
                         ? "Using electrode potential differences for reconstruction misfit evaluation."
                         : "Using direct electrode potentials for reconstruction misfit evaluation.");
 
-                // Seed measurement source state; we may swap to real measurements later.
-                _measurementSource = Workspace.GetMeasurementSource();
-                _realMeasurementAmplitude = null;
-                _processContext = ReconstructionProcessContext.Create(parameters, _reconstructionPersistence);
+                // Initialise the dedicated measurement service so measurement generation is handled centrally.
+                _measurementService.Initialize(discretization,
+                                               parameters,
+                                               _drivePattern,
+                                               () => _reconstructionPersistence.GetDifferentialEquationSolver());
             }
             catch(Exception ex)
             {
@@ -282,350 +254,6 @@ namespace ServiceLayer
         }
 
         /// <summary>
-        /// Synchronizes the local measurement-source mode with the workspace setting. If the source changes,
-        /// cached frames are discarded so they can be regenerated from the appropriate origin.
-        /// </summary>
-        private void SyncMeasurementSource()
-        {
-            var desired = Workspace.GetMeasurementSource();
-            if (desired == _measurementSource)
-                return;
-
-            _measurementSource = desired;
-            _simulatedMeasurements.Clear();
-            _simMeasurementIndex = 0;
-            _realMeasurementAmplitude = null;
-            _measurementSetup = ElectrodeMeasurementSetup.Active;
-            Workspace.SetElectrodeMeasurementSetup(ElectrodeMeasurementSetup.Active);
-            _measurementPattern = null;
-            Workspace.SetMeasurementPattern(null);
-        }
-
-        /// <summary>
-        /// Ensures that <see cref="_simulatedMeasurements"/> contains frames for the active discretization.
-        /// If real measurements are selected and available, those are adopted; otherwise frames are simulated
-        /// on the original discretization (kept immutable) and optional noise is applied.
-        /// </summary>
-        private void EnsureSimulatedMeasurements()
-        {
-            if (_simulatedMeasurements.Count > 0)
-                return; // Already populated
-
-            int electrodeCount = _discretization switch
-            {
-                FEMMesh fem => GetDriveElectrodeCount(fem.GetElectrodes().Cast<Electrode>()),
-                LBMGrid lbm => GetDriveElectrodeCount(lbm.GetElectrodes().Cast<Electrode>()),
-                _ => 0
-            };
-
-            // Prefer real measurements if requested and available via the workspace.
-            if (_measurementSource == MeasurementSourceOption.Real)
-            {
-                var measurement = Workspace.GetImportedMeasurement();
-                if (measurement != null && measurement.Frames.Count > 0)
-                {
-                    // Deep clone to avoid accidental modification of the imported buffers.
-                    _simulatedMeasurements = measurement.Frames.Select(frame => (double[])frame.Clone()).ToList();
-                    _realMeasurementAmplitude = measurement.CurrentAmplitude;
-
-                    AdoptMeasurementMetadata(measurement.Pattern, _simulatedMeasurements, electrodeCount);
-                    return;
-                }
-
-                Workspace.AddWarningMessage("Real measurement data was requested but is not available. Falling back to simulated measurements.");
-                _measurementSource = MeasurementSourceOption.Simulated;
-                _realMeasurementAmplitude = null;
-            }
-
-            var original = Workspace.GetOriginalDiscretization()
-                           ?? throw new NullReferenceException("Original mesh not set.");
-
-            var context = _processContext ?? throw new InvalidOperationException("Reconstruction process is not initialized.");
-            if (context.SimulateMeasurements == null)
-                throw new InvalidOperationException($"Measurement simulation is not available for {context.Solver} reconstructions.");
-
-            var batch = context.SimulateMeasurements(original, _excitationAmplitude, _drivePattern);
-
-            _simulatedMeasurements = CloneMeasurementsWithNoise(batch.Frames, _measurementNoiseType, _measurementNoiseAmplitude);
-            _realMeasurementAmplitude = null;
-
-            AdoptMeasurementMetadata(batch.Pattern, _simulatedMeasurements, electrodeCount, batch.MeasurementSetup);
-        }
-
-        /// <summary>
-        /// Creates deep copies of the provided frames and applies the requested noise model.
-        /// </summary>
-        private List<double[]> CloneMeasurementsWithNoise(IEnumerable<double[]> measurements,
-            MeasurementNoiseType noiseType,
-            double noiseAmplitude)
-        {
-            var clones = measurements.Select(frame => (double[])frame.Clone()).ToList();
-            ApplyMeasurementNoise(clones, noiseType, noiseAmplitude);
-            return clones;
-        }
-
-        /// <summary>
-        /// Applies in-place additive noise to the given frames. If amplitude is negative, it is interpreted
-        /// as a value in decibels and converted to a linear scale before sampling.
-        /// </summary>
-        private void ApplyMeasurementNoise(List<double[]> measurements, MeasurementNoiseType noiseType, double noiseAmplitude)
-        {
-            if (measurements.Count == 0 || noiseType == MeasurementNoiseType.None)
-                return;
-
-            bool amplitudeInDecibels = noiseAmplitude < 0.0;
-            double amplitude = amplitudeInDecibels
-                ? Math.Pow(10.0, noiseAmplitude / 20.0)
-                : Math.Abs(noiseAmplitude);
-            if (amplitude <= double.Epsilon)
-                return; // Effectively disabled
-
-            foreach (var frame in measurements)
-            {
-                for (int i = 0; i < frame.Length; i++)
-                {
-                    // Draw noise from the requested distribution and add to the sample.
-                    double noise = noiseType switch
-                    {
-                        MeasurementNoiseType.Gaussian => NextGaussian(0.0, amplitude),
-                        MeasurementNoiseType.Uniform => (_noiseRandom.NextDouble() * 2.0 - 1.0) * amplitude,
-                        _ => 0.0
-                    };
-
-                    frame[i] += noise;
-                }
-            }
-        }
-
-        /// <summary>
-        /// Inspects frame dimensions to infer whether the samples include driven electrodes (active) or
-        /// exclude them (non-active). This is mirrored to the workspace for UI and solver decisions.
-        /// </summary>
-        private void UpdateMeasurementOptionsFromFrames(int electrodeCount, IReadOnlyList<double[]> frames)
-        {
-            // Guard clauses: fall back to the default "active" interpretation when
-            // insufficient context is available.
-            if (electrodeCount <= 0 || frames == null || frames.Count == 0)
-            {
-                _measurementSetup = ElectrodeMeasurementSetup.Active;
-                Workspace.SetElectrodeMeasurementSetup(_measurementSetup);
-                return;
-            }
-
-            int frameLength = frames[0].Length;
-            long totalMeasurements = (long)frameLength * frames.Count;
-            long expectedActiveTotal = (long)electrodeCount * electrodeCount;
-            long expectedNonActiveTotal = (long)electrodeCount * Math.Max(0, electrodeCount - 3);
-            int nonActiveAmplitudeLength = Math.Max(0, electrodeCount - 2);
-            int nonActiveDifferenceLength = Math.Max(0, electrodeCount - 3);
-
-            bool looksActive = frameLength == electrodeCount || totalMeasurements == expectedActiveTotal;
-            bool looksNonActive = !looksActive && (frameLength == nonActiveAmplitudeLength || totalMeasurements == expectedNonActiveTotal);
-
-            _measurementSetup = looksActive ? ElectrodeMeasurementSetup.Active : ElectrodeMeasurementSetup.NonActive;
-
-            if (!looksActive && !looksNonActive)
-            {
-                Workspace.AddWarningMessage($"Ambiguous measurement frame dimensions (frame length {frameLength}, frame count {frames.Count}, electrodes {electrodeCount}). Assuming {_measurementSetup} electrodes.");
-            }
-
-            Workspace.SetElectrodeMeasurementSetup(_measurementSetup);
-
-            bool inferredDifferences = InferPotentialDifferenceMode(electrodeCount, frames);
-            ApplyUsePotentialDifferenceSetting(inferredDifferences,
-                inferredDifferences
-                    ? "Detected potential-difference measurements from frame statistics."
-                    : "Detected amplitude measurements from frame statistics.");
-        }
-
-        private bool InferPotentialDifferenceMode(int electrodeCount, IReadOnlyList<double[]> frames)
-        {
-            if (frames == null || frames.Count == 0)
-                return _usePotentialDifferences;
-
-            int frameLength = frames[0].Length;
-            int nonActiveAmplitudeLength = Math.Max(0, electrodeCount - 2);
-            int nonActiveDifferenceLength = Math.Max(0, electrodeCount - 3);
-
-            if (_measurementSetup == ElectrodeMeasurementSetup.NonActive)
-            {
-                if (frameLength == nonActiveDifferenceLength)
-                    return true;
-                if (frameLength == nonActiveAmplitudeLength)
-                    return false;
-            }
-            else if (frameLength == nonActiveDifferenceLength)
-            {
-                // Degenerate case where frames mimic the non-active difference size even though
-                // the instrumentation was configured as "active". Treat as difference data.
-                return true;
-            }
-
-            if (frameLength != electrodeCount)
-                return _usePotentialDifferences;
-
-            int framesToInspect = Math.Min(frames.Count, 5);
-            int zeroLikeFrames = 0;
-            int finiteFrames = 0;
-
-            for (int i = 0; i < framesToInspect; i++)
-            {
-                var frame = frames[i];
-                double sum = 0.0;
-                double maxAbs = 0.0;
-                int finiteCount = 0;
-
-                foreach (var sample in frame)
-                {
-                    if (!double.IsFinite(sample))
-                        continue;
-
-                    sum += sample;
-                    finiteCount++;
-                    double abs = Math.Abs(sample);
-                    if (abs > maxAbs)
-                        maxAbs = abs;
-                }
-
-                if (finiteCount == 0)
-                    continue;
-
-                finiteFrames++;
-                double tolerance = Math.Max(1e-6, maxAbs * 1e-3);
-                if (Math.Abs(sum) <= tolerance)
-                    zeroLikeFrames++;
-            }
-
-            return finiteFrames > 0 && zeroLikeFrames == finiteFrames;
-        }
-
-        private void ApplyUsePotentialDifferenceSetting(bool enabled, string reason)
-        {
-            if (_usePotentialDifferences == enabled)
-                return;
-
-            _usePotentialDifferences = enabled;
-
-            var parameters = Workspace.GetReconstructionParameters();
-            if (parameters.UsePotentialDifferences != enabled)
-                parameters.UsePotentialDifferences = enabled;
-
-            Workspace.AddLogMessage("Reconstruction Service", reason);
-            _measurementPattern = null;
-            Workspace.SetMeasurementPattern(null);
-        }
-
-        private void AdoptMeasurementMetadata(MeasurementPattern? pattern,
-                                              IReadOnlyList<double[]> frames,
-                                              int electrodeCount,
-                                              ElectrodeMeasurementSetup? enforcedSetup = null)
-        {
-            if (pattern != null)
-            {
-                if (_measurementSetup != pattern.MeasurementSetup)
-                {
-                    _measurementSetup = pattern.MeasurementSetup;
-                    Workspace.SetElectrodeMeasurementSetup(_measurementSetup);
-                }
-
-                bool useDifferences = pattern.Representation == MeasurementRepresentation.PotentialDifference;
-                ApplyUsePotentialDifferenceSetting(useDifferences,
-                    useDifferences
-                        ? "Adopting potential-difference mode from provided measurement pattern."
-                        : "Adopting amplitude mode from provided measurement pattern.");
-
-                _measurementPattern = pattern;
-                Workspace.SetMeasurementPattern(pattern);
-                return;
-            }
-
-            if (enforcedSetup.HasValue && _measurementSetup != enforcedSetup.Value)
-            {
-                _measurementSetup = enforcedSetup.Value;
-                Workspace.SetElectrodeMeasurementSetup(_measurementSetup);
-            }
-
-            UpdateMeasurementOptionsFromFrames(electrodeCount, frames);
-        }
-
-        /// <summary>
-        /// Maps a provided measurement frame to the solver's expected per-electrode order. If the input excludes
-        /// driven electrodes (non-active mode), NaN placeholders are injected for those positions so that solver
-        /// residuals can ignore them. Excess values are truncated with a warning.
-        /// </summary>
-        private double[] PrepareMeasurementFrame(double[] measurement, IReadOnlyList<Electrode> electrodes)
-        {
-            if (measurement == null)
-                throw new ArgumentNullException(nameof(measurement));
-            if (electrodes == null)
-                throw new ArgumentNullException(nameof(electrodes));
-
-            if (electrodes.Count == 0)
-                return measurement;
-
-            var virtualSettings = Workspace.GetReconstructionParameters().VirtualElectrodeSettings;
-            if (virtualSettings.ShouldApplyVirtualElectrodes())
-            {
-                var estimator = VirtualElectrodeEstimatorFactory.Create(virtualSettings);
-                var context = BuildForwardContext(electrodes);
-                measurement = estimator.CompleteElectrodePotentials(electrodes, measurement, virtualSettings, context);
-            }
-
-            // Build the measurement pattern for the current electrode roles so
-            // that the sanitiser knows which entries to retain (Options 1 & 4)
-            // or which potential differences to form (Options 2 & 3).
-            var electrodeProjection = electrodes.ToList();
-            var pattern = MeasurementPatternBuilder.Build(electrodeProjection,
-                                                          Workspace.GetElectrodeMeasurementSetup(),
-                                                          _usePotentialDifferences);
-            _measurementPattern = pattern;
-            Workspace.SetMeasurementPattern(pattern);
-
-            // MapMeasurement() injects NaNs for channels that should not
-            // contribute to the residual (e.g. driven electrodes in non-active
-            // modes) so downstream metrics can ignore them naturally.
-            return pattern.MapMeasurement(measurement);
-        }
-
-        private ForwardModelContext BuildForwardContext(IReadOnlyList<Electrode> electrodes)
-        {
-            if (_discretization is FEMMesh fem)
-            {
-                return new ForwardModelContext
-                {
-                    ElectrodeAngles = fem.GetElectrodeAngles(),
-                    RealElectrodeCount = electrodes.Count(e => !e.IsVirtual)
-                };
-            }
-
-            if (_discretization is LBMGrid lbm)
-            {
-                return new ForwardModelContext
-                {
-                    ElectrodeAngles = lbm.GetElectrodeAngles(),
-                    RealElectrodeCount = electrodes.Count(e => !e.IsVirtual)
-                };
-            }
-
-            return new ForwardModelContext
-            {
-                RealElectrodeCount = electrodes.Count(e => !e.IsVirtual)
-            };
-        }
-
-        /// <summary>
-        /// Samples a normally distributed random value with the provided mean and standard deviation.
-        /// </summary>
-        private double NextGaussian(double mean, double stdDev)
-        {
-            // Box–Muller transform
-            double u1 = 1.0 - _noiseRandom.NextDouble();
-            double u2 = 1.0 - _noiseRandom.NextDouble();
-            double randStdNormal = Math.Sqrt(-2.0 * Math.Log(u1)) * Math.Sin(2.0 * Math.PI * u2);
-            return mean + stdDev * randStdNormal;
-        }
-
-        /// <summary>
         /// Performs one inverse step against the active discretization by:
         /// - Ensuring measurement frames are available
         /// - Applying the drive-pattern step to electrodes and building the boundary condition
@@ -636,11 +264,11 @@ namespace ServiceLayer
         private ReconstructionFrame? PerformInverseStep()
         {
             // Ensure measurement source (simulated/real) matches the workspace selection.
-            SyncMeasurementSource();
+            _measurementService.SyncMeasurementSource();
 
             if (_discretization is FEMMesh femMesh)
             {
-                EnsureSimulatedMeasurements();
+                _measurementService.EnsureMeasurements(_excitationAmplitude);
 
                 // Select the measurement frame corresponding to the current
                 // excitation pair.  Electrode roles must be reconfigured for
@@ -650,15 +278,15 @@ namespace ServiceLayer
                 int driveElectrodeCount = GetDriveElectrodeCount(electrodes.Cast<Electrode>());
                 int cycleLength = Math.Max(1, _drivePatternStrategy.GetCycleLength(driveElectrodeCount));
                 int stepIndex = _simMeasurementIndex % cycleLength;
-                var measurement = _simulatedMeasurements[stepIndex];
+                var measurement = _measurementService.GetMeasurementForStep(stepIndex);
 
                 // Recompute electrode roles for this step and build BC.
-                double effectiveAmplitude = _realMeasurementAmplitude ?? _excitationAmplitude;
+                double effectiveAmplitude = _measurementService.RealMeasurementAmplitude ?? _excitationAmplitude;
                 ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, stepIndex);
 
                 var bc = new FEMBoundaryCondition(electrodes);
                 // Expand the raw measurement vector to match the solver ordering (injecting NaNs for excluded electrodes).
-                var preparedMeasurement = PrepareMeasurementFrame(measurement, electrodes.Cast<Electrode>().ToList());
+                var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodes.Cast<Electrode>().ToList());
 
                 // Delegate one optimization step to the persistence layer.
                 var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, _stepSize, _regularizationWeight);
@@ -670,7 +298,7 @@ namespace ServiceLayer
                 ReconstructionFrameUpdated?.Invoke(this, frame);
 
                 // When the drive-pattern cycle ends, publish a reconstruction result and advance the iteration.
-                if (_simMeasurementIndex % _framesPerCycle == 0)
+                if (_simMeasurementIndex % Math.Max(1, _measurementService.FramesPerCycle) == 0)
                 {
                     var result = new ReconstructionResult(_discretization!.GetDiscretization(),
                                                           _originalSigma!,
@@ -692,19 +320,19 @@ namespace ServiceLayer
             }
             else if (_discretization is LBMGrid lbmGrid)
             {
-                EnsureSimulatedMeasurements();
+                _measurementService.EnsureMeasurements(_excitationAmplitude);
 
                 // Determine the current drive-pattern step and attach the boundary condition.
                 var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
                 int driveElectrodeCount = GetDriveElectrodeCount(electrodes.Cast<Electrode>());
                 int cycleLength = Math.Max(1, _drivePatternStrategy.GetCycleLength(driveElectrodeCount));
                 int stepIndex = _simMeasurementIndex % cycleLength;
-                double effectiveAmplitude = _realMeasurementAmplitude ?? _excitationAmplitude;
+                double effectiveAmplitude = _measurementService.RealMeasurementAmplitude ?? _excitationAmplitude;
                 ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, stepIndex);
 
                 var bc = new LBMBoundaryCondition(electrodes);
-                double[] measurement = _simulatedMeasurements[stepIndex];
-                var preparedMeasurement = PrepareMeasurementFrame(measurement, electrodes.Cast<Electrode>().ToList());
+                double[] measurement = _measurementService.GetMeasurementForStep(stepIndex);
+                var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodes.Cast<Electrode>().ToList());
                 var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, _stepSize, _regularizationWeight);
 
                 _simMeasurementIndex++;
@@ -712,7 +340,7 @@ namespace ServiceLayer
                 _currentCycleFrames.Add(frame);
                 ReconstructionFrameUpdated?.Invoke(this, frame);
 
-                if (_simMeasurementIndex % _framesPerCycle == 0)
+                if (_simMeasurementIndex % Math.Max(1, _measurementService.FramesPerCycle) == 0)
                 {
                     var result = new ReconstructionResult(_discretization!.GetDiscretization(),
                                                           _originalSigma!,
@@ -817,24 +445,25 @@ namespace ServiceLayer
             return await Task.Run(() =>
             {
                 // Ensure we are using the correct frame source (real/simulated) and that frames are present.
-                SyncMeasurementSource();
+                _measurementService.SyncMeasurementSource();
 
                 if (_discretization is FEMMesh femMesh)
                 {
-                    EnsureSimulatedMeasurements();
+                    _measurementService.EnsureMeasurements(_excitationAmplitude);
 
                     var electrodes = femMesh.GetElectrodes().Cast<FEMElectrode>().ToList();
                     int electrodeCount = electrodes.Count;
 
-                    for (int i = 0; i < _simulatedMeasurements.Count; i++)
+                    var measurements = _measurementService.GetAllMeasurements();
+                    for (int i = 0; i < measurements.Count; i++)
                     {
-                        double effectiveAmplitude = _realMeasurementAmplitude ?? _excitationAmplitude;
+                        double effectiveAmplitude = _measurementService.RealMeasurementAmplitude ?? _excitationAmplitude;
                         ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, i);
 
                         var bc = new FEMBoundaryCondition(electrodes);
-                        var measurement = _simulatedMeasurements[i];
+                        var measurement = measurements[i];
                         // Convert the measurement snapshot to the solver layout for the current electrode roles.
-                        var preparedMeasurement = PrepareMeasurementFrame(measurement, electrodes.Cast<Electrode>().ToList());
+                        var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodes.Cast<Electrode>().ToList());
 
                         var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, _stepSize, _regularizationWeight);
 
@@ -878,17 +507,18 @@ namespace ServiceLayer
                 }
                 else if (_discretization is LBMGrid lbmGrid)
                 {
-                    EnsureSimulatedMeasurements();
+                    _measurementService.EnsureMeasurements(_excitationAmplitude);
 
-                    for (int i = 0; i < _simulatedMeasurements.Count; i++)
+                    var measurements = _measurementService.GetAllMeasurements();
+                    for (int i = 0; i < measurements.Count; i++)
                     {
                         var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
-                        double effectiveAmplitude = _realMeasurementAmplitude ?? _excitationAmplitude;
+                        double effectiveAmplitude = _measurementService.RealMeasurementAmplitude ?? _excitationAmplitude;
                         ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, i);
                         var bc = new LBMBoundaryCondition(electrodes);
 
-                        var measurement = _simulatedMeasurements[i];
-                        var preparedMeasurement = PrepareMeasurementFrame(measurement, electrodes.Cast<Electrode>().ToList());
+                        var measurement = measurements[i];
+                        var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodes.Cast<Electrode>().ToList());
                         var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, _stepSize, _regularizationWeight);
 
                         Workspace.AddReconstructionFrameToWorkspace(frame);
@@ -929,55 +559,6 @@ namespace ServiceLayer
             });
         }
 
-
-        private sealed record ReconstructionProcessContext(
-            DifferentialEquationSolver Solver,
-            Func<IDiscretization, double, DrivePattern, MeasurementBatch>? SimulateMeasurements)
-        {
-            public static ReconstructionProcessContext Create(EITReconstructionParameters parameters,
-                                                              IReconstructionPersistence persistence) =>
-                parameters.DifferentialEquationSolver switch
-                {
-                    DifferentialEquationSolver.FEM => new ReconstructionProcessContext(
-                        DifferentialEquationSolver.FEM,
-                        (discretization, amplitude, drivePattern) =>
-                        {
-                            if (discretization is not FEMMesh mesh)
-                                throw new InvalidOperationException("FEM reconstruction requires a FEM mesh.");
-
-                            var frames = persistence.SimulateFemMeasurements(mesh, amplitude, drivePattern);
-                            return MeasurementBatch.FromFem(frames);
-                        }),
-                    DifferentialEquationSolver.LBM => new ReconstructionProcessContext(
-                        DifferentialEquationSolver.LBM,
-                        (discretization, amplitude, drivePattern) =>
-                        {
-                            if (discretization is not LBMGrid grid)
-                                throw new InvalidOperationException("LBM reconstruction requires an LBM grid.");
-
-                            var measurement = persistence.SimulateLbmMeasurements(grid, amplitude, drivePattern);
-                            return MeasurementBatch.FromLbm(measurement);
-                        }),
-                    DifferentialEquationSolver.Graph => new ReconstructionProcessContext(DifferentialEquationSolver.Graph, null),
-                    _ => new ReconstructionProcessContext(parameters.DifferentialEquationSolver, null)
-                };
-        }
-
-        private sealed record MeasurementBatch(
-            List<double[]> Frames,
-            double? Amplitude,
-            MeasurementPattern? Pattern,
-            ElectrodeMeasurementSetup MeasurementSetup)
-        {
-            public static MeasurementBatch FromFem(List<double[]> frames) =>
-                new(frames, null, null, ElectrodeMeasurementSetup.Active);
-
-            public static MeasurementBatch FromLbm(EITMeasurement measurement) =>
-                new(measurement.Frames,
-                    null,
-                    measurement.Pattern,
-                    measurement.Pattern?.MeasurementSetup ?? ElectrodeMeasurementSetup.Active);
-        }
 
         // --- Persistence ---
         /// <summary>
