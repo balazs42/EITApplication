@@ -13,6 +13,7 @@ using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Models;
 using Utility.Classes.Reconstruction;
+using Utility.Classes.Reconstruction.VirtualElectrodes;
 using Utility.Classes.ReconstructionParameters;
 using Utility.Exports;
 using Utility.Classes.Solvers.FiniteElementSolver;
@@ -37,6 +38,7 @@ namespace BusinessLayer
         // --- Persistence / repositories ---
         private readonly IDAQRepository _daqRepository;
         private readonly IReconstructionRepository _reconstructionRepository;
+        private readonly IMeasurementPersistence _measurementPersistence;
 
         // --- Core components configured during InitializeReconstruction() ---
         private InverseModel? _inverseModel = null;
@@ -78,10 +80,13 @@ namespace BusinessLayer
         // reconstruction result.
         private bool _stopRequested = false;
 
-        public ReconstructionPersistence(IDAQRepository daqRepository, IReconstructionRepository reconstructionRepository)
+        public ReconstructionPersistence(IDAQRepository daqRepository,
+                                         IReconstructionRepository reconstructionRepository,
+                                         IMeasurementPersistence measurementPersistence)
         {
             _daqRepository = daqRepository;
             _reconstructionRepository = reconstructionRepository;
+            _measurementPersistence = measurementPersistence;
         }
 
         /// <summary>
@@ -614,11 +619,33 @@ namespace BusinessLayer
             {
                 FEMMesh measMesh = (FEMMesh)mesh.DeepCopy();
                 measMesh.SetConductivityDistribution(originalSigma);
-                measurementFrames = SimulateFemMeasurements(measMesh, 1.0, _drivePattern);
+                var parameters = Workspace.GetReconstructionParameters();
+                var virtualSettings = parameters?.VirtualElectrodeSettings ?? new VirtualElectrodeSettings();
+                var measurementSetup = Workspace.GetElectrodeMeasurementSetup();
+                var solver = _differentialEquationSolver ?? throw new NullReferenceException("Differential equation solver not initialised.");
+                var simulation = _measurementPersistence.SimulateFemMeasurements(measMesh,
+                                                                                1.0,
+                                                                                _drivePattern,
+                                                                                _usePotentialDifferences,
+                                                                                solver,
+                                                                                measurementSetup,
+                                                                                virtualSettings);
+                measurementFrames = simulation.Frames;
             }
             else
             {
-                measurementFrames = SimulateFemMeasurements(mesh, 1.0, _drivePattern);
+                var parameters = Workspace.GetReconstructionParameters();
+                var virtualSettings = parameters?.VirtualElectrodeSettings ?? new VirtualElectrodeSettings();
+                var measurementSetup = Workspace.GetElectrodeMeasurementSetup();
+                var solver = _differentialEquationSolver ?? throw new NullReferenceException("Differential equation solver not initialised.");
+                var simulation = _measurementPersistence.SimulateFemMeasurements(mesh,
+                                                                                1.0,
+                                                                                _drivePattern,
+                                                                                _usePotentialDifferences,
+                                                                                solver,
+                                                                                measurementSetup,
+                                                                                virtualSettings);
+                measurementFrames = simulation.Frames;
             }
 
             // Use provided or generated initial sigma
@@ -720,11 +747,19 @@ namespace BusinessLayer
             {
                 LBMGrid measMesh = (LBMGrid)mesh.DeepCopy();
                 measMesh.SetConductivityDistribution(originalSigma);
-                measurementFrames = SimulateLbmMeasurements(measMesh, 1.0, _drivePattern);
+                var simulation = GenerateLbmMeasurements(measMesh, 1.0);
+                measurementFrames = simulation.Amplitude.HasValue
+                    ? new EITMeasurement(simulation.Frames, simulation.Amplitude.Value, simulation.Pattern)
+                    : new EITMeasurement(simulation.Frames, simulation.Pattern);
+                Workspace.SetElectrodeMeasurementSetup(simulation.MeasurementSetup);
             }
             else
             {
-                measurementFrames = SimulateLbmMeasurements(mesh, 1.0, _drivePattern);
+                var simulation = GenerateLbmMeasurements(mesh, 1.0);
+                measurementFrames = simulation.Amplitude.HasValue
+                    ? new EITMeasurement(simulation.Frames, simulation.Amplitude.Value, simulation.Pattern)
+                    : new EITMeasurement(simulation.Frames, simulation.Pattern);
+                Workspace.SetElectrodeMeasurementSetup(simulation.MeasurementSetup);
             }
 
             ConductivityDistribution initialSigma = _initialSigma ?? mesh.GetConductivityDistribution();
@@ -825,10 +860,10 @@ namespace BusinessLayer
             {
                 FEMMesh measMesh = (FEMMesh)mesh.DeepCopy();
                 measMesh.SetConductivityDistribution(originalConductivityDistribution);
-                simulatedMeasurements = SimulateFemMeasurements(measMesh, excitationAmplitude, _drivePattern);
+                simulatedMeasurements = GenerateFemMeasurements(measMesh, excitationAmplitude);
             }
             else
-                simulatedMeasurements = SimulateFemMeasurements(mesh, excitationAmplitude, _drivePattern);
+                simulatedMeasurements = GenerateFemMeasurements(mesh, excitationAmplitude);
             
             // Initial field selection
             ConductivityDistribution initialConductivityDistribution = _initialSigma ?? ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType);
@@ -1149,11 +1184,19 @@ namespace BusinessLayer
             {
                 LBMGrid measMesh = (LBMGrid)lbmGrid.DeepCopy();
                 measMesh.SetConductivityDistribution(originalConductivityDistribution);
-                measurementFrames = SimulateLbmMeasurements(measMesh, 1.0, _drivePattern);
+                var simulation = GenerateLbmMeasurements(measMesh, 1.0);
+                measurementFrames = simulation.Amplitude.HasValue
+                    ? new EITMeasurement(simulation.Frames, simulation.Amplitude.Value, simulation.Pattern)
+                    : new EITMeasurement(simulation.Frames, simulation.Pattern);
+                Workspace.SetElectrodeMeasurementSetup(simulation.MeasurementSetup);
             }
             else
             {
-                measurementFrames = SimulateLbmMeasurements(lbmGrid, 1.0, _drivePattern);
+                var simulation = GenerateLbmMeasurements(lbmGrid, 1.0);
+                measurementFrames = simulation.Amplitude.HasValue
+                    ? new EITMeasurement(simulation.Frames, simulation.Amplitude.Value, simulation.Pattern)
+                    : new EITMeasurement(simulation.Frames, simulation.Pattern);
+                Workspace.SetElectrodeMeasurementSetup(simulation.MeasurementSetup);
             }
 
             // Container to hold partial results from reconstrucion
@@ -1196,81 +1239,6 @@ namespace BusinessLayer
                                             initialConductivityDistribution,
                                             reconstructedConductivityDistribution,
                                             frames);
-        }
-
-        /// <summary>
-        /// Simulates LBM measurement frames according to the selected drive pattern on a deep copy of the mesh.
-        /// Each frame corresponds to one excitation/ground pair configuration with unit amplitude.
-        /// </summary>
-        public EITMeasurement SimulateLbmMeasurements(LBMGrid mesh, double exciationAmplitude, DrivePattern drivePattern)
-        {
-            if (_differentialEquationSolver == null)
-                throw new NullReferenceException("Differential equation solver was null, check initializiation code!");
-
-            LBMGrid deepCopy = (LBMGrid)mesh.DeepCopy();
-            Workspace.UpdateCurrentGlobalLbmElectrodes(deepCopy);
-            var electrodes = Workspace.GetCurrentGlobalLbmElectrodes();
-            var virtualSettings = Workspace.GetReconstructionParameters().VirtualElectrodeSettings;
-            bool applyVirtuals = virtualSettings.ShouldApplyVirtualElectrodes();
-            var realElectrodes = electrodes.Where(e => !e.IsVirtual).ToList();
-            int electrodeCount = realElectrodes.Count;
-
-            var strategy = DrivePatternStrategyProvider.GetStrategy(drivePattern);
-            int cycleLength = electrodeCount > 0
-                ? Math.Max(1, strategy.GetCycleLength(electrodeCount))
-                : 1;
-
-            var frames = new List<double[]>(cycleLength);
-
-            MeasurementPattern? referencePattern = null;
-
-            for (int i = 0; i < cycleLength; i++)
-            {
-                // Clear electrode status
-                foreach (var el in electrodes)
-                {
-                    el.IsMeasuring = true;
-                    el.IsGround = false;
-                    el.IsExcitation = false;
-                    el.Potential = 0.0;
-                    el.Current = 0.0;
-                }
-
-                if (electrodeCount > 0)
-                {
-                    var (excitationIndex, groundIndex) = strategy.GetElectrodePair(electrodeCount, i);
-
-                    var excitation = realElectrodes[excitationIndex];
-                    excitation.IsExcitation = true;
-                    excitation.IsMeasuring = false;
-                    excitation.Current = exciationAmplitude;
-
-                    var ground = realElectrodes[groundIndex];
-                    ground.IsGround = true;
-                    ground.IsMeasuring = false;
-                    ground.Current = -exciationAmplitude;
-                }
-
-                LBMBoundaryCondition boundaryCondition = new LBMBoundaryCondition(electrodes);
-                Workspace.SetCurrentGlobalLbmBoundaryCondition(boundaryCondition);
-
-                _ = _differentialEquationSolver.Solve(deepCopy, boundaryCondition, null);
-
-                double[] electrodePotentials = PotentialClipper.Clip(deepCopy.GetElectrodePotentials());
-                var measurementSetup = Workspace.GetElectrodeMeasurementSetup();
-                var electrodeProjectionList = electrodes.Cast<Electrode>().ToList();
-                var pattern = MeasurementPatternBuilder.Build(electrodeProjectionList,
-                                                              measurementSetup,
-                                                              _usePotentialDifferences);
-                referencePattern ??= pattern;
-                var raw = pattern.ExtractRawMeasurement(electrodePotentials);
-                frames.Add(applyVirtuals
-                    ? FilterVirtualMeasurementChannels(pattern, electrodeProjectionList, raw)
-                    : raw);
-            }
-
-            Workspace.SetMeasurementPattern(referencePattern);
-            return new EITMeasurement(frames, referencePattern);
         }
 
         #endregion
@@ -1316,7 +1284,7 @@ namespace BusinessLayer
 
             _regularizationWeight = regularization;
 
-            List<double[]> simulatedMeasurements = SimulateFemMeasurements(mesh, excitationAmplitude, _drivePattern);
+            List<double[]> simulatedMeasurements = GenerateFemMeasurements(mesh, excitationAmplitude);
             
             // 2) Initialize conductivity (σ^{(0)}) based on user selection
             ConductivityDistribution sigma = ConductivityClipper.Clip(ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType));
@@ -1502,105 +1470,38 @@ namespace BusinessLayer
             return mesh;
         }
 
-        /// <summary>
-        /// Simulates forward FEM measurements for a full cycle of the selected drive pattern.
-        /// Each frame is the set of electrode potentials for a single excitation/ground pair.
-        /// </summary>
-        public List<double[]> SimulateFemMeasurements(FEMMesh mesh, double excitationAmplitude, DrivePattern drivePattern)
+        private List<double[]> GenerateFemMeasurements(FEMMesh mesh, double excitationAmplitude)
         {
-            List<double[]> measurements = [];
+            var parameters = Workspace.GetReconstructionParameters();
+            var virtualSettings = parameters?.VirtualElectrodeSettings ?? new VirtualElectrodeSettings();
+            var measurementSetup = Workspace.GetElectrodeMeasurementSetup();
+            var solver = _differentialEquationSolver ?? throw new NullReferenceException("Differential equation solver not initialised.");
 
-            FEMMesh deepCopy = (FEMMesh)mesh.DeepCopy();
-            var electrodes = deepCopy.GetElectrodes().ToList();
-            var virtualSettings = Workspace.GetReconstructionParameters().VirtualElectrodeSettings;
-            bool applyVirtuals = virtualSettings.ShouldApplyVirtualElectrodes();
-            var realElectrodes = electrodes.Where(e => !e.IsVirtual).ToList();
-            int electrodeCount = realElectrodes.Count;
-
-            var strategy = DrivePatternStrategyProvider.GetStrategy(drivePattern);
-            int cycleLength = electrodeCount > 0
-                ? Math.Max(1, strategy.GetCycleLength(electrodeCount))
-                : 1;
-
-            MeasurementPattern? referencePattern = null;
-
-            for (int i = 0; i < cycleLength; i++)
-            {
-                // Clear electrode status
-                foreach(var el in electrodes)
-                {
-                    el.Current = 0.0;
-                    el.IsExcitation = false;
-                    el.IsGround = false;
-                    el.IsMeasuring = true;
-                    el.Potential = 0.0;
-                }
-
-                // Set new electrode setup
-                if (electrodeCount > 0)
-                {
-                    var (excitationIndex, groundIndex) = strategy.GetElectrodePair(electrodeCount, i);
-                    var excitation = realElectrodes[excitationIndex];
-                    excitation.IsExcitation = true;
-                    excitation.IsMeasuring = false;
-                    excitation.Current = excitationAmplitude;
-
-                    var ground = realElectrodes[groundIndex];
-                    ground.IsGround = true;
-                    ground.IsMeasuring = false;
-                    ground.Current = -excitationAmplitude;
-                }
-
-                FEMMesh result = SolveFemForward(deepCopy);
-
-                double[] potentials = PotentialClipper.Clip(result.GetElectrodePotentials());
-                var measurementSetup = Workspace.GetElectrodeMeasurementSetup();
-                var electrodeProjectionList = electrodes.Cast<Electrode>().ToList();
-                var pattern = MeasurementPatternBuilder.Build(electrodeProjectionList,
-                                                              measurementSetup,
-                                                              _usePotentialDifferences);
-                referencePattern ??= pattern;
-                var raw = pattern.ExtractRawMeasurement(potentials);
-                measurements.Add(applyVirtuals
-                    ? FilterVirtualMeasurementChannels(pattern, electrodeProjectionList, raw)
-                    : raw);
-            }
-
-            Workspace.SetMeasurementPattern(referencePattern);
-            return measurements;
+            return _measurementPersistence
+                .SimulateFemMeasurements(mesh,
+                                          excitationAmplitude,
+                                          _drivePattern,
+                                          _usePotentialDifferences,
+                                          solver,
+                                          measurementSetup,
+                                          virtualSettings)
+                .Frames;
         }
 
-        private static double[] FilterVirtualMeasurementChannels(MeasurementPattern pattern,
-                                                                  IList<Electrode> electrodes,
-                                                                  double[] raw)
+        private MeasurementSimulationResult GenerateLbmMeasurements(LBMGrid grid, double excitationAmplitude)
         {
-            if (pattern == null)
-                throw new ArgumentNullException(nameof(pattern));
-            if (electrodes == null)
-                throw new ArgumentNullException(nameof(electrodes));
-            if (raw == null)
-                throw new ArgumentNullException(nameof(raw));
+            var parameters = Workspace.GetReconstructionParameters();
+            var virtualSettings = parameters?.VirtualElectrodeSettings ?? new VirtualElectrodeSettings();
+            var measurementSetup = Workspace.GetElectrodeMeasurementSetup();
+            var solver = _differentialEquationSolver ?? throw new NullReferenceException("Differential equation solver not initialised.");
 
-            var filtered = new List<double>(raw.Length);
-            var channels = pattern.Channels;
-            for (int idx = 0; idx < channels.Count; idx++)
-            {
-                var channel = channels[idx];
-                bool involvesVirtual = false;
-
-                if (channel.FirstElectrodeIndex >= 0 && channel.FirstElectrodeIndex < electrodes.Count)
-                    involvesVirtual |= electrodes[channel.FirstElectrodeIndex].IsVirtual;
-
-                if (channel.SecondElectrodeIndex >= 0 && channel.SecondElectrodeIndex < electrodes.Count)
-                    involvesVirtual |= electrodes[channel.SecondElectrodeIndex].IsVirtual;
-
-                if (involvesVirtual)
-                    continue;
-
-                filtered.Add(raw[idx]);
-            }
-
-            return filtered.ToArray();
+            return _measurementPersistence.SimulateLbmMeasurements(grid,
+                                                                    excitationAmplitude,
+                                                                    _drivePattern,
+                                                                    _usePotentialDifferences,
+                                                                    solver,
+                                                                    measurementSetup,
+                                                                    virtualSettings);
         }
 
         #endregion
@@ -1662,5 +1563,7 @@ namespace BusinessLayer
         /// Loads a previously saved reconstruction from a file path.
         /// </summary>
         public List<ReconstructionResult> LoadReconstruction(string filePath) => _reconstructionRepository.LoadReconstruction(filePath);
+
+        public IDifferentialEquationSolver? GetDifferentialEquationSolver() => _differentialEquationSolver;
     }
 }
