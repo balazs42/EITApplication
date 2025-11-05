@@ -11,6 +11,7 @@ namespace ServiceLayer
                 .RegisterType<IDAQService, DAQService>()
                 .RegisterType<IReconstructionService, ReconstructionService>()
                 .RegisterType<IReconstructionExportService, ReconstructionExportService>()
+                .RegisterType<IMeasurementService, MeasurementService>()
                 .RegisterType<ILogger, WorkspaceLogger>();
         }
     }

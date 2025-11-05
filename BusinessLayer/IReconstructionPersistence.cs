@@ -30,11 +30,6 @@ namespace BusinessLayer
         public ReconstructionResult InverseSolveFem(int maxIterationCount, double gradientStepSize, double redularizationStepSize, double excitationAmplitude, double tolerance = 1e-6);
         public ReconstructionResult InverseSolveLbm(int maxIterationCount, double gradientStepSize, double redularizationStepSize, double excitationAmplitude, double tolerance = 1e-6);
         public ReconstructionResult InverseSolveLbmCuda(int maxIterationCount, double gradientStepSize, double redularizationStepSize, double excitationAmplitude, double tolerance = 1e-6);
-
-
-        public List<double[]> SimulateFemMeasurements(FEMMesh mesh, double excitationAmplitude, DrivePattern drivePattern);
-        public EITMeasurement SimulateLbmMeasurements(LBMGrid mesh, double excitationAmplitude, DrivePattern drivePattern);
-
         // --- Graph-based Reconstruction ---
         /// <summary>
         ///     Performs a forward solve using the graph-based CEM model.  The
@@ -63,5 +58,7 @@ namespace BusinessLayer
         void SaveReconstruction(List<ReconstructionResult> frames, string name, EITReconstructionParameters parameters);
         IEnumerable<ReconstructionInfo> GetReconstructions();
         List<ReconstructionResult> LoadReconstruction(string filePath);
+
+        IDifferentialEquationSolver? GetDifferentialEquationSolver();
     }
 }
