@@ -4,11 +4,13 @@ using System.Linq;
 using Utility.Classes;
 using Utility.Classes.Application;
 using Utility.Classes.Measurement;
+using Utility.Classes.Discretizer; // For Electrode base type
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.ReconstructionParameters;
 using Utility.Classes.Reconstruction.VirtualElectrodes;
 using Utility.Classes.Factories;
+using Utility.Classes.Reconstruction; // For PotentialClipper
 
 namespace BusinessLayer
 {
@@ -34,7 +36,7 @@ namespace BusinessLayer
                 throw new ArgumentNullException(nameof(solver));
 
             FEMMesh deepCopy = (FEMMesh)mesh.DeepCopy();
-            var electrodes = deepCopy.GetElectrodes().ToList();
+            var electrodes = deepCopy.GetElectrodes().Cast<FEMElectrode>().ToList();
             bool applyVirtuals = virtualSettings.ShouldApplyVirtualElectrodes();
             var realElectrodes = electrodes.Where(e => !e.IsVirtual).ToList();
             int electrodeCount = realElectrodes.Count;
@@ -75,7 +77,7 @@ namespace BusinessLayer
                 FEMMesh result = SolveFemForward(deepCopy, solver);
 
                 double[] potentials = PotentialClipper.Clip(result.GetElectrodePotentials());
-                var electrodeProjectionList = electrodes.Cast<Electrode>().ToList();
+                var electrodeProjectionList = electrodes.Cast<Utility.Classes.Discretizer.Electrode>().ToList();
                 var pattern = MeasurementPatternBuilder.Build(electrodeProjectionList,
                                                               measurementSetup,
                                                               usePotentialDifferences);
@@ -150,7 +152,7 @@ namespace BusinessLayer
                 _ = solver.Solve(deepCopy, boundaryCondition, null);
 
                 double[] electrodePotentials = PotentialClipper.Clip(deepCopy.GetElectrodePotentials());
-                var electrodeProjectionList = electrodes.Cast<Electrode>().ToList();
+                var electrodeProjectionList = electrodes.Cast<Utility.Classes.Discretizer.Electrode>().ToList();
                 var pattern = MeasurementPatternBuilder.Build(electrodeProjectionList,
                                                               measurementSetup,
                                                               usePotentialDifferences);
@@ -166,14 +168,14 @@ namespace BusinessLayer
 
         private static FEMMesh SolveFemForward(FEMMesh mesh, IDifferentialEquationSolver solver)
         {
-            var boundaryCondition = new FEMBoundaryCondition(mesh.GetElectrodes().ToList());
+            var boundaryCondition = new FEMBoundaryCondition(mesh.GetElectrodes().Cast<FEMElectrode>().ToList());
             var potentialDistribution = solver.Solve(mesh, boundaryCondition, null);
             mesh.SetPotentialDistribution(PotentialClipper.Clip(potentialDistribution));
             return mesh;
         }
 
         private static double[] FilterVirtualMeasurementChannels(MeasurementPattern pattern,
-                                                                  IList<Electrode> electrodes,
+                                                                  IList<Utility.Classes.Discretizer.Electrode> electrodes,
                                                                   double[] raw)
         {
             if (pattern == null)

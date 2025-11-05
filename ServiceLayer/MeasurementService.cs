@@ -213,9 +213,10 @@ namespace ServiceLayer
             if (_virtualSettings.ShouldApplyVirtualElectrodes())
             {
                 var estimator = VirtualElectrodeEstimatorFactory.Create(_virtualSettings);
-                var context = BuildForwardContext(electrodes);
-                measurement = estimator.CompleteElectrodePotentials(electrodes, measurement, _virtualSettings, context);
+                var context = BuildForwardContext(electrodes.ToList());
+                measurement = estimator.CompleteElectrodePotentials(electrodes.ToList(), measurement, _virtualSettings, context);
             }
+
 
             var electrodeProjection = electrodes.ToList();
             var pattern = MeasurementPatternBuilder.Build(electrodeProjection,
