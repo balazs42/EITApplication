@@ -1,5 +1,6 @@
-﻿using System.Text.Json.Serialization;
+﻿using System;
 using System.Linq;
+using System.Text.Json.Serialization;
 using Utility.Classes.Discretizer.GraphMesh;
 using Utility.Classes.Factories;
 using Utility.Classes.Reconstruction.VirtualElectrodes;
@@ -277,18 +278,25 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                 for (int x = 0; x < Nx; x++)
                 {
                     var cell = _grid[x, y];
-                    if (cell.IsWall)
+                    if (!cell.IsWall)
                         continue;
 
-                    if (x == 0 || x == Nx - 1 || y == 0 || y == Ny - 1)
-                        continue;
-
-                    if (_grid[x - 1, y].IsWall || _grid[x + 1, y].IsWall ||
-                        _grid[x, y - 1].IsWall || _grid[x, y + 1].IsWall)
+                    bool touchesInterior = false;
+                    for (int k = 1; k < 9; k++)
                     {
-                        double angle = NormalizeAngle(Math.Atan2(y - cy, x - cx));
-                        boundary.Add((cell, angle));
+                        var neighbor = cell.Neighbors[k];
+                        if (neighbor != null && !neighbor.IsWall)
+                        {
+                            touchesInterior = true;
+                            break;
+                        }
                     }
+
+                    if (!touchesInterior)
+                        continue;
+
+                    double angle = NormalizeAngle(Math.Atan2(y - cy, x - cx));
+                    boundary.Add((cell, angle));
                 }
             }
 
@@ -480,27 +488,43 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                         }
                 }
 
-            // Recreate electrodes roughly at the center of each refined block that had one
+            // Recreate electrodes on the refined boundary by matching angular positions
+            var boundaryRing = fine.GetBoundaryRing();
+            var boundaryAngles = boundaryRing.Select(p => p.Angle).ToArray();
+            var used = new bool[boundaryAngles.Length];
             var newElectrodes = new List<LBMElectrode>();
-            foreach (var el in _electrodes)
-            {
-                var (cx, cy) = ToLattice(el.GridId);
-                int nx = cx * factor + factor / 2;
-                int ny = cy * factor + factor / 2;
-                nx = Math.Clamp(nx, 1, NX - 2);
-                ny = Math.Clamp(ny, 1, NY - 2);
 
-                int newId = ny * NX + nx;
+            foreach (var electrode in _electrodes.Cast<LBMElectrode>())
+            {
+                if (boundaryAngles.Length == 0)
+                    break;
+
+                double targetAngle = ComputeCellAngle(electrode.GridId);
+                int idx = FindClosestAvailableBoundaryIndex(targetAngle, boundaryAngles, used);
+                if (idx < 0)
+                {
+                    idx = Array.FindIndex(used, flag => !flag);
+                    if (idx < 0)
+                        break;
+                }
+
+                used[idx] = true;
+                var cell = boundaryRing[idx].Cell;
+                cell.IsElectrode = true;
+                cell.ElectrodeId = electrode.Id;
+
                 newElectrodes.Add(new LBMElectrode(
-                    id: el.Id,
-                    gridId: newId,
-                    current: el.Current,
-                    potential: el.Potential,
-                    contactImpedance: el.ZContact,
-                    isExcitation: el.IsExcitation,
-                    isGround: el.IsGround,
-                    isMeasuring: el.IsMeasuring));
+                    id: electrode.Id,
+                    gridId: cell.Id,
+                    current: electrode.Current,
+                    potential: electrode.Potential,
+                    contactImpedance: electrode.ZContact,
+                    isExcitation: electrode.IsExcitation,
+                    isGround: electrode.IsGround,
+                    isMeasuring: electrode.IsMeasuring,
+                    isVirtual: electrode.IsVirtual));
             }
+
             fine.SetElectrodes(newElectrodes);
 
             // Refresh distributions for fine

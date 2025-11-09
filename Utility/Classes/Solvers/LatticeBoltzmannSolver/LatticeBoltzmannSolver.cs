@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 using ILGPU;
+using ILGPU.Algorithms;
 using ILGPU.Runtime;
 using Utility.Classes.Measurement;
 using Utility.Classes.Discretizer;
@@ -531,82 +532,77 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 //    opposite side (i.e. a wall-interior pair). Prefer cardinal over
                 //    diagonal directions, just like in the CUDA UpdateKernel.
                 // ---------------------------------------------------------------------
-                int outward = -1;
+                Span<int> inwardDirections = stackalloc int[4];
+                Span<int> outwardDirections = stackalloc int[4];
+                Span<int> interiorIndices = stackalloc int[4];
+                int directionCount = 0;
 
                 for (int dir = 1; dir < 9; dir++) // skip rest direction 0
                 {
-                    var nb = element.Neighbors[dir];
-                    if (nb is null || !nb.IsWall)
+                    var outerNeighbor = element.Neighbors[dir];
+                    if (outerNeighbor is null || !outerNeighbor.IsWall)
                         continue;
 
                     int inwardCandidate = opposite[dir];
-                    var interiorCand = element.Neighbors[inwardCandidate];
+                    var interiorCandidate = element.Neighbors[inwardCandidate];
 
-                    // Need a true interior fluid cell behind the boundary face
-                    if (interiorCand is null || interiorCand.IsWall)
+                    if (interiorCandidate is null || interiorCandidate.IsWall)
                         continue;
 
-                    // First acceptable direction, or prefer cardinal (1–4) over diagonal (5–8)
-                    if (outward < 0 || (dir < 5 && outward >= 5))
-                        outward = dir;
+                    if (!elementIndexLookup.TryGetValue(interiorCandidate.Id, out int interiorIndex))
+                        continue;
+
+                    inwardDirections[directionCount] = inwardCandidate;
+                    outwardDirections[directionCount] = dir;
+                    interiorIndices[directionCount] = interiorIndex;
+                    directionCount++;
+
+                    if (directionCount >= inwardDirections.Length)
+                        break;
                 }
 
-                if (outward < 0)
-                    continue; // No clear wall normal -> nothing to correct.
+                if (directionCount == 0)
+                    continue; // No clear wall normals -> nothing to correct.
 
-                int inward = opposite[outward];
-                var interior = element.Neighbors[inward];
-
-                if (interior is null || interior.IsWall)
-                    continue; // No interior fluid cell to exchange flux with.
-
-                if (!elementIndexLookup.TryGetValue(interior.Id, out int interiorIndex))
-                    continue;
-
-                // ---------------------------------------------------------------------
-                // 3. Discrete Neumann flux on that link
-                // ---------------------------------------------------------------------
-                double phiInterior = phi[interiorIndex];
                 double phiBoundaryCell = phi[elementIndex]; // may have been anchored above
-
                 double sigmaBoundary = element.Conductivity;
-                double sigmaInterior = interior.Conductivity;
-                double sigmaAvg = 0.5 * (sigmaBoundary + sigmaInterior);
+                double currentPerLink = Math.Abs(electrode.Current);
 
-                if (sigmaAvg <= 0.0)
-                    continue; // Perfect insulator -> no flux through this face.
+                if (directionCount > 0)
+                    currentPerLink /= directionCount;
 
-                // Discrete normal flux along the inward link:
-                //   j_n ≈ sigmaAvg * (phiInterior - phiBoundaryCell)
-                //
-                // Then superimpose the prescribed electrode current (per cell) in the
-                // same sign convention.  Positive electrode.Current increases inward
-                // flux, negative decreases it.
-                double flux = sigmaAvg * (phiInterior - phiBoundaryCell) + Math.Abs(electrode.Current);
-                double deltaFi = alpha * flux * weights[inward];
+                if (!electrode.IsExcitation && !electrode.IsGround)
+                    continue; // Floating / measurement electrode: only enforce potential.
 
-                // ---------------------------------------------------------------------
-                // 4. Conservative population correction (modified bounce-back)
-                // ---------------------------------------------------------------------
-                if (electrode.IsExcitation)
+                for (int dirIndex = 0; dirIndex < directionCount; dirIndex++)
                 {
-                    // Source electrode: inject current into the domain; bias the inward
-                    // population and counter-bias the outward one to keep ΣFi constant.
-                    element.Fi[inward] += deltaFi;
-                    element.Fi[outward] -= deltaFi;
-                }
-                else if (electrode.IsGround)
-                {
-                    // Ground electrode acting as sink: reverse the flux direction while
-                    // still preserving the local population sum.
-                    element.Fi[inward] -= deltaFi;
-                    element.Fi[outward] += deltaFi;
-                }
-                else
-                {
-                    // Floating / measurement electrode: only the potential anchor (if
-                    // any) is enforced, no additional flux correction.
-                    continue;
+                    int inward = inwardDirections[dirIndex];
+                    int outward = outwardDirections[dirIndex];
+                    int interiorIndex = interiorIndices[dirIndex];
+
+                    var interior = element.Neighbors[inward];
+                    Debug.Assert(interior is not null, "Interior neighbor must exist for inward direction");
+
+                    double phiInterior = phi[interiorIndex];
+                    double sigmaInterior = interior!.Conductivity;
+                    double sigmaAvg = 0.5 * (sigmaBoundary + sigmaInterior);
+
+                    if (sigmaAvg <= 0.0)
+                        continue; // Perfect insulator -> no flux through this face.
+
+                    double flux = sigmaAvg * (phiInterior - phiBoundaryCell) + currentPerLink;
+                    double deltaFi = alpha * flux * weights[inward];
+
+                    if (electrode.IsExcitation)
+                    {
+                        element.Fi[inward] += deltaFi;
+                        element.Fi[outward] -= deltaFi;
+                    }
+                    else
+                    {
+                        element.Fi[inward] -= deltaFi;
+                        element.Fi[outward] += deltaFi;
+                    }
                 }
 
                 // ---------------------------------------------------------------------
@@ -1085,7 +1081,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 p.PhiStreamed[index] = phiBoundary;
             }
 
-            int outwardDirection = -1;
+            int directionCount = 0;
             for (int dir = 1; dir < 9; dir++)
             {
                 if (p.NeighborIsWall[baseIndex + dir] != 1)
@@ -1095,45 +1091,61 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 if (p.NeighborIsWall[baseIndex + inward] == 1)
                     continue;
 
-                if (outwardDirection < 0 || (dir < 5 && outwardDirection >= 5))
-                    outwardDirection = dir;
+                int interiorCandidate = p.NeighborIndices[baseIndex + inward];
+                if (interiorCandidate < 0)
+                    continue;
+                if (p.IsWall[interiorCandidate] == 1)
+                    continue;
+
+                directionCount++;
             }
 
-            if (outwardDirection < 0)
+            if (directionCount == 0)
                 return;
 
-            int inwardDirection = p.Opposite[outwardDirection];
-            int interiorIndex = p.NeighborIndices[baseIndex + inwardDirection];
-            if (interiorIndex < 0)
-                return;
-            if (p.IsWall[interiorIndex] == 1)
+            int isExcitation = p.ElectrodeIsExcitation[index];
+            int isGround = p.ElectrodeIsGround[index];
+            if (isExcitation == 0 && isGround == 0)
                 return;
 
-            double phiInterior = p.PhiStreamed[interiorIndex];
             double phiBoundaryLocal = p.PhiStreamed[index];
-
             double sigmaBoundary = p.Conductivity[index];
-            double sigmaInterior = p.Conductivity[interiorIndex];
-            double sigmaAvg = 0.5 * (sigmaBoundary + sigmaInterior);
-            if (sigmaAvg <= 0.0)
-                return;
+            double currentPerLink = XMath.Abs(p.ElectrodeCurrent[index]) / directionCount;
 
-            double flux = sigmaAvg * (phiInterior - phiBoundaryLocal) + p.ElectrodeCurrent[index];
-            double deltaFi = p.ElectrodeFluxAlpha * flux * p.Weights[inwardDirection];
+            for (int dir = 1; dir < 9; dir++)
+            {
+                if (p.NeighborIsWall[baseIndex + dir] != 1)
+                    continue;
 
-            if (p.ElectrodeIsExcitation[index] == 1)
-            {
-                p.Fi[baseIndex + inwardDirection] += deltaFi;
-                p.Fi[baseIndex + outwardDirection] -= deltaFi;
-            }
-            else if (p.ElectrodeIsGround[index] == 1)
-            {
-                p.Fi[baseIndex + inwardDirection] -= deltaFi;
-                p.Fi[baseIndex + outwardDirection] += deltaFi;
-            }
-            else
-            {
-                return;
+                int inward = p.Opposite[dir];
+                if (p.NeighborIsWall[baseIndex + inward] == 1)
+                    continue;
+
+                int interiorIndex = p.NeighborIndices[baseIndex + inward];
+                if (interiorIndex < 0)
+                    continue;
+                if (p.IsWall[interiorIndex] == 1)
+                    continue;
+
+                double phiInterior = p.PhiStreamed[interiorIndex];
+                double sigmaInterior = p.Conductivity[interiorIndex];
+                double sigmaAvg = 0.5 * (sigmaBoundary + sigmaInterior);
+                if (sigmaAvg <= 0.0)
+                    continue;
+
+                double flux = sigmaAvg * (phiInterior - phiBoundaryLocal) + currentPerLink;
+                double deltaFi = p.ElectrodeFluxAlpha * flux * p.Weights[inward];
+
+                if (isExcitation == 1)
+                {
+                    p.Fi[baseIndex + inward] += deltaFi;
+                    p.Fi[baseIndex + dir] -= deltaFi;
+                }
+                else
+                {
+                    p.Fi[baseIndex + inward] -= deltaFi;
+                    p.Fi[baseIndex + dir] += deltaFi;
+                }
             }
 
             double phiUpdated = 0.0;

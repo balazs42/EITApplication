@@ -648,7 +648,7 @@ namespace Utility.Classes.Factories
                 el.IsWall = outside || onBoundary || ex == 0 || ey == 0 || ex == nx - 1 || ey == ny - 1;
             }
 
-            // Place electrodes on outermost non-wall layer
+            // Place electrodes on the wall cells directly adjacent to the fluid domain
             grid.PlaceEquidistantElectrodes(electrodeCount);
 
             // Refresh conductivity distribution
