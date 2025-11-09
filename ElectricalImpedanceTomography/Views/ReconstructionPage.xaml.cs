@@ -580,11 +580,13 @@ public partial class ReconstructionPage : ContentPage
             {
                 var el = mesh.GetElementAt(x, y);
                 double val = values.TryGetValue(el.Id, out double v) ? v : minVal;
-                SKColor col = el.IsWall
-                    ? SKColors.Black
-                    : isPotential
-                        ? GetPotentialColor(val, minVal, maxVal, modeOverride)
-                        : ColorForValue(val, minVal, maxVal);
+                SKColor col = el.GhostElement
+                    ? SKColors.DarkGray
+                    : el.IsWall
+                        ? SKColors.Black
+                        : isPotential
+                            ? GetPotentialColor(val, minVal, maxVal, modeOverride)
+                            : ColorForValue(val, minVal, maxVal);
                 using var paint = new SKPaint { Style = SKPaintStyle.Fill, Color = col };
                 var r = SKRect.Create(x * cw, y * ch, cw, ch);
                 canvas.DrawRect(r, paint);

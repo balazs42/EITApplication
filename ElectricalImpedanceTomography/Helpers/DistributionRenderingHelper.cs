@@ -123,7 +123,11 @@ namespace ElectricalImpedanceTomography.Helpers
                     var element = grid.GetElementAt(x, y);
                     SKColor color;
 
-                    if (element.IsWall)
+                    if (element.GhostElement)
+                    {
+                        color = SKColors.DarkGray;
+                    }
+                    else if (element.IsWall)
                     {
                         color = SKColors.Black;
                     }

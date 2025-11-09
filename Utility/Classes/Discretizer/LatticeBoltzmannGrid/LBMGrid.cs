@@ -1,5 +1,7 @@
-﻿using System.Text.Json.Serialization;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json.Serialization;
 using Utility.Classes.Discretizer.GraphMesh;
 using Utility.Classes.Factories;
 using Utility.Classes.Reconstruction.VirtualElectrodes;
@@ -134,34 +136,101 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
             {
                 el.IsElectrode = false;
                 el.ElectrodeId = -1;
+
+                if (el.GhostElement)
+                {
+                    el.GhostElement = false;
+                    el.IsWall = false;
+                }
             }
 
-            _electrodes.Clear();
-
             if (numElectrodes <= 0)
+            {
+                _electrodes.Clear();
+                UpdateGhostLayer();
                 return;
+            }
 
-            var boundaryRing = GetBoundaryRing();
+            var boundaryRing = GetBoundaryRing()
+                .Where(entry => entry.InteriorCell != null)
+                .ToList();
+
             if (boundaryRing.Count == 0)
+            {
+                _electrodes.Clear();
+                UpdateGhostLayer();
                 return;
+            }
 
-            var boundaryCells = boundaryRing.Select(pair => pair.Cell).ToList();
-            int count = boundaryCells.Count;
+            int count = boundaryRing.Count;
             double step = count / (double)numElectrodes;
             double pos = 0.0;
+            var usedInterior = new HashSet<int>();
+            var newElectrodes = new List<LBMElectrode>(numElectrodes);
+
             for (int i = 0; i < numElectrodes; i++)
             {
-                int idx = (int)Math.Floor(pos) % count;
-                var cell = boundaryCells[idx];
-                cell.IsElectrode = true;
-                cell.ElectrodeId = i;
-                var electrode = new LBMElectrode(i, cell.Id, 0.0, 0.0, 0.0, isVirtual: false);
-                _electrodes.Add(electrode);
+                int idx = count == 0 ? 0 : (int)Math.Floor(pos) % count;
+                int attempts = count;
+                LBMElement? chosen = null;
+                int current = idx;
+
+                while (attempts-- > 0)
+                {
+                    var candidate = boundaryRing[current].InteriorCell!;
+                    if (!usedInterior.Contains(candidate.Id))
+                    {
+                        chosen = candidate;
+                        break;
+                    }
+
+                    current = (current + 1) % count;
+                }
+
+                if (chosen is null)
+                    break;
+
+                usedInterior.Add(chosen.Id);
+                newElectrodes.Add(new LBMElectrode(i, chosen.Id, 0.0, 0.0, 0.0, isVirtual: false));
                 pos += step;
             }
 
+            SetElectrodes(newElectrodes);
+
             if (virtualElectrodeSettings != null)
                 ApplyVirtualElectrodes(virtualElectrodeSettings);
+        }
+
+        public new void SetElectrodes(IList<LBMElectrode> electrodes)
+        {
+            base.SetElectrodes(electrodes);
+
+            foreach (var cell in _elements.Cast<LBMElement>())
+            {
+                cell.IsElectrode = false;
+                cell.ElectrodeId = -1;
+
+                if (cell.GhostElement)
+                {
+                    cell.GhostElement = false;
+                    cell.IsWall = false;
+                }
+            }
+
+            foreach (var electrode in _electrodes)
+            {
+                var (ex, ey) = ToLattice(electrode.GridId);
+                if (ex < 0 || ex >= Nx || ey < 0 || ey >= Ny)
+                    continue;
+
+                var cell = _grid[ex, ey];
+                cell.IsElectrode = true;
+                cell.ElectrodeId = electrode.Id;
+                cell.IsWall = false;
+                cell.GhostElement = false;
+            }
+
+            UpdateGhostLayer();
         }
 
         public void ApplyVirtualElectrodes(VirtualElectrodeSettings settings)
@@ -191,11 +260,25 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
             if (!settings.ShouldApplyVirtualElectrodes() || settings.VirtualElectrodesPerGap <= 0 || _electrodes.Count < 2)
                 return;
 
-            var boundaryRing = GetBoundaryRing();
-            if (boundaryRing.Count == 0)
-                return;
+            foreach (var cell in _elements.Cast<LBMElement>())
+            {
+                if (!cell.GhostElement)
+                    continue;
 
-            var boundaryCells = boundaryRing.Select(p => p.Cell).ToList();
+                cell.GhostElement = false;
+                cell.IsWall = false;
+            }
+
+            var boundaryRing = GetBoundaryRing()
+                .Where(entry => entry.InteriorCell != null)
+                .ToList();
+            if (boundaryRing.Count == 0)
+            {
+                UpdateGhostLayer();
+                return;
+            }
+
+            var boundaryCells = boundaryRing.Select(p => p.InteriorCell!).ToList();
             var boundaryAngles = boundaryRing.Select(p => p.Angle).ToArray();
             var boundaryLookup = boundaryCells
                 .Select((cell, idx) => new { cell.Id, Index = idx })
@@ -266,34 +349,88 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
             SetElectrodes(augmented);
         }
 
-        private List<(LBMElement Cell, double Angle)> GetBoundaryRing()
+        private List<(LBMElement WallCell, LBMElement? InteriorCell, double Angle)> GetBoundaryRing()
         {
             double cx = (Nx - 1) / 2.0;
             double cy = (Ny - 1) / 2.0;
-            var boundary = new List<(LBMElement Cell, double Angle)>();
+            var boundary = new List<(LBMElement WallCell, LBMElement? InteriorCell, double Angle)>();
 
             for (int y = 0; y < Ny; y++)
             {
                 for (int x = 0; x < Nx; x++)
                 {
                     var cell = _grid[x, y];
-                    if (cell.IsWall)
+                    if (!cell.IsWall)
                         continue;
 
-                    if (x == 0 || x == Nx - 1 || y == 0 || y == Ny - 1)
-                        continue;
-
-                    if (_grid[x - 1, y].IsWall || _grid[x + 1, y].IsWall ||
-                        _grid[x, y - 1].IsWall || _grid[x, y + 1].IsWall)
+                    bool touchesInterior = false;
+                    LBMElement? interiorCandidate = null;
+                    double bestDistance = double.MaxValue;
+                    for (int k = 1; k < 9; k++)
                     {
-                        double angle = NormalizeAngle(Math.Atan2(y - cy, x - cx));
-                        boundary.Add((cell, angle));
+                        var neighbor = cell.Neighbors[k];
+                        if (neighbor == null)
+                            continue;
+
+                        bool isInterior = !neighbor.IsWall || neighbor.GhostElement || neighbor.IsElectrode;
+                        if (isInterior)
+                        {
+                            touchesInterior = true;
+                            var (nx, ny) = ToLattice(neighbor.Id);
+                            double dx = nx - cx;
+                            double dy = ny - cy;
+                            double dist = dx * dx + dy * dy;
+                            if (dist < bestDistance)
+                            {
+                                bestDistance = dist;
+                                interiorCandidate = neighbor;
+                            }
+                        }
                     }
+
+                    if (!touchesInterior)
+                        continue;
+
+                    double angle = NormalizeAngle(Math.Atan2(y - cy, x - cx));
+                    boundary.Add((cell, interiorCandidate, angle));
                 }
             }
 
             boundary.Sort((a, b) => a.Angle.CompareTo(b.Angle));
             return boundary;
+        }
+
+        private void UpdateGhostLayer()
+        {
+            foreach (var cell in _elements.Cast<LBMElement>())
+            {
+                if (!cell.GhostElement)
+                    continue;
+
+                cell.GhostElement = false;
+                cell.IsWall = false;
+            }
+
+            var boundaryRing = GetBoundaryRing();
+            foreach (var entry in boundaryRing)
+            {
+                if (entry.InteriorCell is null)
+                    continue;
+
+                var interior = entry.InteriorCell;
+                if (interior.IsElectrode)
+                {
+                    interior.GhostElement = false;
+                    interior.IsWall = false;
+                }
+                else
+                {
+                    interior.GhostElement = true;
+                    interior.IsWall = true;
+                    interior.IsElectrode = false;
+                    interior.ElectrodeId = -1;
+                }
+            }
         }
 
         private double ComputeCellAngle(int gridId)
@@ -411,10 +548,11 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
 
                 dst.Conductivity = src.Conductivity;
                 dst.IsWall = src.IsWall;
+                dst.GhostElement = src.GhostElement;
                 dst.IsElectrode = src.IsElectrode;
                 dst.ElectrodeId = src.ElectrodeId;
 
-                for (int k = 0; k < 9; k++) 
+                for (int k = 0; k < 9; k++)
                     dst.Fi[k] = src.Fi[k];
             }
 
@@ -468,10 +606,22 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                 {
                     var src = _grid[x, y];
                     for (int fy = y * factor; fy < (y + 1) * factor; fy++)
-                        for (int fx = x * factor; fx < (x + 1) * factor; fx++)
+                    for (int fx = x * factor; fx < (x + 1) * factor; fx++)
                         {
                             var dst = fine._grid[fx, fy];
-                            dst.IsWall = src.IsWall && (fx == 0 || fy == 0 || fx == NX - 1 || fy == NY - 1);
+                            bool replicateWall = src.IsWall && !src.GhostElement;
+                            if (replicateWall)
+                            {
+                                bool srcOnOuterBoundary = x == 0 || x == Nx - 1 || y == 0 || y == Ny - 1;
+                                dst.IsWall = srcOnOuterBoundary
+                                    ? (fx == 0 || fy == 0 || fx == NX - 1 || fy == NY - 1)
+                                    : true;
+                            }
+                            else
+                            {
+                                dst.IsWall = false;
+                            }
+                            dst.GhostElement = false;
                             dst.Conductivity = src.Conductivity;
 
                             double pot = src.Fi.Sum();
@@ -480,27 +630,45 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                         }
                 }
 
-            // Recreate electrodes roughly at the center of each refined block that had one
+            // Recreate electrodes on the refined boundary by matching angular positions
+            var boundaryRing = fine.GetBoundaryRing()
+                .Where(entry => entry.InteriorCell != null)
+                .ToList();
+            var boundaryAngles = boundaryRing.Select(p => p.Angle).ToArray();
+            var used = new bool[boundaryAngles.Length];
             var newElectrodes = new List<LBMElectrode>();
-            foreach (var el in _electrodes)
-            {
-                var (cx, cy) = ToLattice(el.GridId);
-                int nx = cx * factor + factor / 2;
-                int ny = cy * factor + factor / 2;
-                nx = Math.Clamp(nx, 1, NX - 2);
-                ny = Math.Clamp(ny, 1, NY - 2);
 
-                int newId = ny * NX + nx;
+            foreach (var electrode in _electrodes.Cast<LBMElectrode>())
+            {
+                if (boundaryAngles.Length == 0)
+                    break;
+
+                double targetAngle = ComputeCellAngle(electrode.GridId);
+                int idx = FindClosestAvailableBoundaryIndex(targetAngle, boundaryAngles, used);
+                if (idx < 0)
+                {
+                    idx = Array.FindIndex(used, flag => !flag);
+                    if (idx < 0)
+                        break;
+                }
+
+                used[idx] = true;
+                var cell = boundaryRing[idx].InteriorCell!;
+                cell.IsElectrode = true;
+                cell.ElectrodeId = electrode.Id;
+
                 newElectrodes.Add(new LBMElectrode(
-                    id: el.Id,
-                    gridId: newId,
-                    current: el.Current,
-                    potential: el.Potential,
-                    contactImpedance: el.ZContact,
-                    isExcitation: el.IsExcitation,
-                    isGround: el.IsGround,
-                    isMeasuring: el.IsMeasuring));
+                    id: electrode.Id,
+                    gridId: cell.Id,
+                    current: electrode.Current,
+                    potential: electrode.Potential,
+                    contactImpedance: electrode.ZContact,
+                    isExcitation: electrode.IsExcitation,
+                    isGround: electrode.IsGround,
+                    isMeasuring: electrode.IsMeasuring,
+                    isVirtual: electrode.IsVirtual));
             }
+
             fine.SetElectrodes(newElectrodes);
 
             // Refresh distributions for fine
