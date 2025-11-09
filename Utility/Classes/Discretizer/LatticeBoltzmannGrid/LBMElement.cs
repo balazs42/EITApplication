@@ -26,6 +26,7 @@
         public double[] Fi_next { get; } = new double[9];
 
         public bool IsWall { get; set; }
+        public bool GhostElement { get; set; }
         public bool IsElectrode { get; set; }
         public int ElectrodeId { get; set; } = -1;
         

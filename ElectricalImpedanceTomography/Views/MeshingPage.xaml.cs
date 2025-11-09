@@ -16,6 +16,7 @@ public partial class MeshingPage : ContentPage
     // paints for LBM drawing
     private readonly SKPaint _lbmDefault = new() { Style = SKPaintStyle.Fill, Color = SKColors.White };
     private readonly SKPaint _lbmWall = new() { Style = SKPaintStyle.Fill, Color = SKColors.Black };
+    private readonly SKPaint _lbmGhost = new() { Style = SKPaintStyle.Fill, Color = SKColors.DarkGray };
     private readonly SKPaint _lbmElectrode = new() { Style = SKPaintStyle.Fill, Color = SKColors.Orange };
     private readonly SKPaint _lbmVirtualElectrode = new() { Style = SKPaintStyle.Fill, Color = SKColor.Parse("#AA00FF") };
     private readonly SKPaint _lbmStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.LightGray, StrokeWidth = 1 };
@@ -193,6 +194,8 @@ public partial class MeshingPage : ContentPage
                     bool isVirtual = el.ElectrodeId >= 0 && electrodeLookup.TryGetValue(el.ElectrodeId, out bool value) && value;
                     fill = isVirtual ? _lbmVirtualElectrode : _lbmElectrode;
                 }
+                else if (el.GhostElement)
+                    fill = _lbmGhost;
                 else if (el.IsWall)
                     fill = _lbmWall;
                 else if (Math.Abs(el.Conductivity - defaultConductivity) > 1e-6)
