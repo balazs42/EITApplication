@@ -443,6 +443,10 @@ namespace BusinessLayer
                 elements.ToDictionary(
                     el => el.Id,
                     el => {
+                        // Do not update electrode or ghost cells
+                        if (el.IsElectrode || el.GhostElement)
+                            return 0.0;
+
                         var gPhi = phiGradientField.GetVector(el.Id);
                         var gMu = muGradientField.GetVector(el.Id);
                         return (gMu.X * gPhi.X + gMu.Y * gPhi.Y);
@@ -452,11 +456,11 @@ namespace BusinessLayer
 
             // LBM path in this routine does not compute explicit regularization (left empty)
             return new ReconstructionFrame(dataGrad,
-                                          phi,
-                                          mu,
-                                          new ConductivityDistribution([]),
-                                          projection.Measured,
-                                          projection.Simulated);
+                                           phi,
+                                           mu,
+                                           new ConductivityDistribution([]),
+                                           projection.Measured,
+                                           projection.Simulated);
         }
 
         /// <summary>
@@ -682,10 +686,10 @@ namespace BusinessLayer
 
                     electrodes[exc % electrodeCount].IsExcitation = true;
                     electrodes[exc % electrodeCount].IsMeasuring = false;
-                    electrodes[exc % electrodeCount].Current = 1.0;
+                    electrodes[exc % electrodeCount].Current = 10.0;
                     electrodes[(exc + 1) % electrodeCount].IsGround = true;
                     electrodes[(exc + 1) % electrodeCount].IsMeasuring = false;
-                    electrodes[(exc + 1) % electrodeCount].Current = -1.0;
+                    electrodes[(exc + 1) % electrodeCount].Current = -10.0;
 
                     // Boundary condition reflecting the just configured electrode setup.
                     var bc = new FEMBoundaryCondition(electrodes);

@@ -96,13 +96,13 @@ namespace ElectricalImpedanceTomography.ViewModels
         private int groundElectrodeId = 0;
 
         [ObservableProperty]
-        private double excitationCurrentAmplitude = 1.0;
+        private double excitationCurrentAmplitude = 10.0;
 
         [ObservableProperty]
-        private double electrodeSurfaceLength = 1.0;
+        private double electrodeSurfaceLength = 0.1;
 
         [ObservableProperty]
-        private double contactImpedance = 1.0;
+        private double contactImpedance = 0.001;
 
         [ObservableProperty]
         private double inhomogenityValue = 2.0;

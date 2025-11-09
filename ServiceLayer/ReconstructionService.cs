@@ -49,7 +49,7 @@ namespace ServiceLayer
         private int _currentIteration;                                      // Current iteration index in background reconstruction
         private double _stepSize;                                           // Optimizer step size for inverse steps
         private double _regularizationWeight;                               // Regularization weight sent to the persistence layer
-        private double _excitationAmplitude;                                // Current amplitude applied to the excitation electrode
+        private double _excitationAmplitude = 10.0;                         // Current amplitude applied to the excitation electrode
         private int _simMeasurementIndex;                                   // Index of the current frame within a cycle
         private List<ReconstructionFrame> _currentCycleFrames = [];         // Frames accumulated within the active cycle
         private ConductivityDistribution? _originalSigma;                   // Ground-truth conductivities (for comparison)
@@ -557,7 +557,7 @@ namespace ServiceLayer
 
                     var newSigmaDict = prevSigma.Conductivities.ToDictionary(
                         kvp => kvp.Key,
-                        kvp => kvp.Value + (accumGrad.TryGetValue(kvp.Key, out var g) ? g / frameCount : 0.0));
+                        kvp => kvp.Value - (accumGrad.TryGetValue(kvp.Key, out var g) ? g / frameCount : 0.0));
                     var newSigma = new ConductivityDistribution(newSigmaDict);
                     _discretization.SetConductivityDistribution(newSigma);
                     _initialSigma = newSigma;

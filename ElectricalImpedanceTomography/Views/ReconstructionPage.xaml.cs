@@ -56,6 +56,9 @@ public partial class ReconstructionPage : ContentPage
     private static readonly SKColor ChartPrimaryTextColor = new SKColor(198, 212, 245);
     private static readonly SKColor ChartSecondaryTextColor = new SKColor(157, 170, 211);
 
+    // For FEM, which node do we use as "visual ground"?
+    private const int VisualReferenceNodeId = 1;
+
     private static readonly TrendVisualizationStyle ResidualTrendStyle = new(
         SKColor.Parse("#3A9CED"),
         new SKColor(58, 156, 237, 90),
@@ -531,25 +534,53 @@ public partial class ReconstructionPage : ContentPage
         DrawHoverInfo(canvas, info, lines, pt);
     }
 
+
     private void DrawFemPotential(SKCanvas canvas,
-                                  SKImageInfo info,
-                                  FEMMesh mesh,
-                                  PotentialDistribution pd,
-                                  string[]? lines,
-                                  SKPoint? pt,
-                                  PotentialDisplayMode? modeOverride = null)
+                              SKImageInfo info,
+                              FEMMesh mesh,
+                              PotentialDistribution pd,
+                              string[]? lines,
+                              SKPoint? pt,
+                              PotentialDisplayMode? modeOverride = null)
     {
         canvas.Clear(DistributionCanvasBackgroundColor);
         ComputeFemTransform(mesh, info);
         using var fill = new SKPaint { Style = SKPaintStyle.Fill, IsAntialias = true };
         using var stroke = new SKPaint { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1, IsAntialias = true };
-        double minVal = pd.Potentials.Values.Min();
-        double maxVal = pd.Potentials.Values.Max();
-        if (Math.Abs(maxVal - minVal) < 1e-12) maxVal = minVal + 1e-12;
+
+        // --- 1) determine visual reference potential (EIDORS-style ground) ---
+        double refPotential = 0.0;
+        if (pd.Potentials.TryGetValue(VisualReferenceNodeId, out double rawRef))
+        {
+            refPotential = rawRef;
+        }
+        // If the key doesn't exist (e.g. different numbering), refPotential stays 0 and no shift is applied.
+
+        // --- 2) compute shifted min/max for color scaling ---
+        // We don't mutate pd; we compute shifted values on the fly.
+        double minVal = double.PositiveInfinity;
+        double maxVal = double.NegativeInfinity;
+        foreach (var val in pd.Potentials.Values)
+        {
+            double shifted = val - refPotential;
+            if (shifted < minVal) minVal = shifted;
+            if (shifted > maxVal) maxVal = shifted;
+        }
+        if (double.IsInfinity(minVal) || double.IsInfinity(maxVal))
+        {
+            minVal = 0.0;
+            maxVal = 1e-12;
+        }
+        if (Math.Abs(maxVal - minVal) < 1e-12)
+            maxVal = minVal + 1e-12;
+
+        // --- 3) draw each element using shifted average potential ---
         foreach (var elem in mesh.GetElements().Cast<FEMElement>())
         {
-            double avg = elem.Vertices.Average(v => pd.GetPotential(v.GlobalId));
-            fill.Color = GetPotentialColor(avg, minVal, maxVal, modeOverride);
+            double avgRaw = elem.Vertices.Average(v => pd.GetPotential(v.GlobalId));
+            double avgShifted = avgRaw - refPotential;
+            fill.Color = GetPotentialColor(avgShifted, minVal, maxVal, modeOverride);
+
             using var path = new SKPath();
             path.MoveTo(ToCanvas(elem.Vertices[0]));
             path.LineTo(ToCanvas(elem.Vertices[1]));
@@ -558,8 +589,10 @@ public partial class ReconstructionPage : ContentPage
             canvas.DrawPath(path, fill);
             canvas.DrawPath(path, stroke);
         }
+
         DrawHoverInfo(canvas, info, lines, pt);
     }
+
 
     private void DrawLbmField(SKCanvas canvas,
                               SKImageInfo info,
@@ -1057,23 +1090,42 @@ public partial class ReconstructionPage : ContentPage
         }
     }
 
+
     private void OnPotentialColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
         var discretization = GetDiscretization();
         var pd = _currentFrame?.CalculatedPotentialDistribution ?? discretization?.GetPotentialDistribution();
+
         if (discretization is LBMGrid lbm && pd != null)
         {
             var (min, max) = GetLbmValueRange(lbm, pd.Potentials);
             DrawColorBar(e.Surface.Canvas, e.Info, min, max, true);
         }
-        else if (pd != null)
+        else if (discretization is FEMMesh && pd != null)
         {
-            double min = pd.Potentials.Values.Min();
-            double max = pd.Potentials.Values.Max();
+            double refPotential = 0.0;
+            if (pd.Potentials.TryGetValue(VisualReferenceNodeId, out double rawRef))
+                refPotential = rawRef;
+
+            double min = double.PositiveInfinity;
+            double max = double.NegativeInfinity;
+            foreach (var val in pd.Potentials.Values)
+            {
+                double shifted = val - refPotential;
+                if (shifted < min) min = shifted;
+                if (shifted > max) max = shifted;
+            }
+            if (double.IsInfinity(min) || double.IsInfinity(max))
+            {
+                min = 0.0;
+                max = 1e-12;
+            }
             if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
+
             DrawColorBar(e.Surface.Canvas, e.Info, min, max, true);
         }
     }
+
 
     private void OnReconstructedColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {

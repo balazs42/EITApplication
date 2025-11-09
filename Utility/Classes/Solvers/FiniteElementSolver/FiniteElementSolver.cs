@@ -41,6 +41,7 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         private Matrix _systemMatrix;
         private Vector _systemRhs;
         private int _groundElectrodeId;
+        private int _referenceNodeId = 0;   // Reference node is treated as the 0 potential node so everything is shifted by its value.
 
         public int N_phi { get; }
         public int L { get; }
@@ -75,6 +76,7 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             _systemRhs = Vector.Build.Sparse(N_phi + Math.Max(0, L - 1));
             _cachedContactImpedances = Enumerable.Repeat(double.NaN, L).ToArray();
             _groundElectrodeId = 0;
+            _referenceNodeId = 0;
         }
 
         /// <summary>
@@ -137,9 +139,17 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
 
             var solution = _numericSolver.SolveLinearSystem(_systemMatrix, _systemRhs);
 
+            // --- 1) get potential at reference node (EIDORS gnd_node) ---
+            if (_referenceNodeId < 0 || _referenceNodeId >= N_phi)
+                throw new InvalidOperationException(
+                    $"Reference node id {_referenceNodeId} out of range [0, {N_phi - 1}]");
+
+            double referencePotential = solution[_referenceNodeId];
+
+            // --- 2) build node potentials shifted so that φ(referenceNode) = 0 ---
             var nodePotentials = new Dictionary<int, double>(N_phi);
             for (int i = 0; i < N_phi; i++)
-                nodePotentials[i] = solution[i];
+                nodePotentials[i] = solution[i];// - referencePotential;
 
             var potentialDistribution = new PotentialDistribution(nodePotentials);
             mesh.SetPotentialDistribution(potentialDistribution);

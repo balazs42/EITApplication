@@ -179,7 +179,16 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             var bc = boundaryCondition as LBMBoundaryCondition ?? throw new InvalidCastException();
 
             // Route to appropriate implementation based on configuration
-            return _useCuda ? RunForwardCuda(lbmGrid, bc) : RunForward(lbmGrid, bc);
+            PotentialDistribution phi = _useCuda ? RunForwardCuda(lbmGrid, bc) : RunForward(lbmGrid, bc);
+
+            int groundElectrodeCellId = boundaryCondition.GroundElectrodeId;
+
+            double phiGround = phi.Potentials[groundElectrodeCellId];
+            var shifted = new PotentialDistribution(
+                phi.Potentials.ToDictionary(kvp => kvp.Key, kvp => kvp.Value - phiGround));
+            lbmGrid.SetPotentialDistribution(shifted);
+
+            return shifted;
         }
 
         /// <summary>
@@ -590,7 +599,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     if (sigmaAvg <= 0.0)
                         continue; // Perfect insulator -> no flux through this face.
 
-                    double flux = sigmaAvg * (phiInterior - phiBoundaryCell) + currentPerLink;
+                    double flux = -sigmaAvg * (phiInterior - phiBoundaryCell) + currentPerLink;
                     double deltaFi = alpha * flux * weights[inward];
 
                     if (electrode.IsExcitation)
