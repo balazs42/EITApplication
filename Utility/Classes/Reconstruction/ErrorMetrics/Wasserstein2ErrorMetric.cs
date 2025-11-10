@@ -563,12 +563,8 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             return (vals.ToArray(), coords.ToArray(), map);
         }
 
-        private static (double x, double y) ToXY(LBMGrid mesh, int gridId)
-        {
-            int x = gridId % mesh.Nx;
-            int y = gridId / mesh.Nx;
-            return (x, y);
-        }
+        private static (double x, double y) ToXY(LBMGrid mesh, int gridId) =>
+            LbmElectrodeCoordinateHelper.ToPhysicalCoordinates(mesh, gridId);
 
         private static (double x, double y) GetCoord(FEMMesh mesh, FEMElectrode e)
         {
