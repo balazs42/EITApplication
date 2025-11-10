@@ -414,7 +414,16 @@ namespace BusinessLayer
             var expandedAdjoint = projection.ExpandAdjoint(adjSrc);
             Complex[] adjointSource = ToComplex(expandedAdjoint);
 
-            // Adjoint solve using the same boundary condition shape but with source applied
+            // Reset electrodes to measurement state before constructing adjoint boundary condition
+            foreach (var electrode in electrodes)
+            {
+                electrode.IsExcitation = false;
+                electrode.IsGround = false;
+                electrode.IsMeasuring = true;
+                electrode.Current = 0.0;
+            }
+
+            // Adjoint solve using the same electrode geometry but without drive pair applied
             var adjointBoundaryCondition = new LBMBoundaryCondition(electrodes);
             Workspace.SetCurrentGlobalLbmBoundaryCondition(adjointBoundaryCondition);
             PotentialDistribution mu = _useCudaParallelization && lbmSolver != null
@@ -757,7 +766,8 @@ namespace BusinessLayer
                 Workspace.SetElectrodeMeasurementSetup(simulation.MeasurementSetup);
             }
 
-            ConductivityDistribution initialSigma = _initialSigma ?? mesh.GetConductivityDistribution();
+            ConductivityDistribution initialSigma = _initialSigma
+                ?? ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType);
             initialSigma = ConductivityClipper.Clip(initialSigma);
             mesh.SetConductivityDistribution(initialSigma);
 
