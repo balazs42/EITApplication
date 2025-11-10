@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Linq;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 
@@ -8,12 +9,12 @@ namespace Utility.Classes.Measurement
     {
         public bool IsNeumann = false;
 
-        public LBMBoundaryCondition(List<LBMElectrode> electrodes)
+        public LBMBoundaryCondition(List<LBMElectrode> electrodes, bool requireDrivePair = true)
         {
-            InitLBM(electrodes);
+            InitLBM(electrodes, requireDrivePair);
         }
 
-        public void InitLBM(List<LBMElectrode> electrodes)
+        public void InitLBM(List<LBMElectrode> electrodes, bool requireDrivePair = true)
         {
             SetElectrodes([.. electrodes.Cast<LBMElectrode>()]);
             NumElectrodes = _electrodes.Count;
@@ -21,7 +22,7 @@ namespace Utility.Classes.Measurement
             var groundElectrode = _electrodes.Find(x => x.IsGround);
             var excitationElectrode = _electrodes.Find(x => x.IsExcitation);
 
-            if (groundElectrode == null || excitationElectrode == null)
+            if (requireDrivePair && (groundElectrode == null || excitationElectrode == null) && _electrodes.Count >= 2)
             {
                 _electrodes[0].IsGround = true;
                 _electrodes[0].Current = -1.0;
@@ -33,13 +34,13 @@ namespace Utility.Classes.Measurement
                 Debug.WriteLine("No ground or excitation id specified on electrodes, setting to default!");
             }
 
-            GroundElectrodeId = groundElectrode.Id;
-            ExcitationElectrodeId = excitationElectrode.Id;
+            GroundElectrodeId = groundElectrode?.Id ?? (_electrodes.Count > 0 ? _electrodes[0].Id : -1);
+            ExcitationElectrodeId = excitationElectrode?.Id ?? (_electrodes.Count > 1 ? _electrodes[1].Id : GroundElectrodeId);
         }
 
         public override void Initialize(IEnumerable<Electrode> electrodes)
         {
-            SetElectrodes([.. electrodes.Cast<LBMElectrode>()]);
+            InitLBM([.. electrodes.Cast<LBMElectrode>()]);
         }
     }
 }
