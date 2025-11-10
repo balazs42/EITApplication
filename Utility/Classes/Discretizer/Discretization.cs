@@ -154,14 +154,16 @@ namespace Utility.Classes.Discretizer
 
         public void ShiftExcitationElectrodes(DrivePattern drivePattern)
         {
-            var excitationElectrode = _electrodes.Find(x => x.IsExcitation) ?? throw new NullReferenceException("Could not find an electrode which is specified as excitation!");
-            int excitationElectrodeId = excitationElectrode.Id;
+            var excitationElectrode = _electrodes.Find(x => x.IsExcitation);
+            var groundElectrode = _electrodes.Find(x => x.IsGround);
 
+            if (excitationElectrode == null || groundElectrode == null)
+                return;
+
+            int excitationElectrodeId = excitationElectrode.Id;
             double excitationCurrent = excitationElectrode.Current;
 
-            var groundElectrode = _electrodes.Find(x => x.IsGround) ?? throw new NullReferenceException("Could not find an electrode which is specified as ground!");
             int groundElectrodeId = groundElectrode.Id;
-
             double groundCurrent = groundElectrode.Current;
 
             int electrodeCount = _electrodes.Count;
