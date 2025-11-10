@@ -429,20 +429,8 @@ namespace BusinessLayer
                 electrode.Current = 0.0;
             }
 
-            // Adjoint solve using the same electrode geometry but without drive pair applied.
-            // Clone the forward boundary condition so the solver keeps the correct ground index
-            // while clearing the drive flags on the copy that is passed to the adjoint solve.
-            var adjointElectrodes = forwardElectrodeSnapshot
-                .Select(CloneLbmElectrode)
-                .ToList();
-            var adjointBoundaryCondition = new LBMBoundaryCondition(adjointElectrodes);
-            foreach (var electrode in adjointBoundaryCondition.GetElectrodes())
-            {
-                electrode.IsExcitation = false;
-                electrode.IsGround = false;
-                electrode.IsMeasuring = true;
-                electrode.Current = 0.0;
-            }
+            // Adjoint solve using the same electrode geometry but without drive pair applied
+            var adjointBoundaryCondition = new LBMBoundaryCondition(electrodes, requireDrivePair: false);
             Workspace.SetCurrentGlobalLbmBoundaryCondition(adjointBoundaryCondition);
             PotentialDistribution mu = _useCudaParallelization && lbmSolver != null
                 ? lbmSolver.CUDASolveAdjoint(mesh, adjointBoundaryCondition, adjointSource)
@@ -1180,7 +1168,15 @@ namespace BusinessLayer
             var expandedAdjoint = projection.ExpandAdjoint(adjSrc);
             Complex[] adjointSource = ToComplex(expandedAdjoint);
 
-            var adjointBoundaryCondition = new LBMBoundaryCondition(electrodes);
+            foreach (var electrode in electrodes)
+            {
+                electrode.IsExcitation = false;
+                electrode.IsGround = false;
+                electrode.IsMeasuring = true;
+                electrode.Current = 0.0;
+            }
+
+            var adjointBoundaryCondition = new LBMBoundaryCondition(electrodes, requireDrivePair: false);
             Workspace.SetCurrentGlobalLbmBoundaryCondition(adjointBoundaryCondition);
             PotentialDistribution mu = PotentialClipper.Clip(_differentialEquationSolver.Solve(mesh, adjointBoundaryCondition, adjointSource));
 
