@@ -421,21 +421,48 @@ namespace BusinessLayer
             Complex[] adjointSource = ToComplex(expandedAdjoint);
 
             // Reset electrodes to measurement state before constructing adjoint boundary condition
-            foreach (var electrode in electrodes)
+            PotentialDistribution mu;
+            var preservedElectrodeStates = electrodes
+                .Select(electrode => new
+                {
+                    Electrode = electrode,
+                    electrode.IsExcitation,
+                    electrode.IsGround,
+                    electrode.IsMeasuring,
+                    electrode.Current
+                })
+                .ToList();
+
+            try
             {
-                electrode.IsExcitation = false;
-                electrode.IsGround = false;
-                electrode.IsMeasuring = true;
-                electrode.Current = 0.0;
+                foreach (var electrode in electrodes)
+                {
+                    electrode.IsExcitation = false;
+                    electrode.IsGround = false;
+                    electrode.IsMeasuring = true;
+                    electrode.Current = 0.0;
+                }
+
+                // Adjoint solve using the same electrode geometry but without drive pair applied
+                var adjointBoundaryCondition = new LBMBoundaryCondition(electrodes, requireDrivePair: false);
+                Workspace.SetCurrentGlobalLbmBoundaryCondition(adjointBoundaryCondition);
+                mu = _useCudaParallelization && lbmSolver != null
+                    ? lbmSolver.CUDASolveAdjoint(mesh, adjointBoundaryCondition, adjointSource)
+                    : _differentialEquationSolver.Solve(mesh, adjointBoundaryCondition, adjointSource);
+                mu = PotentialClipper.Clip(mu);
+            }
+            finally
+            {
+                foreach (var state in preservedElectrodeStates)
+                {
+                    state.Electrode.IsExcitation = state.IsExcitation;
+                    state.Electrode.IsGround = state.IsGround;
+                    state.Electrode.IsMeasuring = state.IsMeasuring;
+                    state.Electrode.Current = state.Current;
+                }
             }
 
-            // Adjoint solve using the same electrode geometry but without drive pair applied
-            var adjointBoundaryCondition = new LBMBoundaryCondition(electrodes, requireDrivePair: false);
-            Workspace.SetCurrentGlobalLbmBoundaryCondition(adjointBoundaryCondition);
-            PotentialDistribution mu = _useCudaParallelization && lbmSolver != null
-                ? lbmSolver.CUDASolveAdjoint(mesh, adjointBoundaryCondition, adjointSource)
-                : _differentialEquationSolver.Solve(mesh, adjointBoundaryCondition, adjointSource);
-            mu = PotentialClipper.Clip(mu);
+            Workspace.SetCurrentGlobalLbmBoundaryCondition(bc);
 
             // Compute data gradient per element using dot product of gradients
             var phiGradientField = _useCudaParallelization
@@ -1168,17 +1195,44 @@ namespace BusinessLayer
             var expandedAdjoint = projection.ExpandAdjoint(adjSrc);
             Complex[] adjointSource = ToComplex(expandedAdjoint);
 
-            foreach (var electrode in electrodes)
+            PotentialDistribution mu;
+            var preservedElectrodeStates = electrodes
+                .Select(electrode => new
+                {
+                    Electrode = electrode,
+                    electrode.IsExcitation,
+                    electrode.IsGround,
+                    electrode.IsMeasuring,
+                    electrode.Current
+                })
+                .ToList();
+
+            try
             {
-                electrode.IsExcitation = false;
-                electrode.IsGround = false;
-                electrode.IsMeasuring = true;
-                electrode.Current = 0.0;
+                foreach (var electrode in electrodes)
+                {
+                    electrode.IsExcitation = false;
+                    electrode.IsGround = false;
+                    electrode.IsMeasuring = true;
+                    electrode.Current = 0.0;
+                }
+
+                var adjointBoundaryCondition = new LBMBoundaryCondition(electrodes, requireDrivePair: false);
+                Workspace.SetCurrentGlobalLbmBoundaryCondition(adjointBoundaryCondition);
+                mu = PotentialClipper.Clip(_differentialEquationSolver.Solve(mesh, adjointBoundaryCondition, adjointSource));
+            }
+            finally
+            {
+                foreach (var state in preservedElectrodeStates)
+                {
+                    state.Electrode.IsExcitation = state.IsExcitation;
+                    state.Electrode.IsGround = state.IsGround;
+                    state.Electrode.IsMeasuring = state.IsMeasuring;
+                    state.Electrode.Current = state.Current;
+                }
             }
 
-            var adjointBoundaryCondition = new LBMBoundaryCondition(electrodes, requireDrivePair: false);
-            Workspace.SetCurrentGlobalLbmBoundaryCondition(adjointBoundaryCondition);
-            PotentialDistribution mu = PotentialClipper.Clip(_differentialEquationSolver.Solve(mesh, adjointBoundaryCondition, adjointSource));
+            Workspace.SetCurrentGlobalLbmBoundaryCondition(bc);
 
             var phiGradientField = _useCudaParallelization
                 ? LatticeBoltzmannOperators.CalculateGradientCuda(mesh, phi)
