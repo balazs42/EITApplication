@@ -414,7 +414,16 @@ namespace BusinessLayer
             var expandedAdjoint = projection.ExpandAdjoint(adjSrc);
             Complex[] adjointSource = ToComplex(expandedAdjoint);
 
-            // Adjoint solve using the same boundary condition shape but with source applied
+            // Reset electrodes to measurement state before constructing adjoint boundary condition
+            foreach (var electrode in electrodes)
+            {
+                electrode.IsExcitation = false;
+                electrode.IsGround = false;
+                electrode.IsMeasuring = true;
+                electrode.Current = 0.0;
+            }
+
+            // Adjoint solve using the same electrode geometry but without drive pair applied
             var adjointBoundaryCondition = new LBMBoundaryCondition(electrodes);
             Workspace.SetCurrentGlobalLbmBoundaryCondition(adjointBoundaryCondition);
             PotentialDistribution mu = _useCudaParallelization && lbmSolver != null
@@ -757,14 +766,21 @@ namespace BusinessLayer
                 Workspace.SetElectrodeMeasurementSetup(simulation.MeasurementSetup);
             }
 
-            ConductivityDistribution initialSigma = _initialSigma ?? mesh.GetConductivityDistribution();
+            ConductivityDistribution initialSigma = _initialSigma
+                ?? ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType);
             initialSigma = ConductivityClipper.Clip(initialSigma);
             mesh.SetConductivityDistribution(initialSigma);
 
             Workspace.UpdateCurrentGlobalLbmElectrodes(mesh);
             Workspace.UpdateCurrentGlobalLbmElements(mesh);
             var electrodes = Workspace.GetCurrentGlobalLbmElectrodes();
-            int electrodeCount = electrodes.Count;
+            var realElectrodes = electrodes.Where(e => !e.IsVirtual).ToList();
+            int realElectrodeCount = realElectrodes.Count;
+            var driveStrategy = DrivePatternStrategyProvider.GetStrategy(_drivePattern);
+            int cycleLength = realElectrodeCount > 0
+                ? Math.Max(1, driveStrategy.GetCycleLength(realElectrodeCount))
+                : 1;
+            double driveAmplitude = measurementFrames.CurrentAmplitude ?? 1.0;
 
             var elements = Workspace.GetCurrentGlobalLbmElements();
 
@@ -774,7 +790,7 @@ namespace BusinessLayer
             {
                 Dictionary<int, double> totalGrad = elements.ToDictionary(el => el.Id, _ => 0.0);
 
-                for (int exc = 0; exc < electrodeCount; exc++)
+                for (int step = 0; step < cycleLength; step++)
                 {
                     foreach (var el in electrodes)
                     {
@@ -785,16 +801,24 @@ namespace BusinessLayer
                         el.Potential = 0.0;
                     }
 
-                    electrodes[exc % electrodeCount].IsExcitation = true;
-                    electrodes[exc % electrodeCount].IsMeasuring = false;
-                    electrodes[exc % electrodeCount].Current = 1.0;
-                    electrodes[(exc + 1) % electrodeCount].IsGround = true;
-                    electrodes[(exc + 1) % electrodeCount].IsMeasuring = false;
-                    electrodes[(exc + 1) % electrodeCount].Current = -1.0;
+                    if (realElectrodeCount > 0)
+                    {
+                        var (excitationIndex, groundIndex) = driveStrategy.GetElectrodePair(realElectrodeCount, step);
+                        var excitation = realElectrodes[excitationIndex];
+                        excitation.IsExcitation = true;
+                        excitation.IsMeasuring = false;
+                        excitation.Current = driveAmplitude;
+
+                        var ground = realElectrodes[groundIndex];
+                        ground.IsGround = true;
+                        ground.IsMeasuring = false;
+                        ground.Current = -driveAmplitude;
+                    }
 
                     var bc = new LBMBoundaryCondition(electrodes);
                     Workspace.SetCurrentGlobalLbmBoundaryCondition(bc);
-                    double[] dObs = measurementFrames.Frames[exc];
+                    int frameIndex = step % Math.Max(1, measurementFrames.Frames.Count);
+                    double[] dObs = measurementFrames.Frames[frameIndex];
 
                     var frame = InverseSolveStepLbm(mesh, bc, dObs);
 
@@ -811,7 +835,7 @@ namespace BusinessLayer
                     double g = totalGrad[key];
                     if (regGrad != null)
                         g += _regularizationWeight * regGrad.GetConductivity(key);
-                    totalGrad[key] = g / electrodeCount;
+                    totalGrad[key] = g / cycleLength;
                 }
 
                 var newSigmaDict = sigma.Conductivities.ToDictionary(
