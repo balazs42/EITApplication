@@ -386,6 +386,12 @@ namespace BusinessLayer
             var electrodes = Workspace.GetCurrentGlobalLbmElectrodes();
             var elements = Workspace.GetCurrentGlobalLbmElements();
 
+            // Preserve the forward drive pair so the adjoint boundary condition retains the
+            // same grounding reference instead of falling back to the library defaults.
+            var forwardElectrodeSnapshot = bc.GetElectrodes()
+                                             .Select(CloneLbmElectrode)
+                                             .ToList();
+
             // Solve Forward to extract simulated potentials
             var lbmSolver = _differentialEquationSolver as LatticeBoltzmannDESolver;
 
@@ -473,6 +479,22 @@ namespace BusinessLayer
                 complex[i] = values[i];
 
             return complex;
+        }
+
+        private static LBMElectrode CloneLbmElectrode(LBMElectrode electrode)
+        {
+            if (electrode == null)
+                throw new ArgumentNullException(nameof(electrode));
+
+            return new LBMElectrode(electrode.Id,
+                                     electrode.GridId,
+                                     electrode.Current,
+                                     electrode.Potential,
+                                     electrode.ZContact,
+                                     electrode.IsExcitation,
+                                     electrode.IsGround,
+                                     electrode.IsMeasuring,
+                                     electrode.IsVirtual);
         }
 
         /// <summary>
