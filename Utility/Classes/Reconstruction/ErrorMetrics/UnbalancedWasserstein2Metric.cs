@@ -790,12 +790,8 @@ public sealed class UnbalancedWasserstein2Metric : IErrorMetric
         return (values.ToArray(), coords.ToArray(), mapping, leftIndices.ToArray());
     }
 
-    private static (double x, double y) ToXY(LBMGrid grid, int gridId)
-    {
-        int x = gridId % grid.Nx;
-        int y = gridId / grid.Nx;
-        return (x, y);
-    }
+    private static (double x, double y) ToXY(LBMGrid grid, int gridId) =>
+        LbmElectrodeCoordinateHelper.ToPhysicalCoordinates(grid, gridId);
 
     private static (double x, double y) GetCoord(FEMMesh mesh, Electrode electrode)
     {
