@@ -186,55 +186,46 @@ namespace BusinessLayer
             if (_numericOptimizer == null)
                 throw new NullReferenceException("Numeric optimizer is null, check calling code!");
 
+            ReconstructionFrame? frame = null;
+            ConductivityDistribution? sigma = null;
+            ConductivityDistribution? totalGrad = null;
+            ConductivityDistribution? updated = null;
+
             // Dispatch by discretization type (FEM vs LBM); compute frame and update sigma
             if (_discretization is FEMMesh femMesh)
             {
                 FEMBoundaryCondition bc = boundaryCondition as FEMBoundaryCondition ?? throw new ArgumentException("Cannot convert boundary condition to FEM boundary condition, check calling code!");
 
-                var frame = InverseSolveStepFem(femMesh, bc, measurement, gradientStepSize);
-
-                // Combine data and regularization gradients before optimizer step
-                var totalGradDict = frame.ConductivityGradient.Conductivities.ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => kvp.Value - regularizationStepSize * frame.CalculatedRegularization.GetConductivity(kvp.Key));
-                var totalGrad = new ConductivityDistribution(totalGradDict);
-
-                var sigma = femMesh.GetConductivityDistribution();
-                var updated = _numericOptimizer.OptimizationStep(sigma, totalGrad, gradientStepSize);
-                updated = ConductivityClipper.Clip(updated);
-                femMesh.SetConductivityDistribution(updated);
-
-                return new ReconstructionFrame(totalGrad,
-                                              frame.CalculatedPotentialDistribution,
-                                              frame.CalculatedAdjointDistribution,
-                                              frame.CalculatedRegularization,
-                                              frame.MeasuredElectrodeValues,
-                                              frame.SimulatedElectrodeValues);
+                frame = InverseSolveStepFem(femMesh, bc, measurement, gradientStepSize);
             }
             else if (_discretization is LBMGrid lbmGrid)
             {
                 LBMBoundaryCondition bc = boundaryCondition as LBMBoundaryCondition ?? throw new ArgumentException("Cannot convert boundary condition to LBM boundary condition, check calling code!");
 
-                var frame = InverseSolveStepLbm(lbmGrid, bc, measurement);
-
-                var totalGradDict = frame.ConductivityGradient.Conductivities.ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => kvp.Value - regularizationStepSize * frame.CalculatedRegularization.GetConductivity(kvp.Key));
-                var totalGrad = new ConductivityDistribution(totalGradDict);
-
-                var sigma = lbmGrid.GetConductivityDistribution();
-                var updated = _numericOptimizer.OptimizationStep(sigma, totalGrad, gradientStepSize);
-                updated = ConductivityClipper.Clip(updated);
-                lbmGrid.SetConductivityDistribution(updated);
-
-                return new ReconstructionFrame(totalGrad,
-                                              frame.CalculatedPotentialDistribution,
-                                              frame.CalculatedAdjointDistribution,
-                                              frame.CalculatedRegularization,
-                                              frame.MeasuredElectrodeValues,
-                                              frame.SimulatedElectrodeValues);
+                frame = InverseSolveStepLbm(lbmGrid, bc, measurement);
             }
             else throw new ArgumentOutOfRangeException();
+
+            // Combine data and regularization gradients before optimizer step
+            var totalGradDict = frame.ConductivityGradient.Conductivities.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value - regularizationStepSize * frame.CalculatedRegularization.GetConductivity(kvp.Key));
+            totalGrad = new ConductivityDistribution(totalGradDict);
+
+            // Use optimizer to update based on the gradient
+            sigma = _discretization.GetConductivityDistribution();
+
+            updated = _numericOptimizer.OptimizationStep(sigma, totalGrad, gradientStepSize);
+            updated = ConductivityClipper.Clip(updated);
+            
+            _discretization.SetConductivityDistribution(updated);
+
+            return new ReconstructionFrame(totalGrad,
+                                           frame.CalculatedPotentialDistribution,
+                                           frame.CalculatedAdjointDistribution,
+                                           frame.CalculatedRegularization,
+                                           frame.MeasuredElectrodeValues,
+                                           frame.SimulatedElectrodeValues);
         }
 
         /// <summary>
