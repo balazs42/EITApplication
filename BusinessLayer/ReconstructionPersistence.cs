@@ -386,6 +386,12 @@ namespace BusinessLayer
             var electrodes = Workspace.GetCurrentGlobalLbmElectrodes();
             var elements = Workspace.GetCurrentGlobalLbmElements();
 
+            // Preserve the forward drive pair so the adjoint boundary condition retains the
+            // same grounding reference instead of falling back to the library defaults.
+            var forwardElectrodeSnapshot = bc.GetElectrodes()
+                                             .Select(CloneLbmElectrode)
+                                             .ToList();
+
             // Solve Forward to extract simulated potentials
             var lbmSolver = _differentialEquationSolver as LatticeBoltzmannDESolver;
 
@@ -423,8 +429,20 @@ namespace BusinessLayer
                 electrode.Current = 0.0;
             }
 
-            // Adjoint solve using the same electrode geometry but without drive pair applied
-            var adjointBoundaryCondition = new LBMBoundaryCondition(electrodes);
+            // Adjoint solve using the same electrode geometry but without drive pair applied.
+            // Clone the forward boundary condition so the solver keeps the correct ground index
+            // while clearing the drive flags on the copy that is passed to the adjoint solve.
+            var adjointElectrodes = forwardElectrodeSnapshot
+                .Select(CloneLbmElectrode)
+                .ToList();
+            var adjointBoundaryCondition = new LBMBoundaryCondition(adjointElectrodes);
+            foreach (var electrode in adjointBoundaryCondition.GetElectrodes())
+            {
+                electrode.IsExcitation = false;
+                electrode.IsGround = false;
+                electrode.IsMeasuring = true;
+                electrode.Current = 0.0;
+            }
             Workspace.SetCurrentGlobalLbmBoundaryCondition(adjointBoundaryCondition);
             PotentialDistribution mu = _useCudaParallelization && lbmSolver != null
                 ? lbmSolver.CUDASolveAdjoint(mesh, adjointBoundaryCondition, adjointSource)
@@ -473,6 +491,22 @@ namespace BusinessLayer
                 complex[i] = values[i];
 
             return complex;
+        }
+
+        private static LBMElectrode CloneLbmElectrode(LBMElectrode electrode)
+        {
+            if (electrode == null)
+                throw new ArgumentNullException(nameof(electrode));
+
+            return new LBMElectrode(electrode.Id,
+                                     electrode.GridId,
+                                     electrode.Current,
+                                     electrode.Potential,
+                                     electrode.ZContact,
+                                     electrode.IsExcitation,
+                                     electrode.IsGround,
+                                     electrode.IsMeasuring,
+                                     electrode.IsVirtual);
         }
 
         /// <summary>
