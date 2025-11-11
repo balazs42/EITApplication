@@ -65,7 +65,7 @@ namespace Utility.Tests
             }
             catch (InvalidOperationException ex) when (ex.Message.Contains("CUDA"))
             {
-                throw new SkipException("CUDA accelerator unavailable for GPU comparison test.");
+                throw new ArgumentException("CUDA accelerator unavailable for GPU comparison test.");
             }
         }
 

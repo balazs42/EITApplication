@@ -278,32 +278,44 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         {
             int count = 0;
 
-            void TryAdd(int dir)
+            // Instead of a local function, use a regular for loop to avoid capturing ref-like variables
+            ReadOnlySpan<int> cardinal = stackalloc int[] { 1, 2, 3, 4 };
+            foreach (int dir in cardinal)
             {
                 if (count >= directions.Length)
-                    return;
+                    break;
 
                 var neighbor = element.Neighbors[dir];
                 if (neighbor is null || !neighbor.GhostElement)
-                    return;
+                    continue;
 
                 if (!elementIndexLookup.TryGetValue(neighbor.Id, out int ghostIndex))
-                    return;
+                    continue;
 
                 directions[count] = dir;
                 ghostIndices[count] = ghostIndex;
                 count++;
             }
 
-            ReadOnlySpan<int> cardinal = stackalloc int[] { 1, 2, 3, 4 };
-            foreach (int dir in cardinal)
-                TryAdd(dir);
-
             if (count == 0)
             {
                 ReadOnlySpan<int> diagonal = stackalloc int[] { 5, 6, 7, 8 };
                 foreach (int dir in diagonal)
-                    TryAdd(dir);
+                {
+                    if (count >= directions.Length)
+                        break;
+
+                    var neighbor = element.Neighbors[dir];
+                    if (neighbor is null || !neighbor.GhostElement)
+                        continue;
+
+                    if (!elementIndexLookup.TryGetValue(neighbor.Id, out int ghostIndex))
+                        continue;
+
+                    directions[count] = dir;
+                    ghostIndices[count] = ghostIndex;
+                    count++;
+                }
             }
 
             return count;
