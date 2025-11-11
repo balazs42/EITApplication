@@ -28,19 +28,30 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         /// Value -1 indicates no neighbor (boundary or outside domain).
         /// </summary>
         public int[] NeighborIndices { get; }
-        
+
         /// <summary>
         /// Flattened array indicating if each neighbor is a wall for bounce-back.
         /// Same layout as NeighborIndices: 1=wall, 0=fluid.
         /// Used by streaming kernel to determine bounce-back behavior.
         /// </summary>
         public int[] NeighborIsWall { get; }
+
+        /// <summary>
+        /// Flattened array indicating whether a neighbor is a ghost node (1) or not (0).
+        /// The ghost layer carries Neumann boundary information for electrodes.
+        /// </summary>
+        public int[] NeighborIsGhost { get; }
         
         /// <summary>
         /// Array indicating which elements are walls (1) or fluid (0).
         /// Wall elements don't participate in collision or streaming operations.
         /// </summary>
         public int[] IsWall { get; }
+
+        /// <summary>
+        /// Array indicating which elements belong to the ghost layer (1) or the physical domain (0).
+        /// </summary>
+        public int[] IsGhost { get; }
         
         /// <summary>
         /// Dictionary mapping original element IDs to linear array indices.
@@ -63,14 +74,18 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             int[] elementIds,
             int[] neighborIndices,
             int[] neighborIsWall,
+            int[] neighborIsGhost,
             int[] isWall,
+            int[] isGhost,
             Dictionary<int, int> idToIndex)
         {
             Elements = elements;
             ElementIds = elementIds;
             NeighborIndices = neighborIndices;
             NeighborIsWall = neighborIsWall;
+            NeighborIsGhost = neighborIsGhost;
             IsWall = isWall;
+            IsGhost = isGhost;
             IdToIndex = idToIndex;
         }
     }
@@ -109,7 +124,9 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             // Allocate flattened arrays for neighbor connectivity (9 directions per element)
             var neighborIndices = new int[count * 9];    // Neighbor linear indices
             var neighborIsWall = new int[count * 9];     // Neighbor wall flags
+            var neighborIsGhost = new int[count * 9];    // Neighbor ghost flags
             var isWall = new int[count];                 // Current element wall flags
+            var isGhost = new int[count];                // Current element ghost flags
 
             // Process each element to build flattened neighbor arrays
             for (int i = 0; i < count; i++)
@@ -118,6 +135,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 
                 // Convert boolean wall flag to integer for GPU compatibility
                 isWall[i] = element.IsWall ? 1 : 0;
+                isGhost[i] = element.GhostElement ? 1 : 0;
 
                 // Process all 9 D2Q9 directions for current element
                 for (int k = 0; k < 9; k++)
@@ -133,12 +151,14 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                         
                         // Store neighbor's wall status for bounce-back decisions
                         neighborIsWall[arrayIndex] = neighbor.IsWall ? 1 : 0;
+                        neighborIsGhost[arrayIndex] = neighbor.GhostElement ? 1 : 0;
                     }
                     else
                     {
                         // No neighbor (domain boundary) - mark as invalid
                         neighborIndices[arrayIndex] = -1; // Invalid index sentinel
                         neighborIsWall[arrayIndex] = 0;   // Not a wall (boundary)
+                        neighborIsGhost[arrayIndex] = 0;
                     }
                 }
             }
@@ -149,7 +169,9 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 elementIds,        // Element ID array
                 neighborIndices,   // Flattened neighbor indices
                 neighborIsWall,    // Flattened neighbor wall flags
+                neighborIsGhost,  // Flattened neighbor ghost flags
                 isWall,           // Element wall flags
+                isGhost,          // Element ghost flags
                 idToIndex);       // ID-to-index mapping dictionary
         }
     }
