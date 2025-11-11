@@ -828,6 +828,8 @@ namespace BusinessLayer
             {
                 LBMGrid measMesh = (LBMGrid)mesh.DeepCopy();
                 measMesh.SetConductivityDistribution(originalSigma);
+                // Ghost-layer conductivities are derived from the interior; recompute them before any solves.
+                measMesh.UpdateGhostConductivityFromNeighbors();
                 var simulation = GenerateLbmMeasurements(measMesh, 1.0);
                 measurementFrames = simulation.Amplitude.HasValue
                     ? new EITMeasurement(simulation.Frames, simulation.Amplitude.Value, simulation.Pattern)
@@ -847,6 +849,8 @@ namespace BusinessLayer
                 ?? ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType);
             initialSigma = ConductivityClipper.Clip(initialSigma);
             mesh.SetConductivityDistribution(initialSigma);
+            // Reconstruction only optimises interior conductivities; keep the ghost layer in sync with them.
+            mesh.UpdateGhostConductivityFromNeighbors();
 
             Workspace.UpdateCurrentGlobalLbmElectrodes(mesh);
             Workspace.UpdateCurrentGlobalLbmElements(mesh);
@@ -860,6 +864,9 @@ namespace BusinessLayer
             double driveAmplitude = measurementFrames.CurrentAmplitude ?? 1.0;
 
             var elements = Workspace.GetCurrentGlobalLbmElements();
+            var interiorElementIds = new HashSet<int>(elements
+                .Where(el => !el.GhostElement && !el.IsWall)
+                .Select(el => el.Id));
 
             List<ReconstructionFrame> frames = [];
 
@@ -917,10 +924,14 @@ namespace BusinessLayer
 
                 var newSigmaDict = sigma.Conductivities.ToDictionary(
                     kvp => kvp.Key,
-                    kvp => kvp.Value + _gradientStepSize * totalGrad[kvp.Key]);
+                    kvp => interiorElementIds.Contains(kvp.Key)
+                        ? kvp.Value + _gradientStepSize * totalGrad[kvp.Key]
+                        : kvp.Value);
 
                 var updated = ConductivityClipper.Clip(new ConductivityDistribution(newSigmaDict));
                 mesh.SetConductivityDistribution(updated);
+                // Ghost conductivities are derived quantities; refresh them immediately after interior updates.
+                mesh.UpdateGhostConductivityFromNeighbors();
             }
 
             ConductivityDistribution reconstructed = mesh.GetConductivityDistribution();
@@ -1304,6 +1315,7 @@ namespace BusinessLayer
 
             ConductivityDistribution originalConductivityDistribution = _originalSigma ?? ((LBMGrid)lbmGrid.DeepCopy()).GetConductivityDistribution();
             lbmGrid = (LBMGrid)lbmGrid.DeepCopy();
+            lbmGrid.UpdateGhostConductivityFromNeighbors();
 
             Workspace.UpdateCurrentGlobalLbmElectrodes(lbmGrid);
             Workspace.UpdateCurrentGlobalLbmElements(lbmGrid);
@@ -1317,6 +1329,7 @@ namespace BusinessLayer
             {
                 LBMGrid measMesh = (LBMGrid)lbmGrid.DeepCopy();
                 measMesh.SetConductivityDistribution(originalConductivityDistribution);
+                measMesh.UpdateGhostConductivityFromNeighbors();
                 var simulation = GenerateLbmMeasurements(measMesh, 1.0);
                 measurementFrames = simulation.Amplitude.HasValue
                     ? new EITMeasurement(simulation.Frames, simulation.Amplitude.Value, simulation.Pattern)
@@ -1325,6 +1338,7 @@ namespace BusinessLayer
             }
             else
             {
+                lbmGrid.UpdateGhostConductivityFromNeighbors();
                 var simulation = GenerateLbmMeasurements(lbmGrid, 1.0);
                 measurementFrames = simulation.Amplitude.HasValue
                     ? new EITMeasurement(simulation.Frames, simulation.Amplitude.Value, simulation.Pattern)
@@ -1334,6 +1348,10 @@ namespace BusinessLayer
 
             // Container to hold partial results from reconstrucion
             List<ReconstructionFrame> frames = [];
+            var interiorElementIds = new HashSet<int>(lbmGrid.GetElements()
+                .Cast<LBMElement>()
+                .Where(el => !el.GhostElement && !el.IsWall)
+                .Select(el => el.Id));
 
             // --- Inverse Solver Iterations ---
 
@@ -1353,11 +1371,15 @@ namespace BusinessLayer
 
                     var newSigmaDict = sigma.Conductivities.ToDictionary(
                         kvp => kvp.Key,
-                        kvp => kvp.Value - step * frame.ConductivityGradient.GetConductivity(kvp.Key)                        
+                        kvp => interiorElementIds.Contains(kvp.Key)
+                            ? kvp.Value - step * frame.ConductivityGradient.GetConductivity(kvp.Key)
+                            : kvp.Value
                     );
 
                     var updatedSigma = ConductivityClipper.Clip(new ConductivityDistribution(newSigmaDict));
                     lbmGrid.SetConductivityDistribution(updatedSigma);
+                    // Ghost conductivities inherit from interior cells immediately after each update step.
+                    lbmGrid.UpdateGhostConductivityFromNeighbors();
 
                     // Add partial results
                     frames.Add(frame);

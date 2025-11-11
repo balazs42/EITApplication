@@ -162,6 +162,47 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
             RebuildGhostLayerFromMask();
         }
 
+        /// <summary>
+        /// Refreshes ghost-layer conductivities so that they mirror adjacent interior cells.
+        /// Ghost cells approximate an extension of the interior domain and therefore inherit the
+        /// average conductivity of their non-ghost, non-wall neighbours instead of being treated
+        /// as independent optimisation variables.
+        /// </summary>
+        public void UpdateGhostConductivityFromNeighbors()
+        {
+            if (ConductivityDistribution is null)
+                return;
+
+            foreach (var cell in _elements)
+            {
+                if (!cell.GhostElement)
+                    continue;
+
+                double sigmaSum = 0.0;
+                int sigmaCount = 0;
+
+                foreach (var neighbor in cell.Neighbors)
+                {
+                    if (neighbor is null || neighbor.GhostElement || neighbor.IsWall)
+                        continue;
+
+                    sigmaSum += neighbor.Conductivity;
+                    sigmaCount++;
+                }
+
+                if (sigmaCount > 0)
+                {
+                    double averaged = sigmaSum / sigmaCount;
+                    cell.Conductivity = averaged;
+                    ConductivityDistribution.Conductivities[cell.Id] = averaged;
+                }
+                else
+                {
+                    // Degenerate case: the ghost cell only sees walls/ghosts. Preserve the previous value.
+                }
+            }
+        }
+
         private void RebuildGhostLayerFromMask()
         {
             for (int y = 0; y < Ny; y++)

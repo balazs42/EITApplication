@@ -106,6 +106,8 @@ namespace BusinessLayer
                 throw new ArgumentNullException(nameof(solver));
 
             LBMGrid deepCopy = (LBMGrid)grid.DeepCopy();
+            // Ensure the ghost layer mirrors interior conductivities before launching forward solves.
+            deepCopy.UpdateGhostConductivityFromNeighbors();
             Workspace.UpdateCurrentGlobalLbmElectrodes(deepCopy);
             var electrodes = Workspace.GetCurrentGlobalLbmElectrodes();
             bool applyVirtuals = virtualSettings.ShouldApplyVirtualElectrodes();
