@@ -13,6 +13,19 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
         private const int _defaultNx = 15;
         private const int _defaultNy = 15;
 
+        private static readonly (int cx, int cy)[] NeighborDirections =
+        {
+            (0, 0),
+            (1, 0),
+            (0, 1),
+            (-1, 0),
+            (0, -1),
+            (1, 1),
+            (-1, 1),
+            (-1, -1),
+            (1, -1)
+        };
+
         public int Nx { get; }
         public int Ny { get; }
 
@@ -25,16 +38,20 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
 
         /// <summary>
         /// Initializes the mesh structure, by first creating the LBMElements, and initializing them
-        /// and after that adds walls to the boundary, and electrodes. Finally initializes the 
+        /// and after that adds walls to the boundary, and electrodes. Finally initializes the
         /// conductivtiy distribution defined on the mesh to be homogeneous.
         /// </summary>
         /// <param name="nx">Number of cells in the x dimension.</param>
         /// <param name="ny">Number of cells in the y dimension.</param>
         [JsonConstructor]
+        private bool[,] _interiorMask;
+
         public LBMGrid(int nx = _defaultNx, int ny = _defaultNy)
         {
             Nx = nx;
             Ny = ny;
+
+            _interiorMask = new bool[Nx, Ny];
 
             // Create all elements and place them in a grid for easy lookup
             _grid = new LBMElement[Nx, Ny];
@@ -44,16 +61,12 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                 {
                     var element = new LBMElement(isWall: false) { Id = y * Nx + x };
 
-                    if (x == 0 || x == nx - 1 || y == 0 || y == ny - 1)
-                        element.IsWall = true;
-
                     _elements.Add(element);
                     _grid[x, y] = element;
                 }
             }
 
             // Link neighbors for every element
-            var directions = new (int cx, int cy)[] { (0, 0), (1, 0), (0, 1), (-1, 0), (0, -1), (1, 1), (-1, 1), (-1, -1), (1, -1) };
             for (int y = 0; y < Ny; y++)
             {
                 for (int x = 0; x < Nx; x++)
@@ -61,8 +74,8 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                     var currentElement = _grid[x, y];
                     for (int k = 0; k < 9; k++)
                     {
-                        int neighborX = x + directions[k].cx;
-                        int neighborY = y + directions[k].cy;
+                        int neighborX = x + NeighborDirections[k].cx;
+                        int neighborY = y + NeighborDirections[k].cy;
 
                         // Check if the neighbor is within the grid bounds
                         if (neighborX >= 0 && neighborX < nx && neighborY >= 0 && neighborY < ny)
@@ -85,6 +98,122 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                 pd.Add(el.Id, el.Fi.Sum());
 
             PotentialDistribution = new PotentialDistribution(pd);
+
+            // Default domain: the physical region occupies the interior of the grid
+            // and the outermost ring becomes the one-cell-thick ghost layer.
+            ApplyRectangularDomain(1, Nx - 2, 1, Ny - 2);
+        }
+
+        /// <summary>
+        /// Defines an axis-aligned rectangular physical domain inside the lattice.  Cells whose
+        /// centres fall inside the box become part of the conductive domain, while the cells just
+        /// outside form the one-cell-thick ghost layer.  Coordinates are inclusive and expressed in
+        /// lattice indices.
+        /// </summary>
+        public void ApplyRectangularDomain(int xmin, int xmax, int ymin, int ymax)
+        {
+            var mask = new bool[Nx, Ny];
+            for (int y = 0; y < Ny; y++)
+            {
+                for (int x = 0; x < Nx; x++)
+                {
+                    mask[x, y] = x >= xmin && x <= xmax && y >= ymin && y <= ymax;
+                }
+            }
+
+            ApplyDomainMask(mask);
+        }
+
+        /// <summary>
+        /// Defines a circular physical domain.  All lattice cells whose centres satisfy
+        /// (x-cx)^2 + (y-cy)^2 ≤ radius^2 are treated as interior.  Cells that lie within one
+        /// lattice spacing outside the circle become ghost cells.
+        /// </summary>
+        public void ApplyCircularDomain(double cx, double cy, double radius)
+        {
+            var mask = new bool[Nx, Ny];
+            double r2 = radius * radius;
+
+            for (int y = 0; y < Ny; y++)
+            {
+                double dy = y + 0.5 - cy;
+                for (int x = 0; x < Nx; x++)
+                {
+                    double dx = x + 0.5 - cx;
+                    mask[x, y] = dx * dx + dy * dy <= r2;
+                }
+            }
+
+            ApplyDomainMask(mask);
+        }
+
+        /// <summary>
+        /// Applies a custom interior mask.  True entries mark conductive (interior) cells, while
+        /// false entries are outside the physical domain.  A one-cell-thick ghost layer is created
+        /// automatically outside the interior region.
+        /// </summary>
+        public void ApplyDomainMask(bool[,] interiorMask)
+        {
+            if (interiorMask.GetLength(0) != Nx || interiorMask.GetLength(1) != Ny)
+                throw new ArgumentException("Interior mask dimensions must match the grid size.");
+
+            _interiorMask = new bool[Nx, Ny];
+            Array.Copy(interiorMask, _interiorMask, interiorMask.Length);
+
+            RebuildGhostLayerFromMask();
+        }
+
+        private void RebuildGhostLayerFromMask()
+        {
+            for (int y = 0; y < Ny; y++)
+            {
+                for (int x = 0; x < Nx; x++)
+                {
+                    bool interior = _interiorMask[x, y];
+                    var cell = _grid[x, y];
+
+                    if (interior)
+                    {
+                        cell.IsWall = false;
+                        cell.GhostElement = false;
+                        continue;
+                    }
+
+                    bool touchesInterior = false;
+                    double sigmaSum = 0.0;
+                    int sigmaCount = 0;
+
+                    for (int dir = 1; dir < NeighborDirections.Length; dir++)
+                    {
+                        var (dx, dy) = NeighborDirections[dir];
+                        int nx = x + dx;
+                        int ny = y + dy;
+
+                        if (nx < 0 || nx >= Nx || ny < 0 || ny >= Ny)
+                            continue;
+
+                        if (_interiorMask[nx, ny])
+                        {
+                            touchesInterior = true;
+                            sigmaSum += _grid[nx, ny].Conductivity;
+                            sigmaCount++;
+                        }
+                    }
+
+                    cell.IsWall = true;
+                    cell.IsElectrode = false;
+                    cell.ElectrodeId = -1;
+                    cell.GhostElement = touchesInterior;
+
+                    if (touchesInterior)
+                    {
+                        double sigma = sigmaCount > 0 ? sigmaSum / sigmaCount : 1.0;
+                        if (!double.IsFinite(sigma) || sigma <= 0.0)
+                            sigma = 1.0;
+                        cell.Conductivity = sigma;
+                    }
+                }
+            }
         }
 
         public LBMGrid(List<LBMElement> elements, int nx = _defaultNy, int ny = _defaultNy)
@@ -123,6 +252,13 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                     _grid[x, y] = correspondingElement;
                 }
             }
+
+            _interiorMask = new bool[Nx, Ny];
+            for (int y = 0; y < Ny; y++)
+                for (int x = 0; x < Nx; x++)
+                    _interiorMask[x, y] = !_grid[x, y].IsWall;
+
+            RebuildGhostLayerFromMask();
         }
 
         /// <summary>
@@ -136,12 +272,6 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
             {
                 el.IsElectrode = false;
                 el.ElectrodeId = -1;
-
-                if (el.GhostElement)
-                {
-                    el.GhostElement = false;
-                    el.IsWall = false;
-                }
             }
 
             if (numElectrodes <= 0)
@@ -209,12 +339,6 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
             {
                 cell.IsElectrode = false;
                 cell.ElectrodeId = -1;
-
-                if (cell.GhostElement)
-                {
-                    cell.GhostElement = false;
-                    cell.IsWall = false;
-                }
             }
 
             foreach (var electrode in _electrodes)
@@ -228,6 +352,8 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                 cell.ElectrodeId = electrode.Id;
                 cell.IsWall = false;
                 cell.GhostElement = false;
+                if (_interiorMask != null)
+                    _interiorMask[ex, ey] = true;
             }
 
             UpdateGhostLayer();
@@ -260,15 +386,6 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
             if (!settings.ShouldApplyVirtualElectrodes() || settings.VirtualElectrodesPerGap <= 0 || _electrodes.Count < 2)
                 return;
 
-            foreach (var cell in _elements.Cast<LBMElement>())
-            {
-                if (!cell.GhostElement)
-                    continue;
-
-                cell.GhostElement = false;
-                cell.IsWall = false;
-            }
-
             var boundaryRing = GetBoundaryRing()
                 .Where(entry => entry.InteriorCell != null)
                 .ToList();
@@ -298,6 +415,11 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                     var cell = boundaryCells[idx];
                     cell.IsElectrode = true;
                     cell.ElectrodeId = electrode.Id;
+                    if (_interiorMask != null)
+                    {
+                        var (ix, iy) = ToLattice(cell.Id);
+                        _interiorMask[ix, iy] = true;
+                    }
                 }
             }
 
@@ -329,6 +451,11 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                     used[boundaryIndex] = true;
                     cell.IsElectrode = true;
                     cell.ElectrodeId = nextId;
+                    if (_interiorMask != null)
+                    {
+                        var (ix, iy) = ToLattice(cell.Id);
+                        _interiorMask[ix, iy] = true;
+                    }
 
                     var virtualElectrode = new LBMElectrode(
                         id: nextId,
@@ -402,35 +529,10 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
 
         private void UpdateGhostLayer()
         {
-            foreach (var cell in _elements.Cast<LBMElement>())
-            {
-                if (!cell.GhostElement)
-                    continue;
+            if (_interiorMask == null)
+                return;
 
-                cell.GhostElement = false;
-                cell.IsWall = false;
-            }
-
-            var boundaryRing = GetBoundaryRing();
-            foreach (var entry in boundaryRing)
-            {
-                if (entry.InteriorCell is null)
-                    continue;
-
-                var interior = entry.InteriorCell;
-                if (interior.IsElectrode)
-                {
-                    interior.GhostElement = false;
-                    interior.IsWall = false;
-                }
-                else
-                {
-                    interior.GhostElement = true;
-                    interior.IsWall = true;
-                    interior.IsElectrode = false;
-                    interior.ElectrodeId = -1;
-                }
-            }
+            RebuildGhostLayerFromMask();
         }
 
         private double ComputeCellAngle(int gridId)
@@ -501,6 +603,13 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                     _grid[x, y] = correspondingElement;
                 }
             }
+
+            _interiorMask = new bool[Nx, Ny];
+            for (int y = 0; y < Ny; y++)
+                for (int x = 0; x < Nx; x++)
+                    _interiorMask[x, y] = !_grid[x, y].IsWall;
+
+            RebuildGhostLayerFromMask();
         }
 
         protected override IEnumerable<int> StateKeys() => _elements.Select(v => v.Id);

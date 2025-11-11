@@ -607,6 +607,8 @@ public partial class ReconstructionPage : ContentPage
         float cw = info.Width / mesh.Nx;
         float ch = info.Height / mesh.Ny;
         var (minVal, maxVal) = GetLbmValueRange(mesh, values);
+        using var ghostOverlay = new SKPaint { Style = SKPaintStyle.Stroke, Color = SKColors.WhiteSmoke, StrokeWidth = 0.75f };
+
         for (int y = 0; y < mesh.Ny; y++)
         {
             for (int x = 0; x < mesh.Nx; x++)
@@ -614,7 +616,7 @@ public partial class ReconstructionPage : ContentPage
                 var el = mesh.GetElementAt(x, y);
                 double val = values.TryGetValue(el.Id, out double v) ? v : minVal;
                 SKColor col = el.GhostElement
-                    ? SKColors.DarkGray
+                    ? SKColor.Parse("#546E7A")
                     : el.IsWall
                         ? SKColors.Black
                         : isPotential
@@ -624,6 +626,11 @@ public partial class ReconstructionPage : ContentPage
                 var r = SKRect.Create(x * cw, y * ch, cw, ch);
                 canvas.DrawRect(r, paint);
                 canvas.DrawRect(r, new SKPaint { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1 });
+                if (el.GhostElement)
+                {
+                    canvas.DrawLine(r.Left, r.Top, r.Right, r.Bottom, ghostOverlay);
+                    canvas.DrawLine(r.Left, r.Bottom, r.Right, r.Top, ghostOverlay);
+                }
             }
         }
         DrawHoverInfo(canvas, info, lines, pt);

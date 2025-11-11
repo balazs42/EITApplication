@@ -16,7 +16,8 @@ public partial class MeshingPage : ContentPage
     // paints for LBM drawing
     private readonly SKPaint _lbmDefault = new() { Style = SKPaintStyle.Fill, Color = SKColors.White };
     private readonly SKPaint _lbmWall = new() { Style = SKPaintStyle.Fill, Color = SKColors.Black };
-    private readonly SKPaint _lbmGhost = new() { Style = SKPaintStyle.Fill, Color = SKColors.DarkGray };
+    private readonly SKPaint _lbmGhost = new() { Style = SKPaintStyle.Fill, Color = SKColor.Parse("#546E7A") };
+    private readonly SKPaint _lbmGhostOverlay = new() { Style = SKPaintStyle.Stroke, Color = SKColors.WhiteSmoke, StrokeWidth = 0.75f };
     private readonly SKPaint _lbmElectrode = new() { Style = SKPaintStyle.Fill, Color = SKColors.Orange };
     private readonly SKPaint _lbmVirtualElectrode = new() { Style = SKPaintStyle.Fill, Color = SKColor.Parse("#AA00FF") };
     private readonly SKPaint _lbmStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.LightGray, StrokeWidth = 1 };
@@ -208,6 +209,11 @@ public partial class MeshingPage : ContentPage
                 var r = SKRect.Create(x * _cellW, y * _cellH, _cellW, _cellH);
                 canvas.DrawRect(r, fill);
                 canvas.DrawRect(r, _lbmStroke);
+                if (el.GhostElement)
+                {
+                    canvas.DrawLine(r.Left, r.Top, r.Right, r.Bottom, _lbmGhostOverlay);
+                    canvas.DrawLine(r.Left, r.Bottom, r.Right, r.Top, _lbmGhostOverlay);
+                }
             }
         }
     }

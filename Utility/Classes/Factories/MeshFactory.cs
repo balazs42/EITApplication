@@ -469,25 +469,7 @@ namespace Utility.Classes.Factories
                 for (int x = 0; x < nx; x++)
                     inside[x, y] = IsPointInPolygon(x + 0.5, y + 0.5, perimeter);
 
-            for (int y = 0; y < ny; y++)
-            {
-                for (int x = 0; x < nx; x++)
-                {
-                    var el = grid.GetElementAt(x, y);
-                    bool cellInside = inside[x, y];
-                    bool boundary = false;
-                    if (cellInside)
-                    {
-                        boundary = x == 0 || x == nx - 1 || y == 0 || y == ny - 1 ||
-                                   !inside[Math.Max(x - 1, 0), y] ||
-                                   !inside[Math.Min(x + 1, nx - 1), y] ||
-                                   !inside[x, Math.Max(y - 1, 0)] ||
-                                   !inside[x, Math.Min(y + 1, ny - 1)];
-                    }
-                    el.IsWall = !cellInside || boundary;
-                    el.IsElectrode = false;
-                }
-            }
+            grid.ApplyDomainMask(inside);
 
             // place electrodes evenly around the domain boundary
             grid.PlaceEquidistantElectrodes(electrodeCount);
