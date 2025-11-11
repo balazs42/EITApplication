@@ -407,14 +407,18 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             var phi = new double[elementCount];      // Current macroscopic potential
             var prevPhi = new double[elementCount];  // Potential used for convergence checks
 
+            static bool IsPhysicalWall(LBMElement cell) => cell.IsWall && !cell.GhostElement;
+
             for (int idx = 0; idx < elementCount; idx++)
             {
                 var element = elements[idx];
-                bool isWall = element.IsWall;
+                bool isPhysicalWall = IsPhysicalWall(element);
 
                 // Clamp conductivity to physical, non-negative values.  Walls are
                 // treated as perfect insulators so their conductivity is zero.
-                double sigma = isWall ? 0.0 : SanitizeConductivity(conductivity.GetConductivity(element.Id));
+                double sigma = isPhysicalWall
+                    ? 0.0
+                    : SanitizeConductivity(conductivity.GetConductivity(element.Id));
                 element.Conductivity = sigma;
                 conductivity.Conductivities[element.Id] = sigma;
 
@@ -423,15 +427,15 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 // from equilibrium avoids introducing spurious transients that could
                 // destabilise the BGK relaxation during the first few iterations.
                 double phi0 = 0.0;
-                if (!isWall && initialPotential is not null)
+                if (!isPhysicalWall && initialPotential is not null)
                     phi0 = initialPotential.GetValue(element.Id);
 
-                phi[idx] = isWall ? 0.0 : phi0;
+                phi[idx] = isPhysicalWall ? 0.0 : phi0;
 
                 for (int k = 0; k < 9; k++)
                 {
                     element.Fi_next[k] = 0.0;                    // Streaming buffer always starts empty.
-                    element.Fi[k] = isWall ? 0.0 : weights[k] * phi0; // Equilibrium initial state.
+                    element.Fi[k] = isPhysicalWall ? 0.0 : weights[k] * phi0; // Equilibrium initial state.
                 }
             }
 
@@ -457,7 +461,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 // -----------------------------------------------------------------
                 foreach (var element in elements)
                 {
-                    if (element.IsWall)
+                    if (IsPhysicalWall(element))
                         continue; // Walls keep their distributions fixed at zero.
 
                     double phiLocal = 0.0;
@@ -483,7 +487,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 // -----------------------------------------------------------------
                 foreach (var element in elements)
                 {
-                    if (element.IsWall)
+                    if (IsPhysicalWall(element))
                         continue;
 
                     // Ensure the streaming buffer starts clean every iteration.
@@ -493,7 +497,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
                 foreach (var element in elements)
                 {
-                    if (element.IsWall)
+                    if (IsPhysicalWall(element))
                         continue;
 
                     for (int dir = 0; dir < 9; dir++)
@@ -501,7 +505,9 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                         double fi = element.Fi[dir];
                         var neighbour = element.Neighbors[dir];
 
-                        if (neighbour is not null && !neighbour.IsWall)
+                        bool neighbourIsPhysicalWall = neighbour is null || IsPhysicalWall(neighbour);
+
+                        if (!neighbourIsPhysicalWall)
                         {
                             // Normal streaming: place Fi in the same directional slot
                             // of the neighbour cell.  Only one population flows through
@@ -525,7 +531,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 for (int idx = 0; idx < elementCount; idx++)
                 {
                     var element = elements[idx];
-                    if (element.IsWall)
+                    if (IsPhysicalWall(element))
                     {
                         phi[idx] = 0.0;
                         continue;

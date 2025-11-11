@@ -134,8 +134,10 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 var element = elements[i];
                 
                 // Convert boolean wall flag to integer for GPU compatibility
-                isWall[i] = element.IsWall ? 1 : 0;
-                isGhost[i] = element.GhostElement ? 1 : 0;
+                bool isGhostElement = element.GhostElement;
+                bool isPhysicalWall = element.IsWall && !isGhostElement;
+                isWall[i] = isPhysicalWall ? 1 : 0;
+                isGhost[i] = isGhostElement ? 1 : 0;
 
                 // Process all 9 D2Q9 directions for current element
                 for (int k = 0; k < 9; k++)
@@ -150,7 +152,8 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                         neighborIndices[arrayIndex] = neighborIndex;
                         
                         // Store neighbor's wall status for bounce-back decisions
-                        neighborIsWall[arrayIndex] = neighbor.IsWall ? 1 : 0;
+                        bool neighborIsPhysicalWall = neighbor.IsWall && !neighbor.GhostElement;
+                        neighborIsWall[arrayIndex] = neighborIsPhysicalWall ? 1 : 0;
                         neighborIsGhost[arrayIndex] = neighbor.GhostElement ? 1 : 0;
                     }
                     else
