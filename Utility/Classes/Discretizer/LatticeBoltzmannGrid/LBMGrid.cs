@@ -43,7 +43,6 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
         /// </summary>
         /// <param name="nx">Number of cells in the x dimension.</param>
         /// <param name="ny">Number of cells in the y dimension.</param>
-        [JsonConstructor]
         private bool[,] _interiorMask;
 
         public LBMGrid(int nx = _defaultNx, int ny = _defaultNy)
@@ -281,6 +280,8 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                 return;
             }
 
+            UpdateGhostLayer();
+
             var boundaryRing = GetBoundaryRing()
                 .Where(entry => entry.InteriorCell != null)
                 .ToList();
@@ -499,8 +500,7 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                         if (neighbor == null)
                             continue;
 
-                        bool isInterior = !neighbor.IsWall || neighbor.GhostElement || neighbor.IsElectrode;
-                        if (isInterior)
+                        if(!neighbor.IsWall)
                         {
                             touchesInterior = true;
                             var (nx, ny) = ToLattice(neighbor.Id);
