@@ -366,6 +366,10 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             double tolerance = SolutionTolerance;
             int checkFrequency = Math.Max(1, ConvergenceCheckFrequency);
 
+            // Reconstruction updates only touch interior conductivities.  Mirror those values to the
+            // ghost layer so that ghosts remain a numerical extension of the domain, not optimisation variables.
+            lbmGrid.UpdateGhostConductivityFromNeighbors();
+
             // D2Q9 lattice constants shared with the CUDA path so that both
             // implementations evaluate exactly the same algebra.
             var weights = LatticeBoltzmannConstants.Weights;       // Equilibrium weights wi
@@ -706,6 +710,10 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             int maxIter = MaxIterationCount;
             double tolerance = SolutionTolerance;
             int checkFrequency = Math.Max(1, ConvergenceCheckFrequency);
+
+            // Mirror interior conductivities to the ghost layer before uploading data to the GPU.
+            // Ghost cells remain derived values so optimisation and reconstruction never manipulate them directly.
+            lbmGrid.UpdateGhostConductivityFromNeighbors();
 
             var topology = LatticeBoltzmannCudaHelper.BuildTopology(lbmGrid);
             int elementCount = topology.ElementCount;

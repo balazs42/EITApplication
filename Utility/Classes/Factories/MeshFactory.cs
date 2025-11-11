@@ -476,6 +476,7 @@ namespace Utility.Classes.Factories
 
             var cd = grid.GetElements().ToDictionary(e => e.Id, e => e.Conductivity);
             grid.SetConductivityDistribution(new ConductivityDistribution(cd));
+            grid.UpdateGhostConductivityFromNeighbors();
 
             Workspace.AddLogMessage("MeshFactory", "Created LBMGrid from Perimeter definition.");
 
@@ -496,6 +497,7 @@ namespace Utility.Classes.Factories
 
             var cd = grid.GetElements().ToDictionary(e => e.Id, e => e.Conductivity);
             grid.SetConductivityDistribution(new ConductivityDistribution(cd));
+            grid.UpdateGhostConductivityFromNeighbors();
 
             grid.Metadata.Generator = nameof(CreateRectangularLBMGrid);
             grid.Metadata.Parameters["nx"] = nx.ToString();
@@ -552,6 +554,7 @@ namespace Utility.Classes.Factories
             // 3) rebuild distribution so downstream code sees it
             var cd = grid.GetElements().ToDictionary(e => e.Id, e => e.Conductivity);
             grid.SetConductivityDistribution(new ConductivityDistribution(cd));
+            grid.UpdateGhostConductivityFromNeighbors();
 
             grid.Metadata.Generator = nameof(LBMCreateRectangularWithInhomogenity);
             grid.Metadata.Parameters["nx"] = nx.ToString();
@@ -636,6 +639,7 @@ namespace Utility.Classes.Factories
             // Refresh conductivity distribution
             var cd = grid.GetElements().ToDictionary(e => e.Id, e => e.Conductivity);
             grid.SetConductivityDistribution(new ConductivityDistribution(cd));
+            grid.UpdateGhostConductivityFromNeighbors();
 
             Workspace.AddLogMessage("MeshFactory", "Created ciruclar LBMGrid object.");
 
@@ -680,6 +684,8 @@ namespace Utility.Classes.Factories
             }
 
             discretization.SetConductivityDistribution(new ConductivityDistribution(noisy));
+            if (discretization is LBMGrid lbmGrid)
+                lbmGrid.UpdateGhostConductivityFromNeighbors();
 
             Workspace.AddLogMessage("MeshFactory", "Added gaussian noise to mesh conductivities.");
         }
