@@ -37,6 +37,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         private static System.Action<Index1D, ArrayView<double>, ArrayView<int>, ArrayView<double>, double, double, ArrayView<double>>? _collisionKernel;
         private static System.Action<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>>? _streamKernel;
         private static System.Action<Index1D, UpdateKernelParams>? _updateKernel;
+        private static System.Action<Index1D, GhostBoundaryKernelParams>? _ghostBoundaryKernel;
         private static System.Action<Index1D, ArrayView<double>, ArrayView<double>>? _phiKernel;
 
         // A blittable container for Update kernel arguments to reduce generic arity
@@ -45,55 +46,57 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             public readonly ArrayView<double> Fi;
             public readonly ArrayView<double> FiNext;
             public readonly ArrayView<int> IsWall;
-            public readonly ArrayView<int> IsElectrode;
-            public readonly ArrayView<int> ElectrodeIsExcitation;
-            public readonly ArrayView<int> ElectrodeIsGround;
-            public readonly ArrayView<double> ElectrodeCurrent;
-            public readonly ArrayView<double> ElectrodePotential;
-            public readonly ArrayView<int> NeighborIsWall;
-            public readonly ArrayView<int> NeighborIsGhost;
-            public readonly ArrayView<int> NeighborIndices;
-            public readonly ArrayView<double> Conductivity;
             public readonly ArrayView<int> IsGhost;
             public readonly ArrayView<double> PhiStreamed;
-            public readonly ArrayView<int> Opposite;
-            public readonly ArrayView<double> Weights;
 
             public UpdateKernelParams(
                 ArrayView<double> fi,
                 ArrayView<double> fiNext,
                 ArrayView<int> isWall,
-                ArrayView<int> isElectrode,
-                ArrayView<int> electrodeIsExcitation,
-                ArrayView<int> electrodeIsGround,
-                ArrayView<double> electrodeCurrent,
-                ArrayView<double> electrodePotential,
-                ArrayView<int> neighborIsWall,
-                ArrayView<int> neighborIsGhost,
-                ArrayView<int> neighborIndices,
-                ArrayView<double> conductivity,
                 ArrayView<int> isGhost,
-                ArrayView<double> phiStreamed,
-                ArrayView<int> opposite,
-                ArrayView<double> weights)
+                ArrayView<double> phiStreamed)
             {
                 Fi = fi;
                 FiNext = fiNext;
                 IsWall = isWall;
-                IsElectrode = isElectrode;
-                ElectrodeIsExcitation = electrodeIsExcitation;
-                ElectrodeIsGround = electrodeIsGround;
-                ElectrodeCurrent = electrodeCurrent;
-                ElectrodePotential = electrodePotential;
-                NeighborIsWall = neighborIsWall;
-                NeighborIsGhost = neighborIsGhost;
-                NeighborIndices = neighborIndices;
-                Conductivity = conductivity;
                 IsGhost = isGhost;
                 PhiStreamed = phiStreamed;
-                Opposite = opposite;
-                Weights = weights;
             }
+        }
+
+        private readonly struct GhostBoundaryKernelParams
+        {
+            public GhostBoundaryKernelParams(
+                ArrayView<int> interiorIndices,
+                ArrayView<int> ghostIndices,
+                ArrayView<int> directions,
+                ArrayView<double> fluxPerLink,
+                ArrayView<double> fi,
+                ArrayView<double> phi,
+                ArrayView<double> weights,
+                ArrayView<int> opposite,
+                ArrayView<double> conductivity)
+            {
+                InteriorIndices = interiorIndices;
+                GhostIndices = ghostIndices;
+                Directions = directions;
+                FluxPerLink = fluxPerLink;
+                Fi = fi;
+                Phi = phi;
+                Weights = weights;
+                Opposite = opposite;
+                Conductivity = conductivity;
+            }
+
+            public ArrayView<int> InteriorIndices { get; }
+            public ArrayView<int> GhostIndices { get; }
+            public ArrayView<int> Directions { get; }
+            public ArrayView<double> FluxPerLink { get; }
+            public ArrayView<double> Fi { get; }
+            public ArrayView<double> Phi { get; }
+            public ArrayView<double> Weights { get; }
+            public ArrayView<int> Opposite { get; }
+            public ArrayView<double> Conductivity { get; }
         }
 
         /// <summary>
@@ -106,22 +109,36 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         /// </summary>
         private readonly struct ElectrodeRuntimeData
         {
-            public ElectrodeRuntimeData(int elementIndex, LBMElement element, double current, double potential, bool isExcitation, bool isGround)
+            public ElectrodeRuntimeData(int electrodeId, int elementIndex, LBMElement element, double current, bool isExcitation, bool isGround)
             {
+                ElectrodeId = electrodeId;
                 ElementIndex = elementIndex;
                 Element = element;
                 Current = current;
-                Potential = potential;
                 IsExcitation = isExcitation;
                 IsGround = isGround;
             }
 
+            public int ElectrodeId { get; }
             public int ElementIndex { get; }
             public LBMElement Element { get; }
             public double Current { get; }
-            public double Potential { get; }
             public bool IsExcitation { get; }
             public bool IsGround { get; }
+        }
+
+        private readonly struct BoundaryLink
+        {
+            public BoundaryLink(int interiorIndex, int ghostIndex, int direction)
+            {
+                InteriorIndex = interiorIndex;
+                GhostIndex = ghostIndex;
+                Direction = direction;
+            }
+
+            public int InteriorIndex { get; }
+            public int GhostIndex { get; }
+            public int Direction { get; }
         }
 
         /// <summary>
@@ -182,9 +199,12 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             // Route to appropriate implementation based on configuration
             PotentialDistribution phi = _useCuda ? RunForwardCuda(lbmGrid, bc) : RunForward(lbmGrid, bc);
 
-            int groundElectrodeCellId = boundaryCondition.GroundElectrodeId;
+            var groundElectrode = bc.GetElectrodes().FirstOrDefault(e => e.Id == boundaryCondition.GroundElectrodeId);
+            int groundCellId = groundElectrode?.GridId ?? boundaryCondition.GroundElectrodeId;
 
-            double phiGround = phi.Potentials[groundElectrodeCellId];
+            double phiGround = phi.Potentials.TryGetValue(groundCellId, out var storedGround)
+                ? storedGround
+                : 0.0;
             var shifted = new PotentialDistribution(
                 phi.Potentials.ToDictionary(kvp => kvp.Key, kvp => kvp.Value - phiGround));
             lbmGrid.SetPotentialDistribution(shifted);
@@ -247,64 +267,25 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             return RunForwardCuda(lbmGrid, bc);
         }
 
-        private static ElectrodeRuntimeData EnsureSingleGroundElectrode(IReadOnlyList<ElectrodeRuntimeData> runtimeElectrodes)
-        {
-            int groundCount = 0;
-            ElectrodeRuntimeData ground = default;
-
-            foreach (var electrode in runtimeElectrodes)
-            {
-                if (!electrode.IsGround)
-                    continue;
-
-                ground = electrode;
-                groundCount++;
-
-                if (groundCount > 1)
-                    break;
-            }
-
-            if (groundCount != 1)
-                throw new InvalidOperationException("LBM solver requires exactly one ground electrode to fix the gauge.");
-
-            return ground;
-        }
-
-        private static int CollectGhostLinks(
-            LBMElement element,
+        private static List<BoundaryLink> BuildBoundaryLinks(
+            IReadOnlyList<LBMElement> elements,
             IReadOnlyDictionary<int, int> elementIndexLookup,
-            Span<int> directions,
-            Span<int> ghostIndices)
+            out Dictionary<int, List<int>> linksByInterior)
         {
-            int count = 0;
+            var links = new List<BoundaryLink>();
+            linksByInterior = new Dictionary<int, List<int>>();
 
-            // Instead of a local function, use a regular for loop to avoid capturing ref-like variables
-            ReadOnlySpan<int> cardinal = stackalloc int[] { 1, 2, 3, 4 };
-            foreach (int dir in cardinal)
+            for (int idx = 0; idx < elements.Count; idx++)
             {
-                if (count >= directions.Length)
-                    break;
-
-                var neighbor = element.Neighbors[dir];
-                if (neighbor is null || !neighbor.GhostElement)
+                var element = elements[idx];
+                if (element.GhostElement)
                     continue;
 
-                if (!elementIndexLookup.TryGetValue(neighbor.Id, out int ghostIndex))
+                if (element.IsWall && !element.IsElectrode)
                     continue;
 
-                directions[count] = dir;
-                ghostIndices[count] = ghostIndex;
-                count++;
-            }
-
-            if (count == 0)
-            {
-                ReadOnlySpan<int> diagonal = stackalloc int[] { 5, 6, 7, 8 };
-                foreach (int dir in diagonal)
+                for (int dir = 1; dir < LatticeBoltzmannConstants.Directions.Length; dir++)
                 {
-                    if (count >= directions.Length)
-                        break;
-
                     var neighbor = element.Neighbors[dir];
                     if (neighbor is null || !neighbor.GhostElement)
                         continue;
@@ -312,13 +293,66 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     if (!elementIndexLookup.TryGetValue(neighbor.Id, out int ghostIndex))
                         continue;
 
-                    directions[count] = dir;
-                    ghostIndices[count] = ghostIndex;
-                    count++;
+                    int linkIndex = links.Count;
+                    links.Add(new BoundaryLink(idx, ghostIndex, dir));
+
+                    if (!linksByInterior.TryGetValue(idx, out var perCell))
+                    {
+                        perCell = new List<int>();
+                        linksByInterior[idx] = perCell;
+                    }
+
+                    perCell.Add(linkIndex);
                 }
             }
 
-            return count;
+            return links;
+        }
+
+        private static double[] ComputeFluxPerLink(
+            IReadOnlyList<BoundaryLink> links,
+            Dictionary<int, List<int>> linksByInterior,
+            IReadOnlyList<ElectrodeRuntimeData> electrodes)
+        {
+            var flux = new double[links.Count];
+
+            if (links.Count == 0 || electrodes.Count == 0)
+                return flux;
+
+            var groups = electrodes
+                .GroupBy(e => e.ElectrodeId)
+                .ToList();
+
+            foreach (var group in groups)
+            {
+                double totalCurrent = 0.0;
+                foreach (var electrode in group)
+                    totalCurrent += electrode.Current;
+
+                var seen = new HashSet<int>();
+                var linkIndices = new List<int>();
+
+                foreach (var electrode in group)
+                {
+                    if (!linksByInterior.TryGetValue(electrode.ElementIndex, out var perCell))
+                        continue;
+
+                    foreach (int linkIndex in perCell)
+                    {
+                        if (seen.Add(linkIndex))
+                            linkIndices.Add(linkIndex);
+                    }
+                }
+
+                if (linkIndices.Count == 0)
+                    continue;
+
+                double fluxPerLink = totalCurrent / linkIndices.Count;
+                foreach (int linkIndex in linkIndices)
+                    flux[linkIndex] = fluxPerLink;
+            }
+
+            return flux;
         }
 
         /// <summary>
@@ -383,9 +417,9 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 // to the secondary description if they are unavailable (NaN) to keep
                 // legacy boundary files working.
                 double current = double.IsNaN(source.Current) ? (fallback?.Current ?? 0.0) : source.Current;
-                double potential = double.IsNaN(source.Potential) ? (fallback?.Potential ?? 0.0) : source.Potential;
+                int electrodeId = source.Id >= 0 ? source.Id : (fallback?.Id ?? source.GridId);
 
-                runtimeElectrodes.Add(new ElectrodeRuntimeData(idx, element, current, potential, isExcitation, isGround));
+                runtimeElectrodes.Add(new ElectrodeRuntimeData(electrodeId, idx, element, current, isExcitation, isGround));
                 processedGridIds.Add(source.GridId);
             }
 
@@ -401,6 +435,25 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 if (!processedGridIds.Contains(gridElectrode.GridId))
                     AddRuntimeElectrode(gridElectrode, null);
             }
+
+            int groundCellId = -1;
+            var groundFromBc = bcElectrodes.FirstOrDefault(e => e.Id == bc.GroundElectrodeId);
+            if (groundFromBc != null)
+                groundCellId = groundFromBc.GridId;
+            else if (gridElectrodesById.TryGetValue(bc.GroundElectrodeId, out var groundFromGrid))
+                groundCellId = groundFromGrid.GridId;
+            else
+            {
+                var runtimeGround = runtimeElectrodes.FirstOrDefault(e => e.IsGround);
+                if (runtimeGround.Element != null)
+                    groundCellId = runtimeGround.Element.Id;
+            }
+
+            if (groundCellId < 0 && runtimeElectrodes.Count > 0)
+                groundCellId = runtimeElectrodes[0].Element.Id;
+
+            var boundaryLinks = BuildBoundaryLinks(elements, elementIndexLookup, out var linksByInterior);
+            var fluxPerLink = ComputeFluxPerLink(boundaryLinks, linksByInterior, runtimeElectrodes);
 
             // Synchronise conductivity and initialise the discrete populations.
             var conductivity = lbmGrid.GetConductivityDistribution();
@@ -438,20 +491,9 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     element.Fi[k] = isPhysicalWall ? 0.0 : weights[k] * phi0; // Equilibrium initial state.
                 }
             }
-
-            var groundElectrode = EnsureSingleGroundElectrode(runtimeElectrodes);
-            int groundIndex = groundElectrode.ElementIndex;
-            double groundPotential = groundElectrode.Potential;
-
-            // Ensure the ground node starts at equilibrium with its prescribed potential.
-            var groundElement = groundElectrode.Element;
-            for (int k = 0; k < 9; k++)
-            {
-                double eq = weights[k] * groundPotential;
-                groundElement.Fi[k] = eq;
-                groundElement.Fi_next[k] = 0.0;
-            }
-            phi[groundIndex] = groundPotential;
+            int groundIndex = -1;
+            if (groundCellId >= 0 && elementIndexLookup.TryGetValue(groundCellId, out var idxGround))
+                groundIndex = idxGround;
 
             // Main time-stepping loop: identical ordering with the CUDA implementation.
             for (int iteration = 0; iteration < maxIter; iteration++)
@@ -549,9 +591,9 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 }
 
                 // -----------------------------------------------------------------
-                // 4. Electrode boundary conditions (Neumann + Dirichlet anchor)
+                // 4. Ghost-layer boundary update (discrete Neumann flux)
                 // -----------------------------------------------------------------
-                ApplyElectrodeBoundaryConditionsCpu(runtimeElectrodes, phi, elementIndexLookup, weights, opposite);
+                ApplyGhostBoundaryConditionsCpu(elements, phi, boundaryLinks, fluxPerLink, weights, opposite);
 
                 // Optionally monitor the sum of φ to ensure the simulation does not
                 // drift.  The check is lightweight and helps spotting divergence during
@@ -585,7 +627,9 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
             // Assemble the final potential distribution and push it back to the grid.
             var result = new Dictionary<int, double>(elementCount);
-            double groundPhi = elements[groundIndex].Fi.Sum();
+            double groundPhi = 0.0;
+            if (groundIndex >= 0 && groundIndex < elements.Count)
+                groundPhi = elements[groundIndex].Fi.Sum();
             for (int idx = 0; idx < elementCount; idx++)
             {
                 double value = elements[idx].Fi.Sum() - groundPhi;
@@ -598,79 +642,55 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         }
 
 
-        /// <summary>
-        /// Applies the mixed Neumann/Dirichlet electrode boundary conditions on the
-        /// CPU implementation.  The routine mirrors the CUDA kernel logic so that both
-        /// execution paths remain mathematically identical.
-        /// </summary>
-        private void ApplyElectrodeBoundaryConditionsCpu(
-            IReadOnlyList<ElectrodeRuntimeData> electrodes,
+        private void ApplyGhostBoundaryConditionsCpu(
+            IReadOnlyList<LBMElement> elements,
             double[] phi,
-            IReadOnlyDictionary<int, int> elementIndexLookup,
+            IReadOnlyList<BoundaryLink> links,
+            double[] fluxPerLink,
             double[] weights,
             int[] opposite)
         {
-            foreach (var electrode in electrodes)
+            if (links.Count == 0)
+                return;
+
+            for (int i = 0; i < links.Count; i++)
             {
-                var element = electrode.Element;
-                int elementIndex = electrode.ElementIndex;
+                var link = links[i];
+                double imposedFlux = fluxPerLink.Length > i ? fluxPerLink[i] : 0.0;
 
-                // ---------------------------------------------------------------------
-                // 1. Dirichlet anchor for ground electrode (pins the gauge)
-                // ---------------------------------------------------------------------
-                double phiInterior = phi[elementIndex];
+                var interior = elements[link.InteriorIndex];
+                var ghost = elements[link.GhostIndex];
 
-                if (electrode.IsGround)
-                {
-                    double anchorPhi = electrode.Potential;
-                    for (int k = 0; k < 9; k++)
-                        element.Fi[k] = weights[k] * anchorPhi;
+                double phiInterior = phi[link.InteriorIndex];
+                double sigmaInterior = Math.Max(interior.Conductivity, 0.0);
+                double sigmaGhost = ghost.Conductivity;
 
-                    phiInterior = anchorPhi;
-                    phi[elementIndex] = anchorPhi;
-                }
-
-                Span<int> outwardDirections = stackalloc int[4];
-                Span<int> ghostIndices = stackalloc int[4];
-                int linkCount = CollectGhostLinks(element, elementIndexLookup, outwardDirections, ghostIndices);
-
-                if (linkCount == 0)
+                if (sigmaInterior <= 0.0 && sigmaGhost <= 0.0)
                     continue;
 
-                double fluxPerLink = electrode.Current / linkCount;
-                double sigmaInterior = Math.Max(element.Conductivity, 0.0);
-
-                for (int i = 0; i < linkCount; i++)
+                if (sigmaGhost <= 0.0)
                 {
-                    int dir = outwardDirections[i];
-                    int opp = opposite[dir];
-                    int ghostIndex = ghostIndices[i];
-                    var ghost = element.Neighbors[dir]!;
-
-                    double sigmaGhost = Math.Max(ghost.Conductivity, 0.0);
-                    if (sigmaGhost <= 0.0)
-                    {
-                        sigmaGhost = sigmaInterior;
-                        ghost.Conductivity = sigmaGhost;
-                    }
-
-                    double sigmaAvg = 0.5 * (sigmaInterior + sigmaGhost);
-                    if (sigmaAvg <= 0.0)
-                        continue;
-
-                    double phiGhost = phiInterior - fluxPerLink / sigmaAvg;
-
-                    double nonEq = element.Fi[dir] - weights[dir] * phiInterior;
-
-                    for (int k = 0; k < 9; k++)
-                    {
-                        double eq = weights[k] * phiGhost;
-                        ghost.Fi[k] = eq;
-                    }
-
-                    ghost.Fi[opp] = weights[opp] * phiGhost + nonEq;
-                    phi[ghostIndex] = phiGhost;
+                    sigmaGhost = sigmaInterior > 0.0 ? sigmaInterior : 1.0;
+                    ghost.Conductivity = sigmaGhost;
                 }
+
+                double sigmaAvg = 0.5 * (sigmaInterior + sigmaGhost);
+                if (sigmaAvg <= 0.0)
+                    continue;
+
+                double phiGhost = phiInterior - imposedFlux / sigmaAvg;
+                double nonEquilibrium = interior.Fi[link.Direction] - weights[link.Direction] * phiInterior;
+
+                for (int k = 0; k < 9; k++)
+                {
+                    double eq = weights[k] * phiGhost;
+                    ghost.Fi[k] = eq;
+                    ghost.Fi_next[k] = 0.0;
+                }
+
+                int oppositeDir = opposite[link.Direction];
+                ghost.Fi[oppositeDir] = weights[oppositeDir] * phiGhost + nonEquilibrium;
+                phi[link.GhostIndex] = phiGhost;
             }
         }
 
@@ -724,9 +744,9 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 bool isGround = source.IsGround || (fallback?.IsGround ?? false);
 
                 double current = double.IsNaN(source.Current) ? (fallback?.Current ?? 0.0) : source.Current;
-                double potential = double.IsNaN(source.Potential) ? (fallback?.Potential ?? 0.0) : source.Potential;
+                int electrodeId = source.Id >= 0 ? source.Id : (fallback?.Id ?? source.GridId);
 
-                runtimeElectrodes.Add(new ElectrodeRuntimeData(idx, element, current, potential, isExcitation, isGround));
+                runtimeElectrodes.Add(new ElectrodeRuntimeData(electrodeId, idx, element, current, isExcitation, isGround));
                 processedGridIds.Add(source.GridId);
             }
 
@@ -743,18 +763,32 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     AddRuntimeElectrode(gridElectrode, null);
             }
 
-            var electrodeByIndex = runtimeElectrodes.ToDictionary(e => e.ElementIndex);
-            var groundElectrode = EnsureSingleGroundElectrode(runtimeElectrodes);
-            int groundIndex = groundElectrode.ElementIndex;
-            double groundPotential = groundElectrode.Potential;
+            int groundCellId = -1;
+            var groundFromBc = bcElectrodes.FirstOrDefault(e => e.Id == bc.GroundElectrodeId);
+            if (groundFromBc != null)
+                groundCellId = groundFromBc.GridId;
+            else if (gridElectrodesById.TryGetValue(bc.GroundElectrodeId, out var groundFromGrid))
+                groundCellId = groundFromGrid.GridId;
+            else
+            {
+                var runtimeGround = runtimeElectrodes.FirstOrDefault(e => e.IsGround);
+                if (runtimeGround.Element != null)
+                    groundCellId = runtimeGround.Element.Id;
+            }
+
+            if (groundCellId < 0 && runtimeElectrodes.Count > 0)
+                groundCellId = runtimeElectrodes[0].Element.Id;
+
+            int groundIndex = -1;
+            if (groundCellId >= 0 && topology.IdToIndex.TryGetValue(groundCellId, out var idxGround))
+                groundIndex = idxGround;
+
+            var boundaryLinks = BuildBoundaryLinks(elements, topology.IdToIndex, out var linksByInterior);
+            var fluxPerLink = ComputeFluxPerLink(boundaryLinks, linksByInterior, runtimeElectrodes);
+
             var conductivity = lbmGrid.GetConductivityDistribution();
             var initialPotential = lbmGrid.GetPotentialDistribution();
 
-            var isElectrodeHost = new int[elementCount];
-            var electrodeIsExcitationHost = new int[elementCount];
-            var electrodeIsGroundHost = new int[elementCount];
-            var electrodeCurrentHost = new double[elementCount];
-            var electrodePotentialHost = new double[elementCount];
             var conductivityHost = new double[elementCount];
             var initialPhiHost = new double[elementCount];
 
@@ -772,27 +806,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 if (!isWall && initialPotential is not null)
                     phi0 = initialPotential.GetValue(element.Id);
                 initialPhiHost[idx] = isWall ? 0.0 : phi0;
-
-                if (electrodeByIndex.TryGetValue(idx, out var runtimeElectrode))
-                {
-                    isElectrodeHost[idx] = 1;
-                    electrodeIsExcitationHost[idx] = runtimeElectrode.IsExcitation ? 1 : 0;
-                    electrodeIsGroundHost[idx] = runtimeElectrode.IsGround ? 1 : 0;
-                    electrodeCurrentHost[idx] = runtimeElectrode.Current;
-                    electrodePotentialHost[idx] = runtimeElectrode.Potential;
-                }
-                else
-                {
-                    element.IsElectrode = false;
-                    isElectrodeHost[idx] = 0;
-                    electrodeIsExcitationHost[idx] = 0;
-                    electrodeIsGroundHost[idx] = 0;
-                    electrodeCurrentHost[idx] = 0.0;
-                    electrodePotentialHost[idx] = 0.0;
-                }
             }
-
-            initialPhiHost[groundIndex] = groundPotential;
 
             var accelerator = LatticeBoltzmannCudaContext.Accelerator;
 
@@ -801,11 +815,6 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             using var conductivityBuffer = accelerator.Allocate1D<double>(elementCount);
             using var isWallBuffer = accelerator.Allocate1D<int>(elementCount);
             using var isGhostBuffer = accelerator.Allocate1D<int>(elementCount);
-            using var isElectrodeBuffer = accelerator.Allocate1D<int>(elementCount);
-            using var electrodeIsExcitationBuffer = accelerator.Allocate1D<int>(elementCount);
-            using var electrodeIsGroundBuffer = accelerator.Allocate1D<int>(elementCount);
-            using var electrodeCurrentBuffer = accelerator.Allocate1D<double>(elementCount);
-            using var electrodePotentialBuffer = accelerator.Allocate1D<double>(elementCount);
             using var neighborIndexBuffer = accelerator.Allocate1D<int>(elementCount * 9);
             using var neighborIsWallBuffer = accelerator.Allocate1D<int>(elementCount * 9);
             using var neighborIsGhostBuffer = accelerator.Allocate1D<int>(elementCount * 9);
@@ -814,16 +823,29 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
             isWallBuffer.CopyFromCPU(isWallHost);
             isGhostBuffer.CopyFromCPU(isGhostHost);
-            isElectrodeBuffer.CopyFromCPU(isElectrodeHost);
-            electrodeIsExcitationBuffer.CopyFromCPU(electrodeIsExcitationHost);
-            electrodeIsGroundBuffer.CopyFromCPU(electrodeIsGroundHost);
-            electrodeCurrentBuffer.CopyFromCPU(electrodeCurrentHost);
-            electrodePotentialBuffer.CopyFromCPU(electrodePotentialHost);
             conductivityBuffer.CopyFromCPU(conductivityHost);
             neighborIndexBuffer.CopyFromCPU(neighborIndicesHost);
             neighborIsWallBuffer.CopyFromCPU(neighborIsWallHost);
             neighborIsGhostBuffer.CopyFromCPU(neighborIsGhostHost);
             initialPhiBuffer.CopyFromCPU(initialPhiHost);
+
+            int linkCount = boundaryLinks.Count;
+            using var boundaryInteriorBuffer = accelerator.Allocate1D<int>(linkCount);
+            using var boundaryGhostBuffer = accelerator.Allocate1D<int>(linkCount);
+            using var boundaryDirectionBuffer = accelerator.Allocate1D<int>(linkCount);
+            using var boundaryFluxBuffer = accelerator.Allocate1D<double>(linkCount);
+
+            if (linkCount > 0)
+            {
+                var interiorHost = boundaryLinks.Select(link => link.InteriorIndex).ToArray();
+                var ghostHost = boundaryLinks.Select(link => link.GhostIndex).ToArray();
+                var directionHost = boundaryLinks.Select(link => link.Direction).ToArray();
+
+                boundaryInteriorBuffer.CopyFromCPU(interiorHost);
+                boundaryGhostBuffer.CopyFromCPU(ghostHost);
+                boundaryDirectionBuffer.CopyFromCPU(directionHost);
+                boundaryFluxBuffer.CopyFromCPU(fluxPerLink);
+            }
 
             if (_initializeKernel == null)
                 throw new NullReferenceException();
@@ -860,27 +882,30 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     neighborIsWallBuffer.View,
                     LatticeBoltzmannCudaContext.OppositeView);
 
-                _phiKernel(elementCount, fiNextBuffer.View, phiBuffer.View);
-
                 var updateParams = new UpdateKernelParams(
                     fiBuffer.View,
                     fiNextBuffer.View,
                     isWallBuffer.View,
-                    isElectrodeBuffer.View,
-                    electrodeIsExcitationBuffer.View,
-                    electrodeIsGroundBuffer.View,
-                    electrodeCurrentBuffer.View,
-                    electrodePotentialBuffer.View,
-                    neighborIsWallBuffer.View,
-                    neighborIsGhostBuffer.View,
-                    neighborIndexBuffer.View,
-                    conductivityBuffer.View,
                     isGhostBuffer.View,
-                    phiBuffer.View,
-                    LatticeBoltzmannCudaContext.OppositeView,
-                    LatticeBoltzmannCudaContext.WeightsView);
+                    phiBuffer.View);
 
                 _updateKernel(elementCount, updateParams);
+
+                if (linkCount > 0 && _ghostBoundaryKernel != null)
+                {
+                    var ghostParams = new GhostBoundaryKernelParams(
+                        boundaryInteriorBuffer.View,
+                        boundaryGhostBuffer.View,
+                        boundaryDirectionBuffer.View,
+                        boundaryFluxBuffer.View,
+                        fiBuffer.View,
+                        phiBuffer.View,
+                        LatticeBoltzmannCudaContext.WeightsView,
+                        LatticeBoltzmannCudaContext.OppositeView,
+                        conductivityBuffer.View);
+
+                    _ghostBoundaryKernel(linkCount, ghostParams);
+                }
 
                 if (iteration % checkFrequency == 0)
                 {
@@ -916,9 +941,12 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
             var finalFi = fiBuffer.GetAsArray1D();
             double groundPhi = 0.0;
-            int groundBaseIndex = groundIndex * 9;
-            for (int k = 0; k < 9; k++)
-                groundPhi += finalFi[groundBaseIndex + k];
+            if (groundIndex >= 0)
+            {
+                int groundBaseIndex = groundIndex * 9;
+                for (int k = 0; k < 9; k++)
+                    groundPhi += finalFi[groundBaseIndex + k];
+            }
 
             var result = new Dictionary<int, double>(elementCount);
 
@@ -973,6 +1001,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 _collisionKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<int>, ArrayView<double>, double, double, ArrayView<double>>(CollisionKernel);
                 _streamKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>>(StreamingKernel);
                 _updateKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, UpdateKernelParams>(UpdateKernel);
+                _ghostBoundaryKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, GhostBoundaryKernelParams>(GhostBoundaryKernel);
                 _phiKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<double>>(PhiKernel);
             }
         }
@@ -1111,193 +1140,74 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         /// CUDA kernel for updating distribution functions and enforcing boundary conditions.
         /// The implementation mirrors the CPU logic to keep the collision-streaming-BC order
         /// identical across execution modes.  The kernel copies streamed populations into
-        /// the main array, applies the Dirichlet anchor on ground electrodes, and finally
-        /// injects the conservative Neumann flux correction for source/sink electrodes.
+        /// the main array and leaves the macroscopic gauge to be fixed in post-processing,
+        /// while ghost-node kernels handle the conservative Neumann flux correction.
         /// </summary>
         private static void UpdateKernel(
             Index1D index,
             UpdateKernelParams p)
         {
-            bool isGhostCell = p.IsGhost[index] == 1;
-            if (p.IsWall[index] == 1 && !isGhostCell)
+            bool isPhysicalWall = p.IsWall[index] == 1 && p.IsGhost[index] == 0;
+            if (isPhysicalWall)
                 return;
 
             int baseIndex = index * 9;
-            double phiBoundary = 0.0;
+            double phi = 0.0;
 
             for (int k = 0; k < 9; k++)
             {
                 double value = p.FiNext[baseIndex + k];
-                p.Fi[baseIndex + k] = value;   // Accept streamed population.
-                p.FiNext[baseIndex + k] = 0.0; // Clear buffer for the next iteration.
-                phiBoundary += value;
+                p.Fi[baseIndex + k] = value;
+                p.FiNext[baseIndex + k] = 0.0;
+                phi += value;
             }
 
-            if (p.IsElectrode[index] == 0 || isGhostCell)
-            {
-                p.PhiStreamed[index] = phiBoundary;
-                return;
-            }
+            p.PhiStreamed[index] = phi;
+        }
 
-            if (p.ElectrodeIsGround[index] == 1)
-            {
-                double anchorPotential = p.ElectrodePotential[index];
-                phiBoundary = 0.0;
-                for (int k = 0; k < 9; k++)
-                {
-                    double value = p.Weights[k] * anchorPotential;
-                    p.Fi[baseIndex + k] = value; // Enforce Dirichlet equilibrium.
-                    phiBoundary += value;
-                }
-                p.PhiStreamed[index] = phiBoundary;
-            }
-            else
-            {
-                p.PhiStreamed[index] = phiBoundary;
-            }
+        private static void GhostBoundaryKernel(
+            Index1D index,
+            GhostBoundaryKernelParams p)
+        {
+            int interior = p.InteriorIndices[index];
+            int ghost = p.GhostIndices[index];
+            int direction = p.Directions[index];
 
-            int ghostDirCount = 0;
-            int ghostDir0 = -1, ghostDir1 = -1, ghostDir2 = -1, ghostDir3 = -1;
-            int ghostIndex0 = -1, ghostIndex1 = -1, ghostIndex2 = -1, ghostIndex3 = -1;
+            double flux = p.FluxPerLink[index];
+            double phiInterior = p.Phi[interior];
 
-            for (int dir = 1; dir <= 4; dir++)
-            {
-                if (ghostDirCount >= 4)
-                    break;
-                if (p.NeighborIsGhost[baseIndex + dir] != 1)
-                    continue;
-                int ghostIndex = p.NeighborIndices[baseIndex + dir];
-                if (ghostIndex < 0)
-                    continue;
-                if (p.IsGhost[ghostIndex] != 1)
-                    continue;
-                if (ghostDirCount == 0)
-                {
-                    ghostDir0 = dir;
-                    ghostIndex0 = ghostIndex;
-                }
-                else if (ghostDirCount == 1)
-                {
-                    ghostDir1 = dir;
-                    ghostIndex1 = ghostIndex;
-                }
-                else if (ghostDirCount == 2)
-                {
-                    ghostDir2 = dir;
-                    ghostIndex2 = ghostIndex;
-                }
-                else
-                {
-                    ghostDir3 = dir;
-                    ghostIndex3 = ghostIndex;
-                }
-                ghostDirCount++;
-            }
+            double sigmaInterior = XMath.Max(p.Conductivity[interior], 0.0);
+            double sigmaGhost = p.Conductivity[ghost];
 
-            if (ghostDirCount == 0)
-            {
-                for (int dir = 5; dir < 9; dir++)
-                {
-                    if (ghostDirCount >= 4)
-                        break;
-                    if (p.NeighborIsGhost[baseIndex + dir] != 1)
-                        continue;
-                    int ghostIndex = p.NeighborIndices[baseIndex + dir];
-                    if (ghostIndex < 0)
-                        continue;
-                    if (p.IsGhost[ghostIndex] != 1)
-                        continue;
-                    if (ghostDirCount == 0)
-                    {
-                        ghostDir0 = dir;
-                        ghostIndex0 = ghostIndex;
-                    }
-                    else if (ghostDirCount == 1)
-                    {
-                        ghostDir1 = dir;
-                        ghostIndex1 = ghostIndex;
-                    }
-                    else if (ghostDirCount == 2)
-                    {
-                        ghostDir2 = dir;
-                        ghostIndex2 = ghostIndex;
-                    }
-                    else
-                    {
-                        ghostDir3 = dir;
-                        ghostIndex3 = ghostIndex;
-                    }
-                    ghostDirCount++;
-                }
-            }
-
-            if (ghostDirCount == 0)
+            if (sigmaInterior <= 0.0 && sigmaGhost <= 0.0)
                 return;
 
-            double phiInterior = p.PhiStreamed[index];
-            double sigmaInterior = p.Conductivity[index];
-            if (sigmaInterior < 0.0)
-                sigmaInterior = 0.0;
-
-            double fluxPerLink = p.ElectrodeCurrent[index] / ghostDirCount;
-
-            for (int n = 0; n < ghostDirCount; n++)
+            if (sigmaGhost <= 0.0)
             {
-                int dir;
-                int ghostIndex;
-                if (n == 0)
-                {
-                    dir = ghostDir0;
-                    ghostIndex = ghostIndex0;
-                }
-                else if (n == 1)
-                {
-                    dir = ghostDir1;
-                    ghostIndex = ghostIndex1;
-                }
-                else if (n == 2)
-                {
-                    dir = ghostDir2;
-                    ghostIndex = ghostIndex2;
-                }
-                else
-                {
-                    dir = ghostDir3;
-                    ghostIndex = ghostIndex3;
-                }
-
-                if (dir < 0 || ghostIndex < 0)
-                    continue;
-
-                double sigmaGhost = p.Conductivity[ghostIndex];
-                if (sigmaGhost <= 0.0)
-                {
-                    sigmaGhost = sigmaInterior;
-                    if (sigmaGhost <= 0.0)
-                        continue;
-                }
-
-                double sigmaAvg = 0.5 * (sigmaInterior + sigmaGhost);
-                if (sigmaAvg <= 0.0)
-                    continue;
-
-                double phiGhost = phiInterior - fluxPerLink / sigmaAvg;
-                int ghostBase = ghostIndex * 9;
-
-                for (int k = 0; k < 9; k++)
-                {
-                    double eq = p.Weights[k] * phiGhost;
-                    p.Fi[ghostBase + k] = eq;
-                    p.FiNext[ghostBase + k] = 0.0;
-                }
-
-                int opp = p.Opposite[dir];
-                double nonEq = p.Fi[baseIndex + dir] - p.Weights[dir] * phiInterior;
-                p.Fi[ghostBase + opp] = p.Weights[opp] * phiGhost + nonEq;
-                p.PhiStreamed[ghostIndex] = phiGhost;
+                sigmaGhost = sigmaInterior > 0.0 ? sigmaInterior : 1.0;
+                p.Conductivity[ghost] = sigmaGhost;
             }
 
-            p.PhiStreamed[index] = phiInterior;
+            double sigmaAvg = 0.5 * (sigmaInterior + sigmaGhost);
+            if (sigmaAvg <= 0.0)
+                return;
+
+            double phiGhost = phiInterior - flux / sigmaAvg;
+
+            int baseInterior = interior * 9;
+            int baseGhost = ghost * 9;
+
+            double nonEquilibrium = p.Fi[baseInterior + direction] - p.Weights[direction] * phiInterior;
+
+            for (int k = 0; k < 9; k++)
+            {
+                double eq = p.Weights[k] * phiGhost;
+                p.Fi[baseGhost + k] = eq;
+            }
+
+            int opposite = p.Opposite[direction];
+            p.Fi[baseGhost + opposite] = p.Weights[opposite] * phiGhost + nonEquilibrium;
+            p.Phi[ghost] = phiGhost;
         }
 
         /// <summary>
