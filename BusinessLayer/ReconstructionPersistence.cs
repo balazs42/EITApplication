@@ -443,6 +443,8 @@ namespace BusinessLayer
                     electrode.Current = 0.0;
                 }
 
+                ReinstateGroundElectrode(forwardElectrodeSnapshot, electrodes);
+
                 // Adjoint solve using the same electrode geometry but without drive pair applied
                 var adjointBoundaryCondition = new LBMBoundaryCondition(electrodes, requireDrivePair: false);
                 Workspace.SetCurrentGlobalLbmBoundaryCondition(adjointBoundaryCondition);
@@ -506,6 +508,32 @@ namespace BusinessLayer
                 complex[i] = values[i];
 
             return complex;
+        }
+
+        private static void ReinstateGroundElectrode(IEnumerable<LBMElectrode>? referenceElectrodes, IList<LBMElectrode> targetElectrodes)
+        {
+            if (targetElectrodes == null || targetElectrodes.Count == 0)
+                return;
+
+            LBMElectrode? groundTarget = null;
+
+            if (referenceElectrodes != null)
+            {
+                var referenceGround = referenceElectrodes.FirstOrDefault(e => e.IsGround);
+                if (referenceGround != null)
+                {
+                    groundTarget = targetElectrodes.FirstOrDefault(e => e.Id == referenceGround.Id)
+                                   ?? targetElectrodes.FirstOrDefault(e => e.GridId == referenceGround.GridId);
+                }
+            }
+
+            groundTarget ??= targetElectrodes.FirstOrDefault();
+
+            if (groundTarget != null)
+            {
+                groundTarget.IsGround = true;
+                groundTarget.IsMeasuring = false;
+            }
         }
 
         private static LBMElectrode CloneLbmElectrode(LBMElectrode electrode)
@@ -1216,6 +1244,8 @@ namespace BusinessLayer
                     electrode.IsMeasuring = true;
                     electrode.Current = 0.0;
                 }
+
+                ReinstateGroundElectrode(bc.GetElectrodes().Cast<LBMElectrode>(), electrodes);
 
                 var adjointBoundaryCondition = new LBMBoundaryCondition(electrodes, requireDrivePair: false);
                 Workspace.SetCurrentGlobalLbmBoundaryCondition(adjointBoundaryCondition);
