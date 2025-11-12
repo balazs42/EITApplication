@@ -108,8 +108,26 @@ namespace BusinessLayer
             LBMGrid deepCopy = (LBMGrid)grid.DeepCopy();
             // Ensure the ghost layer mirrors interior conductivities before launching forward solves.
             deepCopy.UpdateGhostConductivityFromNeighbors();
-            Workspace.UpdateCurrentGlobalLbmElectrodes(deepCopy);
-            var electrodes = Workspace.GetCurrentGlobalLbmElectrodes();
+
+            // Work directly with the mesh-owned electrode objects so that current assignments
+            // immediately influence the forward solve.  Ordering the collection by the logical
+            // electrode id guarantees that the drive-pattern strategy rotates through adjacent
+            // physical contacts even when electrodes were created or imported in an arbitrary
+            // sequence (for instance after loading legacy grids or augmenting the boundary with
+            // virtual electrodes).
+            var electrodes = deepCopy
+                .GetElectrodes()
+                .Cast<LBMElectrode>()
+                .OrderBy(e => e.Id)
+                .ToList();
+
+            // Persist the canonical ordering for other components that rely on the workspace cache
+            // (e.g. UI inspection tools or diagnostic exports).
+            Workspace.SetCurrentGlobalLbmElectrodes([.. electrodes]);
+
+            // Re-apply the deterministic ordering to the mesh so subsequent calls that query the
+            // discretisation receive electrodes in the same sequence.
+            deepCopy.SetElectrodes(electrodes);
             bool applyVirtuals = virtualSettings.ShouldApplyVirtualElectrodes();
             var realElectrodes = electrodes.Where(e => !e.IsVirtual).ToList();
             int electrodeCount = realElectrodes.Count;
@@ -133,7 +151,7 @@ namespace BusinessLayer
                     el.Current = 0.0;
                 }
 
-                if (electrodeCount > 0)
+                if (electrodeCount > 1)
                 {
                     var (excitationIndex, groundIndex) = strategy.GetElectrodePair(electrodeCount, i);
 
@@ -146,6 +164,12 @@ namespace BusinessLayer
                     ground.IsGround = true;
                     ground.IsMeasuring = false;
                     ground.Current = -excitationAmplitude;
+                }
+                else
+                {
+                    Workspace.AddWarningMessage("LBM measurement simulation requires at least two real electrodes. Returning an empty frame for this step.");
+                    frames.Add(Array.Empty<double>());
+                    continue;
                 }
 
                 var boundaryCondition = new LBMBoundaryCondition(electrodes);
