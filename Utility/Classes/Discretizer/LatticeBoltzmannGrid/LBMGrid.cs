@@ -31,6 +31,7 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
 
         // Added for fast, direct access to elements by coordinate
         private readonly LBMElement[,] _grid;
+        private readonly Dictionary<int, double> _ghostBaselineConductivity = new();
 
         public LBMElement GetElementAt(int x, int y) => _grid[x, y];
 
@@ -163,10 +164,10 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
         }
 
         /// <summary>
-        /// Refreshes ghost-layer conductivities so that they mirror adjacent interior cells.
-        /// Ghost cells approximate an extension of the interior domain and therefore inherit the
-        /// average conductivity of their non-ghost, non-wall neighbours instead of being treated
-        /// as independent optimisation variables.
+        /// Restores ghost-layer conductivities to their baseline values.
+        /// Ghost cells mirror the state of the mesh at the time the ghost layer was constructed
+        /// and are not updated by reconstruction steps; this method simply reapplies the stored
+        /// baseline to keep derived distributions consistent.
         /// </summary>
         public void UpdateGhostConductivityFromNeighbors()
         {
@@ -178,29 +179,21 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                 if (!cell.GhostElement)
                     continue;
 
-                double sigmaSum = 0.0;
-                int sigmaCount = 0;
-
-                foreach (var neighbor in cell.Neighbors)
+                if (_ghostBaselineConductivity.TryGetValue(cell.Id, out double baseline))
                 {
-                    if (neighbor is null || neighbor.GhostElement || neighbor.IsWall)
-                        continue;
-
-                    sigmaSum += neighbor.Conductivity;
-                    sigmaCount++;
+                    SetGhostConductivity(cell, baseline);
                 }
-
-                if (sigmaCount > 0)
-                {
-                    double averaged = sigmaSum / sigmaCount;
-                    cell.Conductivity = averaged;
-                    ConductivityDistribution.Conductivities[cell.Id] = averaged;
-                }
-                else
-                {
-                    // Degenerate case: the ghost cell only sees walls/ghosts. Preserve the previous value.
-                }
+                // If no baseline is recorded, leave the current value untouched –
+                // this should not happen unless the mesh is in an inconsistent state.
             }
+        }
+
+        private void SetGhostConductivity(LBMElement cell, double value)
+        {
+            cell.Conductivity = value;
+            if (ConductivityDistribution != null)
+                ConductivityDistribution.Conductivities[cell.Id] = value;
+            _ghostBaselineConductivity[cell.Id] = value;
         }
 
         private void RebuildGhostLayerFromMask()
@@ -216,6 +209,7 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                     {
                         cell.IsWall = false;
                         cell.GhostElement = false;
+                        _ghostBaselineConductivity.Remove(cell.Id);
                         continue;
                     }
 
@@ -250,7 +244,11 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                         double sigma = sigmaCount > 0 ? sigmaSum / sigmaCount : 1.0;
                         if (!double.IsFinite(sigma) || sigma <= 0.0)
                             sigma = 1.0;
-                        cell.Conductivity = sigma;
+                        SetGhostConductivity(cell, sigma);
+                    }
+                    else
+                    {
+                        _ghostBaselineConductivity.Remove(cell.Id);
                     }
                 }
             }
@@ -704,6 +702,11 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
 
                 for (int k = 0; k < 9; k++)
                     dst.Fi[k] = src.Fi[k];
+
+                if (dst.GhostElement && _ghostBaselineConductivity.TryGetValue(src.Id, out double baseline))
+                    copy._ghostBaselineConductivity[src.Id] = baseline;
+                else if (!dst.GhostElement)
+                    copy._ghostBaselineConductivity.Remove(src.Id);
             }
 
             // clone electrodes list
