@@ -71,7 +71,8 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 ArrayView<double> phi,
                 ArrayView<double> weights,
                 ArrayView<int> opposite,
-                ArrayView<double> conductivity)
+                ArrayView<double> conductivity,
+                double deltaX)
             {
                 InteriorIndices = interiorIndices;
                 GhostIndices = ghostIndices;
@@ -82,6 +83,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 Weights = weights;
                 Opposite = opposite;
                 Conductivity = conductivity;
+                DeltaX = deltaX;
             }
 
             public ArrayView<int> InteriorIndices { get; }
@@ -93,6 +95,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             public ArrayView<double> Weights { get; }
             public ArrayView<int> Opposite { get; }
             public ArrayView<double> Conductivity { get; }
+            public double DeltaX { get; }
         }
 
         /// <summary>
@@ -167,16 +170,25 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         }
 
         /// <summary>
-        /// Computes BGK relaxation time from material conductivity.
-        /// Relates physical diffusion coefficient to LBM collision frequency.
+        /// Converts a diffusion coefficient (conductivity) to the BGK relaxation time τ.
+        /// Relation (a): D = c_s^2 (τ − 1/2) Δt, so τ = D / (c_s^2 Δt) + 1/2.
+        /// c_s^2 from <see cref="LatticeBoltzmannConstants.CsSquared"/> only appears in this relation.
         /// </summary>
-        /// <param name="conductivity">Material electrical conductivity</param>
-        /// <param name="csSquared">Lattice speed of sound squared</param>
-        /// <returns>Relaxation time ensuring numerical stability</returns>
-        private static double ComputeRelaxationTime(double conductivity, double csSquared)
+        /// <param name="diffusionCoefficient">Diffusion coefficient expressed in lattice units.</param>
+        internal static double ComputeTauFromDiffusivity(double diffusionCoefficient)
         {
-            // Standard LBM relationship: τ = D/cs² + 0.5, where D is diffusion coefficient
-            double tau = conductivity / csSquared + 0.5;
+            return diffusionCoefficient /
+                   (LatticeBoltzmannConstants.CsSquared * LatticeBoltzmannConstants.DeltaT) + 0.5;
+        }
+
+        /// <summary>
+        /// Computes BGK relaxation time from material conductivity and clamps it for stability.
+        /// </summary>
+        /// <param name="conductivity">Material electrical conductivity (diffusion coefficient).</param>
+        /// <returns>Relaxation time ensuring numerical stability.</returns>
+        private static double ComputeRelaxationTime(double conductivity)
+        {
+            double tau = ComputeTauFromDiffusivity(conductivity);
 
             // Enforce minimum relaxation time to prevent numerical instability
             // Values below 0.5 can cause negative distribution functions
@@ -305,6 +317,10 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             return links;
         }
 
+        /// <summary>
+        /// Computes electrode flux densities j_n for each boundary link.
+        /// Implements relation (b): j_n = I_total / Σ_links Δs with Δs = Δx for axis-aligned faces.
+        /// </summary>
         private static double[] ComputeFluxPerLink(
             IReadOnlyList<BoundaryLink> links,
             Dictionary<int, List<int>> linksByInterior,
@@ -343,9 +359,19 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 if (linkIndices.Count == 0)
                     continue;
 
-                double fluxPerLink = totalCurrent / linkIndices.Count;
+                // Relation (b): j_n = I_total / Σ_links Δs with Δs = Δx for axis-aligned links.
+                double deltaS = LatticeBoltzmannConstants.DeltaX;
+                double interfaceMeasure = linkIndices.Count * deltaS;
+                if (interfaceMeasure <= 0.0)
+                    continue;
+
+                double fluxDensity = totalCurrent / interfaceMeasure;
+
                 foreach (int linkIndex in linkIndices)
-                    flux[linkIndex] = fluxPerLink;
+                {
+                    // TODO: Account for diagonal links via Δs = √2 Δx once oblique faces are supported.
+                    flux[linkIndex] = fluxDensity;
+                }
             }
 
             return flux;
@@ -370,8 +396,6 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             // implementations evaluate exactly the same algebra.
             var weights = LatticeBoltzmannConstants.Weights;       // Equilibrium weights wi
             var opposite = LatticeBoltzmannConstants.Opposite;     // Opposite direction mapping
-            double csSquared = LatticeBoltzmannConstants.CsSquared; // c_s^2 for diffusion relation
-
             // Flatten the mesh state for sequential processing.
             var elements = lbmGrid.GetElements().Cast<LBMElement>().ToList();
             var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
@@ -510,11 +534,10 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     for (int k = 0; k < 9; k++)
                         phiLocal += element.Fi[k];
 
-                    // Diffusion relation: tau = D / c_s^2 + 0.5.  Tau must remain
-                    // greater than 0.5 to keep the post-collision populations
-                    // positive; we add a small safety margin to stay in the stable
-                    // regime of the discrete BGK operator.
-                    double tau = ComputeRelaxationTime(element.Conductivity, csSquared);
+                    // Diffusion relation (a): D = c_s^2 (τ − 1/2) Δt ⇒ τ = D / (c_s^2 Δt) + 1/2.
+                    // Tau must remain greater than 0.5 to keep post-collision populations
+                    // positive; we add a small safety margin to stay in the stable regime.
+                    double tau = ComputeRelaxationTime(element.Conductivity);
                     double omega = 1.0 / tau;
 
                     for (int k = 0; k < 9; k++)
@@ -656,7 +679,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             for (int i = 0; i < links.Count; i++)
             {
                 var link = links[i];
-                double imposedFlux = fluxPerLink.Length > i ? fluxPerLink[i] : 0.0;
+                double fluxDensity = fluxPerLink.Length > i ? fluxPerLink[i] : 0.0;
 
                 var interior = elements[link.InteriorIndex];
                 var ghost = elements[link.GhostIndex];
@@ -678,7 +701,12 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 if (sigmaAvg <= 0.0)
                     continue;
 
-                double phiGhost = phiInterior - imposedFlux / sigmaAvg;
+                // Neumann BC at the half-way interface:
+                // j_n = - sigma_avg * (phi_g - phi_i) / Δx  =>  phi_g = phi_i - (j_n * Δx) / sigma_avg.
+                // fluxDensity stores j_n (flux density).  Bounce-back walls map to j_n = 0 → homogeneous Neumann.
+                double jn = fluxDensity;
+                double dx = LatticeBoltzmannConstants.DeltaX;
+                double phiGhost = phiInterior - (jn * dx) / sigmaAvg;
                 double nonEquilibrium = interior.Fi[link.Direction] - weights[link.Direction] * phiInterior;
 
                 for (int k = 0; k < 9; k++)
@@ -874,7 +902,6 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     fiBuffer.View,
                     isWallBuffer.View,
                     conductivityBuffer.View,
-                    LatticeBoltzmannConstants.CsSquared,
                     MinTau,
                     LatticeBoltzmannCudaContext.WeightsView);
 
@@ -906,7 +933,8 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                         phiBuffer.View,
                         LatticeBoltzmannCudaContext.WeightsView,
                         LatticeBoltzmannCudaContext.OppositeView,
-                        conductivityBuffer.View);
+                        conductivityBuffer.View,
+                        LatticeBoltzmannConstants.DeltaX);
 
                     _ghostBoundaryKernel(linkCount, ghostParams);
                 }
@@ -1002,7 +1030,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 // Compile and cache all LBM kernels with automatic optimization
                 // ILGPU handles thread block sizing and register allocation automatically
                 _initializeKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<double>, ArrayView<double>>(InitializeKernel);
-                _collisionKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<int>, ArrayView<double>, double, double, ArrayView<double>>(CollisionKernel);
+                _collisionKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<int>, ArrayView<double>, double, ArrayView<double>>(CollisionKernel);
                 _streamKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>>(StreamingKernel);
                 _updateKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, UpdateKernelParams>(UpdateKernel);
                 _ghostBoundaryKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, GhostBoundaryKernelParams>(GhostBoundaryKernel);
@@ -1044,7 +1072,6 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         /// <param name="fi">Input/Output: distribution functions [elementCount * 9]</param>
         /// <param name="isWall">Input: wall flags [elementCount]</param>
         /// <param name="conductivity">Input: material conductivity [elementCount]</param>
-        /// <param name="csSquared">Input: lattice speed of sound squared</param>
         /// <param name="minTau">Input: minimum relaxation time for stability</param>
         /// <param name="weights">Input: D2Q9 equilibrium weights [9]</param>
         private static void CollisionKernel(
@@ -1052,7 +1079,6 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             ArrayView<double> fi,               // Distribution functions to update
             ArrayView<int> isWall,              // Wall identification per element
             ArrayView<double> conductivity,     // Material conductivity per element
-            double csSquared,                   // Lattice speed of sound squared
             double minTau,                      // Minimum relaxation time for stability
             ArrayView<double> weights)          // D2Q9 equilibrium weights
         {
@@ -1068,9 +1094,9 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             for (int k = 0; k < 9; k++)
                 phi += fi[baseIndex + k];
 
-            // Calculate relaxation time from material conductivity
-            // τ = D/cs² + 0.5, where D is the diffusion coefficient (conductivity)
-            double tau = conductivity[index] / csSquared + 0.5;
+            // Calculate relaxation time from material conductivity.
+            // Relation (a): D = c_s^2 (τ − 1/2) Δt handled by ComputeTauFromDiffusivity.
+            double tau = ComputeTauFromDiffusivity(conductivity[index]);
 
             // Enforce minimum relaxation time for numerical stability
             if (tau < minTau)
@@ -1177,7 +1203,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             int ghost = p.GhostIndices[index];
             int direction = p.Directions[index];
 
-            double flux = p.FluxPerLink[index];
+            double jn = p.FluxPerLink[index];
             double phiInterior = p.Phi[interior];
 
             double sigmaInterior = XMath.Max(p.Conductivity[interior], 0.0);
@@ -1196,7 +1222,11 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             if (sigmaAvg <= 0.0)
                 return;
 
-            double phiGhost = phiInterior - flux / sigmaAvg;
+            // Neumann BC at the half-way interface:
+            // j_n = - sigma_avg * (phi_g - phi_i) / Δx  =>  phi_g = phi_i - (j_n * Δx) / sigma_avg.
+            // Flux array stores j_n so insulating walls (j_n = 0) reduce to classic bounce-back.
+            double dx = p.DeltaX;
+            double phiGhost = phiInterior - (jn * dx) / sigmaAvg;
 
             int baseInterior = interior * 9;
             int baseGhost = ghost * 9;
