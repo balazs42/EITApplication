@@ -1,3 +1,7 @@
+/// <summary>
+/// Lattice Boltzmann constants expressed in lattice units (LU).
+/// Caller code is responsible for mapping between LU and any physical units.
+/// </summary>
 namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 {
     /// <summary>
@@ -56,5 +60,17 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         /// Value of 1/3 ensures correct recovery of the diffusion equation in the continuum limit.
         /// </summary>
         public const double CsSquared = 1.0 / 3.0;
+
+        /// <summary>
+        /// Lattice spacing Δx in lattice units (LU).
+        /// Physical scaling must be applied by the caller if real-world units are required.
+        /// </summary>
+        public const double DeltaX = 1.0;
+
+        /// <summary>
+        /// Lattice time step Δt in lattice units (LU).
+        /// Appears only in the BGK relaxation-time relation D = c_s^2 (τ − 1/2) Δt.
+        /// </summary>
+        public const double DeltaT = 1.0;
     }
 }
