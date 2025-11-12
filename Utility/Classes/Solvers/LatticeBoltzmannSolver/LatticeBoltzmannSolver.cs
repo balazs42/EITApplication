@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Numerics;
 using ILGPU;
 using ILGPU.Algorithms;
@@ -9,7 +6,6 @@ using ILGPU.Runtime;
 using Utility.Classes.Measurement;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
-using Utility.Classes.Solvers;
 
 namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 {
@@ -21,9 +17,9 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
     public sealed class LatticeBoltzmannSolver : ISolver
     {
         // Solver configuration parameters
-        private int MaxIterationCount = 250;                    // Maximum time steps before forced termination
+        private int MaxIterationCount = 500;                   // Maximum time steps before forced termination
         private double SolutionTolerance = 1e-6;               // Convergence tolerance for steady-state detection
-        private int ConvergenceCheckFrequency = 100;           // How often to check convergence (computational cost)
+        private int ConvergenceCheckFrequency = 50;           // How often to check convergence (computational cost)
         private readonly bool _useCuda;                        // Whether to use GPU acceleration
 
         // LBM stability constants
