@@ -1,16 +1,19 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using Utility.Classes;
 using Utility.Classes.Application;
-using Utility.Classes.Measurement;
 using Utility.Classes.Discretizer; // For Electrode base type
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
-using Utility.Classes.ReconstructionParameters;
-using Utility.Classes.Reconstruction.VirtualElectrodes;
 using Utility.Classes.Factories;
+using Utility.Classes.Measurement;
 using Utility.Classes.Reconstruction; // For PotentialClipper
+using Utility.Classes.Reconstruction.DESolvers;
+using Utility.Classes.Reconstruction.VirtualElectrodes;
+using Utility.Classes.ReconstructionParameters;
+using Utility.Classes.Solvers.LatticeBoltzmannSolver;
 
 namespace BusinessLayer
 {
@@ -109,6 +112,8 @@ namespace BusinessLayer
             // Ensure the ghost layer mirrors interior conductivities before launching forward solves.
             deepCopy.UpdateGhostConductivityFromNeighbors();
 
+            var measurementSolver = CreateIsolatedLbmSolver(solver);
+
             // Work directly with the mesh-owned electrode objects so that current assignments
             // immediately influence the forward solve.  Ordering the collection by the logical
             // electrode id guarantees that the drive-pattern strategy rotates through adjacent
@@ -175,7 +180,19 @@ namespace BusinessLayer
                 var boundaryCondition = new LBMBoundaryCondition(electrodes);
                 Workspace.SetCurrentGlobalLbmBoundaryCondition(boundaryCondition);
 
-                _ = solver.Solve(deepCopy, boundaryCondition, null);
+                // Update workspace for the current LBM configuration
+                Workspace.UpdateCurrentGlobalLbmElectrodes(grid);
+                Workspace.UpdateCurrentGlobalLbmElements(grid);
+                Workspace.SetCurrentGlobalLbmBoundaryCondition(boundaryCondition);
+                var elements = Workspace.GetCurrentGlobalLbmElements();
+
+                // Preserve the forward drive pair so the adjoint boundary condition retains the
+                // same grounding reference instead of falling back to the library defaults.
+                var forwardElectrodeSnapshot = boundaryCondition.GetElectrodes()
+                                                 .Select(CloneLbmElectrode)
+                                                 .ToList();
+
+                deepCopy = SolveLbmForward(deepCopy, measurementSolver);
 
                 double[] electrodePotentials = PotentialClipper.Clip(deepCopy.GetElectrodePotentials());
                 var electrodeProjectionList = electrodes.Cast<Utility.Classes.Discretizer.Electrode>().ToList();
@@ -199,6 +216,48 @@ namespace BusinessLayer
             mesh.SetPotentialDistribution(PotentialClipper.Clip(potentialDistribution));
             return mesh;
         }
+
+        private static LBMGrid SolveLbmForward(LBMGrid grid, IDifferentialEquationSolver solver)
+        {
+            var boundaryCondition = new LBMBoundaryCondition(grid.GetElectrodes().Cast<LBMElectrode>().ToList());
+            var potentialDistribtion = solver.Solve(grid, boundaryCondition, null);
+            grid.SetPotentialDistribution(PotentialClipper.Clip(potentialDistribtion));
+            return grid;
+        }
+
+        private static IDifferentialEquationSolver CreateIsolatedLbmSolver(IDifferentialEquationSolver reference)
+        {
+            // Extract configuration from reference solver
+            if (reference is LatticeBoltzmannDESolver lbmDeSolver)
+            {
+                // Return a new wrapper with fresh state
+                return  new LatticeBoltzmannDESolver(
+                        maxIterations: 5000,            // Use conservative defaults for measurement
+                        convergenceThreshold: 1e-8,
+                        checkInterval: 200,
+                        useCudaAcceleration: false);   // Force CPU for measurement consistency
+            }
+
+            // Fallback: use the reference solver (shouldn't happen in LBM case)
+            return reference;
+        }
+
+        private static LBMElectrode CloneLbmElectrode(LBMElectrode electrode)
+        {
+            if (electrode == null)
+                throw new ArgumentNullException(nameof(electrode));
+
+            return new LBMElectrode(electrode.Id,
+                                     electrode.GridId,
+                                     electrode.Current,
+                                     electrode.Potential,
+                                     electrode.ZContact,
+                                     electrode.IsExcitation,
+                                     electrode.IsGround,
+                                     electrode.IsMeasuring,
+                                     electrode.IsVirtual);
+        }
+
 
         private static double[] FilterVirtualMeasurementChannels(MeasurementPattern pattern,
                                                                   IList<Utility.Classes.Discretizer.Electrode> electrodes,

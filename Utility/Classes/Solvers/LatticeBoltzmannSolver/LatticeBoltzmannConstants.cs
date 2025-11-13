@@ -65,7 +65,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         /// Lattice spacing Δx in lattice units (LU).
         /// Physical scaling must be applied by the caller if real-world units are required.
         /// </summary>
-        public const double DeltaX = 1.0;
+        public const double DeltaX = 5.0;
 
         /// <summary>
         /// Lattice time step Δt in lattice units (LU).

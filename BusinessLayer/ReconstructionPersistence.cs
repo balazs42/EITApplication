@@ -371,7 +371,7 @@ namespace BusinessLayer
         /// Performs one inverse step on an LBM grid.
         /// Uses CUDA for forward/adjoint solves if enabled and supported.
         /// </summary>
-        public ReconstructionFrame InverseSolveStepLbm(LBMGrid mesh, LBMBoundaryCondition bc, double[] currentMeasurement)
+        public ReconstructionFrame InverseSolveStepLbm(LBMGrid grid, LBMBoundaryCondition bc, double[] currentMeasurement)
         {
             if (_differentialEquationSolver == null)
                 throw new NullReferenceException("Differential equation solver is null, check calling code!");
@@ -380,8 +380,8 @@ namespace BusinessLayer
                 throw new NullReferenceException("Error metric is null, check calling code!");
 
             // Update workspace for the current LBM configuration
-            Workspace.UpdateCurrentGlobalLbmElectrodes(mesh);
-            Workspace.UpdateCurrentGlobalLbmElements(mesh);
+            Workspace.UpdateCurrentGlobalLbmElectrodes(grid);
+            Workspace.UpdateCurrentGlobalLbmElements(grid);
             Workspace.SetCurrentGlobalLbmBoundaryCondition(bc);
             var electrodes = Workspace.GetCurrentGlobalLbmElectrodes();
             var elements = Workspace.GetCurrentGlobalLbmElements();
@@ -396,12 +396,12 @@ namespace BusinessLayer
             var lbmSolver = _differentialEquationSolver as LatticeBoltzmannDESolver;
 
             PotentialDistribution phi = _useCudaParallelization && lbmSolver != null
-                ? lbmSolver.CUDASolveForward(mesh, bc)
-                : _differentialEquationSolver.Solve(mesh, bc, null);
+                ? lbmSolver.CUDASolveForward(grid, bc)
+                : _differentialEquationSolver.Solve(grid, bc, null);
             phi = PotentialClipper.Clip(phi);
 
             // Extract simulated potentials and project both measured and simulated to the representation
-            double[] simulatedPotentials = PotentialClipper.Clip(mesh.GetElectrodePotentials());
+            double[] simulatedPotentials = PotentialClipper.Clip(grid.GetElectrodePotentials());
             var measurementSetup = Workspace.GetElectrodeMeasurementSetup();
             var electrodeProjectionList = electrodes.Cast<Electrode>().ToList();
             // Normalise Option 1–4 frames (see MeasurementPattern) prior to evaluating the misfit.
@@ -412,11 +412,11 @@ namespace BusinessLayer
                                                          simulatedPotentials);
             Workspace.SetMeasurementPattern(projection.Pattern);
 
-            double currentError = _errorMetric.Evaluate(mesh, projection.Measured, projection.Simulated);
+            double currentError = _errorMetric.Evaluate(grid, projection.Measured, projection.Simulated);
             _ = currentError; // error value is not stored in this frame, but could be logged if needed
 
             // Error metric based gradient expression
-            var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, projection.Measured, projection.Simulated);
+            var adjSrc = _errorMetric.EvaluateAdjointSource(grid, projection.Measured, projection.Simulated);
             var expandedAdjoint = projection.ExpandAdjoint(adjSrc);
             Complex[] adjointSource = ToComplex(expandedAdjoint);
 
@@ -449,8 +449,8 @@ namespace BusinessLayer
                 var adjointBoundaryCondition = new LBMBoundaryCondition(electrodes, requireDrivePair: false);
                 Workspace.SetCurrentGlobalLbmBoundaryCondition(adjointBoundaryCondition);
                 mu = _useCudaParallelization && lbmSolver != null
-                    ? lbmSolver.CUDASolveAdjoint(mesh, adjointBoundaryCondition, adjointSource)
-                    : _differentialEquationSolver.Solve(mesh, adjointBoundaryCondition, adjointSource);
+                    ? lbmSolver.CUDASolveAdjoint(grid, adjointBoundaryCondition, adjointSource)
+                    : _differentialEquationSolver.Solve(grid, adjointBoundaryCondition, adjointSource);
                 mu = PotentialClipper.Clip(mu);
             }
             finally
@@ -468,11 +468,11 @@ namespace BusinessLayer
 
             // Compute data gradient per element using dot product of gradients
             var phiGradientField = _useCudaParallelization
-                ? LatticeBoltzmannOperators.CalculateGradientCuda(mesh, phi)
-                : LatticeBoltzmannOperators.CalculateGradient(mesh, phi);
+                ? LatticeBoltzmannOperators.CalculateGradientCuda(grid, phi)
+                : LatticeBoltzmannOperators.CalculateGradient(grid, phi);
             var muGradientField = _useCudaParallelization
-                ? LatticeBoltzmannOperators.CalculateGradientCuda(mesh, mu)
-                : LatticeBoltzmannOperators.CalculateGradient(mesh, mu);
+                ? LatticeBoltzmannOperators.CalculateGradientCuda(grid, mu)
+                : LatticeBoltzmannOperators.CalculateGradient(grid, mu);
 
             ConductivityDistribution dataGrad = new ConductivityDistribution(
                 elements.ToDictionary(
@@ -482,6 +482,7 @@ namespace BusinessLayer
                         if (el.IsElectrode || el.GhostElement || el.IsWall)
                             return 0.0;
 
+                        return 0.0;
                         var gPhi = phiGradientField.GetVector(el.Id);
                         var gMu = muGradientField.GetVector(el.Id);
                         return -(gMu.X * gPhi.X + gMu.Y * gPhi.Y);

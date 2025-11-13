@@ -17,9 +17,9 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
     public sealed class LatticeBoltzmannSolver : ISolver
     {
         // Solver configuration parameters
-        private int MaxIterationCount = 500;                   // Maximum time steps before forced termination
-        private double SolutionTolerance = 1e-6;               // Convergence tolerance for steady-state detection
-        private int ConvergenceCheckFrequency = 50;           // How often to check convergence (computational cost)
+        private int MaxIterationCount = 1000;                  // Maximum time steps before forced termination
+        private double SolutionTolerance = 1e-8;               // Convergence tolerance for steady-state detection
+        private int ConvergenceCheckFrequency = 100;           // How often to check convergence (computational cost)
         private readonly bool _useCuda;                        // Whether to use GPU acceleration
 
         // LBM stability constants
@@ -214,7 +214,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 ? storedGround
                 : 0.0;
             var shifted = new PotentialDistribution(
-                phi.Potentials.ToDictionary(kvp => kvp.Key, kvp => kvp.Value - phiGround));
+                phi.Potentials.ToDictionary(kvp => kvp.Key, kvp => kvp.Value));// - phiGround));
             lbmGrid.SetPotentialDistribution(shifted);
 
             return shifted;
@@ -655,7 +655,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 groundPhi = elements[groundIndex].Fi.Sum();
             for (int idx = 0; idx < elementCount; idx++)
             {
-                double value = elements[idx].Fi.Sum() - groundPhi;
+                double value = elements[idx].Fi.Sum();// - groundPhi;
                 result[elements[idx].Id] = value;
             }
 
@@ -697,7 +697,8 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     ghost.Conductivity = sigmaGhost;
                 }
 
-                double sigmaAvg = 0.5 * (sigmaInterior + sigmaGhost);
+                double eps = 1e-12;
+                double sigmaAvg = 2.0 / (1.0 / Math.Max(eps, sigmaInterior) + 1.0 / Math.Max(eps, sigmaGhost));
                 if (sigmaAvg <= 0.0)
                     continue;
 
@@ -903,6 +904,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     isWallBuffer.View,
                     conductivityBuffer.View,
                     MinTau,
+                    LatticeBoltzmannConstants.DeltaT,
                     LatticeBoltzmannCudaContext.WeightsView);
 
                 _streamKernel(elementCount,
@@ -996,7 +998,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     phiValue += value;
                 }
 
-                result[elementIds[idx]] = phiValue - groundPhi;
+                result[elementIds[idx]] = phiValue;// - groundPhi;
             }
 
             var pd = new PotentialDistribution(result);
@@ -1030,7 +1032,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 // Compile and cache all LBM kernels with automatic optimization
                 // ILGPU handles thread block sizing and register allocation automatically
                 _initializeKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<double>, ArrayView<double>>(InitializeKernel);
-                _collisionKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<int>, ArrayView<double>, double, ArrayView<double>>(CollisionKernel);
+                _collisionKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<int>, ArrayView<double>, double, double, ArrayView<double>>(CollisionKernel);
                 _streamKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>>(StreamingKernel);
                 _updateKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, UpdateKernelParams>(UpdateKernel);
                 _ghostBoundaryKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, GhostBoundaryKernelParams>(GhostBoundaryKernel);
@@ -1080,6 +1082,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             ArrayView<int> isWall,              // Wall identification per element
             ArrayView<double> conductivity,     // Material conductivity per element
             double minTau,                      // Minimum relaxation time for stability
+            double deltaT,                      // Time step size
             ArrayView<double> weights)          // D2Q9 equilibrium weights
         {
             // Skip wall elements (no collision)
@@ -1217,8 +1220,8 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 sigmaGhost = sigmaInterior > 0.0 ? sigmaInterior : 1.0;
                 p.Conductivity[ghost] = sigmaGhost;
             }
-
-            double sigmaAvg = 0.5 * (sigmaInterior + sigmaGhost);
+            double eps = 1e-12;
+            double sigmaAvg = 2.0 / (1.0 / Math.Max(eps, sigmaInterior) + 1.0 / Math.Max(eps, sigmaGhost));
             if (sigmaAvg <= 0.0)
                 return;
 

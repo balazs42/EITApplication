@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Serialization;
+using Utility.Classes.Application;
 using Utility.Classes.Discretizer.GraphMesh;
 using Utility.Classes.Factories;
 using Utility.Classes.Reconstruction.VirtualElectrodes;
@@ -321,52 +322,63 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
 
             UpdateGhostLayer();
 
-            var boundaryRing = GetBoundaryRing()
-                .Where(entry => entry.InteriorCell != null)
-                .ToList();
-
+            var boundaryRing = GetBoundaryRing();
             if (boundaryRing.Count == 0)
             {
-                _electrodes.Clear();
-                UpdateGhostLayer();
+                Workspace.AddWarningMessage("Cannot place electrodes: no boundary cells found.");
                 return;
             }
 
-            int count = boundaryRing.Count;
-            double step = count / (double)numElectrodes;
-            double pos = 0.0;
-            var usedInterior = new HashSet<int>();
-            var newElectrodes = new List<LBMElectrode>(numElectrodes);
+            // ← ADD THIS: Filter to only valid interior-adjacent boundary cells
+            var validBoundary = boundaryRing
+                .Where(b => b.InteriorCell != null && !b.InteriorCell.IsWall && !b.InteriorCell.GhostElement)
+                .ToList();
+            
+            if (validBoundary.Count < numElectrodes)
+            {
+                Workspace.AddWarningMessage($"Only {validBoundary.Count} valid boundary cells found, cannot place {numElectrodes} electrodes.");
+                return;
+            }
+
+            double angleStep = 2.0 * Math.PI / numElectrodes;
+            var electrodes = new List<LBMElectrode>(numElectrodes);
+            
+            // ← CHANGED: Use validBoundary instead of boundaryRing
+            double[] boundaryAngles = validBoundary.Select(b => b.Angle).ToArray();
+            bool[] used = new bool[validBoundary.Count];
 
             for (int i = 0; i < numElectrodes; i++)
             {
-                int idx = count == 0 ? 0 : (int)Math.Floor(pos) % count;
-                int attempts = count;
-                LBMElement? chosen = null;
-                int current = idx;
-
-                while (attempts-- > 0)
+                double targetAngle = i * angleStep;
+                int boundaryIndex = FindClosestAvailableBoundaryIndex(targetAngle, boundaryAngles, used);
+                
+                if (boundaryIndex < 0)
                 {
-                    var candidate = boundaryRing[current].InteriorCell!;
-                    if (!usedInterior.Contains(candidate.Id))
-                    {
-                        chosen = candidate;
-                        break;
-                    }
-
-                    current = (current + 1) % count;
+                    Workspace.AddWarningMessage($"Cannot place electrode {i}: no available boundary cell.");
+                    continue;
                 }
 
-                if (chosen is null)
-                    break;
+                used[boundaryIndex] = true;
 
-                usedInterior.Add(chosen.Id);
-                newElectrodes.Add(new LBMElectrode(i, chosen.Id, 0.0, 0.0, 0.0, isVirtual: false));
-                pos += step;
+                // ← CHANGED: Use the valid interior cell instead of the wall cell
+                var interiorCell = validBoundary[boundaryIndex].InteriorCell!;
+                
+                var electrode = new LBMElectrode(
+                    id: i,
+                    gridId: interiorCell.Id,  // ← Use interior cell ID, not wall cell
+                    current: 0.0,
+                    potential: 0.0,
+                    contactImpedance: 1.0,
+                    isVirtual: false);
+                
+                electrodes.Add(electrode);
+                
+                // Mark the interior cell as an electrode contact
+                interiorCell.IsElectrode = true;
             }
 
-            SetElectrodes(newElectrodes);
-
+            SetElectrodes(electrodes);
+            
             if (virtualElectrodeSettings != null)
                 ApplyVirtualElectrodes(virtualElectrodeSettings);
         }
@@ -722,7 +734,21 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                     isMeasuring: e.IsMeasuring,
                     isVirtual: e.IsVirtual)).ToList();
 
-            copy.SetElectrodes(electrodes);
+            List<LBMElectrode> electrodesTyped = [];
+
+            foreach(var el in electrodes)
+                electrodesTyped.Add(new LBMElectrode(
+                    id: el.Id,
+                    gridId: el.GridId,
+                    current: el.Current,
+                    potential: el.Potential,
+                    contactImpedance: el.ZContact,
+                    isExcitation: el.IsExcitation,
+                    isGround: el.IsGround,
+                    isMeasuring: el.IsMeasuring,
+                    isVirtual: el.IsVirtual));
+
+            copy.SetElectrodes(electrodesTyped);
 
             // clone distributions
             var cd = copy.GetElements()

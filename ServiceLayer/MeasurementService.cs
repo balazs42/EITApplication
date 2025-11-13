@@ -65,6 +65,12 @@ namespace ServiceLayer
                                Func<IDifferentialEquationSolver?> solverAccessor)
         {
             _discretization = discretization ?? throw new ArgumentNullException(nameof(discretization));
+
+            if (_discretization is LBMGrid measLbm)
+            {
+                measLbm.UpdateGhostConductivityFromNeighbors();
+            }
+
             _drivePattern = drivePattern;
             _drivePatternStrategy = DrivePatternStrategyProvider.GetStrategy(drivePattern);
             _solverAccessor = solverAccessor ?? throw new ArgumentNullException(nameof(solverAccessor));
