@@ -517,7 +517,7 @@ namespace Utility.Classes.Factories
             return grid;
         }
 
-        private static LBMGrid LBMCreateRectangularWithBorder(int nx = 15, int ny = 15, int electrodeCount = 16)
+        private static LBMGrid LBMCreateRectangularWithBorder(int nx = 25, int ny = 25, int electrodeCount = 16)
         {
             var grid = new LBMGrid(nx, ny);
             grid.Metadata.Generator = nameof(LBMCreateRectangularWithBorder);
@@ -528,7 +528,7 @@ namespace Utility.Classes.Factories
         }
 
 
-        private static LBMGrid LBMCreateRectangularWithInhomogenity(int nx = 15, int ny = 15, int electrodeCount = 16, double inhomogenityValue = 1.0, int inhomogenitySize = 4)
+        private static LBMGrid LBMCreateRectangularWithInhomogenity(int nx = 25, int ny = 25, int electrodeCount = 16, double inhomogenityValue = 1.0, int inhomogenitySize = 4)
         {
             if (inhomogenitySize > nx || inhomogenitySize > ny)
                 throw new ArgumentOutOfRangeException("Cannot create LBM mesh with inhomogenity, size too big!");
@@ -574,7 +574,7 @@ namespace Utility.Classes.Factories
         /// <param name="radius">Radius of the inner circle.</param>
         /// <param name="electrodeCount">Number of electrodes to distribute.</param>
         /// <returns></returns>
-        private static LBMGrid LBMCreateCircular(int nx = 15, int ny = 15, int radius = 10, int electrodeCount = 16)
+        private static LBMGrid LBMCreateCircular(int nx = 25, int ny = 25, int radius = 10, int electrodeCount = 16)
         {
             if (radius > nx / 2 || radius > ny / 2)
                 throw new ArgumentOutOfRangeException(nameof(radius),

@@ -20,7 +20,7 @@ namespace Utility.Classes
             return Potentials.TryGetValue(FEMVertexId, out double potential) ? potential : 0.0;
         }
 
-        public void LogDistribution(int nx = 15, int ny = 15)
+        public void LogDistribution(int nx = 25, int ny = 25)
         {
             for(int i = 0; i < nx; i++)
             {

@@ -59,10 +59,10 @@ namespace ElectricalImpedanceTomography.ViewModels
         private int electrodeCount = 16;
 
         [ObservableProperty]
-        private int nx = 15;
+        private int nx = 27;
 
         [ObservableProperty]
-        private int ny = 15;
+        private int ny = 27;
 
         [ObservableProperty]
         private bool inhomogenityEditing;

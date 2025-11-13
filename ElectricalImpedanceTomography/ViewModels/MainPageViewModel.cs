@@ -212,8 +212,8 @@ namespace ElectricalImpedanceTomography.ViewModels
                         Layers = 2,
                         BoundaryFEMVertexCount = 16,
                         ElectrodeCount = 16,
-                        Nx = 15,
-                        Ny = 15,
+                        Nx = 25,
+                        Ny = 25,
                         Radius = 7
                     };
                     var mesh = MeshFactory.CreateDefault(parameters);
