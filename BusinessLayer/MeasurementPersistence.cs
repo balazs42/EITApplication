@@ -180,11 +180,9 @@ namespace BusinessLayer
                 var boundaryCondition = new LBMBoundaryCondition(electrodes);
                 Workspace.SetCurrentGlobalLbmBoundaryCondition(boundaryCondition);
 
-                // Update workspace for the current LBM configuration
-                Workspace.UpdateCurrentGlobalLbmElectrodes(grid);
-                Workspace.UpdateCurrentGlobalLbmElements(grid);
-                Workspace.SetCurrentGlobalLbmBoundaryCondition(boundaryCondition);
-                var elements = Workspace.GetCurrentGlobalLbmElements();
+                // Update workspace for the current LBM configuration using the simulation grid copy
+                Workspace.UpdateCurrentGlobalLbmElectrodes(deepCopy);
+                Workspace.UpdateCurrentGlobalLbmElements(deepCopy);
 
                 // Preserve the forward drive pair so the adjoint boundary condition retains the
                 // same grounding reference instead of falling back to the library defaults.
@@ -193,6 +191,11 @@ namespace BusinessLayer
                                                  .ToList();
 
                 deepCopy = SolveLbmForward(deepCopy, measurementSolver);
+
+                // Persist the freshly solved state so diagnostic tools and exports observe the
+                // electrode ordering and potentials that were actually used for the frame.
+                Workspace.UpdateCurrentGlobalLbmElectrodes(deepCopy);
+                Workspace.UpdateCurrentGlobalLbmElements(deepCopy);
 
                 double[] electrodePotentials = PotentialClipper.Clip(deepCopy.GetElectrodePotentials());
                 var electrodeProjectionList = electrodes.Cast<Utility.Classes.Discretizer.Electrode>().ToList();
