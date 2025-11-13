@@ -181,6 +181,9 @@ namespace BusinessLayer
                 Workspace.UpdateCurrentGlobalLbmElectrodes(deepCopy);
                 Workspace.UpdateCurrentGlobalLbmElements(deepCopy);
 
+                // Keep ghost conductivities in sync on every step to mirror reconstruction behaviour
+                deepCopy.UpdateGhostConductivityFromNeighbors();
+
                 // Execute the forward solve using the same solver configuration as reconstruction so
                 // the resulting potentials match the reconstruction forward pass exactly.
                 var solvedDistribution = PotentialClipper.Clip(solver.Solve(deepCopy, boundaryCondition, null));
@@ -203,7 +206,9 @@ namespace BusinessLayer
                     : raw);
             }
 
-            return new MeasurementSimulationResult(frames, null, referencePattern, measurementSetup);
+            // Return the excitation amplitude to downstream consumers so they can
+            // drive the reconstruction with the same current level as the measurements.
+            return new MeasurementSimulationResult(frames, excitationAmplitude, referencePattern, measurementSetup);
         }
 
         private static FEMMesh SolveFemForward(FEMMesh mesh, IDifferentialEquationSolver solver)

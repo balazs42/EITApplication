@@ -444,8 +444,16 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
             void AddRuntimeElectrode(LBMElectrode source, LBMElectrode? fallback)
             {
+                // Try mapping by GridId first (expected, canonical).
                 if (!elementIndexLookup.TryGetValue(source.GridId, out int idx))
-                    return; // Electrode references a cell that is not part of the grid.
+                {
+                    // Fallback: some callers pass 'Id' that corresponds to element.Id on this grid.
+                    if (!elementIndexLookup.TryGetValue(source.Id, out idx))
+                    {
+                        Debug.WriteLine($"[LBM] Electrode mapping failed (GridId={source.GridId}, Id={source.Id}). Skipping electrode for flux distribution.");
+                        return;
+                    }
+                }
 
                 var element = elements[idx];
                 element.IsElectrode = true; // Mark for boundary condition enforcement.
