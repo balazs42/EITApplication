@@ -1,4 +1,7 @@
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Numerics;
 using ILGPU;
 using ILGPU.Algorithms;
@@ -174,11 +177,11 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         /// Relation (a): D = c_s^2 (τ − 1/2) Δt, so τ = D / (c_s^2 Δt) + 1/2.
         /// c_s^2 from <see cref="LatticeBoltzmannConstants.CsSquared"/> only appears in this relation.
         /// </summary>
-        /// <param name="diffusionCoefficient">Diffusion coefficient expressed in lattice units.</param>
+        /// <param name="diffusionCoefficient">Diffusion coefficient expressed in lattice units (relation (a), Krüger et al.).</param>
         internal static double ComputeTauFromDiffusivity(double diffusionCoefficient)
         {
             return diffusionCoefficient /
-                   (LatticeBoltzmannConstants.CsSquared * LatticeBoltzmannConstants.DeltaT) + 0.5;
+                   (LatticeBoltzmannConstants.CsSquared * LBUnitConverter.DeltaT_LU) + 0.5;
         }
 
         /// <summary>
@@ -318,8 +321,9 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         }
 
         /// <summary>
-        /// Computes electrode flux densities j_n for each boundary link.
-        /// Implements relation (b): j_n = I_total / Σ_links Δs with Δs = Δx for axis-aligned faces.
+        /// Computes electrode flux densities j_n for each boundary link.  Relation (b) (Krüger et al. for unit
+        /// conversion, Gebäck &amp; Heintz for the Neumann BC) distributes currents as flux densities so that
+        /// (j_n Δx)/σ is invariant between physical and lattice units.
         /// </summary>
         private static double[] ComputeFluxPerLink(
             IReadOnlyList<BoundaryLink> links,
@@ -359,18 +363,32 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 if (linkIndices.Count == 0)
                     continue;
 
-                // Relation (b): j_n = I_total / Σ_links Δs with Δs = Δx for axis-aligned links.
-                double deltaS = LatticeBoltzmannConstants.DeltaX;
-                double interfaceMeasure = linkIndices.Count * deltaS;
-                if (interfaceMeasure <= 0.0)
-                    continue;
-
-                double fluxDensity = totalCurrent / interfaceMeasure;
-
-                foreach (int linkIndex in linkIndices)
+                if (LBUnitConverter.InputsArePhysical)
                 {
-                    // TODO: Account for diagonal links via Δs = √2 Δx once oblique faces are supported.
-                    flux[linkIndex] = fluxDensity;
+                    double interfaceMeasurePhys = linkIndices.Count * LBUnitConverter.LinkMeasurePhys_Axis();
+                    if (interfaceMeasurePhys <= 0.0)
+                        continue;
+
+                    double jPhys = totalCurrent / interfaceMeasurePhys;
+                    double jLu = LBUnitConverter.FluxDensityPhysToLU(jPhys);
+
+                    foreach (int linkIndex in linkIndices)
+                        flux[linkIndex] = jLu;
+                }
+                else
+                {
+                    double deltaS = LatticeBoltzmannConstants.DeltaX;
+                    double interfaceMeasure = linkIndices.Count * deltaS;
+                    if (interfaceMeasure <= 0.0)
+                        continue;
+
+                    double fluxDensity = totalCurrent / interfaceMeasure;
+
+                    foreach (int linkIndex in linkIndices)
+                    {
+                        // TODO: Account for diagonal links via Δs = √2 Δx once oblique faces are supported.
+                        flux[linkIndex] = fluxDensity;
+                    }
                 }
             }
 
@@ -493,11 +511,18 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
                 // Clamp conductivity to physical, non-negative values.  Walls are
                 // treated as perfect insulators so their conductivity is zero.
-                double sigma = isPhysicalWall
-                    ? 0.0
-                    : SanitizeConductivity(conductivity.GetConductivity(element.Id));
+                double sigmaInput = conductivity.GetConductivity(element.Id);
+                double sigmaLu = LBUnitConverter.InputsArePhysical
+                    ? LBUnitConverter.ConductivityPhysToLU(sigmaInput)
+                    : sigmaInput;
+                sigmaLu = SanitizeConductivity(sigmaLu);
+                double sigma = isPhysicalWall ? 0.0 : sigmaLu;
+
+                // Relation (a) (Krüger et al.): convert to LU before evaluating τ.
                 element.Conductivity = sigma;
-                conductivity.Conductivities[element.Id] = sigma;
+
+                if (!LBUnitConverter.InputsArePhysical || isPhysicalWall)
+                    conductivity.Conductivities[element.Id] = sigma;
 
                 // Read the stored macroscopic potential, defaulting to zero.  Every
                 // non-wall cell is initialised at equilibrium: Fi = wi * φ.  Starting
@@ -534,7 +559,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     for (int k = 0; k < 9; k++)
                         phiLocal += element.Fi[k];
 
-                    // Diffusion relation (a): D = c_s^2 (τ − 1/2) Δt ⇒ τ = D / (c_s^2 Δt) + 1/2.
+                    // Diffusion relation (a) (Krüger et al.): D = c_s^2 (τ − 1/2) Δt ⇒ τ = D / (c_s^2 Δt) + 1/2.
                     // Tau must remain greater than 0.5 to keep post-collision populations
                     // positive; we add a small safety margin to stay in the stable regime.
                     double tau = ComputeRelaxationTime(element.Conductivity);
@@ -702,9 +727,8 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 if (sigmaAvg <= 0.0)
                     continue;
 
-                // Neumann BC at the half-way interface:
-                // j_n = - sigma_avg * (phi_g - phi_i) / Δx  =>  phi_g = phi_i - (j_n * Δx) / sigma_avg.
-                // fluxDensity stores j_n (flux density).  Bounce-back walls map to j_n = 0 → homogeneous Neumann.
+                // Relation (c) (Gebäck & Heintz): φ_g = φ_i − (j_n^LU Δx_LU)/σ_avg^LU at the half-link ghost.
+                // fluxDensity stores j_n in LU; bounce-back walls map to j_n = 0 ⇒ homogeneous Neumann.
                 double jn = fluxDensity;
                 double dx = LatticeBoltzmannConstants.DeltaX;
                 double phiGhost = phiInterior - (jn * dx) / sigmaAvg;
@@ -830,10 +854,20 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 var element = elements[idx];
                 bool isWall = isWallHost[idx] == 1;
 
-                double sigma = isWall ? 0.0 : SanitizeConductivity(conductivity.GetConductivity(element.Id));
+                double sigmaInput = conductivity.GetConductivity(element.Id);
+                double sigmaLu = LBUnitConverter.InputsArePhysical
+                    ? LBUnitConverter.ConductivityPhysToLU(sigmaInput)
+                    : sigmaInput;
+                sigmaLu = SanitizeConductivity(sigmaLu);
+                double sigma = isWall ? 0.0 : sigmaLu;
+
                 conductivityHost[idx] = sigma;
+
+                // Relation (a) (Krüger et al.): convert to LU before the BGK step.
                 element.Conductivity = sigma;
-                conductivity.Conductivities[element.Id] = sigma;
+
+                if (!LBUnitConverter.InputsArePhysical || isWall)
+                    conductivity.Conductivities[element.Id] = sigma;
 
                 double phi0 = 0.0;
                 if (!isWall && initialPotential is not null)
@@ -1225,9 +1259,8 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             if (sigmaAvg <= 0.0)
                 return;
 
-            // Neumann BC at the half-way interface:
-            // j_n = - sigma_avg * (phi_g - phi_i) / Δx  =>  phi_g = phi_i - (j_n * Δx) / sigma_avg.
-            // Flux array stores j_n so insulating walls (j_n = 0) reduce to classic bounce-back.
+            // Relation (c) (Gebäck & Heintz): φ_g = φ_i − (j_n^LU Δx_LU)/σ_avg^LU at the half-link ghost.
+            // Flux array stores j_n in LU so insulating walls (j_n = 0) reduce to classic bounce-back.
             double dx = p.DeltaX;
             double phiGhost = phiInterior - (jn * dx) / sigmaAvg;
 
@@ -1271,5 +1304,171 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             // Store result in output array
             phiOut[index] = phi;
         }
+
+#if DEBUG
+        /// <summary>
+        /// Debug-only regression test: verifies that CPU and CUDA solvers produce identical potentials for a
+        /// uniform circular domain when physical inputs are converted through <see cref="LBUnitConverter"/>.
+        /// Also checks flux closure in physical units.  Intended to be invoked from debugger watch windows.
+        /// </summary>
+        internal static void AssertCpuCudaConsistency_UniformDisk()
+        {
+            const int nx = 33;
+            const double lxPhys = 0.3;      // [m]
+            const double sigmaPhys = 0.5;   // [S/m]
+            const double deltaTPhys = 1e-6; // [s]
+            const double driveCurrent = 2e-3; // [A]
+
+            LBUnitConverter.Configure(lxPhys, nx, sigmaPhys, deltaTPhys, inputsArePhysical: true);
+
+            static (LBMGrid Grid, LBMBoundaryCondition Boundary) CreateSetup()
+            {
+                var grid = new LBMGrid(nx, nx);
+                grid.ApplyCircularDomain((nx - 1) / 2.0, (nx - 1) / 2.0, (nx - 3) / 2.0);
+
+                var conductivity = grid.GetConductivityDistribution();
+                foreach (var element in grid.GetElements().Cast<LBMElement>())
+                {
+                    if (element.IsWall)
+                        continue;
+
+                    conductivity.Conductivities[element.Id] = sigmaPhys;
+                    element.Conductivity = sigmaPhys;
+                }
+
+                grid.UpdateGhostConductivityFromNeighbors();
+
+                var interior = grid.GetElements().Cast<LBMElement>()
+                    .Where(e => !e.IsWall && !e.GhostElement)
+                    .ToList();
+
+                var topBoundary = interior
+                    .Where(e => e.Neighbors[2]?.GhostElement == true)
+                    .OrderBy(e => grid.ToLattice(e.Id).x)
+                    .ToList();
+
+                if (topBoundary.Count < 2)
+                    throw new InvalidOperationException("Domain does not expose two adjacent boundary nodes.");
+
+                int mid = Math.Max(0, topBoundary.Count / 2 - 1);
+                var drive = topBoundary[mid];
+                var returnElectrode = topBoundary[mid + 1];
+
+                var electrodes = new List<LBMElectrode>
+                {
+                    new LBMElectrode(id: 0, gridId: drive.Id, current: driveCurrent, potential: 0.0, contactImpedance: 0.0, isExcitation: true, isGround: false),
+                    new LBMElectrode(id: 1, gridId: returnElectrode.Id, current: -driveCurrent, potential: 0.0, contactImpedance: 0.0, isExcitation: false, isGround: true)
+                };
+
+                grid.SetElectrodes(electrodes);
+                var bc = new LBMBoundaryCondition(new List<LBMElectrode>(electrodes), requireDrivePair: false);
+                return (grid, bc);
+            }
+
+            var (cpuGrid, cpuBoundary) = CreateSetup();
+            var solverCpu = new LatticeBoltzmannSolver(4000, 1e-12, 50, useCuda: false);
+            var cpuResult = solverCpu.SolveForward(cpuGrid, cpuBoundary);
+
+            PotentialDistribution? gpuResult;
+            try
+            {
+                var (gpuGrid, gpuBoundary) = CreateSetup();
+                var solverGpu = new LatticeBoltzmannSolver(4000, 1e-12, 50, useCuda: true);
+                gpuResult = solverGpu.SolveForward(gpuGrid, gpuBoundary);
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("CUDA"))
+            {
+                return; // Skip the assertion when CUDA is unavailable in the debug environment.
+            }
+
+            var cpuPotentials = cpuResult.Potentials;
+            var gpuPotentials = gpuResult!.Potentials;
+
+            double maxDiff = 0.0;
+            foreach (var element in cpuGrid.GetElements().Cast<LBMElement>())
+            {
+                if (element.IsWall || element.GhostElement)
+                    continue;
+
+                double diff = Math.Abs(cpuPotentials[element.Id] - gpuPotentials[element.Id]);
+                maxDiff = Math.Max(maxDiff, diff);
+            }
+
+            Debug.Assert(maxDiff < 1e-10, $"CPU/CUDA mismatch exceeds tolerance: {maxDiff:G3}");
+
+            var elements = cpuGrid.GetElements().Cast<LBMElement>().ToList();
+            var elementIndexLookup = elements
+                .Select((element, idx) => new { element.Id, idx })
+                .ToDictionary(item => item.Id, item => item.idx);
+
+            var boundaryLinks = BuildBoundaryLinks(elements, elementIndexLookup, out var linksByInterior);
+
+            var gridElectrodes = cpuGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
+            var bcElectrodes = cpuBoundary.GetElectrodes().Cast<LBMElectrode>().ToList();
+            var runtimeElectrodes = new List<ElectrodeRuntimeData>();
+            var processed = new HashSet<int>();
+
+            var gridElectrodesById = gridElectrodes.ToDictionary(e => e.Id, e => e);
+            var gridElectrodesByGridId = gridElectrodes.ToDictionary(e => e.GridId, e => e);
+
+            void AddRuntimeElectrode(LBMElectrode source, LBMElectrode? fallback)
+            {
+                if (!elementIndexLookup.TryGetValue(source.GridId, out int idx))
+                    return;
+
+                var element = elements[idx];
+                element.IsElectrode = true;
+
+                bool isExcitation = source.IsExcitation || (fallback?.IsExcitation ?? false);
+                bool isGround = source.IsGround || (fallback?.IsGround ?? false);
+                double current = double.IsNaN(source.Current) ? (fallback?.Current ?? 0.0) : source.Current;
+                int electrodeId = source.Id >= 0 ? source.Id : (fallback?.Id ?? source.GridId);
+
+                runtimeElectrodes.Add(new ElectrodeRuntimeData(electrodeId, idx, element, current, isExcitation, isGround));
+                processed.Add(source.GridId);
+            }
+
+            foreach (var bcElectrode in bcElectrodes)
+            {
+                gridElectrodesById.TryGetValue(bcElectrode.Id, out var fallbackById);
+                gridElectrodesByGridId.TryGetValue(bcElectrode.GridId, out var fallbackByGrid);
+                AddRuntimeElectrode(bcElectrode, fallbackById ?? fallbackByGrid);
+            }
+
+            foreach (var gridElectrode in gridElectrodes)
+            {
+                if (!processed.Contains(gridElectrode.GridId))
+                    AddRuntimeElectrode(gridElectrode, null);
+            }
+
+            var fluxPerLink = ComputeFluxPerLink(boundaryLinks, linksByInterior, runtimeElectrodes);
+
+            foreach (var group in runtimeElectrodes.GroupBy(e => e.ElectrodeId))
+            {
+                var seen = new HashSet<int>();
+                double netCurrentPhys = 0.0;
+
+                foreach (var electrode in group)
+                {
+                    if (!linksByInterior.TryGetValue(electrode.ElementIndex, out var perCell))
+                        continue;
+
+                    foreach (int linkIndex in perCell)
+                    {
+                        if (!seen.Add(linkIndex))
+                            continue;
+
+                        double jLu = fluxPerLink[linkIndex];
+                        double jPhys = jLu * (LBUnitConverter.DeltaXPhys / LBUnitConverter.DeltaTPhys);
+                        netCurrentPhys += jPhys * LBUnitConverter.LinkMeasurePhys_Axis();
+                    }
+                }
+
+                double expected = group.Sum(e => e.Current);
+                double relError = Math.Abs(netCurrentPhys - expected) / Math.Max(1.0, Math.Abs(expected));
+                Debug.Assert(relError < 1e-12, $"Flux closure violated: expected {expected:G6}, got {netCurrentPhys:G6}");
+            }
+        }
+#endif
     }
 }

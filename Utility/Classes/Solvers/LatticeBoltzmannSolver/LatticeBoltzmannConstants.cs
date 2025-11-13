@@ -62,15 +62,15 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         public const double CsSquared = 1.0 / 3.0;
 
         /// <summary>
-        /// Lattice spacing Δx in lattice units (LU).
-        /// Physical scaling must be applied by the caller if real-world units are required.
+        /// Lattice spacing Δx expressed in lattice units (LU).  Physical scaling is handled by
+        /// <see cref="LBUnitConverter"/>; do not interpret this constant as a metric length.
         /// </summary>
-        public const double DeltaX = 5.0;
+        public const double DeltaX = LBUnitConverter.DeltaX_LU;
 
         /// <summary>
-        /// Lattice time step Δt in lattice units (LU).
-        /// Appears only in the BGK relaxation-time relation D = c_s^2 (τ − 1/2) Δt.
+        /// Lattice time step Δt expressed in lattice units (LU).  Physical scaling is handled by
+        /// <see cref="LBUnitConverter"/>; do not interpret this constant as a physical time step.
         /// </summary>
-        public const double DeltaT = 1.0;
+        public const double DeltaT = LBUnitConverter.DeltaT_LU;
     }
 }
