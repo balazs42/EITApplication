@@ -289,10 +289,8 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             for (int idx = 0; idx < elements.Count; idx++)
             {
                 var element = elements[idx];
-                if (element.GhostElement)
-                    continue;
-
-                if (element.IsWall && !element.IsElectrode)
+                // Skip ghost and wall cells unconditionally; walls should never emit flux links.
+                if (element.GhostElement || element.IsWall)
                     continue;
 
                 for (int dir = 1; dir < LatticeBoltzmannConstants.Directions.Length; dir++)
@@ -456,16 +454,31 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 }
 
                 var element = elements[idx];
+
+                // Remap wall/ghost electrodes to a neighboring interior cell if possible.
+                if (element.IsWall || element.GhostElement)
+                {
+                    var interiorNeighbor = element.Neighbors.FirstOrDefault(n => n != null && !n.IsWall && !n.GhostElement);
+                    if (interiorNeighbor != null && elementIndexLookup.TryGetValue(interiorNeighbor.Id, out int interiorIdx))
+                    {
+                        element = interiorNeighbor;
+                        idx = interiorIdx;
+                    }
+                    else
+                    {
+                        // No suitable interior cell found; skip this electrode for flux distribution.
+                        return;
+                    }
+                }
+
+                // Only interior (non-wall, non-ghost) elements can be treated as electrodes for flux distribution.
+                if (element.IsWall || element.GhostElement)
+                    return;
+
                 element.IsElectrode = true; // Mark for boundary condition enforcement.
 
-                // Combine flags in a conservative OR fashion so that either
-                // description (grid or boundary) can request excitation/ground roles.
                 bool isExcitation = source.IsExcitation || (fallback?.IsExcitation ?? false);
                 bool isGround = source.IsGround || (fallback?.IsGround ?? false);
-
-                // Prefer the explicitly supplied currents/potentials, but fall back
-                // to the secondary description if they are unavailable (NaN) to keep
-                // legacy boundary files working.
                 double current = double.IsNaN(source.Current) ? (fallback?.Current ?? 0.0) : source.Current;
                 int electrodeId = source.Id >= 0 ? source.Id : (fallback?.Id ?? source.GridId);
 
@@ -803,11 +816,29 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     return;
 
                 var element = elements[idx];
+
+                // Remap wall/ghost electrodes to a neighboring interior cell if possible.
+                if (element.IsWall || element.GhostElement)
+                {
+                    var interiorNeighbor = element.Neighbors.FirstOrDefault(n => n != null && !n.IsWall && !n.GhostElement);
+                    if (interiorNeighbor != null && topology.IdToIndex.TryGetValue(interiorNeighbor.Id, out int interiorIdx))
+                    {
+                        element = interiorNeighbor;
+                        idx = interiorIdx;
+                    }
+                    else
+                    {
+                        return; // Cannot remap; skip.
+                    }
+                }
+
+                if (element.IsWall || element.GhostElement)
+                    return;
+
                 element.IsElectrode = true;
 
                 bool isExcitation = source.IsExcitation || (fallback?.IsExcitation ?? false);
                 bool isGround = source.IsGround || (fallback?.IsGround ?? false);
-
                 double current = double.IsNaN(source.Current) ? (fallback?.Current ?? 0.0) : source.Current;
                 int electrodeId = source.Id >= 0 ? source.Id : (fallback?.Id ?? source.GridId);
 
@@ -1425,6 +1456,22 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     return;
 
                 var element = elements[idx];
+
+                // Remap wall/ghost electrodes to a neighboring interior cell if possible.
+                if (element.IsWall || element.GhostElement)
+                {
+                    var interiorNeighbor = element.Neighbors.FirstOrDefault(n => n != null && !n.IsWall && !n.GhostElement);
+                    if (interiorNeighbor != null && elementIndexLookup.TryGetValue(interiorNeighbor.Id, out int interiorIdx))
+                    {
+                        element = interiorNeighbor;
+                        idx = interiorIdx;
+                    }
+                    else
+                    {
+                        return; // Cannot remap; skip.
+                    }
+                }
+
                 element.IsElectrode = true;
 
                 bool isExcitation = source.IsExcitation || (fallback?.IsExcitation ?? false);

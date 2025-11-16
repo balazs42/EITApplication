@@ -482,7 +482,6 @@ namespace BusinessLayer
                         if (el.IsElectrode || el.GhostElement || el.IsWall)
                             return 0.0;
 
-                        return 0.0;
                         var gPhi = phiGradientField.GetVector(el.Id);
                         var gMu = muGradientField.GetVector(el.Id);
                         return -(gMu.X * gPhi.X + gMu.Y * gPhi.Y);

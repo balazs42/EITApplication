@@ -107,29 +107,18 @@ namespace BusinessLayer
             if (solver == null)
                 throw new ArgumentNullException(nameof(solver));
 
-            LBMGrid deepCopy = (LBMGrid)grid.DeepCopy();
-            // Ensure the ghost layer mirrors interior conductivities before launching forward solves.
-            deepCopy.UpdateGhostConductivityFromNeighbors();
+            // Use the original grid instance to ensure identical topology (wall/ghost/interior layout)
+            // between measurement simulation and later reconstruction. DeepCopy previously rebuilt
+            // the domain/ghost layer which led to inflated boundary link counts.
+            grid.UpdateGhostConductivityFromNeighbors();
 
-            // Work directly with the mesh-owned electrode objects so that current assignments
-            // immediately influence the forward solve.  Ordering the collection by the logical
-            // electrode id guarantees that the drive-pattern strategy rotates through adjacent
-            // physical contacts even when electrodes were created or imported in an arbitrary
-            // sequence (for instance after loading legacy grids or augmenting the boundary with
-            // virtual electrodes).
-            var electrodes = deepCopy
+            var electrodes = grid
                 .GetElectrodes()
                 .Cast<LBMElectrode>()
-                .OrderBy(e => e.Id)
-                .ToList();
+                .ToList(); // Preserve original ordering
 
-            // Persist the canonical ordering for other components that rely on the workspace cache
-            // (e.g. UI inspection tools or diagnostic exports).
             Workspace.SetCurrentGlobalLbmElectrodes([.. electrodes]);
 
-            // Re-apply the deterministic ordering to the mesh so subsequent calls that query the
-            // discretisation receive electrodes in the same sequence.
-            deepCopy.SetElectrodes(electrodes);
             bool applyVirtuals = virtualSettings.ShouldApplyVirtualElectrodes();
             var realElectrodes = electrodes.Where(e => !e.IsVirtual).ToList();
             int electrodeCount = realElectrodes.Count;
@@ -177,24 +166,19 @@ namespace BusinessLayer
                 var boundaryCondition = new LBMBoundaryCondition(electrodes);
                 Workspace.SetCurrentGlobalLbmBoundaryCondition(boundaryCondition);
 
-                // Update workspace for the current LBM configuration using the simulation grid copy
-                Workspace.UpdateCurrentGlobalLbmElectrodes(deepCopy);
-                Workspace.UpdateCurrentGlobalLbmElements(deepCopy);
+                Workspace.UpdateCurrentGlobalLbmElectrodes(grid);
+                Workspace.UpdateCurrentGlobalLbmElements(grid);
 
-                // Keep ghost conductivities in sync on every step to mirror reconstruction behaviour
-                deepCopy.UpdateGhostConductivityFromNeighbors();
+                // Keep ghost conductivities in sync every frame as reconstruction does.
+                grid.UpdateGhostConductivityFromNeighbors();
 
-                // Execute the forward solve using the same solver configuration as reconstruction so
-                // the resulting potentials match the reconstruction forward pass exactly.
-                var solvedDistribution = PotentialClipper.Clip(solver.Solve(deepCopy, boundaryCondition, null));
-                deepCopy.SetPotentialDistribution(solvedDistribution);
+                var solvedDistribution = PotentialClipper.Clip(solver.Solve(grid, boundaryCondition, null));
+                grid.SetPotentialDistribution(solvedDistribution);
 
-                // Persist the freshly solved state so diagnostic tools and exports observe the
-                // electrode ordering and potentials that were actually used for the frame.
-                Workspace.UpdateCurrentGlobalLbmElectrodes(deepCopy);
-                Workspace.UpdateCurrentGlobalLbmElements(deepCopy);
+                Workspace.UpdateCurrentGlobalLbmElectrodes(grid);
+                Workspace.UpdateCurrentGlobalLbmElements(grid);
 
-                double[] electrodePotentials = PotentialClipper.Clip(deepCopy.GetElectrodePotentials());
+                double[] electrodePotentials = PotentialClipper.Clip(grid.GetElectrodePotentials());
                 var electrodeProjectionList = electrodes.Cast<Utility.Classes.Discretizer.Electrode>().ToList();
                 var pattern = MeasurementPatternBuilder.Build(electrodeProjectionList,
                                                               measurementSetup,
@@ -206,8 +190,6 @@ namespace BusinessLayer
                     : raw);
             }
 
-            // Return the excitation amplitude to downstream consumers so they can
-            // drive the reconstruction with the same current level as the measurements.
             return new MeasurementSimulationResult(frames, excitationAmplitude, referencePattern, measurementSetup);
         }
 
