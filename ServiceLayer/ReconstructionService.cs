@@ -117,7 +117,15 @@ namespace ServiceLayer
                 _originalSigma = Workspace.GetOriginalDiscretization()?.GetConductivityDistribution()
                                  ?? discretization.DeepCopy().GetConductivityDistribution();
 
-                var measurementDiscretization = discretization.DeepCopy();
+                // Measurement simulations must reuse the exact lattice that was generated on the
+                // meshing page so that the boundary links, ghost cells and electrode ordering
+                // match the reconstruction phase.  When an original discretization is available
+                // in the workspace prefer cloning it; otherwise fall back to the current
+                // reconstruction discretization.
+                var workspaceDiscretization = Workspace.GetOriginalDiscretization();
+                var measurementDiscretization = workspaceDiscretization != null
+                    ? workspaceDiscretization.DeepCopy()
+                    : discretization.DeepCopy();
                 measurementDiscretization.SetConductivityDistribution(_originalSigma);
 
                 _initialSigma = Workspace.GetInitialDiscretization()?.GetConductivityDistribution()
