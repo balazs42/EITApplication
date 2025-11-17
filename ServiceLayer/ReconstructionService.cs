@@ -117,14 +117,15 @@ namespace ServiceLayer
                 _originalSigma = Workspace.GetOriginalDiscretization()?.GetConductivityDistribution()
                                  ?? discretization.DeepCopy().GetConductivityDistribution();
 
-                // Measurement simulation must reuse the exact lattice that will later be used
-                // for reconstruction otherwise the LBM solver rebuilds a different set of
-                // boundary links/ghost cells.  Clone the active discretization rather than the
-                // copy stored on the workspace to guarantee that the topology (element order,
-                // ghost ring, electrode ordering) matches the solver's reconstruction state and
-                // only replace the conductivity distribution with the ground truth.
-                var measurementDiscretization = discretization.DeepCopy();
-                if (_originalSigma != null)
+                // LBM measurement simulations must run on the same lattice instance that will
+                // later be used for reconstruction to prevent the ghost layer/boundary topology
+                // from being rebuilt. FEM meshes can be safely cloned.
+                bool shareMeasurementGrid = discretization is LBMGrid;
+                IDiscretization measurementDiscretization = shareMeasurementGrid
+                    ? discretization
+                    : discretization.DeepCopy();
+
+                if (!shareMeasurementGrid && _originalSigma != null)
                 {
                     measurementDiscretization.SetConductivityDistribution(_originalSigma);
                 }
@@ -174,7 +175,8 @@ namespace ServiceLayer
                 _measurementService.Initialize(measurementDiscretization,
                                                parameters,
                                                _drivePattern,
-                                               () => _reconstructionPersistence.GetDifferentialEquationSolver());
+                                               () => _reconstructionPersistence.GetDifferentialEquationSolver(),
+                                               shareMeasurementGrid ? _originalSigma : null);
             }
             catch(Exception ex)
             {
