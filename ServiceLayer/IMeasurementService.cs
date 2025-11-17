@@ -11,7 +11,8 @@ namespace ServiceLayer
         void Initialize(IDiscretization discretization,
                         EITReconstructionParameters parameters,
                         DrivePattern drivePattern,
-                        Func<IDifferentialEquationSolver?> solverAccessor);
+                        Func<IDifferentialEquationSolver?> solverAccessor,
+                        ConductivityDistribution? measurementConductivity = null);
 
         void SyncMeasurementSource();
         void EnsureMeasurements(double excitationAmplitude);

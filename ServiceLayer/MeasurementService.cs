@@ -41,6 +41,7 @@ namespace ServiceLayer
         private MeasurementPattern? _measurementPattern;
         private VirtualElectrodeSettings _virtualSettings = new();
         private int _framesPerCycle = 1;
+        private ConductivityDistribution? _measurementConductivity;
 
         public MeasurementService(IMeasurementPersistence measurementPersistence, ILogger logger)
         {
@@ -62,7 +63,8 @@ namespace ServiceLayer
         public void Initialize(IDiscretization discretization,
                                EITReconstructionParameters parameters,
                                DrivePattern drivePattern,
-                               Func<IDifferentialEquationSolver?> solverAccessor)
+                               Func<IDifferentialEquationSolver?> solverAccessor,
+                               ConductivityDistribution? measurementConductivity = null)
         {
             _discretization = discretization ?? throw new ArgumentNullException(nameof(discretization));
 
@@ -79,6 +81,7 @@ namespace ServiceLayer
             _noiseAmplitude = parameters.MeasurementNoiseAmplitude;
             _usePotentialDifferences = parameters.UsePotentialDifferences;
             _virtualSettings = parameters.VirtualElectrodeSettings ?? new VirtualElectrodeSettings();
+            _measurementConductivity = measurementConductivity;
 
             _measurementSource = Workspace.GetMeasurementSource();
             _measurementPattern = null;
@@ -153,26 +156,54 @@ namespace ServiceLayer
             if (solver == null)
                 throw new InvalidOperationException("Differential equation solver is not available for measurement simulation.");
 
-            MeasurementSimulationResult simulation = _discretization switch
+            ConductivityDistribution? savedConductivity = null;
+            PotentialDistribution? savedPotential = null;
+            bool restoreState = false;
+
+            if (_measurementConductivity != null)
             {
-                // Delegate the heavy lifting to the measurement persistence implementation
-                // which mirrors the old reconstruction persistence helpers.
-                FEMMesh fem => _measurementPersistence.SimulateFemMeasurements(fem,
-                                                                               excitationAmplitude,
-                                                                               _drivePattern,
-                                                                               _usePotentialDifferences,
-                                                                               solver,
-                                                                               _measurementSetup,
-                                                                               _virtualSettings),
-                LBMGrid lbm => _measurementPersistence.SimulateLbmMeasurements(lbm,
-                                                                               excitationAmplitude,
-                                                                               _drivePattern,
-                                                                               _usePotentialDifferences,
-                                                                               solver,
-                                                                               _measurementSetup,
-                                                                               _virtualSettings),
-                _ => throw new InvalidOperationException($"Unsupported discretization type {_discretization.GetType().Name} for measurement simulation.")
-            };
+                savedConductivity = CloneConductivityDistribution(_discretization.GetConductivityDistribution());
+                var currentPotential = _discretization.GetPotentialDistribution();
+                savedPotential = currentPotential != null ? ClonePotentialDistribution(currentPotential) : null;
+                _discretization.SetConductivityDistribution(CloneConductivityDistribution(_measurementConductivity));
+                restoreState = true;
+            }
+
+            MeasurementSimulationResult simulation;
+
+            try
+            {
+                simulation = _discretization switch
+                {
+                    // Delegate the heavy lifting to the measurement persistence implementation
+                    // which mirrors the old reconstruction persistence helpers.
+                    FEMMesh fem => _measurementPersistence.SimulateFemMeasurements(fem,
+                                                                                   excitationAmplitude,
+                                                                                   _drivePattern,
+                                                                                   _usePotentialDifferences,
+                                                                                   solver,
+                                                                                   _measurementSetup,
+                                                                                   _virtualSettings),
+                    LBMGrid lbm => _measurementPersistence.SimulateLbmMeasurements(lbm,
+                                                                                   excitationAmplitude,
+                                                                                   _drivePattern,
+                                                                                   _usePotentialDifferences,
+                                                                                   solver,
+                                                                                   _measurementSetup,
+                                                                                   _virtualSettings),
+                    _ => throw new InvalidOperationException($"Unsupported discretization type {_discretization.GetType().Name} for measurement simulation.")
+                };
+            }
+            finally
+            {
+                if (restoreState)
+                {
+                    if (savedConductivity != null)
+                        _discretization.SetConductivityDistribution(savedConductivity);
+                    if (savedPotential != null)
+                        _discretization.SetPotentialDistribution(savedPotential);
+                }
+            }
 
             _measurements.Clear();
             _measurements.AddRange(simulation.Frames.Select(frame => (double[])frame.Clone()));
@@ -251,6 +282,12 @@ namespace ServiceLayer
                 return 1;
             return Math.Max(1, _drivePatternStrategy.GetCycleLength(electrodeCount));
         }
+
+        private static ConductivityDistribution CloneConductivityDistribution(ConductivityDistribution source)
+            => new ConductivityDistribution(source.Conductivities);
+
+        private static PotentialDistribution ClonePotentialDistribution(PotentialDistribution source)
+            => new PotentialDistribution(source.Potentials);
 
         private static int GetDriveElectrodeCount(IEnumerable<Electrode> electrodes)
         {
