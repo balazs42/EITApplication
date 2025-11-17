@@ -129,20 +129,6 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             public bool IsGround { get; }
         }
 
-        private readonly struct BoundaryLink
-        {
-            public BoundaryLink(int interiorIndex, int ghostIndex, int direction)
-            {
-                InteriorIndex = interiorIndex;
-                GhostIndex = ghostIndex;
-                Direction = direction;
-            }
-
-            public int InteriorIndex { get; }
-            public int GhostIndex { get; }
-            public int Direction { get; }
-        }
-
         /// <summary>
         /// Initializes LBM solver with specified convergence criteria and execution mode.
         /// </summary>
@@ -278,54 +264,14 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             return RunForwardCuda(lbmGrid, bc);
         }
 
-        private static List<BoundaryLink> BuildBoundaryLinks(
-            IReadOnlyList<LBMElement> elements,
-            IReadOnlyDictionary<int, int> elementIndexLookup,
-            out Dictionary<int, List<int>> linksByInterior)
-        {
-            var links = new List<BoundaryLink>();
-            linksByInterior = new Dictionary<int, List<int>>();
-
-            for (int idx = 0; idx < elements.Count; idx++)
-            {
-                var element = elements[idx];
-                // Skip ghost and wall cells unconditionally; walls should never emit flux links.
-                if (element.GhostElement || element.IsWall)
-                    continue;
-
-                for (int dir = 1; dir < LatticeBoltzmannConstants.Directions.Length; dir++)
-                {
-                    var neighbor = element.Neighbors[dir];
-                    if (neighbor is null || !neighbor.GhostElement)
-                        continue;
-
-                    if (!elementIndexLookup.TryGetValue(neighbor.Id, out int ghostIndex))
-                        continue;
-
-                    int linkIndex = links.Count;
-                    links.Add(new BoundaryLink(idx, ghostIndex, dir));
-
-                    if (!linksByInterior.TryGetValue(idx, out var perCell))
-                    {
-                        perCell = new List<int>();
-                        linksByInterior[idx] = perCell;
-                    }
-
-                    perCell.Add(linkIndex);
-                }
-            }
-
-            return links;
-        }
-
         /// <summary>
         /// Computes electrode flux densities j_n for each boundary link.  Relation (b) (Krüger et al. for unit
         /// conversion, Gebäck &amp; Heintz for the Neumann BC) distributes currents as flux densities so that
         /// (j_n Δx)/σ is invariant between physical and lattice units.
         /// </summary>
         private static double[] ComputeFluxPerLink(
-            IReadOnlyList<BoundaryLink> links,
-            Dictionary<int, List<int>> linksByInterior,
+            IReadOnlyList<LBMBoundaryLink> links,
+            IReadOnlyDictionary<int, IReadOnlyList<int>> linksByInterior,
             IReadOnlyList<ElectrodeRuntimeData> electrodes)
         {
             var flux = new double[links.Count];
@@ -515,8 +461,9 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             if (groundCellId < 0 && runtimeElectrodes.Count > 0)
                 groundCellId = runtimeElectrodes[0].Element.Id;
 
-            var boundaryLinks = BuildBoundaryLinks(elements, elementIndexLookup, out var linksByInterior);
-            var fluxPerLink = ComputeFluxPerLink(boundaryLinks, linksByInterior, runtimeElectrodes);
+            var boundaryTopology = lbmGrid.BoundaryTopology;
+            var boundaryLinks = boundaryTopology.Links;
+            var fluxPerLink = ComputeFluxPerLink(boundaryLinks, boundaryTopology.LinksByInterior, runtimeElectrodes);
 
             // Synchronise conductivity and initialise the discrete populations.
             var conductivity = lbmGrid.GetConductivityDistribution();
@@ -879,8 +826,9 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             if (groundCellId >= 0 && topology.IdToIndex.TryGetValue(groundCellId, out var idxGround))
                 groundIndex = idxGround;
 
-            var boundaryLinks = BuildBoundaryLinks(elements, topology.IdToIndex, out var linksByInterior);
-            var fluxPerLink = ComputeFluxPerLink(boundaryLinks, linksByInterior, runtimeElectrodes);
+            var boundaryTopology = lbmGrid.BoundaryTopology;
+            var boundaryLinks = boundaryTopology.Links;
+            var fluxPerLink = ComputeFluxPerLink(boundaryLinks, boundaryTopology.LinksByInterior, runtimeElectrodes);
 
             var conductivity = lbmGrid.GetConductivityDistribution();
             var initialPotential = lbmGrid.GetPotentialDistribution();
@@ -1440,7 +1388,9 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 .Select((element, idx) => new { element.Id, idx })
                 .ToDictionary(item => item.Id, item => item.idx);
 
-            var boundaryLinks = BuildBoundaryLinks(elements, elementIndexLookup, out var linksByInterior);
+            var boundaryTopology = cpuGrid.BoundaryTopology;
+            var boundaryLinks = boundaryTopology.Links;
+            var linksByInterior = boundaryTopology.LinksByInterior;
 
             var gridElectrodes = cpuGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
             var bcElectrodes = cpuBoundary.GetElectrodes().Cast<LBMElectrode>().ToList();

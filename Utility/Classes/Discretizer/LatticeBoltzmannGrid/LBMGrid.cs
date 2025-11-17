@@ -30,6 +30,9 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
         public int Nx { get; }
         public int Ny { get; }
 
+        private LBMBoundaryTopology _boundaryTopology = LBMBoundaryTopology.Empty;
+        public LBMBoundaryTopology BoundaryTopology => _boundaryTopology;
+
         // Added for fast, direct access to elements by coordinate
         private readonly LBMElement[,] _grid;
         private readonly Dictionary<int, double> _ghostBaselineConductivity = new();
@@ -253,6 +256,8 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                     }
                 }
             }
+
+            RebuildBoundaryTopologyFromState();
         }
 
         public LBMGrid(List<LBMElement> elements, int nx = _defaultNy, int ny = _defaultNy)
@@ -586,6 +591,52 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
             RebuildGhostLayerFromMask();
         }
 
+        private void RebuildBoundaryTopologyFromState()
+        {
+            if (_elements.Count == 0)
+            {
+                _boundaryTopology = LBMBoundaryTopology.Empty;
+                return;
+            }
+
+            var idToIndex = new Dictionary<int, int>(_elements.Count);
+            for (int i = 0; i < _elements.Count; i++)
+                idToIndex[_elements[i].Id] = i;
+
+            var links = new List<LBMBoundaryLink>();
+            var perInterior = new Dictionary<int, List<int>>();
+
+            for (int idx = 0; idx < _elements.Count; idx++)
+            {
+                var element = _elements[idx];
+                if (element.GhostElement || element.IsWall)
+                    continue;
+
+                for (int dir = 1; dir < NeighborDirections.Length; dir++)
+                {
+                    var neighbor = element.Neighbors[dir];
+                    if (neighbor is null || !neighbor.GhostElement)
+                        continue;
+
+                    if (!idToIndex.TryGetValue(neighbor.Id, out int ghostIndex))
+                        continue;
+
+                    int linkIndex = links.Count;
+                    links.Add(new LBMBoundaryLink(idx, ghostIndex, dir));
+
+                    if (!perInterior.TryGetValue(idx, out var perCell))
+                    {
+                        perCell = new List<int>();
+                        perInterior[idx] = perCell;
+                    }
+
+                    perCell.Add(linkIndex);
+                }
+            }
+
+            _boundaryTopology = LBMBoundaryTopology.Create(links, perInterior);
+        }
+
         private double ComputeCellAngle(int gridId)
         {
             var (x, y) = ToLattice(gridId);
@@ -762,6 +813,8 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
             copy.SetPotentialDistribution(new PotentialDistribution(pd));
 
             copy.SetElements([.. copy.ElementsTyped]);
+
+            copy.RebuildBoundaryTopologyFromState();
 
             return copy;
         }

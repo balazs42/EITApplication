@@ -1,0 +1,54 @@
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+
+namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
+{
+    public readonly struct LBMBoundaryLink
+    {
+        public LBMBoundaryLink(int interiorIndex, int ghostIndex, int direction)
+        {
+            InteriorIndex = interiorIndex;
+            GhostIndex = ghostIndex;
+            Direction = direction;
+        }
+
+        public int InteriorIndex { get; }
+        public int GhostIndex { get; }
+        public int Direction { get; }
+    }
+
+    public sealed class LBMBoundaryTopology
+    {
+        private static readonly IReadOnlyList<LBMBoundaryLink> EmptyLinks = new List<LBMBoundaryLink>().AsReadOnly();
+        private static readonly IReadOnlyDictionary<int, IReadOnlyList<int>> EmptyLookup =
+            new ReadOnlyDictionary<int, IReadOnlyList<int>>(new Dictionary<int, IReadOnlyList<int>>());
+
+        public static LBMBoundaryTopology Empty { get; } = new(EmptyLinks, EmptyLookup);
+
+        private LBMBoundaryTopology(
+            IReadOnlyList<LBMBoundaryLink> links,
+            IReadOnlyDictionary<int, IReadOnlyList<int>> linksByInterior)
+        {
+            Links = links;
+            LinksByInterior = linksByInterior;
+        }
+
+        public IReadOnlyList<LBMBoundaryLink> Links { get; }
+        public IReadOnlyDictionary<int, IReadOnlyList<int>> LinksByInterior { get; }
+
+        internal static LBMBoundaryTopology Create(
+            List<LBMBoundaryLink> links,
+            Dictionary<int, List<int>> perInterior)
+        {
+            if (links.Count == 0)
+                return Empty;
+
+            var readOnlyLinks = new ReadOnlyCollection<LBMBoundaryLink>(links.ToArray());
+            var lookup = new Dictionary<int, IReadOnlyList<int>>(perInterior.Count);
+            foreach (var kvp in perInterior)
+                lookup[kvp.Key] = new ReadOnlyCollection<int>(kvp.Value.ToArray());
+
+            return new LBMBoundaryTopology(readOnlyLinks, new ReadOnlyDictionary<int, IReadOnlyList<int>>(lookup));
+        }
+    }
+}
