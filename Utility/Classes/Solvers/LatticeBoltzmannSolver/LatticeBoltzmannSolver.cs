@@ -661,7 +661,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         private void ApplyGhostBoundaryConditionsCpu(
             IReadOnlyList<LBMElement> elements,
             double[] phi,
-            IReadOnlyList<BoundaryLink> links,
+            IReadOnlyList<LBMBoundaryLink> links, 
             double[] fluxPerLink,
             double[] weights,
             int[] opposite)
