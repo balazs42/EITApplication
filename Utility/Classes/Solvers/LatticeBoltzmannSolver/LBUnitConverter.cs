@@ -91,5 +91,13 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         public static double FluxDensityPhysToLU(double jPhys)
             => jPhys * (DeltaTPhys / DeltaXPhys);
 
+        /// <summary>
+        /// Converts flux density from lattice units back to SI.  This is primarily used in debug-only
+        /// current-closure checks where the solver validates that Σ (j_n Δs) matches the prescribed
+        /// electrode current in the original unit system.
+        /// </summary>
+        public static double FluxDensityLUToPhys(double jLu)
+            => jLu * (DeltaXPhys / DeltaTPhys);
+
     }
 }

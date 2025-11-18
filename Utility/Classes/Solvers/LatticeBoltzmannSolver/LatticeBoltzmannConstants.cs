@@ -62,15 +62,15 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         public const double CsSquared = 1.0 / 3.0;
 
         /// <summary>
-        /// Lattice spacing Δx expressed in lattice units (LU).  Physical scaling is handled by
-        /// <see cref="LBUnitConverter"/>; do not interpret this constant as a metric length.
+        /// Lattice spacing Δx expressed purely in lattice units.  All conversions from SI happen in
+        /// <see cref="LBUnitConverter"/>, keeping the numerical kernels agnostic of the physical scale.
         /// </summary>
-        public const double DeltaX = LBUnitConverter.DeltaX_LU;
+        public const double DeltaX = 1.0;
 
         /// <summary>
-        /// Lattice time step Δt expressed in lattice units (LU).  Physical scaling is handled by
-        /// <see cref="LBUnitConverter"/>; do not interpret this constant as a physical time step.
+        /// Lattice time step Δt expressed purely in lattice units.  Physical Δt is injected through
+        /// <see cref="LBUnitConverter"/>, ensuring both CPU and CUDA paths operate on the same LU data.
         /// </summary>
-        public const double DeltaT = LBUnitConverter.DeltaT_LU;
+        public const double DeltaT = 1.0;
     }
 }
