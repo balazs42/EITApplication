@@ -159,25 +159,13 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         }
 
         /// <summary>
-        /// Converts a diffusion coefficient (conductivity) to the BGK relaxation time τ.
-        /// Relation (a): D = c_s^2 (τ − 1/2) Δt, so τ = D / (c_s^2 Δt) + 1/2.
-        /// c_s^2 from <see cref="LatticeBoltzmannConstants.CsSquared"/> only appears in this relation.
-        /// </summary>
-        /// <param name="diffusionCoefficient">Diffusion coefficient expressed in lattice units (relation (a), Krüger et al.).</param>
-        internal static double ComputeTauFromDiffusivityLU(double diffusionCoefficient)
-        {
-            // Δt_LU = 1 ⇒ τ = D / c_s^2 + 1/2 per relation (a).
-            return diffusionCoefficient / LatticeBoltzmannConstants.CsSquared + 0.5;
-        }
-
-        /// <summary>
         /// Computes BGK relaxation time from material conductivity and clamps it for stability.
         /// </summary>
         /// <param name="conductivity">Material electrical conductivity (diffusion coefficient).</param>
         /// <returns>Relaxation time ensuring numerical stability.</returns>
         private static double ComputeRelaxationTime(double conductivity)
         {
-            double tau = ComputeTauFromDiffusivityLU(conductivity);
+            double tau = LatticeBoltzmannOperators.ComputeTauFromDiffusivityLU(conductivity);
 
             // Enforce minimum relaxation time to prevent numerical instability
             // Values below 0.5 can cause negative distribution functions
@@ -300,54 +288,70 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                             throw new InvalidOperationException($"Boundary link {linkIndex} referenced by electrodes {owner} and {group.Key}.");
 
                         linkOwnership[linkIndex] = group.Key;
+
+                        var link = links[linkIndex];
+                        Debug.Assert(link.ElectrodeId < 0 || link.ElectrodeId == group.Key,
+                            $"Boundary link {linkIndex} tagged for electrode {link.ElectrodeId} but assigned to {group.Key}.");
                     }
                 }
 
                 if (perElectrodeLinks.Count == 0)
-                    continue;
+                    throw new InvalidOperationException($"Electrode {group.Key} does not touch the ghost boundary.");
 
-                double boundaryMeasure = 0.0;
+                double boundaryMeasureLu = 0.0;
+                double boundaryMeasurePhys = 0.0;
+
                 foreach (int linkIndex in perElectrodeLinks)
                 {
                     var link = links[linkIndex];
-                    boundaryMeasure += LBUnitConverter.InputsArePhysical
-                        ? link.InterfaceLengthPhys
-                        : link.InterfaceLengthLU;
+                    boundaryMeasureLu += link.InterfaceLengthLU;
+                    boundaryMeasurePhys += link.InterfaceLengthPhys;
                 }
 
-                if (boundaryMeasure <= 0.0)
+                double activeMeasure = LBUnitConverter.InputsArePhysical ? boundaryMeasurePhys : boundaryMeasureLu;
+                if (activeMeasure <= 0.0)
                     throw new InvalidOperationException($"Electrode {group.Key} has zero boundary measure.");
+
+                double fluxDensityLu;
+                double fluxDensityPhys;
 
                 if (LBUnitConverter.InputsArePhysical)
                 {
-                    double jPhys = totalCurrent / boundaryMeasure;
-                    double jLu = LBUnitConverter.FluxDensityPhysToLU(jPhys);
+                    fluxDensityPhys = totalCurrent / boundaryMeasurePhys;
+                    fluxDensityLu = LBUnitConverter.FluxDensityPhysToLU(fluxDensityPhys);
+                }
+                else
+                {
+                    fluxDensityLu = totalCurrent / boundaryMeasureLu;
+                    fluxDensityPhys = fluxDensityLu * (LBUnitConverter.DeltaXPhys / LBUnitConverter.DeltaTPhys);
+                }
 
-                    foreach (int linkIndex in perElectrodeLinks)
-                        flux[linkIndex] = jLu;
+                foreach (int linkIndex in perElectrodeLinks)
+                    flux[linkIndex] = fluxDensityLu; // Store link-wise flux density in LU.
 
-                    double closure = 0.0;
-                    foreach (int linkIndex in perElectrodeLinks)
-                        closure += jPhys * links[linkIndex].InterfaceLengthPhys;
-
+                if (LBUnitConverter.InputsArePhysical)
+                {
+                    double closure = fluxDensityPhys * boundaryMeasurePhys;
                     double tol = Math.Max(1e-12, Math.Abs(totalCurrent) * 1e-10);
+                    if (Math.Abs(closure - totalCurrent) > tol)
+                        throw new InvalidOperationException($"Flux closure violated for electrode {group.Key}: expected {totalCurrent:G6}, got {closure:G6}.");
+
                     Debug.Assert(Math.Abs(closure - totalCurrent) <= tol,
                         $"Flux closure violated for electrode {group.Key}: expected {totalCurrent:G6}, got {closure:G6}.");
                 }
                 else
                 {
-                    double fluxDensity = totalCurrent / boundaryMeasure;
-
-                    foreach (int linkIndex in perElectrodeLinks)
-                        flux[linkIndex] = fluxDensity;
-
-                    double closure = 0.0;
-                    foreach (int linkIndex in perElectrodeLinks)
-                        closure += fluxDensity * links[linkIndex].InterfaceLengthLU;
+                    double closure = fluxDensityLu * boundaryMeasureLu;
+                    if (Math.Abs(closure - totalCurrent) > 1e-12)
+                        throw new InvalidOperationException($"Flux closure violated for electrode {group.Key}: expected {totalCurrent:G6}, got {closure:G6}.");
 
                     Debug.Assert(Math.Abs(closure - totalCurrent) <= 1e-12,
                         $"Flux closure violated for electrode {group.Key}: expected {totalCurrent:G6}, got {closure:G6}.");
                 }
+
+                double logMeasure = LBUnitConverter.InputsArePhysical ? boundaryMeasurePhys : boundaryMeasureLu;
+                double logFlux = LBUnitConverter.InputsArePhysical ? fluxDensityPhys : fluxDensityLu;
+                Debug.WriteLine($"[LBM] Electrode {group.Key}: links={perElectrodeLinks.Count}, ΣΔs={(logMeasure):G6}, I={totalCurrent:G6}, j={(logFlux):G6} {(LBUnitConverter.InputsArePhysical ? "[phys]" : "[LU]")}");
             }
 
             return flux;
@@ -1065,7 +1069,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
             // Calculate relaxation time from material conductivity.
             // Relation (a): D = c_s^2 (τ − 1/2) handled centrally in ComputeTauFromDiffusivityLU.
-            double tau = ComputeTauFromDiffusivityLU(conductivity[index]);
+            double tau = LatticeBoltzmannOperators.ComputeTauFromDiffusivityLU(conductivity[index]);
 
             // Enforce minimum relaxation time for numerical stability
             if (tau < minTau)
@@ -1241,9 +1245,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             const double deltaTPhys = 1e-6; // [s]
             const double driveCurrent = 2e-3; // [A]
 
-            LBUnitConverter.Configure(lxPhys, nx, sigmaPhys, deltaTPhys, inputsArePhysical: true);
-
-            (LBMGrid Grid, LBMBoundaryCondition Boundary) CreateSetup()
+            (LBMGrid Grid, LBMBoundaryCondition Boundary) CreateSetup(double electrodeCurrent)
             {
                 var grid = new LBMGrid(nx, nx);
                 grid.ApplyCircularDomain((nx - 1) / 2.0, (nx - 1) / 2.0, (nx - 3) / 2.0);
@@ -1269,8 +1271,8 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
                 var electrodes = new List<LBMElectrode>
                 {
-                    new LBMElectrode(id: 0, gridId: drive.Id, current: driveCurrent, potential: 0.0, contactImpedance: 0.0, isExcitation: true, isGround: false),
-                    new LBMElectrode(id: 1, gridId: sink.Id, current: -driveCurrent, potential: 0.0, contactImpedance: 0.0, isExcitation: false, isGround: true)
+                    new LBMElectrode(id: 0, gridId: drive.Id, current: electrodeCurrent, potential: 0.0, contactImpedance: 0.0, isExcitation: true, isGround: false),
+                    new LBMElectrode(id: 1, gridId: sink.Id, current: -electrodeCurrent, potential: 0.0, contactImpedance: 0.0, isExcitation: false, isGround: true)
                 };
 
                 grid.SetElectrodes(electrodes);
@@ -1278,7 +1280,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 return (grid, bc);
             }
 
-            void PopulateUniformConductivity(LBMGrid grid)
+            void PopulateUniformConductivity(LBMGrid grid, double conductivityValue)
             {
                 var conductivity = grid.GetConductivityDistribution();
                 foreach (var element in grid.GetElements().Cast<LBMElement>())
@@ -1286,8 +1288,8 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     if (element.IsWall)
                         continue;
 
-                    conductivity.Conductivities[element.Id] = sigmaPhys;
-                    element.Conductivity = sigmaPhys;
+                    conductivity.Conductivities[element.Id] = conductivityValue;
+                    element.Conductivity = conductivityValue;
                 }
 
                 grid.UpdateGhostConductivityFromNeighbors();
@@ -1339,52 +1341,61 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 }
             }
 
-            foreach (bool useDiagonals in new[] { true, false })
+            foreach (bool inputsArePhysical in new[] { true, false })
             {
-                bool previousToggle = LBMGrid.UseDiagonalBoundaryLinks;
-                try
+                LBUnitConverter.Configure(lxPhys, nx, sigmaPhys, deltaTPhys, inputsArePhysical);
+                double conductivityValue = inputsArePhysical ? sigmaPhys : LBUnitConverter.ConductivityPhysToLU(sigmaPhys);
+                double electrodeCurrent = inputsArePhysical
+                    ? driveCurrent
+                    : driveCurrent * (LBUnitConverter.DeltaTPhys / (LBUnitConverter.DeltaXPhys * LBUnitConverter.DeltaXPhys));
+
+                foreach (bool useDiagonals in new[] { true, false })
                 {
-                    LBMGrid.UseDiagonalBoundaryLinks = useDiagonals;
-
-                    var (cpuGrid, cpuBoundary) = CreateSetup();
-                    PopulateUniformConductivity(cpuGrid);
-                    ValidateFlux(cpuGrid, cpuBoundary);
-
-                    var solverCpu = new LatticeBoltzmannSolver(4000, 1e-12, 50, useCuda: false);
-                    var cpuResult = solverCpu.SolveForward(cpuGrid, cpuBoundary);
-
-                    PotentialDistribution? gpuResult = null;
+                    bool previousToggle = LBMGrid.UseDiagonalBoundaryLinks;
                     try
                     {
-                        var (gpuGrid, gpuBoundary) = CreateSetup();
-                        PopulateUniformConductivity(gpuGrid);
-                        var solverGpu = new LatticeBoltzmannSolver(4000, 1e-12, 50, useCuda: true);
-                        gpuResult = solverGpu.SolveForward(gpuGrid, gpuBoundary);
+                        LBMGrid.UseDiagonalBoundaryLinks = useDiagonals;
+
+                        var (cpuGrid, cpuBoundary) = CreateSetup(electrodeCurrent);
+                        PopulateUniformConductivity(cpuGrid, conductivityValue);
+                        ValidateFlux(cpuGrid, cpuBoundary);
+
+                        var solverCpu = new LatticeBoltzmannSolver(4000, 1e-12, 50, useCuda: false);
+                        var cpuResult = solverCpu.SolveForward(cpuGrid, cpuBoundary);
+
+                        PotentialDistribution? gpuResult = null;
+                        try
+                        {
+                            var (gpuGrid, gpuBoundary) = CreateSetup(electrodeCurrent);
+                            PopulateUniformConductivity(gpuGrid, conductivityValue);
+                            var solverGpu = new LatticeBoltzmannSolver(4000, 1e-12, 50, useCuda: true);
+                            gpuResult = solverGpu.SolveForward(gpuGrid, gpuBoundary);
+                        }
+                        catch (InvalidOperationException ex) when (ex.Message.Contains("CUDA"))
+                        {
+                            continue; // CUDA unavailable in this debug session.
+                        }
+
+                        var cpuPotentials = cpuResult.Potentials;
+                        var gpuPotentials = gpuResult!.Potentials;
+                        double maxDiff = 0.0;
+
+                        foreach (var element in cpuGrid.GetElements().Cast<LBMElement>())
+                        {
+                            if (element.IsWall || element.GhostElement)
+                                continue;
+
+                            double diff = Math.Abs(cpuPotentials[element.Id] - gpuPotentials[element.Id]);
+                            maxDiff = Math.Max(maxDiff, diff);
+                        }
+
+                        Debug.Assert(maxDiff < 1e-10,
+                            $"CPU/CUDA mismatch ({(inputsArePhysical ? "phys" : "LU")}, {(useDiagonals ? "diagonals" : "axis only")}): Δφ_max = {maxDiff:G3}");
                     }
-                    catch (InvalidOperationException ex) when (ex.Message.Contains("CUDA"))
+                    finally
                     {
-                        continue; // CUDA unavailable in this debug session.
+                        LBMGrid.UseDiagonalBoundaryLinks = previousToggle;
                     }
-
-                    var cpuPotentials = cpuResult.Potentials;
-                    var gpuPotentials = gpuResult!.Potentials;
-                    double maxDiff = 0.0;
-
-                    foreach (var element in cpuGrid.GetElements().Cast<LBMElement>())
-                    {
-                        if (element.IsWall || element.GhostElement)
-                            continue;
-
-                        double diff = Math.Abs(cpuPotentials[element.Id] - gpuPotentials[element.Id]);
-                        maxDiff = Math.Max(maxDiff, diff);
-                    }
-
-                    Debug.Assert(maxDiff < 1e-10,
-                        $"CPU/CUDA mismatch ({(useDiagonals ? "diagonals" : "axis only")}): Δφ_max = {maxDiff:G3}");
-                }
-                finally
-                {
-                    LBMGrid.UseDiagonalBoundaryLinks = previousToggle;
                 }
             }
         }

@@ -10,13 +10,15 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
             int ghostIndex,
             int direction,
             double interfaceLengthLu,
-            double interfaceLengthPhys)
+            double interfaceLengthPhys,
+            int electrodeId)
         {
             InteriorIndex = interiorIndex;
             GhostIndex = ghostIndex;
             Direction = direction;
             InterfaceLengthLU = interfaceLengthLu;
             InterfaceLengthPhys = interfaceLengthPhys;
+            ElectrodeId = electrodeId;
         }
 
         public int InteriorIndex { get; }
@@ -34,6 +36,13 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
         /// value when the simulation operates entirely in lattice space.
         /// </summary>
         public double InterfaceLengthPhys { get; }
+
+        /// <summary>
+        /// Identifier of the electrode that owns this boundary link.  Links attached to insulating
+        /// portions of the boundary carry -1.  The field lets boundary-condition assembly attribute
+        /// flux contributions without having to re-run topological searches.
+        /// </summary>
+        public int ElectrodeId { get; }
     }
 
     public sealed class LBMBoundaryTopology
