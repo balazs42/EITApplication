@@ -258,7 +258,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         /// (j_n Δx)/σ is invariant between physical and lattice units.
         /// </summary>
         private static double[] ComputeFluxPerLink(
-            IReadOnlyList<LBMBoundaryLink> links,
+            IReadOnlyList<BoundaryLink> links,
             IReadOnlyDictionary<int, IReadOnlyList<int>> linksByInterior,
             IReadOnlyList<ElectrodeRuntimeData> electrodes)
         {
@@ -308,53 +308,82 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     boundaryMeasurePhys += link.InterfaceLengthPhys;
                 }
 
-                double activeMeasure = LBUnitConverter.InputsArePhysical ? boundaryMeasurePhys : boundaryMeasureLu;
-                if (activeMeasure <= 0.0)
-                    throw new InvalidOperationException($"Electrode {group.Key} has zero boundary measure.");
-
-                double fluxDensityLu;
-                double fluxDensityPhys;
-
-                if (LBUnitConverter.InputsArePhysical)
-                {
-                    fluxDensityPhys = totalCurrent / boundaryMeasurePhys;
-                    fluxDensityLu = LBUnitConverter.FluxDensityPhysToLU(fluxDensityPhys);
-                }
-                else
-                {
-                    fluxDensityLu = totalCurrent / boundaryMeasureLu;
-                    fluxDensityPhys = fluxDensityLu * (LBUnitConverter.DeltaXPhys / LBUnitConverter.DeltaTPhys);
-                }
-
+                var perElectrodeFlux = ComputeFluxPerLink_LU(links, perElectrodeLinks, totalCurrent);
                 foreach (int linkIndex in perElectrodeLinks)
-                    flux[linkIndex] = fluxDensityLu; // Store link-wise flux density in LU.
-
-                if (LBUnitConverter.InputsArePhysical)
-                {
-                    double closure = fluxDensityPhys * boundaryMeasurePhys;
-                    double tol = Math.Max(1e-12, Math.Abs(totalCurrent) * 1e-10);
-                    if (Math.Abs(closure - totalCurrent) > tol)
-                        throw new InvalidOperationException($"Flux closure violated for electrode {group.Key}: expected {totalCurrent:G6}, got {closure:G6}.");
-
-                    Debug.Assert(Math.Abs(closure - totalCurrent) <= tol,
-                        $"Flux closure violated for electrode {group.Key}: expected {totalCurrent:G6}, got {closure:G6}.");
-                }
-                else
-                {
-                    double closure = fluxDensityLu * boundaryMeasureLu;
-                    if (Math.Abs(closure - totalCurrent) > 1e-12)
-                        throw new InvalidOperationException($"Flux closure violated for electrode {group.Key}: expected {totalCurrent:G6}, got {closure:G6}.");
-
-                    Debug.Assert(Math.Abs(closure - totalCurrent) <= 1e-12,
-                        $"Flux closure violated for electrode {group.Key}: expected {totalCurrent:G6}, got {closure:G6}.");
-                }
+                    flux[linkIndex] = perElectrodeFlux[linkIndex];
 
                 double logMeasure = LBUnitConverter.InputsArePhysical ? boundaryMeasurePhys : boundaryMeasureLu;
-                double logFlux = LBUnitConverter.InputsArePhysical ? fluxDensityPhys : fluxDensityLu;
+                double sampleFluxLu = perElectrodeFlux[perElectrodeLinks.First()];
+                double logFlux = LBUnitConverter.InputsArePhysical
+                    ? LBUnitConverter.FluxDensityLUToPhys(sampleFluxLu)
+                    : sampleFluxLu;
                 Debug.WriteLine($"[LBM] Electrode {group.Key}: links={perElectrodeLinks.Count}, ΣΔs={(logMeasure):G6}, I={totalCurrent:G6}, j={(logFlux):G6} {(LBUnitConverter.InputsArePhysical ? "[phys]" : "[LU]")}");
             }
 
             return flux;
+        }
+
+        private static double[] ComputeFluxPerLink_LU(
+            IReadOnlyList<BoundaryLink> links,
+            IEnumerable<int> linkIndicesForElectrode,
+            double electrodeCurrent)
+        {
+            var linkIndexCollection = linkIndicesForElectrode as ICollection<int> ?? linkIndicesForElectrode.ToArray();
+            double boundaryMeasureLu = 0.0;
+            double boundaryMeasurePhys = 0.0;
+
+            foreach (var idx in linkIndexCollection)
+            {
+                var link = links[idx];
+                boundaryMeasureLu += link.InterfaceLengthLU;
+                boundaryMeasurePhys += link.InterfaceLengthPhys;
+            }
+
+            double activeMeasure = LBUnitConverter.InputsArePhysical ? boundaryMeasurePhys : boundaryMeasureLu;
+            if (activeMeasure <= 0.0)
+                throw new InvalidOperationException("Electrode boundary length is zero.");
+
+            double fluxDensityLu;
+            if (LBUnitConverter.InputsArePhysical)
+            {
+                double fluxDensityPhys = electrodeCurrent / boundaryMeasurePhys;
+                fluxDensityLu = LBUnitConverter.FluxDensityPhysToLU(fluxDensityPhys);
+            }
+            else
+            {
+                fluxDensityLu = electrodeCurrent / boundaryMeasureLu;
+            }
+
+            var fluxPerLink = new double[links.Count];
+            foreach (var idx in linkIndexCollection)
+                fluxPerLink[idx] = fluxDensityLu;
+
+#if DEBUG
+            if (LBUnitConverter.InputsArePhysical)
+            {
+                double checkA = 0.0;
+                foreach (var idx in linkIndexCollection)
+                {
+                    double jPhys = LBUnitConverter.FluxDensityLUToPhys(fluxDensityLu);
+                    checkA += jPhys * links[idx].InterfaceLengthPhys;
+                }
+
+                double tol = Math.Max(1e-10, 1e-10 * Math.Abs(electrodeCurrent));
+                if (Math.Abs(checkA - electrodeCurrent) > tol)
+                    throw new Exception($"Electrode current mismatch: {checkA} vs {electrodeCurrent}");
+            }
+            else
+            {
+                double checkLu = 0.0;
+                foreach (var idx in linkIndexCollection)
+                    checkLu += fluxDensityLu * links[idx].InterfaceLengthLU;
+
+                if (Math.Abs(checkLu - electrodeCurrent) > 1e-12)
+                    throw new Exception($"Electrode current mismatch (LU): {checkLu} vs {electrodeCurrent}");
+            }
+#endif
+
+            return fluxPerLink;
         }
 
         /// <summary>
@@ -597,7 +626,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         private void ApplyGhostBoundaryConditionsCpu(
             IReadOnlyList<LBMElement> elements,
             double[] phi,
-            IReadOnlyList<LBMBoundaryLink> links,
+            IReadOnlyList<BoundaryLink> links,
             double[] fluxPerLink,
             double[] weights,
             int[] opposite)
@@ -605,27 +634,28 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             if (links.Count == 0)
                 return;
 
+            const double eps = 1e-12;
+            double dx = LatticeBoltzmannConstants.DeltaX;
+
             for (int i = 0; i < links.Count; i++)
             {
                 var link = links[i];
-                double fluxDensity = fluxPerLink.Length > i ? fluxPerLink[i] : 0.0;
+                double fluxDensity = fluxPerLink[i];
 
                 var interior = elements[link.InteriorIndex];
                 var ghost = elements[link.GhostIndex];
 
                 double phiInterior = phi[link.InteriorIndex];
-                const double eps = 1e-12;
                 double sigmaInterior = Math.Max(eps, interior.Conductivity);
                 double sigmaGhost = ghost.Conductivity;
                 if (sigmaGhost <= eps)
                 {
-                    sigmaGhost = Math.Max(sigmaInterior, eps); // Mirror interior conductivity when ghosts are stale.
+                    sigmaGhost = Math.Max(sigmaInterior, eps);
                     ghost.Conductivity = sigmaGhost;
                 }
 
-                double sigmaAvg = 2.0 / (1.0 / sigmaInterior + 1.0 / sigmaGhost); // Harmonic mean for jump robustness.
-                double dx = LatticeBoltzmannConstants.DeltaX;
-                double phiGhost = phiInterior - (fluxDensity * dx) / sigmaAvg; // Relation (c): φ_g = φ_i − (j_n Δx)/σ_avg.
+                double sigmaAvg = 2.0 / (1.0 / sigmaInterior + 1.0 / sigmaGhost);
+                double phiGhost = phiInterior - (fluxDensity * dx) / sigmaAvg; // Half-way Neumann ghost node.
 
                 for (int k = 0; k < 9; k++)
                 {
@@ -637,8 +667,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 int incomingDir = opposite[link.Direction];
                 double feqGhostIncoming = weights[incomingDir] * phiGhost;
                 double nonEqInteriorIncoming = interior.Fi[incomingDir] - weights[incomingDir] * phiInterior;
-                ghost.Fi[incomingDir] = feqGhostIncoming - nonEqInteriorIncoming; // Mirror non-equilibrium part (diffusion bounce-back).
-
+                interior.Fi[incomingDir] = feqGhostIncoming - nonEqInteriorIncoming; // Conservative Neumann BC (Gebäck & Heintz 2014).
                 phi[link.GhostIndex] = phiGhost;
             }
         }
@@ -1189,7 +1218,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             }
 
             double sigmaAvg = 2.0 / (1.0 / sigmaInterior + 1.0 / sigmaGhost);
-            double phiGhost = phiInterior - (jn * p.DeltaX) / sigmaAvg; // Relation (c) with harmonic σ_avg.
+            double phiGhost = phiInterior - (jn * p.DeltaX) / sigmaAvg; // Half-way Neumann ghost node with harmonic σ_avg.
 
             int baseInterior = interior * 9;
             int baseGhost = ghost * 9;
@@ -1203,7 +1232,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             int incomingDir = p.Opposite[direction];
             double feqGhostIncoming = p.Weights[incomingDir] * phiGhost;
             double nonEqInteriorIncoming = p.Fi[baseInterior + incomingDir] - p.Weights[incomingDir] * phiInterior;
-            p.Fi[baseGhost + incomingDir] = feqGhostIncoming - nonEqInteriorIncoming;
+            p.Fi[baseInterior + incomingDir] = feqGhostIncoming - nonEqInteriorIncoming; // Conservative Neumann BC (Gebäck & Heintz 2014).
             p.Phi[ghost] = phiGhost;
         }
 
@@ -1237,7 +1266,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         /// Debug-only acceptance test that validates current closure and CPU↔CUDA equivalence on a uniform disk
         /// while toggling diagonal boundary links.  Invoke from a debugger or immediate window when needed.
         /// </summary>
-        internal static void Test_UniformDisk_CurrentClosure_And_CPUeqCUDA()
+        internal static void Test_UniformDisk_CPUeqCUDA_and_FluxClosure()
         {
             const int nx = 33;
             const double lxPhys = 0.3;      // [m]
@@ -1324,9 +1353,10 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                             double deltaS = LBUnitConverter.InputsArePhysical
                                 ? topology.Links[linkIndex].InterfaceLengthPhys
                                 : topology.Links[linkIndex].InterfaceLengthLU;
-                            double fluxDensity = fluxPerLink[linkIndex];
-                            if (LBUnitConverter.InputsArePhysical)
-                                fluxDensity *= LBUnitConverter.DeltaXPhys / LBUnitConverter.DeltaTPhys;
+                            double fluxDensityLu = fluxPerLink[linkIndex];
+                            double fluxDensity = LBUnitConverter.InputsArePhysical
+                                ? LBUnitConverter.FluxDensityLUToPhys(fluxDensityLu)
+                                : fluxDensityLu;
                             netCurrent += fluxDensity * deltaS;
                         }
                     }

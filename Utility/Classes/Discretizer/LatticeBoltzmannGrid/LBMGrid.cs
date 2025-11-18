@@ -38,7 +38,7 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
         public int Ny { get; }
 
         private LBMBoundaryTopology _boundaryTopology = LBMBoundaryTopology.Empty;
-        public LBMBoundaryTopology BoundaryTopology => _boundaryTopology;
+        internal LBMBoundaryTopology BoundaryTopology => _boundaryTopology;
 
         // Added for fast, direct access to elements by coordinate
         private readonly LBMElement[,] _grid;
@@ -610,7 +610,7 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
             for (int i = 0; i < _elements.Count; i++)
                 idToIndex[_elements[i].Id] = i;
 
-            var links = new List<LBMBoundaryLink>();
+            var links = new List<BoundaryLink>();
             var perInterior = new Dictionary<int, List<int>>();
             var existing = new HashSet<(int interior, int direction)>();
 
@@ -647,13 +647,13 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                     double interfacePhys = deltaXPhys * metricScale;
 
                     int linkIndex = links.Count;
-                    links.Add(new LBMBoundaryLink(
+                    links.Add(new BoundaryLink(
                         idx,
                         ghostIndex,
                         dir,
+                        _elements[idx].ElectrodeId,
                         interfaceLu,
-                        interfacePhys,
-                        _elements[idx].ElectrodeId));
+                        interfacePhys));
 
                     if (!perInterior.TryGetValue(idx, out var perCell))
                     {
