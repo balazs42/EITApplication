@@ -22,6 +22,14 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         private static Action<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<double>>? _divergenceKernel;
 
         /// <summary>
+        /// Relation (a) from Krüger et al.: D = c_s^2 (τ − 1/2) Δt.  With Δt_LU = 1 the conversion
+        /// simplifies to τ = D / c_s^2 + 1/2.  Centralising this helper ensures the CPU and CUDA paths
+        /// use identical relaxation times for a given diffusivity.
+        /// </summary>
+        internal static double ComputeTauFromDiffusivityLU(double diffusivityLu)
+            => diffusivityLu / LatticeBoltzmannConstants.CsSquared + 0.5;
+
+        /// <summary>
         /// CPU implementation of central difference gradient operator on D2Q9 mesh.
         /// Computes ∇φ = (∂φ/∂x, ∂φ/∂y) using neighboring values in cardinal directions.
         /// Handles boundary conditions by using one-sided differences at domain edges.

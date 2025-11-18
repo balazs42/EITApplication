@@ -16,6 +16,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
         /// <summary>
         /// Number of lattice nodes along X.  The physical spacing follows Δx_phys = LxPhys / (Nx - 1).
+        /// Stored so that callers have a single source of truth for the discretisation metrics.
         /// </summary>
         public static int Nx { get; private set; } = 1;
 
@@ -26,7 +27,14 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         public static double SigmaRefPhys { get; private set; } = 1.0;
 
         /// <summary>
-        /// Physical time step [s].
+        /// Physical lattice spacing Δx expressed in metres.  Numerics run with Δx_LU = 1 and use this
+        /// value solely for input/output conversions.
+        /// </summary>
+        public static double DeltaXPhys { get; private set; } = 1.0;
+
+        /// <summary>
+        /// Physical time step [s].  Numerics run with Δt_LU = 1 and use this scaling factor when
+        /// mapping physical quantities (conductivity, flux density) into lattice units.
         /// </summary>
         public static double DeltaTPhys { get; private set; } = 1.0;
 
@@ -36,11 +44,6 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         /// </summary>
         public static bool InputsArePhysical { get; private set; }
             = false;
-
-        /// <summary>
-        /// Derived physical lattice spacing [m].  Returns zero-safe value when Nx == 1.
-        /// </summary>
-        public static double DeltaXPhys => LxPhys / Math.Max(1, Nx - 1);
 
         /// <summary>
         /// Lattice spacing in LU.  Numerics are implemented with Δx_LU = 1.
@@ -69,6 +72,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             Nx = nx;
             SigmaRefPhys = sigmaRefPhys;
             DeltaTPhys = deltaTPhys;
+            DeltaXPhys = lxPhys / Math.Max(1, nx - 1);
             InputsArePhysical = inputsArePhysical;
         }
 

@@ -16,8 +16,8 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
         private const int _defaultNy = 15;
 
         /// <summary>
-        /// Toggle diagonal boundary links.  Keeping this mutable (rather than const) lets
-        /// debug scenarios disable diagonals when investigating stability regressions.
+        /// Toggle diagonal boundary links.  Setting this to <c>false</c> disables √2 links entirely
+        /// which is useful when debugging regressions or comparing to purely axis-aligned schemes.
         /// </summary>
         internal static bool UseDiagonalBoundaryLinks = true;
 
@@ -616,8 +616,8 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
 
             double deltaX_LU = LatticeBoltzmannConstants.DeltaX;
             double deltaXPhys = LBUnitConverter.DeltaXPhys;
-            if (double.IsNaN(deltaXPhys) || deltaXPhys <= 0.0)
-                deltaXPhys = deltaX_LU; // Fall back to LU spacing when physical scaling is undefined.
+            if (!double.IsFinite(deltaXPhys) || deltaXPhys <= 0.0)
+                deltaXPhys = deltaX_LU; // Δx_phys must always be positive; fall back to LU spacing otherwise.
 
             for (int idx = 0; idx < _elements.Count; idx++)
             {
@@ -641,12 +641,19 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                     if (!existing.Add((idx, dir)))
                         continue; // Deduplicate within each (interior, direction) pair.
 
+                    // Diagonal links intersect the interface at 45°, so the surface measure scales with √2.
                     double metricScale = isDiagonal ? Math.Sqrt(2.0) : 1.0;
                     double interfaceLu = deltaX_LU * metricScale;
                     double interfacePhys = deltaXPhys * metricScale;
 
                     int linkIndex = links.Count;
-                    links.Add(new LBMBoundaryLink(idx, ghostIndex, dir, interfaceLu, interfacePhys));
+                    links.Add(new LBMBoundaryLink(
+                        idx,
+                        ghostIndex,
+                        dir,
+                        interfaceLu,
+                        interfacePhys,
+                        _elements[idx].ElectrodeId));
 
                     if (!perInterior.TryGetValue(idx, out var perCell))
                     {
