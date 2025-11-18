@@ -272,7 +272,8 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             foreach (var group in electrodes.GroupBy(e => e.ElectrodeId))
             {
                 double totalCurrent = group.Sum(e => e.Current);
-                var perElectrodeLinks = new HashSet<int>();
+                var perElectrodeLinks = new List<int>();
+                var perElectrodeSet = new HashSet<int>();
 
                 foreach (var electrode in group)
                 {
@@ -281,8 +282,10 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
                     foreach (int linkIndex in perCell)
                     {
-                        if (!perElectrodeLinks.Add(linkIndex))
+                        if (!perElectrodeSet.Add(linkIndex))
                             continue;
+
+                        perElectrodeLinks.Add(linkIndex);
 
                         if (linkOwnership.TryGetValue(linkIndex, out int owner) && owner != group.Key)
                             throw new InvalidOperationException($"Boundary link {linkIndex} referenced by electrodes {owner} and {group.Key}.");
@@ -323,50 +326,51 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             return flux;
         }
 
+        /// <summary>
+        /// We distribute the total electrode current as a flux density over the geometric boundary measure S = Σ Δs.
+        /// This guarantees integral current conservation at Neumann boundaries when combined with the ghost-node update.
+        /// </summary>
         private static double[] ComputeFluxPerLink_LU(
             IReadOnlyList<BoundaryLink> links,
-            IEnumerable<int> linkIndicesForElectrode,
+            IReadOnlyList<int> linkIndicesForElectrode,
             double electrodeCurrent)
         {
-            var linkIndexCollection = linkIndicesForElectrode as ICollection<int> ?? linkIndicesForElectrode.ToArray();
-            double boundaryMeasureLu = 0.0;
-            double boundaryMeasurePhys = 0.0;
+            if (linkIndicesForElectrode.Count == 0)
+                throw new InvalidOperationException("Electrode boundary length is zero.");
 
-            foreach (var idx in linkIndexCollection)
+            double boundaryMeasure = 0.0;
+            foreach (int idx in linkIndicesForElectrode)
             {
-                var link = links[idx];
-                boundaryMeasureLu += link.InterfaceLengthLU;
-                boundaryMeasurePhys += link.InterfaceLengthPhys;
+                boundaryMeasure += LBUnitConverter.InputsArePhysical
+                    ? links[idx].InterfaceLengthPhys
+                    : links[idx].InterfaceLengthLU;
             }
 
-            double activeMeasure = LBUnitConverter.InputsArePhysical ? boundaryMeasurePhys : boundaryMeasureLu;
-            if (activeMeasure <= 0.0)
+            if (boundaryMeasure <= 0.0)
                 throw new InvalidOperationException("Electrode boundary length is zero.");
 
             double fluxDensityLu;
             if (LBUnitConverter.InputsArePhysical)
             {
-                double fluxDensityPhys = electrodeCurrent / boundaryMeasurePhys;
+                double fluxDensityPhys = electrodeCurrent / boundaryMeasure;
                 fluxDensityLu = LBUnitConverter.FluxDensityPhysToLU(fluxDensityPhys);
             }
             else
             {
-                fluxDensityLu = electrodeCurrent / boundaryMeasureLu;
+                fluxDensityLu = electrodeCurrent / boundaryMeasure;
             }
 
             var fluxPerLink = new double[links.Count];
-            foreach (var idx in linkIndexCollection)
+            foreach (int idx in linkIndicesForElectrode)
                 fluxPerLink[idx] = fluxDensityLu;
 
 #if DEBUG
             if (LBUnitConverter.InputsArePhysical)
             {
                 double checkA = 0.0;
-                foreach (var idx in linkIndexCollection)
-                {
-                    double jPhys = LBUnitConverter.FluxDensityLUToPhys(fluxDensityLu);
+                double jPhys = LBUnitConverter.FluxDensityLUToPhys(fluxDensityLu);
+                foreach (int idx in linkIndicesForElectrode)
                     checkA += jPhys * links[idx].InterfaceLengthPhys;
-                }
 
                 double tol = Math.Max(1e-10, 1e-10 * Math.Abs(electrodeCurrent));
                 if (Math.Abs(checkA - electrodeCurrent) > tol)
@@ -375,7 +379,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             else
             {
                 double checkLu = 0.0;
-                foreach (var idx in linkIndexCollection)
+                foreach (int idx in linkIndicesForElectrode)
                     checkLu += fluxDensityLu * links[idx].InterfaceLengthLU;
 
                 if (Math.Abs(checkLu - electrodeCurrent) > 1e-12)
@@ -397,8 +401,8 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             double tolerance = SolutionTolerance;
             int checkFrequency = Math.Max(1, ConvergenceCheckFrequency);
 
-            // Reconstruction updates only touch interior conductivities.  Mirror those values to the
-            // ghost layer so that ghosts remain a numerical extension of the domain, not optimisation variables.
+            // Ghost conductivities are mirrored from live interior values every solve.  Do NOT keep a stale baseline,
+            // otherwise the Neumann update would see a spurious σ jump at the interface and corrupt the flux.
             lbmGrid.UpdateGhostConductivityFromNeighbors();
 
             // D2Q9 lattice constants shared with the CUDA path so that both
@@ -631,6 +635,9 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             double[] weights,
             int[] opposite)
         {
+            // Neumann BC via ghost-node at half-link with harmonic face conductivity enforces flux conservatively
+            // even at discontinuous σ.  The non-equilibrium reflection (anti-bounce-back) keeps second-order accuracy.
+            // j_n is a flux density distributed over the geometric boundary measure S = Σ Δs (axis: Δx, diag: √2 Δx).
             if (links.Count == 0)
                 return;
 
@@ -640,22 +647,18 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             for (int i = 0; i < links.Count; i++)
             {
                 var link = links[i];
-                double fluxDensity = fluxPerLink[i];
+                double jn = fluxPerLink[i];
 
                 var interior = elements[link.InteriorIndex];
                 var ghost = elements[link.GhostIndex];
 
                 double phiInterior = phi[link.InteriorIndex];
                 double sigmaInterior = Math.Max(eps, interior.Conductivity);
-                double sigmaGhost = ghost.Conductivity;
-                if (sigmaGhost <= eps)
-                {
-                    sigmaGhost = Math.Max(sigmaInterior, eps);
-                    ghost.Conductivity = sigmaGhost;
-                }
+                double sigmaGhost = Math.Max(eps, ghost.Conductivity);
+                ghost.Conductivity = sigmaGhost;
 
                 double sigmaAvg = 2.0 / (1.0 / sigmaInterior + 1.0 / sigmaGhost);
-                double phiGhost = phiInterior - (fluxDensity * dx) / sigmaAvg; // Half-way Neumann ghost node.
+                double phiGhost = phiInterior - (jn * dx) / sigmaAvg; // Half-way Neumann ghost node.
 
                 for (int k = 0; k < 9; k++)
                 {
@@ -667,7 +670,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 int incomingDir = opposite[link.Direction];
                 double feqGhostIncoming = weights[incomingDir] * phiGhost;
                 double nonEqInteriorIncoming = interior.Fi[incomingDir] - weights[incomingDir] * phiInterior;
-                interior.Fi[incomingDir] = feqGhostIncoming - nonEqInteriorIncoming; // Conservative Neumann BC (Gebäck & Heintz 2014).
+                interior.Fi[incomingDir] = feqGhostIncoming - nonEqInteriorIncoming; // Gebäck & Heintz (2014), Dubois (2018).
                 phi[link.GhostIndex] = phiGhost;
             }
         }
@@ -771,8 +774,8 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             double tolerance = SolutionTolerance;
             int checkFrequency = Math.Max(1, ConvergenceCheckFrequency);
 
-            // Mirror interior conductivities to the ghost layer before uploading data to the GPU.
-            // Ghost cells remain derived values so optimisation and reconstruction never manipulate them directly.
+            // Mirror interior conductivities to the ghost layer before uploading data to the GPU.  This keeps the
+            // Neumann flux closure consistent between CPU and CUDA execution paths.
             lbmGrid.UpdateGhostConductivityFromNeighbors();
 
             var topology = LatticeBoltzmannCudaHelper.BuildTopology(lbmGrid);
@@ -1197,6 +1200,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             p.PhiStreamed[index] = phi;
         }
 
+        // CPU and CUDA ghost updates are algebraically identical by construction.
         private static void GhostBoundaryKernel(
             Index1D index,
             GhostBoundaryKernelParams p)
@@ -1210,12 +1214,8 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
             const double eps = 1e-12;
             double sigmaInterior = XMath.Max(p.Conductivity[interior], eps);
-            double sigmaGhost = p.Conductivity[ghost];
-            if (sigmaGhost <= eps)
-            {
-                sigmaGhost = sigmaInterior;
-                p.Conductivity[ghost] = sigmaGhost;
-            }
+            double sigmaGhost = XMath.Max(p.Conductivity[ghost], eps);
+            p.Conductivity[ghost] = sigmaGhost;
 
             double sigmaAvg = 2.0 / (1.0 / sigmaInterior + 1.0 / sigmaGhost);
             double phiGhost = phiInterior - (jn * p.DeltaX) / sigmaAvg; // Half-way Neumann ghost node with harmonic σ_avg.
@@ -1373,13 +1373,14 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
             foreach (bool inputsArePhysical in new[] { true, false })
             {
-                LBUnitConverter.Configure(lxPhys, nx, sigmaPhys, deltaTPhys, inputsArePhysical);
+                double deltaXPhys = lxPhys / Math.Max(1, nx - 1);
+                LBUnitConverter.Configure(deltaXPhys, deltaTPhys, inputsArePhysical);
                 double conductivityValue = inputsArePhysical ? sigmaPhys : LBUnitConverter.ConductivityPhysToLU(sigmaPhys);
                 double electrodeCurrent = inputsArePhysical
                     ? driveCurrent
                     : driveCurrent * (LBUnitConverter.DeltaTPhys / (LBUnitConverter.DeltaXPhys * LBUnitConverter.DeltaXPhys));
 
-                foreach (bool useDiagonals in new[] { true, false })
+                foreach (bool useDiagonals in new[] { false, true })
                 {
                     bool previousToggle = LBMGrid.UseDiagonalBoundaryLinks;
                     try

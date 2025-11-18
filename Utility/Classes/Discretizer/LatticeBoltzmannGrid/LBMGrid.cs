@@ -42,7 +42,6 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
 
         // Added for fast, direct access to elements by coordinate
         private readonly LBMElement[,] _grid;
-        private readonly Dictionary<int, double> _ghostBaselineConductivity = new();
 
         public LBMElement GetElementAt(int x, int y) => _grid[x, y];
 
@@ -175,10 +174,8 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
         }
 
         /// <summary>
-        /// Restores ghost-layer conductivities to their baseline values.
-        /// Ghost cells mirror the state of the mesh at the time the ghost layer was constructed
-        /// and are not updated by reconstruction steps; this method simply reapplies the stored
-        /// baseline to keep derived distributions consistent.
+        /// Mirrors ghost conductivities from their current interior neighbours.  Reconstruction updates never
+        /// touch ghosts directly, therefore we recompute them before every solve to avoid stale interface jumps.
         /// </summary>
         public void UpdateGhostConductivityFromNeighbors()
         {
@@ -190,21 +187,30 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                 if (!cell.GhostElement)
                     continue;
 
-                if (_ghostBaselineConductivity.TryGetValue(cell.Id, out double baseline))
-                {
-                    SetGhostConductivity(cell, baseline);
-                }
-                // If no baseline is recorded, leave the current value untouched –
-                // this should not happen unless the mesh is in an inconsistent state.
-            }
-        }
+                double sigmaSum = 0.0;
+                int sigmaCount = 0;
 
-        private void SetGhostConductivity(LBMElement cell, double value)
-        {
-            cell.Conductivity = value;
-            if (ConductivityDistribution != null)
-                ConductivityDistribution.Conductivities[cell.Id] = value;
-            _ghostBaselineConductivity[cell.Id] = value;
+                for (int dir = 1; dir < NeighborDirections.Length; dir++)
+                {
+                    var neighbor = cell.Neighbors[dir];
+                    if (neighbor is null || neighbor.IsWall || neighbor.GhostElement)
+                        continue;
+
+                    double sigmaNeighbor = ConductivityDistribution.GetConductivity(neighbor.Id);
+                    if (!double.IsFinite(sigmaNeighbor) || sigmaNeighbor <= 0.0)
+                        continue;
+
+                    sigmaSum += sigmaNeighbor;
+                    sigmaCount++;
+                }
+
+                double mirrored = sigmaCount > 0 ? sigmaSum / sigmaCount : cell.Conductivity;
+                if (!double.IsFinite(mirrored) || mirrored <= 0.0)
+                    mirrored = 1.0;
+
+                cell.Conductivity = mirrored;
+                ConductivityDistribution.Conductivities[cell.Id] = mirrored;
+            }
         }
 
         private void RebuildGhostLayerFromMask()
@@ -220,7 +226,6 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                     {
                         cell.IsWall = false;
                         cell.GhostElement = false;
-                        _ghostBaselineConductivity.Remove(cell.Id);
                         continue;
                     }
 
@@ -255,16 +260,14 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                         double sigma = sigmaCount > 0 ? sigmaSum / sigmaCount : 1.0;
                         if (!double.IsFinite(sigma) || sigma <= 0.0)
                             sigma = 1.0;
-                        SetGhostConductivity(cell, sigma);
-                    }
-                    else
-                    {
-                        _ghostBaselineConductivity.Remove(cell.Id);
+                        cell.Conductivity = sigma;
+                        ConductivityDistribution?.Conductivities[cell.Id] = sigma;
                     }
                 }
             }
 
             RebuildBoundaryTopologyFromState();
+            UpdateGhostConductivityFromNeighbors();
         }
 
         public LBMGrid(List<LBMElement> elements, int nx = _defaultNy, int ny = _defaultNy)
@@ -641,7 +644,8 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                     if (!existing.Add((idx, dir)))
                         continue; // Deduplicate within each (interior, direction) pair.
 
-                    // Diagonal links intersect the interface at 45°, so the surface measure scales with √2.
+                    // Why √2 on diagonals? Each link represents a half-way face whose measure is |c_k| · Δx.
+                    // Using per-link Δs ensures the integral of j_n over an electrode arc equals the imposed current.
                     double metricScale = isDiagonal ? Math.Sqrt(2.0) : 1.0;
                     double interfaceLu = deltaX_LU * metricScale;
                     double interfacePhys = deltaXPhys * metricScale;
@@ -796,11 +800,6 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
 
                 for (int k = 0; k < 9; k++)
                     dst.Fi[k] = src.Fi[k];
-
-                if (dst.GhostElement && _ghostBaselineConductivity.TryGetValue(src.Id, out double baseline))
-                    copy._ghostBaselineConductivity[src.Id] = baseline;
-                else if (!dst.GhostElement)
-                    copy._ghostBaselineConductivity.Remove(src.Id);
             }
 
             // clone electrodes list
