@@ -164,10 +164,10 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         /// c_s^2 from <see cref="LatticeBoltzmannConstants.CsSquared"/> only appears in this relation.
         /// </summary>
         /// <param name="diffusionCoefficient">Diffusion coefficient expressed in lattice units (relation (a), Krüger et al.).</param>
-        internal static double ComputeTauFromDiffusivity(double diffusionCoefficient)
+        internal static double ComputeTauFromDiffusivityLU(double diffusionCoefficient)
         {
-            return diffusionCoefficient /
-                   (LatticeBoltzmannConstants.CsSquared * LBUnitConverter.DeltaT_LU) + 0.5;
+            // Δt_LU = 1 ⇒ τ = D / c_s^2 + 1/2 per relation (a).
+            return diffusionCoefficient / LatticeBoltzmannConstants.CsSquared + 0.5;
         }
 
         /// <summary>
@@ -177,7 +177,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         /// <returns>Relaxation time ensuring numerical stability.</returns>
         private static double ComputeRelaxationTime(double conductivity)
         {
-            double tau = ComputeTauFromDiffusivity(conductivity);
+            double tau = ComputeTauFromDiffusivityLU(conductivity);
 
             // Enforce minimum relaxation time to prevent numerical instability
             // Values below 0.5 can cause negative distribution functions
@@ -279,18 +279,12 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             if (links.Count == 0 || electrodes.Count == 0)
                 return flux;
 
-            var groups = electrodes
-                .GroupBy(e => e.ElectrodeId)
-                .ToList();
+            var linkOwnership = new Dictionary<int, int>();
 
-            foreach (var group in groups)
+            foreach (var group in electrodes.GroupBy(e => e.ElectrodeId))
             {
-                double totalCurrent = 0.0;
-                foreach (var electrode in group)
-                    totalCurrent += electrode.Current;
-
-                var seen = new HashSet<int>();
-                var linkIndices = new List<int>();
+                double totalCurrent = group.Sum(e => e.Current);
+                var perElectrodeLinks = new HashSet<int>();
 
                 foreach (var electrode in group)
                 {
@@ -299,40 +293,60 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
                     foreach (int linkIndex in perCell)
                     {
-                        if (seen.Add(linkIndex))
-                            linkIndices.Add(linkIndex);
+                        if (!perElectrodeLinks.Add(linkIndex))
+                            continue;
+
+                        if (linkOwnership.TryGetValue(linkIndex, out int owner) && owner != group.Key)
+                            throw new InvalidOperationException($"Boundary link {linkIndex} referenced by electrodes {owner} and {group.Key}.");
+
+                        linkOwnership[linkIndex] = group.Key;
                     }
                 }
 
-                if (linkIndices.Count == 0)
+                if (perElectrodeLinks.Count == 0)
                     continue;
+
+                double boundaryMeasure = 0.0;
+                foreach (int linkIndex in perElectrodeLinks)
+                {
+                    var link = links[linkIndex];
+                    boundaryMeasure += LBUnitConverter.InputsArePhysical
+                        ? link.InterfaceLengthPhys
+                        : link.InterfaceLengthLU;
+                }
+
+                if (boundaryMeasure <= 0.0)
+                    throw new InvalidOperationException($"Electrode {group.Key} has zero boundary measure.");
 
                 if (LBUnitConverter.InputsArePhysical)
                 {
-                    double interfaceMeasurePhys = linkIndices.Count * LBUnitConverter.LinkMeasurePhys_Axis();
-                    if (interfaceMeasurePhys <= 0.0)
-                        continue;
-
-                    double jPhys = totalCurrent / interfaceMeasurePhys;
+                    double jPhys = totalCurrent / boundaryMeasure;
                     double jLu = LBUnitConverter.FluxDensityPhysToLU(jPhys);
 
-                    foreach (int linkIndex in linkIndices)
+                    foreach (int linkIndex in perElectrodeLinks)
                         flux[linkIndex] = jLu;
+
+                    double closure = 0.0;
+                    foreach (int linkIndex in perElectrodeLinks)
+                        closure += jPhys * links[linkIndex].InterfaceLengthPhys;
+
+                    double tol = Math.Max(1e-12, Math.Abs(totalCurrent) * 1e-10);
+                    Debug.Assert(Math.Abs(closure - totalCurrent) <= tol,
+                        $"Flux closure violated for electrode {group.Key}: expected {totalCurrent:G6}, got {closure:G6}.");
                 }
                 else
                 {
-                    double deltaS = LatticeBoltzmannConstants.DeltaX;
-                    double interfaceMeasure = linkIndices.Count * deltaS;
-                    if (interfaceMeasure <= 0.0)
-                        continue;
+                    double fluxDensity = totalCurrent / boundaryMeasure;
 
-                    double fluxDensity = totalCurrent / interfaceMeasure;
-
-                    foreach (int linkIndex in linkIndices)
-                    {
-                        // TODO: Account for diagonal links via Δs = √2 Δx once oblique faces are supported.
+                    foreach (int linkIndex in perElectrodeLinks)
                         flux[linkIndex] = fluxDensity;
-                    }
+
+                    double closure = 0.0;
+                    foreach (int linkIndex in perElectrodeLinks)
+                        closure += fluxDensity * links[linkIndex].InterfaceLengthLU;
+
+                    Debug.Assert(Math.Abs(closure - totalCurrent) <= 1e-12,
+                        $"Flux closure violated for electrode {group.Key}: expected {totalCurrent:G6}, got {closure:G6}.");
                 }
             }
 
@@ -360,8 +374,6 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             var opposite = LatticeBoltzmannConstants.Opposite;     // Opposite direction mapping
             // Flatten the mesh state for sequential processing.
             var elements = lbmGrid.GetElements().Cast<LBMElement>().ToList();
-            var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
-            var bcElectrodes = bc.GetElectrodes().Cast<LBMElectrode>().ToList();
             int elementCount = elements.Count;
 
             // Map element ids to contiguous indices once; we reuse this for potential
@@ -379,87 +391,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             foreach (var element in elements)
                 element.IsElectrode = false;
 
-            // Merge electrode information coming from the discretization (currents
-            // for the drive pattern) and from the boundary condition description.
-            var gridElectrodesById = electrodes.ToDictionary(e => e.Id, e => e);
-            var gridElectrodesByGridId = electrodes.ToDictionary(e => e.GridId, e => e);
-            var runtimeElectrodes = new List<ElectrodeRuntimeData>();
-            var processedGridIds = new HashSet<int>();
-
-            void AddRuntimeElectrode(LBMElectrode source, LBMElectrode? fallback)
-            {
-                // Try mapping by GridId first (expected, canonical).
-                if (!elementIndexLookup.TryGetValue(source.GridId, out int idx))
-                {
-                    // Fallback: some callers pass 'Id' that corresponds to element.Id on this grid.
-                    if (!elementIndexLookup.TryGetValue(source.Id, out idx))
-                    {
-                        Debug.WriteLine($"[LBM] Electrode mapping failed (GridId={source.GridId}, Id={source.Id}). Skipping electrode for flux distribution.");
-                        return;
-                    }
-                }
-
-                var element = elements[idx];
-
-                // Remap wall/ghost electrodes to a neighboring interior cell if possible.
-                if (element.IsWall || element.GhostElement)
-                {
-                    var interiorNeighbor = element.Neighbors.FirstOrDefault(n => n != null && !n.IsWall && !n.GhostElement);
-                    if (interiorNeighbor != null && elementIndexLookup.TryGetValue(interiorNeighbor.Id, out int interiorIdx))
-                    {
-                        element = interiorNeighbor;
-                        idx = interiorIdx;
-                    }
-                    else
-                    {
-                        // No suitable interior cell found; skip this electrode for flux distribution.
-                        return;
-                    }
-                }
-
-                // Only interior (non-wall, non-ghost) elements can be treated as electrodes for flux distribution.
-                if (element.IsWall || element.GhostElement)
-                    return;
-
-                element.IsElectrode = true; // Mark for boundary condition enforcement.
-
-                bool isExcitation = source.IsExcitation || (fallback?.IsExcitation ?? false);
-                bool isGround = source.IsGround || (fallback?.IsGround ?? false);
-                double current = double.IsNaN(source.Current) ? (fallback?.Current ?? 0.0) : source.Current;
-                int electrodeId = source.Id >= 0 ? source.Id : (fallback?.Id ?? source.GridId);
-
-                runtimeElectrodes.Add(new ElectrodeRuntimeData(electrodeId, idx, element, current, isExcitation, isGround));
-                processedGridIds.Add(source.GridId);
-            }
-
-            foreach (var bcElectrode in bcElectrodes)
-            {
-                gridElectrodesById.TryGetValue(bcElectrode.Id, out var fallbackById);
-                gridElectrodesByGridId.TryGetValue(bcElectrode.GridId, out var fallbackByGrid);
-                AddRuntimeElectrode(bcElectrode, fallbackById ?? fallbackByGrid);
-            }
-
-            foreach (var gridElectrode in electrodes)
-            {
-                if (!processedGridIds.Contains(gridElectrode.GridId))
-                    AddRuntimeElectrode(gridElectrode, null);
-            }
-
-            int groundCellId = -1;
-            var groundFromBc = bcElectrodes.FirstOrDefault(e => e.Id == bc.GroundElectrodeId);
-            if (groundFromBc != null)
-                groundCellId = groundFromBc.GridId;
-            else if (gridElectrodesById.TryGetValue(bc.GroundElectrodeId, out var groundFromGrid))
-                groundCellId = groundFromGrid.GridId;
-            else
-            {
-                var runtimeGround = runtimeElectrodes.FirstOrDefault(e => e.IsGround);
-                if (runtimeGround.Element != null)
-                    groundCellId = runtimeGround.Element.Id;
-            }
-
-            if (groundCellId < 0 && runtimeElectrodes.Count > 0)
-                groundCellId = runtimeElectrodes[0].Element.Id;
+            var (runtimeElectrodes, groundCellId) = BuildRuntimeElectrodeData(lbmGrid, bc, elements, elementIndexLookup);
 
             var boundaryTopology = lbmGrid.BoundaryTopology;
             var boundaryLinks = boundaryTopology.Links;
@@ -661,7 +593,7 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         private void ApplyGhostBoundaryConditionsCpu(
             IReadOnlyList<LBMElement> elements,
             double[] phi,
-            IReadOnlyList<LBMBoundaryLink> links, 
+            IReadOnlyList<LBMBoundaryLink> links,
             double[] fluxPerLink,
             double[] weights,
             int[] opposite)
@@ -678,29 +610,18 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 var ghost = elements[link.GhostIndex];
 
                 double phiInterior = phi[link.InteriorIndex];
-                double sigmaInterior = Math.Max(interior.Conductivity, 0.0);
+                const double eps = 1e-12;
+                double sigmaInterior = Math.Max(eps, interior.Conductivity);
                 double sigmaGhost = ghost.Conductivity;
-
-                if (sigmaInterior <= 0.0 && sigmaGhost <= 0.0)
-                    continue;
-
-                if (sigmaGhost <= 0.0)
+                if (sigmaGhost <= eps)
                 {
-                    sigmaGhost = sigmaInterior > 0.0 ? sigmaInterior : 1.0;
+                    sigmaGhost = Math.Max(sigmaInterior, eps); // Mirror interior conductivity when ghosts are stale.
                     ghost.Conductivity = sigmaGhost;
                 }
 
-                double eps = 1e-12;
-                double sigmaAvg = 2.0 / (1.0 / Math.Max(eps, sigmaInterior) + 1.0 / Math.Max(eps, sigmaGhost));
-                if (sigmaAvg <= 0.0)
-                    continue;
-
-                // Relation (c) (Gebäck & Heintz): φ_g = φ_i − (j_n^LU Δx_LU)/σ_avg^LU at the half-link ghost.
-                // fluxDensity stores j_n in LU; bounce-back walls map to j_n = 0 ⇒ homogeneous Neumann.
-                double jn = fluxDensity;
+                double sigmaAvg = 2.0 / (1.0 / sigmaInterior + 1.0 / sigmaGhost); // Harmonic mean for jump robustness.
                 double dx = LatticeBoltzmannConstants.DeltaX;
-                double phiGhost = phiInterior - (jn * dx) / sigmaAvg;
-                double nonEquilibrium = interior.Fi[link.Direction] - weights[link.Direction] * phiInterior;
+                double phiGhost = phiInterior - (fluxDensity * dx) / sigmaAvg; // Relation (c): φ_g = φ_i − (j_n Δx)/σ_avg.
 
                 for (int k = 0; k < 9; k++)
                 {
@@ -709,10 +630,99 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     ghost.Fi_next[k] = 0.0;
                 }
 
-                int oppositeDir = opposite[link.Direction];
-                ghost.Fi[oppositeDir] = weights[oppositeDir] * phiGhost + nonEquilibrium;
+                int incomingDir = opposite[link.Direction];
+                double feqGhostIncoming = weights[incomingDir] * phiGhost;
+                double nonEqInteriorIncoming = interior.Fi[incomingDir] - weights[incomingDir] * phiInterior;
+                ghost.Fi[incomingDir] = feqGhostIncoming - nonEqInteriorIncoming; // Mirror non-equilibrium part (diffusion bounce-back).
+
                 phi[link.GhostIndex] = phiGhost;
             }
+        }
+
+        private static (List<ElectrodeRuntimeData> RuntimeElectrodes, int GroundCellId) BuildRuntimeElectrodeData(
+            LBMGrid lbmGrid,
+            LBMBoundaryCondition bc,
+            IList<LBMElement> elements,
+            Dictionary<int, int> elementIndexLookup)
+        {
+            var runtimeElectrodes = new List<ElectrodeRuntimeData>();
+            var processedGridIds = new HashSet<int>();
+
+            var gridElectrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
+            var bcElectrodes = bc.GetElectrodes().Cast<LBMElectrode>().ToList();
+
+            var gridElectrodesById = gridElectrodes.ToDictionary(e => e.Id, e => e);
+            var gridElectrodesByGridId = gridElectrodes.ToDictionary(e => e.GridId, e => e);
+
+            void AddRuntimeElectrode(LBMElectrode source, LBMElectrode? fallback)
+            {
+                if (!elementIndexLookup.TryGetValue(source.GridId, out int idx))
+                {
+                    if (!elementIndexLookup.TryGetValue(source.Id, out idx))
+                    {
+                        Debug.WriteLine($"[LBM] Electrode mapping failed (GridId={source.GridId}, Id={source.Id}). Skipping electrode.");
+                        return;
+                    }
+                }
+
+                var element = elements[idx];
+
+                // Remap wall/ghost electrodes to a neighbouring interior cell to preserve fluxes.
+                if (element.IsWall || element.GhostElement)
+                {
+                    var interiorNeighbor = element.Neighbors.FirstOrDefault(n => n != null && !n.IsWall && !n.GhostElement);
+                    if (interiorNeighbor != null && elementIndexLookup.TryGetValue(interiorNeighbor.Id, out int interiorIdx))
+                    {
+                        element = interiorNeighbor;
+                        idx = interiorIdx;
+                    }
+                    else
+                    {
+                        return;
+                    }
+                }
+
+                element.IsElectrode = true;
+
+                bool isExcitation = source.IsExcitation || (fallback?.IsExcitation ?? false);
+                bool isGround = source.IsGround || (fallback?.IsGround ?? false);
+                double current = double.IsNaN(source.Current) ? (fallback?.Current ?? 0.0) : source.Current;
+                int electrodeId = source.Id >= 0 ? source.Id : (fallback?.Id ?? source.GridId);
+
+                runtimeElectrodes.Add(new ElectrodeRuntimeData(electrodeId, idx, element, current, isExcitation, isGround));
+                processedGridIds.Add(source.GridId);
+            }
+
+            foreach (var bcElectrode in bcElectrodes)
+            {
+                gridElectrodesById.TryGetValue(bcElectrode.Id, out var fallbackById);
+                gridElectrodesByGridId.TryGetValue(bcElectrode.GridId, out var fallbackByGrid);
+                AddRuntimeElectrode(bcElectrode, fallbackById ?? fallbackByGrid);
+            }
+
+            foreach (var gridElectrode in gridElectrodes)
+            {
+                if (!processedGridIds.Contains(gridElectrode.GridId))
+                    AddRuntimeElectrode(gridElectrode, null);
+            }
+
+            int groundCellId = -1;
+            var groundFromBc = bcElectrodes.FirstOrDefault(e => e.Id == bc.GroundElectrodeId);
+            if (groundFromBc != null)
+                groundCellId = groundFromBc.GridId;
+            else if (gridElectrodesById.TryGetValue(bc.GroundElectrodeId, out var groundFromGrid))
+                groundCellId = groundFromGrid.GridId;
+            else
+            {
+                var runtimeGround = runtimeElectrodes.FirstOrDefault(e => e.IsGround);
+                if (runtimeGround.Element != null)
+                    groundCellId = runtimeGround.Element.Id;
+            }
+
+            if (groundCellId < 0 && runtimeElectrodes.Count > 0)
+                groundCellId = runtimeElectrodes[0].Element.Id;
+
+            return (runtimeElectrodes, groundCellId);
         }
 
 
@@ -748,79 +758,14 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             var neighborIndicesHost = topology.NeighborIndices;
             var neighborIsWallHost = topology.NeighborIsWall;
             var neighborIsGhostHost = topology.NeighborIsGhost;
+            foreach (var element in elements)
+                element.IsElectrode = false;
 
-            var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToArray();
-            var bcElectrodes = bc.GetElectrodes().Cast<LBMElectrode>().ToArray();
-
-            var gridElectrodesById = electrodes.ToDictionary(e => e.Id, e => e);
-            var gridElectrodesByGridId = electrodes.ToDictionary(e => e.GridId, e => e);
-            var runtimeElectrodes = new List<ElectrodeRuntimeData>();
-            var processedGridIds = new HashSet<int>();
-
-            void AddRuntimeElectrode(LBMElectrode source, LBMElectrode? fallback)
-            {
-                if (!topology.IdToIndex.TryGetValue(source.GridId, out int idx))
-                    return;
-
-                var element = elements[idx];
-
-                // Remap wall/ghost electrodes to a neighboring interior cell if possible.
-                if (element.IsWall || element.GhostElement)
-                {
-                    var interiorNeighbor = element.Neighbors.FirstOrDefault(n => n != null && !n.IsWall && !n.GhostElement);
-                    if (interiorNeighbor != null && topology.IdToIndex.TryGetValue(interiorNeighbor.Id, out int interiorIdx))
-                    {
-                        element = interiorNeighbor;
-                        idx = interiorIdx;
-                    }
-                    else
-                    {
-                        return; // Cannot remap; skip.
-                    }
-                }
-
-                if (element.IsWall || element.GhostElement)
-                    return;
-
-                element.IsElectrode = true;
-
-                bool isExcitation = source.IsExcitation || (fallback?.IsExcitation ?? false);
-                bool isGround = source.IsGround || (fallback?.IsGround ?? false);
-                double current = double.IsNaN(source.Current) ? (fallback?.Current ?? 0.0) : source.Current;
-                int electrodeId = source.Id >= 0 ? source.Id : (fallback?.Id ?? source.GridId);
-
-                runtimeElectrodes.Add(new ElectrodeRuntimeData(electrodeId, idx, element, current, isExcitation, isGround));
-                processedGridIds.Add(source.GridId);
-            }
-
-            foreach (var bcElectrode in bcElectrodes)
-            {
-                gridElectrodesById.TryGetValue(bcElectrode.Id, out var fallbackById);
-                gridElectrodesByGridId.TryGetValue(bcElectrode.GridId, out var fallbackByGrid);
-                AddRuntimeElectrode(bcElectrode, fallbackById ?? fallbackByGrid);
-            }
-
-            foreach (var gridElectrode in electrodes)
-            {
-                if (!processedGridIds.Contains(gridElectrode.GridId))
-                    AddRuntimeElectrode(gridElectrode, null);
-            }
-
-            int groundCellId = -1;
-            var groundFromBc = bcElectrodes.FirstOrDefault(e => e.Id == bc.GroundElectrodeId);
-            if (groundFromBc != null)
-                groundCellId = groundFromBc.GridId;
-            else if (gridElectrodesById.TryGetValue(bc.GroundElectrodeId, out var groundFromGrid))
-                groundCellId = groundFromGrid.GridId;
-            else
-            {
-                var runtimeGround = runtimeElectrodes.FirstOrDefault(e => e.IsGround);
-                if (runtimeGround.Element != null)
-                    groundCellId = runtimeGround.Element.Id;
-            }
-
-            if (groundCellId < 0 && runtimeElectrodes.Count > 0)
-                groundCellId = runtimeElectrodes[0].Element.Id;
+            var (runtimeElectrodes, groundCellId) = BuildRuntimeElectrodeData(
+                lbmGrid,
+                bc,
+                elements,
+                topology.IdToIndex);
 
             int groundIndex = -1;
             if (groundCellId >= 0 && topology.IdToIndex.TryGetValue(groundCellId, out var idxGround))
@@ -1119,8 +1064,8 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 phi += fi[baseIndex + k];
 
             // Calculate relaxation time from material conductivity.
-            // Relation (a): D = c_s^2 (τ − 1/2) Δt handled by ComputeTauFromDiffusivity.
-            double tau = ComputeTauFromDiffusivity(conductivity[index]);
+            // Relation (a): D = c_s^2 (τ − 1/2) handled centrally in ComputeTauFromDiffusivityLU.
+            double tau = ComputeTauFromDiffusivityLU(conductivity[index]);
 
             // Enforce minimum relaxation time for numerical stability
             if (tau < minTau)
@@ -1230,31 +1175,20 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             double jn = p.FluxPerLink[index];
             double phiInterior = p.Phi[interior];
 
-            double sigmaInterior = XMath.Max(p.Conductivity[interior], 0.0);
+            const double eps = 1e-12;
+            double sigmaInterior = XMath.Max(p.Conductivity[interior], eps);
             double sigmaGhost = p.Conductivity[ghost];
-
-            if (sigmaInterior <= 0.0 && sigmaGhost <= 0.0)
-                return;
-
-            if (sigmaGhost <= 0.0)
+            if (sigmaGhost <= eps)
             {
-                sigmaGhost = sigmaInterior > 0.0 ? sigmaInterior : 1.0;
+                sigmaGhost = sigmaInterior;
                 p.Conductivity[ghost] = sigmaGhost;
             }
-            double eps = 1e-12;
-            double sigmaAvg = 2.0 / (1.0 / Math.Max(eps, sigmaInterior) + 1.0 / Math.Max(eps, sigmaGhost));
-            if (sigmaAvg <= 0.0)
-                return;
 
-            // Relation (c) (Gebäck & Heintz): φ_g = φ_i − (j_n^LU Δx_LU)/σ_avg^LU at the half-link ghost.
-            // Flux array stores j_n in LU so insulating walls (j_n = 0) reduce to classic bounce-back.
-            double dx = p.DeltaX;
-            double phiGhost = phiInterior - (jn * dx) / sigmaAvg;
+            double sigmaAvg = 2.0 / (1.0 / sigmaInterior + 1.0 / sigmaGhost);
+            double phiGhost = phiInterior - (jn * p.DeltaX) / sigmaAvg; // Relation (c) with harmonic σ_avg.
 
             int baseInterior = interior * 9;
             int baseGhost = ghost * 9;
-
-            double nonEquilibrium = p.Fi[baseInterior + direction] - p.Weights[direction] * phiInterior;
 
             for (int k = 0; k < 9; k++)
             {
@@ -1262,8 +1196,10 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 p.Fi[baseGhost + k] = eq;
             }
 
-            int opposite = p.Opposite[direction];
-            p.Fi[baseGhost + opposite] = p.Weights[opposite] * phiGhost + nonEquilibrium;
+            int incomingDir = p.Opposite[direction];
+            double feqGhostIncoming = p.Weights[incomingDir] * phiGhost;
+            double nonEqInteriorIncoming = p.Fi[baseInterior + incomingDir] - p.Weights[incomingDir] * phiInterior;
+            p.Fi[baseGhost + incomingDir] = feqGhostIncoming - nonEqInteriorIncoming;
             p.Phi[ghost] = phiGhost;
         }
 
@@ -1294,11 +1230,10 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
 #if DEBUG
         /// <summary>
-        /// Debug-only regression test: verifies that CPU and CUDA solvers produce identical potentials for a
-        /// uniform circular domain when physical inputs are converted through <see cref="LBUnitConverter"/>.
-        /// Also checks flux closure in physical units.  Intended to be invoked from debugger watch windows.
+        /// Debug-only acceptance test that validates current closure and CPU↔CUDA equivalence on a uniform disk
+        /// while toggling diagonal boundary links.  Invoke from a debugger or immediate window when needed.
         /// </summary>
-        internal static void AssertCpuCudaConsistency_UniformDisk()
+        internal static void Test_UniformDisk_CurrentClosure_And_CPUeqCUDA()
         {
             const int nx = 33;
             const double lxPhys = 0.3;      // [m]
@@ -1308,11 +1243,43 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 
             LBUnitConverter.Configure(lxPhys, nx, sigmaPhys, deltaTPhys, inputsArePhysical: true);
 
-            static (LBMGrid Grid, LBMBoundaryCondition Boundary) CreateSetup()
+            (LBMGrid Grid, LBMBoundaryCondition Boundary) CreateSetup()
             {
                 var grid = new LBMGrid(nx, nx);
                 grid.ApplyCircularDomain((nx - 1) / 2.0, (nx - 1) / 2.0, (nx - 3) / 2.0);
 
+                var interior = grid.GetElements().Cast<LBMElement>()
+                    .Where(e => !e.IsWall && !e.GhostElement)
+                    .ToList();
+
+                var north = interior
+                    .Where(e => e.Neighbors[2]?.GhostElement == true)
+                    .OrderBy(e => grid.ToLattice(e.Id).x)
+                    .ToList();
+                var south = interior
+                    .Where(e => e.Neighbors[4]?.GhostElement == true)
+                    .OrderBy(e => grid.ToLattice(e.Id).x)
+                    .ToList();
+
+                if (north.Count == 0 || south.Count == 0)
+                    throw new InvalidOperationException("Circular test domain lacks boundary cells in required directions.");
+
+                var drive = north[north.Count / 2];
+                var sink = south[south.Count / 2];
+
+                var electrodes = new List<LBMElectrode>
+                {
+                    new LBMElectrode(id: 0, gridId: drive.Id, current: driveCurrent, potential: 0.0, contactImpedance: 0.0, isExcitation: true, isGround: false),
+                    new LBMElectrode(id: 1, gridId: sink.Id, current: -driveCurrent, potential: 0.0, contactImpedance: 0.0, isExcitation: false, isGround: true)
+                };
+
+                grid.SetElectrodes(electrodes);
+                var bc = new LBMBoundaryCondition(new List<LBMElectrode>(electrodes), requireDrivePair: false);
+                return (grid, bc);
+            }
+
+            void PopulateUniformConductivity(LBMGrid grid)
+            {
                 var conductivity = grid.GetConductivityDistribution();
                 foreach (var element in grid.GetElements().Cast<LBMElement>())
                 {
@@ -1324,154 +1291,101 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 }
 
                 grid.UpdateGhostConductivityFromNeighbors();
+            }
 
-                var interior = grid.GetElements().Cast<LBMElement>()
-                    .Where(e => !e.IsWall && !e.GhostElement)
-                    .ToList();
+            void ValidateFlux(LBMGrid grid, LBMBoundaryCondition bc)
+            {
+                var elements = grid.GetElements().Cast<LBMElement>().ToList();
+                var lookup = elements
+                    .Select((element, idx) => new { element.Id, idx })
+                    .ToDictionary(item => item.Id, item => item.idx);
 
-                var topBoundary = interior
-                    .Where(e => e.Neighbors[2]?.GhostElement == true)
-                    .OrderBy(e => grid.ToLattice(e.Id).x)
-                    .ToList();
+                var (runtimeElectrodes, _) = BuildRuntimeElectrodeData(grid, bc, elements, lookup);
+                var topology = grid.BoundaryTopology;
+                var fluxPerLink = ComputeFluxPerLink(topology.Links, topology.LinksByInterior, runtimeElectrodes);
 
-                if (topBoundary.Count < 2)
-                    throw new InvalidOperationException("Domain does not expose two adjacent boundary nodes.");
-
-                int mid = Math.Max(0, topBoundary.Count / 2 - 1);
-                var drive = topBoundary[mid];
-                var returnElectrode = topBoundary[mid + 1];
-
-                var electrodes = new List<LBMElectrode>
+                foreach (var group in runtimeElectrodes.GroupBy(e => e.ElectrodeId))
                 {
-                    new LBMElectrode(id: 0, gridId: drive.Id, current: driveCurrent, potential: 0.0, contactImpedance: 0.0, isExcitation: true, isGround: false),
-                    new LBMElectrode(id: 1, gridId: returnElectrode.Id, current: -driveCurrent, potential: 0.0, contactImpedance: 0.0, isExcitation: false, isGround: true)
-                };
+                    var seen = new HashSet<int>();
+                    double netCurrent = 0.0;
 
-                grid.SetElectrodes(electrodes);
-                var bc = new LBMBoundaryCondition(new List<LBMElectrode>(electrodes), requireDrivePair: false);
-                return (grid, bc);
-            }
-
-            var (cpuGrid, cpuBoundary) = CreateSetup();
-            var solverCpu = new LatticeBoltzmannSolver(4000, 1e-12, 50, useCuda: false);
-            var cpuResult = solverCpu.SolveForward(cpuGrid, cpuBoundary);
-
-            PotentialDistribution? gpuResult;
-            try
-            {
-                var (gpuGrid, gpuBoundary) = CreateSetup();
-                var solverGpu = new LatticeBoltzmannSolver(4000, 1e-12, 50, useCuda: true);
-                gpuResult = solverGpu.SolveForward(gpuGrid, gpuBoundary);
-            }
-            catch (InvalidOperationException ex) when (ex.Message.Contains("CUDA"))
-            {
-                return; // Skip the assertion when CUDA is unavailable in the debug environment.
-            }
-
-            var cpuPotentials = cpuResult.Potentials;
-            var gpuPotentials = gpuResult!.Potentials;
-
-            double maxDiff = 0.0;
-            foreach (var element in cpuGrid.GetElements().Cast<LBMElement>())
-            {
-                if (element.IsWall || element.GhostElement)
-                    continue;
-
-                double diff = Math.Abs(cpuPotentials[element.Id] - gpuPotentials[element.Id]);
-                maxDiff = Math.Max(maxDiff, diff);
-            }
-
-            Debug.Assert(maxDiff < 1e-10, $"CPU/CUDA mismatch exceeds tolerance: {maxDiff:G3}");
-
-            var elements = cpuGrid.GetElements().Cast<LBMElement>().ToList();
-            var elementIndexLookup = elements
-                .Select((element, idx) => new { element.Id, idx })
-                .ToDictionary(item => item.Id, item => item.idx);
-
-            var boundaryTopology = cpuGrid.BoundaryTopology;
-            var boundaryLinks = boundaryTopology.Links;
-            var linksByInterior = boundaryTopology.LinksByInterior;
-
-            var gridElectrodes = cpuGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
-            var bcElectrodes = cpuBoundary.GetElectrodes().Cast<LBMElectrode>().ToList();
-            var runtimeElectrodes = new List<ElectrodeRuntimeData>();
-            var processed = new HashSet<int>();
-
-            var gridElectrodesById = gridElectrodes.ToDictionary(e => e.Id, e => e);
-            var gridElectrodesByGridId = gridElectrodes.ToDictionary(e => e.GridId, e => e);
-
-            void AddRuntimeElectrode(LBMElectrode source, LBMElectrode? fallback)
-            {
-                if (!elementIndexLookup.TryGetValue(source.GridId, out int idx))
-                    return;
-
-                var element = elements[idx];
-
-                // Remap wall/ghost electrodes to a neighboring interior cell if possible.
-                if (element.IsWall || element.GhostElement)
-                {
-                    var interiorNeighbor = element.Neighbors.FirstOrDefault(n => n != null && !n.IsWall && !n.GhostElement);
-                    if (interiorNeighbor != null && elementIndexLookup.TryGetValue(interiorNeighbor.Id, out int interiorIdx))
+                    foreach (var electrode in group)
                     {
-                        element = interiorNeighbor;
-                        idx = interiorIdx;
-                    }
-                    else
-                    {
-                        return; // Cannot remap; skip.
-                    }
-                }
-
-                element.IsElectrode = true;
-
-                bool isExcitation = source.IsExcitation || (fallback?.IsExcitation ?? false);
-                bool isGround = source.IsGround || (fallback?.IsGround ?? false);
-                double current = double.IsNaN(source.Current) ? (fallback?.Current ?? 0.0) : source.Current;
-                int electrodeId = source.Id >= 0 ? source.Id : (fallback?.Id ?? source.GridId);
-
-                runtimeElectrodes.Add(new ElectrodeRuntimeData(electrodeId, idx, element, current, isExcitation, isGround));
-                processed.Add(source.GridId);
-            }
-
-            foreach (var bcElectrode in bcElectrodes)
-            {
-                gridElectrodesById.TryGetValue(bcElectrode.Id, out var fallbackById);
-                gridElectrodesByGridId.TryGetValue(bcElectrode.GridId, out var fallbackByGrid);
-                AddRuntimeElectrode(bcElectrode, fallbackById ?? fallbackByGrid);
-            }
-
-            foreach (var gridElectrode in gridElectrodes)
-            {
-                if (!processed.Contains(gridElectrode.GridId))
-                    AddRuntimeElectrode(gridElectrode, null);
-            }
-
-            var fluxPerLink = ComputeFluxPerLink(boundaryLinks, linksByInterior, runtimeElectrodes);
-
-            foreach (var group in runtimeElectrodes.GroupBy(e => e.ElectrodeId))
-            {
-                var seen = new HashSet<int>();
-                double netCurrentPhys = 0.0;
-
-                foreach (var electrode in group)
-                {
-                    if (!linksByInterior.TryGetValue(electrode.ElementIndex, out var perCell))
-                        continue;
-
-                    foreach (int linkIndex in perCell)
-                    {
-                        if (!seen.Add(linkIndex))
+                        if (!topology.LinksByInterior.TryGetValue(electrode.ElementIndex, out var perCell))
                             continue;
 
-                        double jLu = fluxPerLink[linkIndex];
-                        double jPhys = jLu * (LBUnitConverter.DeltaXPhys / LBUnitConverter.DeltaTPhys);
-                        netCurrentPhys += jPhys * LBUnitConverter.LinkMeasurePhys_Axis();
-                    }
-                }
+                        foreach (int linkIndex in perCell)
+                        {
+                            if (!seen.Add(linkIndex))
+                                continue;
 
-                double expected = group.Sum(e => e.Current);
-                double relError = Math.Abs(netCurrentPhys - expected) / Math.Max(1.0, Math.Abs(expected));
-                Debug.Assert(relError < 1e-12, $"Flux closure violated: expected {expected:G6}, got {netCurrentPhys:G6}");
+                            double deltaS = LBUnitConverter.InputsArePhysical
+                                ? topology.Links[linkIndex].InterfaceLengthPhys
+                                : topology.Links[linkIndex].InterfaceLengthLU;
+                            double fluxDensity = fluxPerLink[linkIndex];
+                            if (LBUnitConverter.InputsArePhysical)
+                                fluxDensity *= LBUnitConverter.DeltaXPhys / LBUnitConverter.DeltaTPhys;
+                            netCurrent += fluxDensity * deltaS;
+                        }
+                    }
+
+                    double expected = group.Sum(e => e.Current);
+                    double tol = LBUnitConverter.InputsArePhysical
+                        ? Math.Max(1e-12, Math.Abs(expected) * 1e-10)
+                        : 1e-12;
+
+                    Debug.Assert(Math.Abs(netCurrent - expected) <= tol,
+                        $"Flux closure mismatch for electrode {group.Key} (diagonals {(LBMGrid.UseDiagonalBoundaryLinks ? "on" : "off")}): expected {expected:G6}, got {netCurrent:G6}.");
+                }
+            }
+
+            foreach (bool useDiagonals in new[] { true, false })
+            {
+                bool previousToggle = LBMGrid.UseDiagonalBoundaryLinks;
+                try
+                {
+                    LBMGrid.UseDiagonalBoundaryLinks = useDiagonals;
+
+                    var (cpuGrid, cpuBoundary) = CreateSetup();
+                    PopulateUniformConductivity(cpuGrid);
+                    ValidateFlux(cpuGrid, cpuBoundary);
+
+                    var solverCpu = new LatticeBoltzmannSolver(4000, 1e-12, 50, useCuda: false);
+                    var cpuResult = solverCpu.SolveForward(cpuGrid, cpuBoundary);
+
+                    PotentialDistribution? gpuResult = null;
+                    try
+                    {
+                        var (gpuGrid, gpuBoundary) = CreateSetup();
+                        PopulateUniformConductivity(gpuGrid);
+                        var solverGpu = new LatticeBoltzmannSolver(4000, 1e-12, 50, useCuda: true);
+                        gpuResult = solverGpu.SolveForward(gpuGrid, gpuBoundary);
+                    }
+                    catch (InvalidOperationException ex) when (ex.Message.Contains("CUDA"))
+                    {
+                        continue; // CUDA unavailable in this debug session.
+                    }
+
+                    var cpuPotentials = cpuResult.Potentials;
+                    var gpuPotentials = gpuResult!.Potentials;
+                    double maxDiff = 0.0;
+
+                    foreach (var element in cpuGrid.GetElements().Cast<LBMElement>())
+                    {
+                        if (element.IsWall || element.GhostElement)
+                            continue;
+
+                        double diff = Math.Abs(cpuPotentials[element.Id] - gpuPotentials[element.Id]);
+                        maxDiff = Math.Max(maxDiff, diff);
+                    }
+
+                    Debug.Assert(maxDiff < 1e-10,
+                        $"CPU/CUDA mismatch ({(useDiagonals ? "diagonals" : "axis only")}): Δφ_max = {maxDiff:G3}");
+                }
+                finally
+                {
+                    LBMGrid.UseDiagonalBoundaryLinks = previousToggle;
+                }
             }
         }
 #endif

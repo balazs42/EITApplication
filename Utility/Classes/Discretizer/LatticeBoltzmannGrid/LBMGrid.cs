@@ -6,6 +6,7 @@ using Utility.Classes.Application;
 using Utility.Classes.Discretizer.GraphMesh;
 using Utility.Classes.Factories;
 using Utility.Classes.Reconstruction.VirtualElectrodes;
+using Utility.Classes.Solvers.LatticeBoltzmannSolver;
 
 namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
 {
@@ -13,6 +14,12 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
     {
         private const int _defaultNx = 15;
         private const int _defaultNy = 15;
+
+        /// <summary>
+        /// Toggle diagonal boundary links.  Keeping this mutable (rather than const) lets
+        /// debug scenarios disable diagonals when investigating stability regressions.
+        /// </summary>
+        internal static bool UseDiagonalBoundaryLinks = true;
 
         private static readonly (int cx, int cy)[] NeighborDirections =
         {
@@ -605,6 +612,12 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
 
             var links = new List<LBMBoundaryLink>();
             var perInterior = new Dictionary<int, List<int>>();
+            var existing = new HashSet<(int interior, int direction)>();
+
+            double deltaX_LU = LatticeBoltzmannConstants.DeltaX;
+            double deltaXPhys = LBUnitConverter.DeltaXPhys;
+            if (double.IsNaN(deltaXPhys) || deltaXPhys <= 0.0)
+                deltaXPhys = deltaX_LU; // Fall back to LU spacing when physical scaling is undefined.
 
             for (int idx = 0; idx < _elements.Count; idx++)
             {
@@ -614,6 +627,10 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
 
                 for (int dir = 1; dir < NeighborDirections.Length; dir++)
                 {
+                    bool isDiagonal = dir >= 5;
+                    if (isDiagonal && !UseDiagonalBoundaryLinks)
+                        continue; // Optional shortcut for regression testing without oblique links.
+
                     var neighbor = element.Neighbors[dir];
                     if (neighbor is null || !neighbor.GhostElement)
                         continue;
@@ -621,8 +638,15 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                     if (!idToIndex.TryGetValue(neighbor.Id, out int ghostIndex))
                         continue;
 
+                    if (!existing.Add((idx, dir)))
+                        continue; // Deduplicate within each (interior, direction) pair.
+
+                    double metricScale = isDiagonal ? Math.Sqrt(2.0) : 1.0;
+                    double interfaceLu = deltaX_LU * metricScale;
+                    double interfacePhys = deltaXPhys * metricScale;
+
                     int linkIndex = links.Count;
-                    links.Add(new LBMBoundaryLink(idx, ghostIndex, dir));
+                    links.Add(new LBMBoundaryLink(idx, ghostIndex, dir, interfaceLu, interfacePhys));
 
                     if (!perInterior.TryGetValue(idx, out var perCell))
                     {

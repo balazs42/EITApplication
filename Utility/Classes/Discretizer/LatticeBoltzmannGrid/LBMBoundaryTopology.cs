@@ -5,16 +5,35 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
 {
     public readonly struct LBMBoundaryLink
     {
-        public LBMBoundaryLink(int interiorIndex, int ghostIndex, int direction)
+        public LBMBoundaryLink(
+            int interiorIndex,
+            int ghostIndex,
+            int direction,
+            double interfaceLengthLu,
+            double interfaceLengthPhys)
         {
             InteriorIndex = interiorIndex;
             GhostIndex = ghostIndex;
             Direction = direction;
+            InterfaceLengthLU = interfaceLengthLu;
+            InterfaceLengthPhys = interfaceLengthPhys;
         }
 
         public int InteriorIndex { get; }
         public int GhostIndex { get; }
         public int Direction { get; }
+
+        /// <summary>
+        /// Interface measure Δs expressed in lattice units (LU).  Axis links carry Δx
+        /// while diagonal links carry √2 Δx so that Neumann fluxes integrate correctly.
+        /// </summary>
+        public double InterfaceLengthLU { get; }
+
+        /// <summary>
+        /// Interface measure Δs expressed in physical units (SI).  Falls back to the LU
+        /// value when the simulation operates entirely in lattice space.
+        /// </summary>
+        public double InterfaceLengthPhys { get; }
     }
 
     public sealed class LBMBoundaryTopology
