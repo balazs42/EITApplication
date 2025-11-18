@@ -187,8 +187,7 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                 if (!cell.GhostElement)
                     continue;
 
-                double sigmaSum = 0.0;
-                int sigmaCount = 0;
+                double mirrored = double.NaN;
 
                 for (int dir = 1; dir < NeighborDirections.Length; dir++)
                 {
@@ -200,13 +199,12 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                     if (!double.IsFinite(sigmaNeighbor) || sigmaNeighbor <= 0.0)
                         continue;
 
-                    sigmaSum += sigmaNeighbor;
-                    sigmaCount++;
+                    mirrored = sigmaNeighbor;
+                    break; // Mirror the live interior value touching this ghost cell.
                 }
 
-                double mirrored = sigmaCount > 0 ? sigmaSum / sigmaCount : cell.Conductivity;
                 if (!double.IsFinite(mirrored) || mirrored <= 0.0)
-                    mirrored = 1.0;
+                    mirrored = 1.0; // Fallback to unity if no valid neighbour was found.
 
                 cell.Conductivity = mirrored;
                 ConductivityDistribution.Conductivities[cell.Id] = mirrored;

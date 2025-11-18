@@ -8,7 +8,7 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
     /// Each link tracks the owning electrode (if any) together with the geometric interface
     /// measure Δs expressed both in lattice units (LU) and in physical SI units.
     /// </summary>
-    internal readonly struct BoundaryLink
+    internal struct BoundaryLink
     {
         public BoundaryLink(
             int interiorIndex,
@@ -26,22 +26,22 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
             InterfaceLengthPhys = interfaceLengthPhys;
         }
 
-        public int InteriorIndex { get; }
-        public int GhostIndex { get; }
-        public int Direction { get; }
-        public int ElectrodeId { get; }
+        public int InteriorIndex;
+        public int GhostIndex;
+        public int Direction;
+        public int ElectrodeId;
 
         /// <summary>
         /// Interface measure Δs expressed in lattice units.  Diagonal links are scaled by √2 to
         /// reflect the longer intersection length with the physical boundary.
         /// </summary>
-        public double InterfaceLengthLU { get; }
+        public double InterfaceLengthLU;
 
         /// <summary>
         /// Interface measure Δs expressed in SI units.  The value mirrors the LU metric via the
         /// configured Δx_phys so that flux densities integrate consistently in either unit system.
         /// </summary>
-        public double InterfaceLengthPhys { get; }
+        public double InterfaceLengthPhys;
     }
 
     internal sealed class LBMBoundaryTopology

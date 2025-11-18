@@ -1,6 +1,6 @@
 /// <summary>
 /// Lattice Boltzmann constants expressed in lattice units (LU).
-/// Caller code is responsible for mapping between LU and any physical units.
+/// Kernels assume Δx_LU = Δt_LU = 1 and c_s^2 = 1/3; conversions to/from SI live in LBUnitConverter.
 /// </summary>
 namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 {
