@@ -87,10 +87,5 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         public static double FluxDensityPhysToLU(double jPhys)
             => jPhys * (DeltaTPhys / DeltaXPhys);
 
-        /// <summary>
-        /// Axis-aligned interface measure in physical units (Δs_phys = Δx_phys).
-        /// Extend with √2 Δx_phys for diagonals once oblique faces are supported.
-        /// </summary>
-        public static double LinkMeasurePhys_Axis() => DeltaXPhys;
     }
 }
