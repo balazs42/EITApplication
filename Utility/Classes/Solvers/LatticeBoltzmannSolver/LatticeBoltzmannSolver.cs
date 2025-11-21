@@ -1137,7 +1137,15 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                     ref double bounceDestination = ref fiNext[baseIndex + opp];
                     Atomic.Exchange(ref bounceDestination, value); // Atomic add for multiple bounces
                 }
-                // If neighborIndex < 0, distribution leaves domain (absorbed at boundary)
+                // If neighbourIndex < 0, we hit a physical boundary.  Mirror the
+                // population just like the CPU path does when neighbour == null so
+                // mass is conserved and CUDA/CPU solutions stay in lockstep.
+                else if (neighborIndex < 0)
+                {
+                    int opp = opposite[k];
+                    ref double bounceDestination = ref fiNext[baseIndex + opp];
+                    Atomic.Exchange(ref bounceDestination, value);
+                }
             }
         }
 
