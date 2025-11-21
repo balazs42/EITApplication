@@ -259,7 +259,7 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                         if (!double.IsFinite(sigma) || sigma <= 0.0)
                             sigma = 1.0;
                         cell.Conductivity = sigma;
-                        ConductivityDistribution?.Conductivities[cell.Id] = sigma;
+                        ConductivityDistribution.Conductivities[cell.Id] = sigma;
                     }
                 }
             }
