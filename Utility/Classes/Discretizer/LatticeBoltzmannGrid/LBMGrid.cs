@@ -421,6 +421,7 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
                     _interiorMask[ex, ey] = true;
             }
 
+            SnapDiagonalElectrodesToGhostLayer();
             UpdateGhostLayer();
         }
 
@@ -676,6 +677,118 @@ namespace Utility.Classes.Discretizer.LatticeBoltzmannGrid
             double cx = (Nx - 1) / 2.0;
             double cy = (Ny - 1) / 2.0;
             return NormalizeAngle(Math.Atan2(y - cy, x - cx));
+        }
+
+        private void SnapDiagonalElectrodesToGhostLayer()
+        {
+            if (_electrodes.Count == 0)
+                return;
+
+            var moved = new List<(int ElectrodeId, int From, int To)>();
+
+            foreach (var electrode in _electrodes.Cast<LBMElectrode>())
+            {
+                var (ex, ey) = ToLattice(electrode.GridId);
+                if (ex < 0 || ex >= Nx || ey < 0 || ey >= Ny)
+                    continue;
+
+                var currentCell = _grid[ex, ey];
+                if (!IsDiagonalBoundaryContact(currentCell))
+                    continue;
+
+                var target = FindNearestCardinalBoundaryCell(ex, ey);
+                if (target is null)
+                    continue;
+
+                var (tx, ty) = ToLattice(target.Id);
+
+                currentCell.IsElectrode = false;
+                currentCell.ElectrodeId = -1;
+
+                electrode.GridId = target.Id;
+                target.IsElectrode = true;
+                target.ElectrodeId = electrode.Id;
+
+                if (_interiorMask != null)
+                {
+                    _interiorMask[ex, ey] = !currentCell.IsWall;
+                    _interiorMask[tx, ty] = true;
+                }
+
+                moved.Add((electrode.Id, currentCell.Id, target.Id));
+            }
+
+            foreach (var (electrodeId, from, to) in moved)
+                Workspace.AddLogMessage("LBMGrid", $"Snapped diagonal electrode {electrodeId} from cell {from} to boundary cell {to}.");
+        }
+
+        private bool IsDiagonalBoundaryContact(LBMElement cell)
+        {
+            bool touchesCardinalGhost = false;
+            bool touchesDiagonalGhost = false;
+
+            for (int dir = 1; dir < NeighborDirections.Length; dir++)
+            {
+                var neighbor = cell.Neighbors[dir];
+                if (neighbor is null || !neighbor.GhostElement)
+                    continue;
+
+                if (dir <= 4)
+                    touchesCardinalGhost = true;
+                else
+                    touchesDiagonalGhost = true;
+            }
+
+            return touchesDiagonalGhost && !touchesCardinalGhost;
+        }
+
+        private LBMElement? FindNearestCardinalBoundaryCell(int startX, int startY)
+        {
+            var visited = new bool[Nx, Ny];
+            var queue = new Queue<(int x, int y)>();
+
+            void Enqueue(int x, int y)
+            {
+                if (x < 0 || x >= Nx || y < 0 || y >= Ny || visited[x, y])
+                    return;
+
+                visited[x, y] = true;
+                queue.Enqueue((x, y));
+            }
+
+            Enqueue(startX, startY);
+
+            while (queue.Count > 0)
+            {
+                var (x, y) = queue.Dequeue();
+                var cell = _grid[x, y];
+
+                if (IsCardinalBoundaryCell(cell))
+                    return cell;
+
+                for (int dir = 1; dir <= 4; dir++)
+                {
+                    var (dx, dy) = NeighborDirections[dir];
+                    Enqueue(x + dx, y + dy);
+                }
+            }
+
+            return null;
+        }
+
+        private bool IsCardinalBoundaryCell(LBMElement cell)
+        {
+            if (cell.IsWall || cell.GhostElement)
+                return false;
+
+            for (int dir = 1; dir <= 4; dir++)
+            {
+                var neighbor = cell.Neighbors[dir];
+                if (neighbor != null && neighbor.GhostElement)
+                    return true;
+            }
+
+            return false;
         }
 
         private static double NormalizeAngle(double angle)
