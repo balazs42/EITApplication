@@ -116,7 +116,7 @@ public static class ReconstructionVideoRenderer
     public static void SaveDistributionSnapshot(
         string directory,
         string fileName,
-        IDiscretization discretization,
+        IDiscretization? fallbackDiscretization,
         ReconstructionFrame frame,
         ReconstructionResult? context,
         DistributionSnapshotType snapshotType,
@@ -140,6 +140,10 @@ public static class ReconstructionVideoRenderer
             DistributionSnapshotType.Initial => DistributionSection.Initial,
             _ => DistributionSection.Reconstructed
         };
+
+        var discretization = context?.Discretization ?? fallbackDiscretization
+            ?? throw new ArgumentNullException(nameof(fallbackDiscretization),
+                "A discretization is required to render reconstruction distributions.");
 
         using var contentImage = RenderDistributionImage(section, discretization, frame, context, contentSize, mode);
         using var colorbarImage = RenderColorbarImage(section, discretization, frame, context, colorbarSize, mode);
@@ -215,7 +219,7 @@ public static class ReconstructionVideoRenderer
     [Obsolete]
     public static SKImage RenderFrameSnapshot(ReconstructionFrame frame,
                                               ReconstructionResult? context,
-                                              IDiscretization discretization,
+                                              IDiscretization? fallbackDiscretization,
                                               IReadOnlyList<double> residualHistory,
                                               int residualCount,
                                               SKSizeI distributionSize,
@@ -223,6 +227,10 @@ public static class ReconstructionVideoRenderer
                                               SKSizeI residualSize,
                                               PotentialDisplayMode mode)
     {
+        var discretization = context?.Discretization ?? fallbackDiscretization
+            ?? throw new ArgumentNullException(nameof(fallbackDiscretization),
+                "A discretization is required to render reconstruction frames.");
+
         int cellWidth = Math.Max(distributionSize.Width, 1);
         int cellHeight = Math.Max(distributionSize.Height, 1);
         int colorbarHeight = Math.Max(colorbarSize.Height, 1);

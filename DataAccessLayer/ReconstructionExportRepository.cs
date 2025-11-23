@@ -33,9 +33,11 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
             var originalMetadata = CreateRangeMetadata(latestSnapshot.Result.OriginalConductivityDistribution);
             AppendSetupMetadata(originalMetadata, request.MeasurementPattern, request.Configuration);
 
+            var originalDiscretization = ResolveDiscretization(latestSnapshot.Result, request.Discretization);
+
             ReconstructionVideoRenderer.SaveDistributionSnapshot(request.TargetDirectory,
                                      "original_distribution.png",
-                                     request.Discretization,
+                                     originalDiscretization,
                                      GetFrameForResult(latestSnapshot.Result, request.RenderFrame),
                                      latestSnapshot.Result,
                                      ReconstructionVideoRenderer.DistributionSnapshotType.Original,
@@ -56,9 +58,11 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
             }
             AppendSetupMetadata(initialMetadata, request.MeasurementPattern, request.Configuration);
 
+            var initialDiscretization = ResolveDiscretization(initialResult, request.Discretization);
+
             ReconstructionVideoRenderer.SaveDistributionSnapshot(request.TargetDirectory,
                                      "initial_distribution.png",
-                                     request.Discretization,
+                                     initialDiscretization,
                                      GetFrameForResult(firstSnapshot.Result, request.RenderFrame),
                                      initialResult,
                                      ReconstructionVideoRenderer.DistributionSnapshotType.Initial,
@@ -79,9 +83,11 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
             finalMetadata.Add(("Correlation", FormatDouble(latestSnapshot.Correlation)));
             AppendSetupMetadata(finalMetadata, request.MeasurementPattern, request.Configuration);
 
+            var latestDiscretization = ResolveDiscretization(latestSnapshot.Result, request.Discretization);
+
             ReconstructionVideoRenderer.SaveDistributionSnapshot(request.TargetDirectory,
                                      "reconstructed_distribution_latest.png",
-                                     request.Discretization,
+                                     latestDiscretization,
                                      GetFrameForResult(latestSnapshot.Result, request.RenderFrame),
                                      latestSnapshot.Result,
                                      ReconstructionVideoRenderer.DistributionSnapshotType.Reconstructed,
@@ -141,7 +147,7 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
     }
 
     private static void SaveBestMetricSnapshots(string directory,
-                                                IDiscretization discretization,
+                                                IDiscretization fallbackDiscretization,
                                                 ReconstructionFrame fallbackFrame,
                                                 IReadOnlyList<ReconstructionIterationSnapshot> snapshots,
                                                 PotentialDisplayMode mode,
@@ -159,6 +165,8 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
 
             if (maeSnapshot.Result != null)
             {
+                var snapshotDiscretization = maeSnapshot.Result.Discretization ?? fallbackDiscretization;
+
                 var metrics = maeSnapshot.Metrics!.Value;
                 var metadata = new List<(string, string)>
                 {
@@ -174,7 +182,7 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
 
                 ReconstructionVideoRenderer.SaveDistributionSnapshot(directory,
                                          "best_mae_distribution.png",
-                                         discretization,
+                                         snapshotDiscretization,
                                          GetFrameForResult(maeSnapshot.Result, fallbackFrame),
                                          maeSnapshot.Result,
                                          ReconstructionVideoRenderer.DistributionSnapshotType.Reconstructed,
@@ -190,6 +198,8 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
 
             if (ssimSnapshot.Result != null)
             {
+                var snapshotDiscretization = ssimSnapshot.Result.Discretization ?? fallbackDiscretization;
+
                 var metrics = ssimSnapshot.Metrics!.Value;
                 var metadata = new List<(string, string)>
                 {
@@ -205,7 +215,7 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
 
                 ReconstructionVideoRenderer.SaveDistributionSnapshot(directory,
                                          "best_ssim_distribution.png",
-                                         discretization,
+                                         snapshotDiscretization,
                                          GetFrameForResult(ssimSnapshot.Result, fallbackFrame),
                                          ssimSnapshot.Result,
                                          ReconstructionVideoRenderer.DistributionSnapshotType.Reconstructed,
@@ -221,6 +231,8 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
 
         if (residualSnapshot.Result != null)
         {
+            var snapshotDiscretization = residualSnapshot.Result.Discretization ?? fallbackDiscretization;
+
             var metadata = new List<(string, string)>
             {
                 ("Iteration", residualSnapshot.Iteration.ToString(CultureInfo.InvariantCulture)),
@@ -240,7 +252,7 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
 
             ReconstructionVideoRenderer.SaveDistributionSnapshot(directory,
                                      "best_residual_distribution.png",
-                                     discretization,
+                                     snapshotDiscretization,
                                      GetFrameForResult(residualSnapshot.Result, fallbackFrame),
                                      residualSnapshot.Result,
                                      ReconstructionVideoRenderer.DistributionSnapshotType.Reconstructed,
@@ -256,6 +268,8 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
 
         if (correlationSnapshot.Result != null)
         {
+            var snapshotDiscretization = correlationSnapshot.Result.Discretization ?? fallbackDiscretization;
+
             var metadata = new List<(string, string)>
             {
                 ("Iteration", correlationSnapshot.Iteration.ToString(CultureInfo.InvariantCulture)),
@@ -275,7 +289,7 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
 
             ReconstructionVideoRenderer.SaveDistributionSnapshot(directory,
                                      "best_correlation_distribution.png",
-                                     discretization,
+                                     snapshotDiscretization,
                                      GetFrameForResult(correlationSnapshot.Result, fallbackFrame),
                                      correlationSnapshot.Result,
                                      ReconstructionVideoRenderer.DistributionSnapshotType.Reconstructed,
@@ -376,6 +390,9 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
 
     private static ReconstructionFrame GetFrameForResult(ReconstructionResult result, ReconstructionFrame fallback)
         => result.Frames.LastOrDefault() ?? fallback;
+
+    private static IDiscretization ResolveDiscretization(ReconstructionResult result, IDiscretization fallback)
+        => result.Discretization ?? fallback;
 
     private static List<(string Label, string Value)> CreateRangeMetadata(ConductivityDistribution distribution)
     {
