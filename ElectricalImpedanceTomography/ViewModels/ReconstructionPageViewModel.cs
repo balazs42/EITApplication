@@ -1652,14 +1652,17 @@ namespace ElectricalImpedanceTomography.ViewModels
             if (frames.Count == 0)
                 return VideoExportResult.CreateFailure("No Frames", "There are no reconstruction frames to export.");
 
-            var discretization = Workspace.GetDiscretization();
-            if (discretization == null)
-                return VideoExportResult.CreateFailure("No Mesh", "Unable to determine the discretization for rendering.");
-
             progress?.Report(new VideoExportProgressReport(0.0,
                                                             "Preparing reconstruction frames for video generation..."));
 
             var results = Workspace.GetReconstructionResults().ToList();
+            var fallbackDiscretization = results.Select(r => r.Discretization)
+                                                .FirstOrDefault(d => d != null)
+                                        ?? Workspace.GetDiscretization();
+
+            if (fallbackDiscretization == null)
+                return VideoExportResult.CreateFailure("No Mesh", "Unable to determine the discretization for rendering.");
+
             var residualHistory = results
                 .Select(CalculateResidual)
                 .ToList();
@@ -1715,7 +1718,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
                             using var image = ReconstructionVideoRenderer.RenderFrameSnapshot(frames[i],
                                                                                                context,
-                                                                                               discretization,
+                                                                                               fallbackDiscretization,
                                                                                                residualHistory,
                                                                                                residualCount,
                                                                                                distributionSize,

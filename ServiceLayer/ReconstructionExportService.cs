@@ -31,7 +31,10 @@ public sealed class ReconstructionExportService : IReconstructionExportService
         if (results.Count == 0)
             return Task.FromResult(DataExportResult.CreateFailure("No Results", "There are no reconstruction results to export."));
 
-        var discretization = Workspace.GetDiscretization();
+        var discretization = results.Select(r => r.Discretization)
+                                    .FirstOrDefault(d => d != null)
+                            ?? Workspace.GetDiscretization();
+
         if (discretization == null)
             return Task.FromResult(DataExportResult.CreateFailure("No Mesh", "Unable to determine the discretization for rendering."));
 
