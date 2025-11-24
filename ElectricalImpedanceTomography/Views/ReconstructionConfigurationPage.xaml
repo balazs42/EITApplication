@@ -119,7 +119,7 @@
                      VerticalOptions="Start"/>
 
             <!-- Debug window -->
-            <Border BackgroundColor="#111827" StrokeThickness="1" Stroke="#2C2C3A" CornerRadius="10"
+            <Border BackgroundColor="#111827" StrokeThickness="1" Stroke="#2C2C3A" StrokeShape="RoundRectangle 10"
                     HorizontalOptions="Center" VerticalOptions="End" Margin="0,0,0,20" Padding="12"
                     WidthRequest="420">
                 <VerticalStackLayout Spacing="4">
