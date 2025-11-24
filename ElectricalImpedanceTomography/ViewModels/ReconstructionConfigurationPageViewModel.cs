@@ -1,5 +1,6 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using System;
 using System.Collections.ObjectModel;
 using System.Collections.Generic;
 using System.Linq;
@@ -29,16 +30,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         // Connection rules: when empty, any block can connect to any other block.
         private readonly Dictionary<BlockType, HashSet<BlockType>> _connectionRules = new();
 
-        public ObservableCollection<BlockType> BlockTypes { get; } = new()
-        {
-            BlockType.Initialization,
-            BlockType.Measurement,
-            BlockType.Solver,
-            BlockType.Regularizer,
-            BlockType.ErrorMetric,
-            BlockType.Optimizer,
-            BlockType.PostProcessing
-        };
+        public ObservableCollection<BlockType> BlockTypes { get; } = new(Enum.GetValues<BlockType>());
 
         public ReconstructionConfigurationPageViewModel()
         {
