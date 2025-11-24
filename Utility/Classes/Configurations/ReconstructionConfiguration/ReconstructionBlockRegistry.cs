@@ -3,8 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using Utility.Classes.Application;
 using Utility.Classes.Discretizer;
+using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Factories;
 using Utility.Classes.Measurement;
+using Utility.Classes.Reconstruction.VirtualElectrodes;
 using Utility.Classes.ReconstructionParameters;
 
 namespace Utility.Classes.Configurations.ReconstructionConfiguration
@@ -54,6 +57,21 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
 
         public static ReconstructionBlockDefinition GetDefinition(BlockType type) => Definitions[type];
 
+        private static bool HasFemMesh() => Workspace.GetDiscretization() is FEMMesh;
+
+        private static bool HasLbmGrid() => Workspace.GetDiscretization() is LBMGrid;
+
+        private static List<string> GetSolverOptions()
+        {
+            if (HasFemMesh())
+                return [FriendlyName(nameof(DifferentialEquationSolver.FEM))];
+
+            if (HasLbmGrid())
+                return [FriendlyName(nameof(DifferentialEquationSolver.LBM))];
+
+            return Enum.GetNames(typeof(DifferentialEquationSolver)).Select(FriendlyName).ToList();
+        }
+
         private static IEnumerable<ReconstructionBlockDefinition> CreateDefaultDefinitions()
         {
             yield return new ReconstructionBlockDefinition(
@@ -73,7 +91,10 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
                         },
                         new NumberParameter { Name = "Random Max Conductivity", Key = "rand_max", Value = 1.0, Min = 0.0 },
                         new NumberParameter { Name = "Slight Scaling", Key = "slight_scale", Value = 0.95, Min = 0.0, Max = 1.0, Step = 0.05 },
-                        new NumberParameter { Name = "Random Differing Count", Key = "rand_diff_count", Value = 5, Min = 1, Step = 1 }
+                        new NumberParameter { Name = "Random Differing Count", Key = "rand_diff_count", Value = 5, Min = 1, Step = 1 },
+                        new BoolParameter { Name = "Presolve with CIM", Key = "use_cim", Value = false },
+                        new NumberParameter { Name = "Initialization Current Amplitude", Key = "init_current", Value = 1.0, Min = 0.0 },
+                        new BoolParameter { Name = "Solve in Complex Domain", Key = "init_complex", Value = false }
                     };
                 },
                 (block, target) =>
@@ -81,38 +102,100 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
                     var selected = block.Parameters.OfType<ChoiceParameter>().FirstOrDefault(p => p.Key == "init_method");
                     if (selected != null)
                         target.InitialDistributionType = ParseEnum<InitialDistributionTypes>(selected.SelectedOption);
+
+                    target.UseCurtisImigranMorrowPresolve = block.Parameters
+                        .OfType<BoolParameter>().FirstOrDefault(p => p.Key == "use_cim")?.Value ?? target.UseCurtisImigranMorrowPresolve;
+
+                    target.InitializationCurrentAmplitude = block.Parameters
+                        .OfType<NumberParameter>().FirstOrDefault(p => p.Key == "init_current")?.Value
+                        ?? target.InitializationCurrentAmplitude;
+
+                    target.SolveInitializationInComplexDomain = block.Parameters
+                        .OfType<BoolParameter>().FirstOrDefault(p => p.Key == "init_complex")?.Value
+                        ?? target.SolveInitializationInComplexDomain;
                 });
 
             yield return new ReconstructionBlockDefinition(
                 BlockType.Measurement,
                 "Measurement",
                 "#4ECDC4",
-                () => new List<ConfigurationParameter>
+                () =>
                 {
-                    new ChoiceParameter
-                    {
-                        Name = "Measurement Source",
-                        Key = "measurement_source",
-                        Options = Enum.GetNames(typeof(MeasurementSourceOption)).Select(FriendlyName).ToList(),
-                        SelectedOption = FriendlyName(nameof(MeasurementSourceOption.Simulated))
-                    },
-                    new ChoiceParameter
-                    {
-                        Name = "Electrode Setup",
-                        Key = "electrode_setup",
-                        Options = Enum.GetNames(typeof(ElectrodeMeasurementSetup)).Select(FriendlyName).ToList(),
-                        SelectedOption = FriendlyName(nameof(ElectrodeMeasurementSetup.Active))
-                    },
-                    new BoolParameter { Name = "Use Potential Differences", Key = "use_potential_differences", Value = false },
-                    new BoolParameter { Name = "Apply Measurement Noise", Key = "apply_noise", Value = false },
-                    new ChoiceParameter
+                    var applyNoise = new BoolParameter { Name = "Apply Measurement Noise", Key = "apply_noise", Value = false };
+                    var noiseType = new ChoiceParameter
                     {
                         Name = "Noise Type",
                         Key = "noise_type",
                         Options = Enum.GetNames(typeof(MeasurementNoiseType)).Select(FriendlyName).ToList(),
-                        SelectedOption = FriendlyName(nameof(MeasurementNoiseType.None))
-                    },
-                    new NumberParameter { Name = "Noise Amplitude / dB", Key = "noise_amplitude", Value = 0.0, Min = 0.0, Step = 0.1 }
+                        SelectedOption = FriendlyName(nameof(MeasurementNoiseType.None)),
+                        IsVisible = applyNoise.Value
+                    };
+                    var noiseAmplitude = new NumberParameter
+                    {
+                        Name = "Noise Amplitude / dB",
+                        Key = "noise_amplitude",
+                        Value = 0.0,
+                        Min = 0.0,
+                        Step = 0.1,
+                        IsVisible = applyNoise.Value
+                    };
+
+                    applyNoise.PropertyChanged += (_, args) =>
+                    {
+                        if (args.PropertyName == nameof(BoolParameter.Value))
+                        {
+                            noiseType.IsVisible = applyNoise.Value;
+                            noiseAmplitude.IsVisible = applyNoise.Value;
+                        }
+                    };
+
+                    var useVirtualElectrodes = new BoolParameter
+                    {
+                        Name = "Use Virtual Electrodes",
+                        Key = "use_virtual_electrodes",
+                        Value = false
+                    };
+
+                    var virtualMethod = new ChoiceParameter
+                    {
+                        Name = "Virtual Electrode Method",
+                        Key = "virtual_method",
+                        Options = Enum.GetNames(typeof(VirtualElectrodeMethod)).Select(FriendlyName).ToList(),
+                        SelectedOption = FriendlyName(nameof(VirtualElectrodeMethod.None)),
+                        IsVisible = useVirtualElectrodes.Value
+                    };
+
+                    useVirtualElectrodes.PropertyChanged += (_, args) =>
+                    {
+                        if (args.PropertyName == nameof(BoolParameter.Value))
+                        {
+                            virtualMethod.IsVisible = useVirtualElectrodes.Value;
+                        }
+                    };
+
+                    return new List<ConfigurationParameter>
+                    {
+                        new ChoiceParameter
+                        {
+                            Name = "Measurement Source",
+                            Key = "measurement_source",
+                            Options = Enum.GetNames(typeof(MeasurementSourceOption)).Select(FriendlyName).ToList(),
+                            SelectedOption = FriendlyName(nameof(MeasurementSourceOption.Simulated))
+                        },
+                        new ChoiceParameter
+                        {
+                            Name = "Electrode Setup",
+                            Key = "electrode_setup",
+                            Options = Enum.GetNames(typeof(ElectrodeMeasurementSetup)).Select(FriendlyName).ToList(),
+                            SelectedOption = FriendlyName(nameof(ElectrodeMeasurementSetup.Active))
+                        },
+                        new BoolParameter { Name = "Use Potential Differences", Key = "use_potential_differences", Value = false },
+                        applyNoise,
+                        noiseType,
+                        noiseAmplitude,
+                        useVirtualElectrodes,
+                        virtualMethod
+                    };
                 },
                 (block, target) =>
                 {
@@ -129,30 +212,88 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
                     var noiseAmplitude = block.Parameters.OfType<NumberParameter>().FirstOrDefault(p => p.Key == "noise_amplitude")?.Value ?? 0.0;
                     var applyNoise = block.Parameters.OfType<BoolParameter>().FirstOrDefault(p => p.Key == "apply_noise")?.Value ?? false;
                     target.MeasurementNoiseAmplitude = applyNoise ? noiseAmplitude : 0.0;
+
+                    var virtualElectrodeSettings = target.VirtualElectrodeSettings ?? new VirtualElectrodeSettings();
+                    var useVirtualElectrodes = block.Parameters.OfType<BoolParameter>().FirstOrDefault(p => p.Key == "use_virtual_electrodes")?.Value ?? false;
+                    var virtualMethod = block.Parameters.OfType<ChoiceParameter>().FirstOrDefault(p => p.Key == "virtual_method");
+
+                    virtualElectrodeSettings.UseVirtualElectrodes = useVirtualElectrodes;
+                    virtualElectrodeSettings.Method = useVirtualElectrodes
+                        ? ParseEnum<VirtualElectrodeMethod>(virtualMethod?.SelectedOption ?? FriendlyName(nameof(VirtualElectrodeMethod.None)))
+                        : VirtualElectrodeMethod.None;
+                    target.VirtualElectrodeSettings = virtualElectrodeSettings;
                 });
 
             yield return new ReconstructionBlockDefinition(
                 BlockType.Solver,
                 "Solver",
                 "#06D6A0",
-                () => new List<ConfigurationParameter>
+                () =>
                 {
-                    new ChoiceParameter
+                    var solverOptions = GetSolverOptions();
+                    var solverChoice = new ChoiceParameter
                     {
                         Name = "Differential Equation Solver",
                         Key = "solver_type",
-                        Options = Enum.GetNames(typeof(DifferentialEquationSolver)).Select(FriendlyName).ToList(),
-                        SelectedOption = FriendlyName(nameof(DifferentialEquationSolver.FEM))
-                    },
-                    new ChoiceParameter
+                        Options = solverOptions,
+                        SelectedOption = solverOptions.FirstOrDefault() ?? FriendlyName(nameof(DifferentialEquationSolver.FEM))
+                    };
+
+                    var femOrder = new NumberParameter
                     {
-                        Name = "Numeric Solver",
-                        Key = "numeric_solver",
-                        Options = Enum.GetNames(typeof(NumericSolver)).Select(FriendlyName).ToList(),
-                        SelectedOption = FriendlyName(nameof(NumericSolver.GMRES))
-                    },
-                    new NumberParameter { Name = "FEM Order", Key = "fem_order", Value = 1, Min = 1, Max = 2, Step = 1 },
-                    new NumberParameter { Name = "LBM Relaxation Time (tau)", Key = "lbm_tau", Value = 0.51, Min = 0.50001, Step = 0.01 }
+                        Name = "FEM Order",
+                        Key = "fem_order",
+                        Value = 1,
+                        Min = 1,
+                        Max = 2,
+                        Step = 1,
+                        IsVisible = solverChoice.SelectedOption == FriendlyName(nameof(DifferentialEquationSolver.FEM))
+                    };
+
+                    var lbmDomainSize = new NumberParameter
+                    {
+                        Name = "Physical Domain Size",
+                        Key = "lbm_domain_size",
+                        Value = 1.0,
+                        Min = 0.0001,
+                        Step = 0.1,
+                        IsVisible = solverChoice.SelectedOption == FriendlyName(nameof(DifferentialEquationSolver.LBM))
+                    };
+
+                    var lbmRelaxation = new ChoiceParameter
+                    {
+                        Name = "LBM Relaxation Model",
+                        Key = "lbm_relaxation",
+                        Options = Enum.GetNames(typeof(LatticeBoltzmannRelaxationModel)).Select(FriendlyName).ToList(),
+                        SelectedOption = FriendlyName(nameof(LatticeBoltzmannRelaxationModel.BGK)),
+                        IsVisible = solverChoice.SelectedOption == FriendlyName(nameof(DifferentialEquationSolver.LBM))
+                    };
+
+                    solverChoice.PropertyChanged += (_, args) =>
+                    {
+                        if (args.PropertyName == nameof(ChoiceParameter.SelectedOption))
+                        {
+                            var isFem = solverChoice.SelectedOption == FriendlyName(nameof(DifferentialEquationSolver.FEM));
+                            femOrder.IsVisible = isFem;
+                            lbmDomainSize.IsVisible = !isFem;
+                            lbmRelaxation.IsVisible = !isFem;
+                        }
+                    };
+
+                    return new List<ConfigurationParameter>
+                    {
+                        solverChoice,
+                        new ChoiceParameter
+                        {
+                            Name = "Numeric Solver",
+                            Key = "numeric_solver",
+                            Options = Enum.GetNames(typeof(NumericSolver)).Select(FriendlyName).ToList(),
+                            SelectedOption = FriendlyName(nameof(NumericSolver.GMRES))
+                        },
+                        femOrder,
+                        lbmDomainSize,
+                        lbmRelaxation
+                    };
                 },
                 (block, target) =>
                 {
@@ -161,6 +302,10 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
                     target.Mesh = target.DifferentialEquationSolver == DifferentialEquationSolver.FEM
                         ? DiscretizationType.FEM
                         : DiscretizationType.LBM;
+
+                    target.LbmPhysicalDomainSize = block.Parameters.OfType<NumberParameter>().FirstOrDefault(p => p.Key == "lbm_domain_size")?.Value
+                        ?? target.LbmPhysicalDomainSize;
+                    target.LbmRelaxationModel = ParseEnumFromChoice<LatticeBoltzmannRelaxationModel>(block, "lbm_relaxation");
                 });
 
             yield return new ReconstructionBlockDefinition(

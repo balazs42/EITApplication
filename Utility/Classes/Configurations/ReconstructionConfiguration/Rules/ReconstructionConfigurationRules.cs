@@ -1,5 +1,9 @@
 using System.Collections.Generic;
 using System.Linq;
+using Utility.Classes.Application;
+using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
+using Utility.Classes.ReconstructionParameters;
 
 namespace Utility.Classes.Configurations.ReconstructionConfiguration.Rules
 {
@@ -30,6 +34,27 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration.Rules
                 ? constraint
                 : BlockConnectionConstraint.Unlimited;
 
+        public static bool IsConnectionAllowed(BlockType source, BlockType target, out string? reason)
+        {
+            reason = null;
+
+            if (source == BlockType.Measurement && target != BlockType.ErrorMetric)
+            {
+                reason = "Measurement outputs can only feed Error Metric blocks.";
+                return false;
+            }
+
+            if (target == BlockType.Optimizer && source != BlockType.ErrorMetric && source != BlockType.Regularizer)
+            {
+                reason = "Only Error Metric or Regularizer blocks can connect to an Optimizer.";
+                return false;
+            }
+
+            return true;
+        }
+
+        public static bool IsConnectionAllowed(BlockType source, BlockType target) => IsConnectionAllowed(source, target, out _);
+
         public static bool HasAvailableInput(ReconstructionConfigurationBlock block, IEnumerable<ReconstructionConnection> connections)
         {
             var constraint = GetConnectionConstraint(block.Type);
@@ -50,6 +75,14 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration.Rules
         public static IReadOnlyList<string> Validate(IEnumerable<ReconstructionConfigurationBlock> blocks, IEnumerable<ReconstructionConnection> connections)
         {
             var issues = new List<string>();
+
+            foreach (var connection in connections)
+            {
+                if (!IsConnectionAllowed(connection.Source.Type, connection.Target.Type, out var reason) && reason != null)
+                {
+                    issues.Add($"{connection.Source.Title} -> {connection.Target.Title}: {reason}");
+                }
+            }
 
             foreach (var block in blocks)
             {
@@ -75,9 +108,74 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration.Rules
                 {
                     issues.Add($"Error Metric '{errorMetric.Title}' must be connected to a Measurement block.");
                 }
+
+                var hasSolver = connections.Any(c => c.Target == errorMetric && c.Source.Type == BlockType.Solver);
+                if (!hasSolver)
+                {
+                    issues.Add($"Error Metric '{errorMetric.Title}' must be connected to a Solver block.");
+                }
+            }
+
+            foreach (var type in Enum.GetValues<BlockType>().Where(t => t != BlockType.PostProcessing))
+            {
+                if (!blocks.Any(b => b.Type == type))
+                {
+                    issues.Add($"Add at least one {type} block to the configuration.");
+                }
+            }
+
+            var discretization = Workspace.GetDiscretization();
+            if (discretization is FEMMesh)
+            {
+                foreach (var solver in blocks.Where(b => b.Type == BlockType.Solver))
+                {
+                    if (GetSelectedSolverType(solver) != DifferentialEquationSolver.FEM)
+                    {
+                        issues.Add("FEM mesh detected: choose FEM as the solver.");
+                    }
+                }
+            }
+            else if (discretization is LBMGrid)
+            {
+                foreach (var solver in blocks.Where(b => b.Type == BlockType.Solver))
+                {
+                    if (GetSelectedSolverType(solver) != DifferentialEquationSolver.LBM)
+                    {
+                        issues.Add("LBM grid detected: choose LBM as the solver.");
+                    }
+                }
             }
 
             return issues;
+        }
+
+        private static DifferentialEquationSolver GetSelectedSolverType(ReconstructionConfigurationBlock block)
+        {
+            var solverChoice = block.Parameters.OfType<ChoiceParameter>().FirstOrDefault(p => p.Key == "solver_type");
+            return solverChoice != null
+                ? ParseEnum<DifferentialEquationSolver>(solverChoice.SelectedOption)
+                : DifferentialEquationSolver.FEM;
+        }
+
+        private static T ParseEnum<T>(string friendly) where T : struct, Enum
+        {
+            if (string.IsNullOrWhiteSpace(friendly))
+                return default;
+
+            static string Normalize(string value) =>
+                new string(value.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+
+            var normalizedInput = Normalize(friendly);
+
+            foreach (var name in Enum.GetNames(typeof(T)))
+            {
+                if (Normalize(name) == normalizedInput)
+                    return Enum.Parse<T>(name, true);
+            }
+
+            return Enum.TryParse<T>(friendly, true, out var parsed)
+                ? parsed
+                : default;
         }
     }
 }

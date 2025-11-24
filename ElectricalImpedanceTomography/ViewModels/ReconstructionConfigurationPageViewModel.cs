@@ -173,6 +173,12 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             if (source == null || target == null || source == target) return;
             if (!CanConnect(source.Type, target.Type)) return;
+            if (!ReconstructionConfigurationRules.IsConnectionAllowed(source.Type, target.Type, out var reason))
+            {
+                if (!string.IsNullOrWhiteSpace(reason))
+                    TrackIssue($"{source.Title} -> {target.Title}: {reason}");
+                return;
+            }
             if (!ReconstructionConfigurationRules.HasAvailableOutput(source, Connections))
             {
                 TrackIssue($"{source.Title} has no remaining output connectors.");

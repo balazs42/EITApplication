@@ -16,6 +16,17 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
         /// Gets or sets the unique key used for serialization and logic mapping.
         /// </summary>
         public string Key { get; set; } = string.Empty;
+
+        private bool _isVisible = true;
+
+        /// <summary>
+        /// Indicates whether the parameter should be rendered in the configuration UI.
+        /// </summary>
+        public bool IsVisible
+        {
+            get => _isVisible;
+            set => SetProperty(ref _isVisible, value);
+        }
     }
 
     /// <summary>

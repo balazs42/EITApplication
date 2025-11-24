@@ -26,28 +26,28 @@
             <converters:IsNullConverter x:Key="IsNullConverter"/>
 
             <DataTemplate x:Key="TextParameterTemplate" x:DataType="models:TextParameter">
-                <VerticalStackLayout Spacing="6">
+                <VerticalStackLayout Spacing="6" IsVisible="{Binding IsVisible}">
                     <Label Text="{Binding Name}" TextColor="{StaticResource TextMain}" FontSize="13" FontAttributes="Bold"/>
                     <Entry Text="{Binding Value}" BackgroundColor="{StaticResource InputBg}" TextColor="White" />
                 </VerticalStackLayout>
             </DataTemplate>
 
             <DataTemplate x:Key="NumberParameterTemplate" x:DataType="models:NumberParameter">
-                <VerticalStackLayout Spacing="6">
+                <VerticalStackLayout Spacing="6" IsVisible="{Binding IsVisible}">
                     <Label Text="{Binding Name}" TextColor="{StaticResource TextMain}" FontSize="13" FontAttributes="Bold"/>
                     <Entry Text="{Binding Value}" Keyboard="Numeric" BackgroundColor="{StaticResource InputBg}" TextColor="{StaticResource Accent}" />
                 </VerticalStackLayout>
             </DataTemplate>
 
             <DataTemplate x:Key="BoolParameterTemplate" x:DataType="models:BoolParameter">
-                <VerticalStackLayout Spacing="6">
+                <VerticalStackLayout Spacing="6" IsVisible="{Binding IsVisible}">
                     <Label Text="{Binding Name}" TextColor="{StaticResource TextMain}" FontSize="13" FontAttributes="Bold"/>
                     <Switch IsToggled="{Binding Value}" OnColor="{StaticResource Accent}" HorizontalOptions="Start"/>
                 </VerticalStackLayout>
             </DataTemplate>
 
             <DataTemplate x:Key="ChoiceParameterTemplate" x:DataType="models:ChoiceParameter">
-                <VerticalStackLayout Spacing="6">
+                <VerticalStackLayout Spacing="6" IsVisible="{Binding IsVisible}">
                     <Label Text="{Binding Name}" TextColor="{StaticResource TextMain}" FontSize="13" FontAttributes="Bold"/>
                     <Border Stroke="#444" StrokeThickness="1" StrokeShape="RoundRectangle 4" BackgroundColor="{StaticResource InputBg}">
                         <Picker ItemsSource="{Binding Options}" SelectedItem="{Binding SelectedOption}" TextColor="White" TitleColor="Gray" FontSize="13"/>
