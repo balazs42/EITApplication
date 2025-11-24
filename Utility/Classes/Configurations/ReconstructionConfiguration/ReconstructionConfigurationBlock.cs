@@ -1,5 +1,8 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using System.Collections.ObjectModel;
+using System.Linq;
+using Utility.Classes.Factories;
+using Utility.Classes.ReconstructionParameters;
 
 namespace Utility.Classes.Configurations.ReconstructionConfiguration
 {
@@ -28,6 +31,12 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
         /// Hex color code for the block's UI representation.
         /// </summary>
         public string IconColor { get; set; }
+
+        private string _highlightedOption = string.Empty;
+        /// <summary>
+        /// Short text shown on the block card to reflect the key selection (e.g., chosen solver).
+        /// </summary>
+        public string HighlightedOption { get => _highlightedOption; set => SetProperty(ref _highlightedOption, value); }
 
         private double _x;
         /// <summary>
@@ -67,6 +76,8 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
             Y = y;
             SetColor();
             InitializeDefaultParameters();
+            HookParameterChanges();
+            UpdateHighlightedOption();
         }
 
         /// <summary>
@@ -97,31 +108,32 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
                 case BlockType.Initialization:
                     Parameters.Add(new ChoiceParameter
                     {
-                        Name = "Initialization Method",
+                        Name = "Initial Distribution",
                         Key = "init_method",
-                        Options = new List<string> { "Homogeneous", "Random", "CloseToTarget", "Pre-calculated (CIM)", "Phase-Informed (Takens)" },
-                        SelectedOption = "Homogeneous"
+                        Options = Enum.GetNames(typeof(InitialDistributionTypes)).Select(FriendlyName).ToList(),
+                        SelectedOption = FriendlyName(nameof(InitialDistributionTypes.Homogeneous))
                     });
-                    Parameters.Add(new NumberParameter { Name = "Background Conductivity (S/m)", Key = "bg_cond", Value = 1.0, Min = 0.0001 });
-                    Parameters.Add(new NumberParameter { Name = "Randomization Noise Level", Key = "rand_noise", Value = 0.1, Min = 0, Max = 1 });
-
-                    // Parameters for Takens' Theorem phase-space reconstruction
-                    Parameters.Add(new NumberParameter { Name = "Takens: Embedding Dimension (d)", Key = "takens_dim", Value = 6, Min = 1, Step = 1 });
-                    Parameters.Add(new NumberParameter { Name = "Takens: Time Delay (tau)", Key = "takens_tau", Value = 5, Min = 1, Step = 1 });
+                    Parameters.Add(new NumberParameter { Name = "Random Max Conductivity", Key = "rand_max", Value = 1.0, Min = 0.0 });
+                    Parameters.Add(new NumberParameter { Name = "Slight Scaling", Key = "slight_scale", Value = 0.95, Min = 0.0, Max = 1.0, Step = 0.05 });
+                    Parameters.Add(new NumberParameter { Name = "Random Differing Count", Key = "rand_diff_count", Value = 5, Min = 0, Step = 1 });
                     break;
 
                 case BlockType.Solver:
                     Parameters.Add(new ChoiceParameter
                     {
-                        Name = "DE Solver Type",
+                        Name = "Differential Equation Solver",
                         Key = "solver_type",
-                        Options = new List<string> { "FEM (Finite Element Method)", "LBM (Lattice Boltzmann Method)", "Graph-Based (CIM)" },
-                        SelectedOption = "FEM"
+                        Options = Enum.GetNames(typeof(DifferentialEquationSolver)).Select(FriendlyName).ToList(),
+                        SelectedOption = FriendlyName(nameof(DifferentialEquationSolver.FEM))
+                    });
+                    Parameters.Add(new ChoiceParameter
+                    {
+                        Name = "Numeric Solver",
+                        Key = "numeric_solver",
+                        Options = Enum.GetNames(typeof(NumericSolver)).Select(FriendlyName).ToList(),
+                        SelectedOption = FriendlyName(nameof(NumericSolver.GMRES))
                     });
                     Parameters.Add(new NumberParameter { Name = "FEM Order", Key = "fem_order", Value = 1, Min = 1, Max = 2, Step = 1 });
-
-                    // Parameters for Lattice Boltzmann Method
-                    Parameters.Add(new ChoiceParameter { Name = "LBM Lattice Structure", Key = "lbm_domain", Options = new List<string> { "D2Q9", "D3Q19" }, SelectedOption = "D2Q9" });
                     Parameters.Add(new NumberParameter { Name = "LBM Relaxation Time (tau)", Key = "lbm_tau", Value = 0.51, Min = 0.50001, Step = 0.01 });
                     break;
 
@@ -130,17 +142,11 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
                     {
                         Name = "Regularization Technique",
                         Key = "reg_tech",
-                        Options = new List<string> { "None", "Tikhonov (0-order)", "Tikhonov (1st-order)", "Total Variation (TV)", "Laplace", "Graph Consistency (Tether)", "D-Bar (Direct)" },
-                        SelectedOption = "Tikhonov (1st-order)"
+                        Options = Enum.GetNames(typeof(RegularizationTechnique)).Select(FriendlyName).ToList(),
+                        SelectedOption = FriendlyName(nameof(RegularizationTechnique.FirstOrderTikhonov))
                     });
-                    Parameters.Add(new ChoiceParameter { Name = "Weight Calculation Mode", Key = "weight_mode", Options = new List<string> { "Static", "L-Curve", "Heuristic", "Spatially Adaptive" }, SelectedOption = "Static" });
                     Parameters.Add(new NumberParameter { Name = "Lambda (Regularization Weight)", Key = "lambda", Value = 0.01, Min = 0, Step = 0.001 });
-
-                    // Parameter for D-Bar method
-                    Parameters.Add(new NumberParameter { Name = "D-Bar: Cutoff Frequency (k0)", Key = "dbar_cutoff", Value = 4.0, Min = 0.1 });
-
-                    // Parameter for Graph Consistency regularization
-                    Parameters.Add(new NumberParameter { Name = "Graph Tether Weight", Key = "graph_tether", Value = 0.1, Min = 0 });
+                    Parameters.Add(new BoolParameter { Name = "Spatial Weighting", Key = "spatial_weighting", Value = false });
                     break;
 
                 case BlockType.ErrorMetric:
@@ -148,21 +154,9 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
                     {
                         Name = "Error Metric",
                         Key = "metric_type",
-                        Options = new List<string> { "L2 (Least Squares)", "Wasserstein-2 (Geometric)", "Wasserstein-2 (Conductivity Aware)", "Wasserstein-2 (Spectral)", "Energy-Based W2" },
-                        SelectedOption = "Wasserstein-2 (Geometric)"
+                        Options = Enum.GetNames(typeof(ErrorMetric)).Select(FriendlyName).ToList(),
+                        SelectedOption = FriendlyName(nameof(ErrorMetric.Wasserstein2))
                     });
-
-                    // Parameters for Conductivity Aware Wasserstein metric
-                    Parameters.Add(new ChoiceParameter { Name = "Ground Cost Type", Key = "ground_cost", Options = new List<string> { "Euclidean", "Geodesic (Weighted)", "Effective Resistance" }, SelectedOption = "Euclidean" });
-                    Parameters.Add(new NumberParameter { Name = "Geodesic Beta Exponent", Key = "geo_beta", Value = 1.0, Min = 0.1 });
-
-                    // Parameter for Spectral Wasserstein metric
-                    Parameters.Add(new NumberParameter { Name = "Spectral Eigenvalues Count (r)", Key = "spec_r", Value = 10, Min = 1, Step = 1 });
-
-                    // Parameter for Convex combination of metrics
-                    Parameters.Add(new NumberParameter { Name = "Convex Weight (Alpha)", Key = "alpha", Value = 0.5, Min = 0, Max = 1, Step = 0.1 });
-
-                    // Parameter for Energy-Based metric with ROI
                     Parameters.Add(new BoolParameter { Name = "Use ROI Focusing", Key = "use_roi", Value = false });
                     break;
 
@@ -171,8 +165,8 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
                     {
                         Name = "Optimization Algorithm",
                         Key = "opt_algo",
-                        Options = new List<string> { "Gradient Descent", "Gauss-Newton", "L-BFGS", "ADAM", "Nesterov Accelerated Gradient" },
-                        SelectedOption = "ADAM"
+                        Options = Enum.GetNames(typeof(NumericOptimizer)).Select(FriendlyName).ToList(),
+                        SelectedOption = FriendlyName(nameof(NumericOptimizer.ADAM))
                     });
                     Parameters.Add(new NumberParameter { Name = "Max Iterations", Key = "max_iter", Value = 50, Min = 1, Step = 10 });
                     Parameters.Add(new NumberParameter { Name = "Convergence Tolerance", Key = "conv_tol", Value = 1e-4, Min = 1e-9 });
@@ -185,6 +179,26 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
                     Parameters.Add(new NumberParameter { Name = "Kernel Size", Key = "kernel_size", Value = 3, Min = 1, Step = 2 });
                     break;
             }
+        }
+
+        private static string FriendlyName(string raw)
+            => string.Concat(raw.Select((c, i) => i > 0 && char.IsUpper(c) && !char.IsUpper(raw[i - 1]) ? $" {c}" : c.ToString()));
+
+        private void HookParameterChanges()
+        {
+            foreach (var choice in Parameters.OfType<ChoiceParameter>())
+            {
+                choice.PropertyChanged += (_, args) =>
+                {
+                    if (args.PropertyName == nameof(ChoiceParameter.SelectedOption))
+                        UpdateHighlightedOption();
+                };
+            }
+        }
+
+        private void UpdateHighlightedOption()
+        {
+            HighlightedOption = Parameters.OfType<ChoiceParameter>().FirstOrDefault()?.SelectedOption ?? Type.ToString();
         }
     }
 }
