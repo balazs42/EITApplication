@@ -8,6 +8,7 @@ using Utility.Classes.Application;
 using Utility.Classes.Configurations.ReconstructionConfiguration;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
+using Utility.Classes.Configurations.ReconstructionConfiguration.Rules;
 
 namespace ElectricalImpedanceTomography.Views
 {
@@ -18,7 +19,7 @@ namespace ElectricalImpedanceTomography.Views
     public partial class ReconstructionConfigurationPage : ContentPage
     {
         private readonly ReconstructionConfigurationPageViewModel _viewModel;
-        private readonly Dictionary<string, Point> _dragStartPositions = new();
+        private readonly Dictionary<ReconstructionConfigurationBlock, Point> _dragStartPositions = new();
 
         private Point? _tempConnectionStart;
         private Point? _tempConnectionEnd;
@@ -31,7 +32,6 @@ namespace ElectricalImpedanceTomography.Views
         // Dragging state
         private ReconstructionConfigurationBlock? _draggedBlock;
         private Point _dragStartPoint;
-        private Point _dragStartBlockPosition;
 
         private const double PortCenterY = 30;
         private const double OutputPortXOffset = 214;
@@ -136,7 +136,8 @@ namespace ElectricalImpedanceTomography.Views
                 StrokeThickness = 1,
                 HorizontalOptions = LayoutOptions.Start,
                 VerticalOptions = LayoutOptions.Start,
-                Margin = new Thickness(-7, 23, 0, 0)
+                Margin = new Thickness(-7, 23, 0, 0),
+                IsVisible = ReconstructionConfigurationRules.GetConnectionConstraint(block.Type).MaxInputs > 0
             };
 
             var outPort = new Border
@@ -192,23 +193,51 @@ namespace ElectricalImpedanceTomography.Views
             switch (e.StatusType)
             {
                 case GestureStatus.Started:
-                    _dragStartPositions[block.Id] = new Point(block.X, block.Y);
+                    PrepareDragPositions(block);
                     break;
                 case GestureStatus.Running:
-                    if (_dragStartPositions.TryGetValue(block.Id, out Point start))
+                    foreach (var kvp in _dragStartPositions)
                     {
-                        double newX = start.X + e.TotalX;
-                        double newY = start.Y + e.TotalY;
-                        block.X = newX;
-                        block.Y = newY;
-                        AbsoluteLayout.SetLayoutBounds(view, new Rect(newX, newY, AbsoluteLayout.AutoSize, AbsoluteLayout.AutoSize));
-                        ConnectionsCanvas.InvalidateSurface();
+                        var start = kvp.Value;
+                        var newX = start.X + e.TotalX;
+                        var newY = start.Y + e.TotalY;
+                        UpdateBlockPosition(kvp.Key, newX, newY);
                     }
+                    ConnectionsCanvas.InvalidateSurface();
                     break;
                 case GestureStatus.Completed:
                 case GestureStatus.Canceled:
-                    _dragStartPositions.Remove(block.Id);
+                    _dragStartPositions.Clear();
+                    _viewModel.NotifyLayoutChanged();
                     break;
+            }
+        }
+
+        private void PrepareDragPositions(ReconstructionConfigurationBlock block)
+        {
+            _dragStartPositions.Clear();
+            var selected = _viewModel.Blocks.Where(b => b.IsSelected).ToList();
+            if (!selected.Any())
+            {
+                selected.Add(block);
+            }
+
+            foreach (var b in selected.Distinct())
+            {
+                _dragStartPositions[b] = new Point(b.X, b.Y);
+            }
+        }
+
+        private void UpdateBlockPosition(ReconstructionConfigurationBlock block, double newX, double newY)
+        {
+            block.X = newX;
+            block.Y = newY;
+            var view = NodeContainer.Children
+                .OfType<View>()
+                .FirstOrDefault(c => ReferenceEquals(c.BindingContext, block));
+            if (view != null)
+            {
+                AbsoluteLayout.SetLayoutBounds(view, new Rect(newX, newY, AbsoluteLayout.AutoSize, AbsoluteLayout.AutoSize));
             }
         }
 
@@ -217,6 +246,10 @@ namespace ElectricalImpedanceTomography.Views
             switch (e.StatusType)
             {
                 case GestureStatus.Started:
+                    if (!_viewModel.HasOutputCapacity(sourceBlock))
+                    {
+                        return;
+                    }
                     double startX = sourceBlock.X + OutputPortXOffset;
                     double startY = sourceBlock.Y + PortCenterY;
                     _tempConnectionSource = sourceBlock;
@@ -253,6 +286,11 @@ namespace ElectricalImpedanceTomography.Views
         {
             foreach (var block in _viewModel.Blocks)
             {
+                if (!_viewModel.HasInputCapacity(block))
+                {
+                    continue;
+                }
+
                 double targetX = block.X + InputPortXOffset;
                 double targetY = block.Y + PortCenterY;
                 if (Math.Abs(location.X - targetX) < 40 && Math.Abs(location.Y - targetY) < 40)
@@ -315,6 +353,11 @@ namespace ElectricalImpedanceTomography.Views
                 return false;
             }
 
+            if (!_viewModel.HasOutputCapacity(block))
+            {
+                return false;
+            }
+
             var portCenter = new Point(block.X + OutputPortXOffset, block.Y + PortCenterY);
             if (Distance(viewPoint, portCenter) <= 16)
             {
@@ -338,8 +381,20 @@ namespace ElectricalImpedanceTomography.Views
 
             _draggedBlock = block;
             _dragStartPoint = viewPoint;
-            _dragStartBlockPosition = new Point(block.X, block.Y);
-            _viewModel.SelectBlock(block);
+
+            _dragStartPositions.Clear();
+            var blocksToMove = _viewModel.Blocks.Where(b => b.IsSelected).ToList();
+            if (!blocksToMove.Any())
+            {
+                _viewModel.SelectBlock(block);
+                blocksToMove.Add(block);
+            }
+
+            foreach (var b in blocksToMove.Distinct())
+            {
+                _dragStartPositions[b] = new Point(b.X, b.Y);
+            }
+
             return true;
         }
 
@@ -367,17 +422,14 @@ namespace ElectricalImpedanceTomography.Views
             if (_draggedBlock != null)
             {
                 var delta = new Point(viewPoint.X - _dragStartPoint.X, viewPoint.Y - _dragStartPoint.Y);
-                var newX = _dragStartBlockPosition.X + delta.X;
-                var newY = _dragStartBlockPosition.Y + delta.Y;
-                _draggedBlock.X = newX;
-                _draggedBlock.Y = newY;
-                var view = NodeContainer.Children
-                    .OfType<View>()
-                    .FirstOrDefault(c => ReferenceEquals(c.BindingContext, _draggedBlock));
-                if (view != null)
+
+                foreach (var kvp in _dragStartPositions)
                 {
-                    AbsoluteLayout.SetLayoutBounds(view, new Rect(newX, newY, AbsoluteLayout.AutoSize, AbsoluteLayout.AutoSize));
+                    var newX = kvp.Value.X + delta.X;
+                    var newY = kvp.Value.Y + delta.Y;
+                    UpdateBlockPosition(kvp.Key, newX, newY);
                 }
+
                 ConnectionsCanvas.InvalidateSurface();
                 return;
             }
@@ -413,6 +465,8 @@ namespace ElectricalImpedanceTomography.Views
             if (_draggedBlock != null)
             {
                 _draggedBlock = null;
+                _dragStartPositions.Clear();
+                _viewModel.NotifyLayoutChanged();
                 return;
             }
 
@@ -481,6 +535,28 @@ namespace ElectricalImpedanceTomography.Views
                 return true;
             }
             return false;
+        }
+
+        private void OnGridPaintSurface(object sender, SKPaintSurfaceEventArgs e)
+        {
+            var canvas = e.Surface.Canvas;
+            canvas.Clear();
+
+            const int spacing = 32;
+            using var dotPaint = new SKPaint
+            {
+                Style = SKPaintStyle.Fill,
+                Color = SKColor.Parse("#2F3640"),
+                IsAntialias = true
+            };
+
+            for (int x = spacing / 2; x < e.Info.Width; x += spacing)
+            {
+                for (int y = spacing / 2; y < e.Info.Height; y += spacing)
+                {
+                    canvas.DrawCircle(x, y, 1.5f, dotPaint);
+                }
+            }
         }
 
         private void OnCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
