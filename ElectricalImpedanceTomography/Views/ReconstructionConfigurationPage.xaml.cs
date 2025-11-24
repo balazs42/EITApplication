@@ -371,7 +371,9 @@ namespace ElectricalImpedanceTomography.Views
                 var newY = _dragStartBlockPosition.Y + delta.Y;
                 _draggedBlock.X = newX;
                 _draggedBlock.Y = newY;
-                var view = NodeContainer.Children.FirstOrDefault(c => ReferenceEquals(c.BindingContext, _draggedBlock));
+                var view = NodeContainer.Children
+                    .OfType<View>()
+                    .FirstOrDefault(c => ReferenceEquals(c.BindingContext, _draggedBlock));
                 if (view != null)
                 {
                     AbsoluteLayout.SetLayoutBounds(view, new Rect(newX, newY, AbsoluteLayout.AutoSize, AbsoluteLayout.AutoSize));
