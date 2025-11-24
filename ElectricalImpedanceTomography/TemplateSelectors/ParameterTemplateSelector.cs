@@ -10,7 +10,7 @@ namespace ElectricalImpedanceTomography.TemplateSelectors
         public DataTemplate? BoolTemplate { get; set; }
         public DataTemplate? ChoiceTemplate { get; set; }
 
-        protected override DataTemplate OnSelectTemplate(object item, BindableObject container)
+        protected override DataTemplate? OnSelectTemplate(object item, BindableObject container)
         {
             return item switch
             {
@@ -18,7 +18,7 @@ namespace ElectricalImpedanceTomography.TemplateSelectors
                 NumberParameter => NumberTemplate!,
                 BoolParameter => BoolTemplate!,
                 ChoiceParameter => ChoiceTemplate!,
-                _ => base.OnSelectTemplate(item, container)
+                _ => null
             };
         }
     }

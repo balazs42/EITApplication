@@ -88,31 +88,41 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
 
         private void HookParameterChanges()
         {
-            foreach (var choice in Parameters.OfType<ChoiceParameter>())
+            void Attach(ConfigurationParameter p)
             {
-                choice.PropertyChanged += (_, args) =>
+                switch (p)
                 {
-                    if (args.PropertyName == nameof(ChoiceParameter.SelectedOption))
-                        UpdateHighlightedOption();
-
-                    ParametersChanged?.Invoke(this);
-                };
+                    case ChoiceParameter choice:
+                        choice.PropertyChanged += (_, args) =>
+                        {
+                            if (args.PropertyName == nameof(ChoiceParameter.SelectedOption) || args.PropertyName == nameof(ChoiceParameter.Options))
+                                UpdateHighlightedOption();
+                            ParametersChanged?.Invoke(this);
+                        };
+                        break;
+                    case NumberParameter number:
+                        number.PropertyChanged += (_, __) => ParametersChanged?.Invoke(this);
+                        break;
+                    case BoolParameter toggle:
+                        toggle.PropertyChanged += (_, __) => ParametersChanged?.Invoke(this);
+                        break;
+                    case TextParameter text:
+                        text.PropertyChanged += (_, __) => ParametersChanged?.Invoke(this);
+                        break;
+                }
             }
 
-            foreach (var number in Parameters.OfType<NumberParameter>())
+            foreach (var p in Parameters)
+                Attach(p);
+
+            // Rehook if collection ever changes (future extension possibility)
+            Parameters.CollectionChanged += (_, __) =>
             {
-                number.PropertyChanged += (_, __) => ParametersChanged?.Invoke(this);
-            }
-
-            foreach (var toggle in Parameters.OfType<BoolParameter>())
-            {
-                toggle.PropertyChanged += (_, __) => ParametersChanged?.Invoke(this);
-            }
-
-            foreach (var text in Parameters.OfType<TextParameter>())
-            {
-                text.PropertyChanged += (_, __) => ParametersChanged?.Invoke(this);
-            }
+                foreach (var p in Parameters)
+                    Attach(p);
+                UpdateHighlightedOption();
+                ParametersChanged?.Invoke(this);
+            };
         }
 
         private void UpdateHighlightedOption()

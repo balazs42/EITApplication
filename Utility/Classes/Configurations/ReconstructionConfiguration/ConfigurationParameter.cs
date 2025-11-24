@@ -71,18 +71,55 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
 
     /// <summary>
     /// Represents a selection parameter from a predefined list of options.
+    /// Ensures that SelectedOption is always one of Options (if any) to avoid
+    /// transient null / empty states that break downstream enum parsing.
     /// </summary>
     public class ChoiceParameter : ConfigurationParameter
     {
+        private List<string> _options = [];
         /// <summary>
         /// List of available options.
         /// </summary>
-        public List<string> Options { get; set; } = [];
+        public List<string> Options
+        {
+            get => _options;
+            set
+            {
+                _options = value ?? [];
+                // If current selection is invalid, pick first available.
+                if (string.IsNullOrWhiteSpace(_selectedOption) || !_options.Contains(_selectedOption))
+                {
+                    var first = _options.FirstOrDefault();
+                    if (first != null)
+                        SetProperty(ref _selectedOption, first, nameof(SelectedOption));
+                }
+                OnPropertyChanged();
+            }
+        }
 
         private string _selectedOption = string.Empty;
         /// <summary>
         /// Gets or sets the currently selected option.
         /// </summary>
-        public string SelectedOption { get => _selectedOption; set => SetProperty(ref _selectedOption, value); }
+        public string SelectedOption
+        {
+            get => _selectedOption;
+            set
+            {
+                var candidate = value ?? string.Empty;
+                // Prevent assigning an option that is not part of the current list – if that happens,
+                // keep previous valid value or fall back to the first option.
+                if (_options.Count > 0 && !_options.Contains(candidate))
+                {
+                    if (_options.Contains(_selectedOption))
+                    {
+                        // keep existing valid selection
+                        return;
+                    }
+                    candidate = _options.First();
+                }
+                SetProperty(ref _selectedOption, candidate);
+            }
+        }
     }
 }
