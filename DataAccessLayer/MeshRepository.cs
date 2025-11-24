@@ -1058,8 +1058,9 @@ namespace DataAccessLayer
                     if (!withinTolerance)
                         reassignedElectrodes.Add(i);
 
+                    // Electrode contact should be specified, otherwise latter calculations fail!!!!
                     var electrode = new FEMElectrode(i, vertex.GlobalId, 0.0,
-                        GetListValue(import.ElectrodeZContact, i, 0.0), 0.0,
+                        GetListValue(import.ElectrodeZContact, i, 0.001), 0.0,
                         pointElectrode: true)
                     {
                         IsMeasuring = true

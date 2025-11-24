@@ -280,9 +280,9 @@
                                        Text="Measurement Source"
                                        FontFamily="SF Pro Text"
                                        FontAttributes="None"
-                                       IsVisible="{Binding HasMeasurementSourceOptions}"/>
+                                       IsVisible="True"/>
                                 <VerticalStackLayout Spacing="4"
-                                                     IsVisible="{Binding HasMeasurementSourceOptions}">
+                                                     IsVisible="True">
                                    <Grid ColumnDefinitions="*, *" ColumnSpacing="10">
                                         <RadioButton Content="Simulated"
                                                      IsChecked="{Binding IsSimulatedMeasurementSelected}"

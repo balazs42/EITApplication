@@ -76,6 +76,8 @@ namespace BusinessLayer
                     ground.Current = -excitationAmplitude;
                 }
 
+                deepCopy.SetElectrodes(electrodes);
+
                 FEMMesh result = SolveFemForward(deepCopy, solver);
 
                 double[] potentials = PotentialClipper.Clip(result.GetElectrodePotentials());
