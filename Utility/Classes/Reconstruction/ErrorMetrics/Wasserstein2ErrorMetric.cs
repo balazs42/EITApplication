@@ -26,6 +26,12 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         // Cache last result to reuse gradient when EvaluateAdjointSource() follows Evaluate().
         private OptimalTransportResult? _last;
 
+        // Cached arc-length ground cost for the current geometry.
+        private readonly object _costCacheLock = new();
+        private IDiscretization? _cachedDiscretization;
+        private int[]? _cachedElectrodeIds;
+        private double[,]? _cachedArcLengthCost;
+
         /// <summary>
         /// Standalone W₂ routine used both by the error metric and unit tests.
         /// Inputs are raw (unnormalized, possibly signed) masses and the
@@ -35,8 +41,17 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         public static OTResult w2_misfit_and_grad(double[] mPred, double[] dObs,
             (double x, double y)[] x, (double x, double y)[] y)
         {
-            if (mPred.Length != x.Length || dObs.Length != y.Length)
-                throw new ArgumentException("Mass and coordinate arrays must align.");
+            if (x.Length != y.Length)
+                throw new ArgumentException("Arc-length ground cost requires matching supports.");
+
+            var cost = ArcLengthGroundCostHelper.BuildArcLengthCost(x);
+            return w2_misfit_and_grad(mPred, dObs, cost);
+        }
+
+        public static OTResult w2_misfit_and_grad(double[] mPred, double[] dObs, double[,] costMatrix)
+        {
+            if (mPred.Length != costMatrix.GetLength(0) || dObs.Length != costMatrix.GetLength(1))
+                throw new ArgumentException("Mass arrays must align with the ground cost matrix dimensions.");
 
             // Stable nonnegativity: shift by minimum and clamp.
             double[] a = (double[])mPred.Clone();
@@ -115,12 +130,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                     row[i].SetCoefficient(plan[i, j], 1.0);
                     col[j].SetCoefficient(plan[i, j], 1.0);
 
-                    double dx = x[i].x - y[j].x;
-                    double dy = x[i].y - y[j].y;
-
-                    double cij = dx * dx + dy * dy;
-
-                    obj.SetCoefficient(plan[i, j], cij);
+                    obj.SetCoefficient(plan[i, j], costMatrix[i, j]);
                 }
             }
 
@@ -204,10 +214,12 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             }
 
             if (usingDifferences)
-                return SolveDifferenceOT2(measured, simulated, all, coord, pattern);
+                return SolveDifferenceOT2(discretization, measured, simulated, all, coord, pattern);
 
             if (all.Count != measured.Length || all.Count != simulated.Length)
                 throw new ArgumentException("Electrode count must match data length when using direct potentials.");
+
+            EnsureArcLengthCost(discretization, all, coord);
 
             // Determine which electrodes carry valid measurements.  Include
             // an electrode if the corresponding measured value is finite,
@@ -219,13 +231,14 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 if (double.IsFinite(measured[i]))
                     include.Add(i);
 
-            var (aRaw, aLoc, aMap) = BuildDistribution(simulated, all, coord, include);
-            var (bRaw, bLoc, _) = BuildDistribution(measured, all, coord, include);
+            var (aRaw, aIdx, aMap) = BuildDistribution(simulated, all, include);
+            var (bRaw, _, _) = BuildDistribution(measured, all, include);
 
             if (aRaw.Length == 0 || bRaw.Length == 0)
                 return new OptimalTransportResult(measured, simulated, 0.0, new double[all.Count]);
 
-            var res = w2_misfit_and_grad(aRaw, bRaw, aLoc, bLoc);
+            var cost = GetSubsetCost(discretization, all, coord, aIdx);
+            var res = w2_misfit_and_grad(aRaw, bRaw, cost);
             var gradFull = new double[all.Count];
             foreach (var (srcIdx, electrodeIdx) in aMap)
                 gradFull[electrodeIdx] = res.Grad[srcIdx];
@@ -233,7 +246,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             return new OptimalTransportResult(measured, simulated, res.Cost, gradFull);
         }
 
-        private OptimalTransportResult SolveDifferenceOT(double[] measured, double[] simulated,
+        private OptimalTransportResult SolveDifferenceOT(IDiscretization discretization, double[] measured, double[] simulated,
             IReadOnlyList<Electrode> electrodes,
             Func<Electrode, (double x, double y)> getCoord,
             MeasurementPattern? pattern)
@@ -242,6 +255,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 throw new ArgumentException("Measured and simulated difference arrays must have identical length.");
 
             int differenceCount = measured.Length;
+            EnsureArcLengthCost(discretization, electrodes, getCoord);
             var include = new List<int>();
             for (int i = 0; i < differenceCount; i++)
                 if (double.IsFinite(measured[i]) && double.IsFinite(simulated[i]))
@@ -254,13 +268,14 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 ? pattern
                 : null;
 
-            var (aRaw, aLoc, aMap) = BuildDifferenceDistribution(simulated, electrodes, getCoord, include, activePattern);
-            var (bRaw, bLoc, _) = BuildDifferenceDistribution(measured, electrodes, getCoord, include, activePattern);
+            var (aRaw, aIdx, aMap) = BuildDifferenceDistribution(simulated, electrodes, include, activePattern);
+            var (bRaw, _, _) = BuildDifferenceDistribution(measured, electrodes, include, activePattern);
 
             if (aRaw.Length == 0 || bRaw.Length == 0)
                 return new OptimalTransportResult(measured, simulated, 0.0, new double[differenceCount]);
 
-            var res = w2_misfit_and_grad(aRaw, bRaw, aLoc, bLoc);
+            var cost = GetSubsetCost(discretization, electrodes, getCoord, aIdx);
+            var res = w2_misfit_and_grad(aRaw, bRaw, cost);
 
             var grad = new double[differenceCount];
             foreach (var (srcIdx, diffIdx) in aMap)
@@ -269,7 +284,8 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             return new OptimalTransportResult(measured, simulated, res.Cost, grad);
         }
 
-        private OptimalTransportResult SolveDifferenceOT2(double[] measured, double[] simulated,
+        private OptimalTransportResult SolveDifferenceOT2(IDiscretization discretization,
+                                                        double[] measured, double[] simulated,
                                                         IReadOnlyList<Electrode> electrodes,
                                                         Func<Electrode, (double x, double y)> getCoord,
                                                         MeasurementPattern? pattern)
@@ -278,6 +294,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 throw new ArgumentException("Measured and simulated difference arrays must have identical length.");
 
             int differenceCount = measured.Length;
+            EnsureArcLengthCost(discretization, electrodes, getCoord);
 
             // Use only channels that are finite on both sides (your existing logic).
             var include = new List<int>(differenceCount);
@@ -293,8 +310,8 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             var activePattern = pattern != null && pattern.SanitizedLength == differenceCount ? pattern : null;
 
             // Build raw values and channel coordinates (aligned) + back-map
-            var (aRaw, aLoc, aMap) = BuildDifferenceDistribution(simulated, electrodes, getCoord, include, activePattern);
-            var (bRaw, bLoc, _) = BuildDifferenceDistribution(measured, electrodes, getCoord, include, activePattern);
+            var (aRaw, aIdx, aMap) = BuildDifferenceDistribution(simulated, electrodes, include, activePattern);
+            var (bRaw, _, _) = BuildDifferenceDistribution(measured, electrodes, include, activePattern);
 
             if (aRaw.Length == 0 || bRaw.Length == 0)
                 return new OptimalTransportResult(measured, simulated, 0.0, new double[differenceCount]);
@@ -317,8 +334,9 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             // Run two ordinary W2 solves (your existing routine) on the SAME coords.
             // NOTE: w2_misfit_and_grad internally normalizes to unit mass and returns
             // a gradient in "raw" units (scaled by 1/sum of its input), so we reweight.
-            var resPlus = w2_misfit_and_grad(aPlus, bPlus, aLoc, bLoc);
-            var resMinus = w2_misfit_and_grad(aMinus, bMinus, aLoc, bLoc);
+            var cost = GetSubsetCost(discretization, electrodes, getCoord, aIdx);
+            var resPlus = w2_misfit_and_grad(aPlus, bPlus, cost);
+            var resMinus = w2_misfit_and_grad(aMinus, bMinus, cost);
 
             // Reweight by original masses so the two pieces contribute proportionally.
             double massPlusA = aPlus.Sum();
@@ -350,6 +368,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         // and optional contrast shaping on magnitudes.
         // Place inside Wasserstein2ErrorMetric (same class as your other Solve* methods).
         private OptimalTransportResult SolveDifferencesOt2WithExtension(
+            IDiscretization discretization,
             double[] measured,
             double[] simulated,
             IReadOnlyList<Electrode> electrodes,
@@ -365,6 +384,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 throw new ArgumentException("Measured and simulated difference arrays must have identical length.");
 
             int differenceCount = measured.Length;
+            EnsureArcLengthCost(discretization, electrodes, getCoord);
 
             // Keep only finite channels on both sides
             var include = new List<int>(differenceCount);
@@ -377,8 +397,8 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
 
             // Build per-channel values and coordinates (uses your existing helper).
             // IMPORTANT: ensure BuildDifferenceDistribution uses LEFT-electrode coordinates (not midpoints).
-            var (aRaw, aLoc, aMap) = BuildDifferenceDistribution(simulated, electrodes, getCoord, include, pattern);
-            var (bRaw, bLoc, _) = BuildDifferenceDistribution(measured, electrodes, getCoord, include, pattern);
+            var (aRaw, aIdx, aMap) = BuildDifferenceDistribution(simulated, electrodes, include, pattern);
+            var (bRaw, _, _) = BuildDifferenceDistribution(measured, electrodes, include, pattern);
 
             int m = aRaw.Length;
             if (m == 0)
@@ -423,11 +443,13 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             // If one side has ~zero mass on both measured+simulated, skip its call and set grad=0, cost=0.
             (double Cost, double[] Grad) resPlus, resMinus;
 
+            var cost = GetSubsetCost(discretization, electrodes, getCoord, aIdx);
+
             if (massPlusA < eps && massPlusB < eps)
                 resPlus = (0.0, new double[m]);
             else
             {
-                var otRes = w2_misfit_and_grad(aPlus, bPlus, aLoc, bLoc);
+                var otRes = w2_misfit_and_grad(aPlus, bPlus, cost);
                 resPlus = (otRes.Cost, otRes.Grad);
             }
 
@@ -435,7 +457,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 resMinus = (0.0, new double[m]);
             else
             {
-                var otRes = w2_misfit_and_grad(aPlus, bPlus, aLoc, bLoc);
+                var otRes = w2_misfit_and_grad(aPlus, bPlus, cost);
                 resMinus = (otRes.Cost, otRes.Grad);
             }
 
@@ -495,13 +517,50 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
 
 
 
-        private static (double[] raw, (double x, double y)[] loc, List<(int srcIdx, int electrodeIdx)> indexMap)
-            BuildDistribution(double[] raw, List<Electrode> electrodes,
-                Func<Electrode, (double x, double y)> getCoord, List<int> include)
+        private void EnsureArcLengthCost(IDiscretization discretization, IReadOnlyList<Electrode> electrodes,
+            Func<Electrode, (double x, double y)> getCoord)
+        {
+            lock (_costCacheLock)
+            {
+                bool reuse = _cachedArcLengthCost != null && _cachedElectrodeIds != null &&
+                             ReferenceEquals(_cachedDiscretization, discretization) &&
+                             _cachedElectrodeIds.Length == electrodes.Count;
+
+                if (reuse)
+                {
+                    for (int i = 0; i < electrodes.Count; i++)
+                    {
+                        if (_cachedElectrodeIds[i] != electrodes[i].Id)
+                        {
+                            reuse = false;
+                            break;
+                        }
+                    }
+                }
+
+                if (reuse)
+                    return;
+
+                var coords = electrodes.Select(getCoord).ToArray();
+                _cachedArcLengthCost = ArcLengthGroundCostHelper.BuildArcLengthCost(coords);
+                _cachedElectrodeIds = electrodes.Select(e => e.Id).ToArray();
+                _cachedDiscretization = discretization;
+            }
+        }
+
+        private double[,] GetSubsetCost(IDiscretization discretization, IReadOnlyList<Electrode> electrodes,
+            Func<Electrode, (double x, double y)> getCoord, IReadOnlyList<int> electrodeIndices)
+        {
+            EnsureArcLengthCost(discretization, electrodes, getCoord);
+            return ArcLengthGroundCostHelper.SliceCostMatrix(_cachedArcLengthCost!, electrodeIndices);
+        }
+
+        private static (double[] raw, int[] electrodeIndices, List<(int srcIdx, int electrodeIdx)> indexMap)
+            BuildDistribution(double[] raw, List<Electrode> electrodes, List<int> include)
         {
             var vals = new List<double>(include.Count);
-            var coords = new List<(double, double)>(include.Count);
             var map = new List<(int, int)>(include.Count);
+            var indices = new List<int>(include.Count);
 
             foreach (int i in include)
             {
@@ -509,24 +568,22 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 if (!double.IsFinite(v))
                     continue;
 
-                var e = electrodes[i];
                 vals.Add(v);
-                coords.Add(getCoord(e));
+                indices.Add(i);
                 map.Add((vals.Count - 1, i));
             }
-            return (vals.ToArray(), coords.ToArray(), map);
+            return (vals.ToArray(), indices.ToArray(), map);
         }
 
-        private static (double[] raw, (double x, double y)[] loc, List<(int srcIdx, int diffIdx)> indexMap)
+        private static (double[] raw, int[] electrodeIndices, List<(int srcIdx, int diffIdx)> indexMap)
             BuildDifferenceDistribution(double[] raw,
                                         IReadOnlyList<Electrode> electrodes,
-                                        Func<Electrode, (double x, double y)> getCoord,
                                         List<int> include,
                                         MeasurementPattern? pattern)
         {
             var vals = new List<double>(include.Count);
-            var coords = new List<(double, double)>(include.Count);
             var map = new List<(int, int)>(include.Count);
+            var indices = new List<int>(include.Count);
 
             foreach (int diffIdx in include)
             {
@@ -556,11 +613,11 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                     continue;
 
                 vals.Add(v);
-                coords.Add(getCoord(electrodes[left]));
+                indices.Add(left);
                 map.Add((vals.Count - 1, diffIdx));
             }
 
-            return (vals.ToArray(), coords.ToArray(), map);
+            return (vals.ToArray(), indices.ToArray(), map);
         }
 
         private static (double x, double y) ToXY(LBMGrid mesh, int gridId) =>
