@@ -172,6 +172,11 @@ namespace DataAccessLayer
                 }
             }
 
+            var elementConductivities = mesh.ElementsTyped
+                .OrderBy(e => e.Id)
+                .Select(e => e.Conductivity)
+                .ToList();
+
             // Generate electrode excitation/ground pairs based on the chosen drive pattern.
             var strategy = DrivePatternStrategyProvider.GetStrategy(drivePattern);
             var drivePatternPairs = new List<int[]>();
@@ -193,7 +198,8 @@ namespace DataAccessLayer
                 electrodeVertexCoordinates,
                 matlabElectrodeVertexIds,
                 drivePatternPairs,
-                stlVertexOrder = matlabVertexOrder
+                stlVertexOrder = matlabVertexOrder,
+                inhomogenousPhantomElemData = elementConductivities
 
             };
 

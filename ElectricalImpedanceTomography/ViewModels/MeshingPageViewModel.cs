@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using ServiceLayer;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using Utility.Classes;
 using Utility.Classes.Factories;
 using Utility.Classes.Discretizer;
@@ -126,6 +127,8 @@ namespace ElectricalImpedanceTomography.ViewModels
             _currentDiscretization = SelectedMeshType == DiscretizationType.FEM
                 ? _daqService.LoadFEMMesh(filePath)
                 : _daqService.LoadLBMGrid(filePath);
+
+            Name = Path.GetFileNameWithoutExtension(filePath);
 
             Workspace.SetDiscretization(_currentDiscretization);
             Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
