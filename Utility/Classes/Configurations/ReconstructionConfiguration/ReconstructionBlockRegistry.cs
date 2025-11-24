@@ -263,8 +263,22 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
 
         private static T ParseEnum<T>(string friendly) where T : struct, Enum
         {
-            var raw = friendly.Replace(" ", string.Empty);
-            if (Enum.TryParse<T>(raw, out var parsed))
+            if (string.IsNullOrWhiteSpace(friendly))
+                return default;
+
+            static string Normalize(string value) =>
+                new string(value.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+
+            var normalizedInput = Normalize(friendly);
+
+            foreach (var name in Enum.GetNames(typeof(T)))
+            {
+                // Match either the raw enum name or its friendly-formatted variant.
+                if (Normalize(name) == normalizedInput || Normalize(FriendlyName(name)) == normalizedInput)
+                    return Enum.Parse<T>(name, true);
+            }
+
+            if (Enum.TryParse<T>(friendly, true, out var parsed))
                 return parsed;
 
             return default;
