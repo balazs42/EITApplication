@@ -4,6 +4,7 @@
              xmlns:skia="clr-namespace:SkiaSharp.Views.Maui.Controls;assembly=SkiaSharp.Views.Maui.Controls"
              xmlns:viewmodels="clr-namespace:ElectricalImpedanceTomography.ViewModels"
              xmlns:converters="clr-namespace:ElectricalImpedanceTomography.Converters"
+             xmlns:selectors="clr-namespace:ElectricalImpedanceTomography.TemplateSelectors"
              xmlns:models="clr-namespace:Utility.Classes.Configurations.ReconstructionConfiguration;assembly=Utility"
              x:Class="ElectricalImpedanceTomography.Views.ReconstructionConfigurationPage"
              Title="Visual Reconstruction Flow Editor"
@@ -23,10 +24,42 @@
             <!-- Converters for selecting property templates based on parameter type -->
             <converters:IsNotNullConverter x:Key="IsNotNullConverter"/>
             <converters:IsNullConverter x:Key="IsNullConverter"/>
-            <converters:TypeCheckConverter TargetType="{x:Type models:TextParameter}" x:Key="TypeIsTextConverter"/>
-            <converters:TypeCheckConverter TargetType="{x:Type models:NumberParameter}" x:Key="TypeIsNumberConverter"/>
-            <converters:TypeCheckConverter TargetType="{x:Type models:BoolParameter}" x:Key="TypeIsBoolConverter"/>
-            <converters:TypeCheckConverter TargetType="{x:Type models:ChoiceParameter}" x:Key="TypeIsChoiceConverter"/>
+
+            <DataTemplate x:Key="TextParameterTemplate" x:DataType="models:TextParameter">
+                <VerticalStackLayout Spacing="6">
+                    <Label Text="{Binding Name}" TextColor="{StaticResource TextMain}" FontSize="13" FontAttributes="Bold"/>
+                    <Entry Text="{Binding Value}" BackgroundColor="{StaticResource InputBg}" TextColor="White" />
+                </VerticalStackLayout>
+            </DataTemplate>
+
+            <DataTemplate x:Key="NumberParameterTemplate" x:DataType="models:NumberParameter">
+                <VerticalStackLayout Spacing="6">
+                    <Label Text="{Binding Name}" TextColor="{StaticResource TextMain}" FontSize="13" FontAttributes="Bold"/>
+                    <Entry Text="{Binding Value}" Keyboard="Numeric" BackgroundColor="{StaticResource InputBg}" TextColor="{StaticResource Accent}" />
+                </VerticalStackLayout>
+            </DataTemplate>
+
+            <DataTemplate x:Key="BoolParameterTemplate" x:DataType="models:BoolParameter">
+                <VerticalStackLayout Spacing="6">
+                    <Label Text="{Binding Name}" TextColor="{StaticResource TextMain}" FontSize="13" FontAttributes="Bold"/>
+                    <Switch IsToggled="{Binding Value}" OnColor="{StaticResource Accent}" HorizontalOptions="Start"/>
+                </VerticalStackLayout>
+            </DataTemplate>
+
+            <DataTemplate x:Key="ChoiceParameterTemplate" x:DataType="models:ChoiceParameter">
+                <VerticalStackLayout Spacing="6">
+                    <Label Text="{Binding Name}" TextColor="{StaticResource TextMain}" FontSize="13" FontAttributes="Bold"/>
+                    <Border Stroke="#444" StrokeThickness="1" StrokeShape="RoundRectangle 4" BackgroundColor="{StaticResource InputBg}">
+                        <Picker ItemsSource="{Binding Options}" SelectedItem="{Binding SelectedOption}" TextColor="White" TitleColor="Gray" FontSize="13"/>
+                    </Border>
+                </VerticalStackLayout>
+            </DataTemplate>
+
+            <selectors:ParameterTemplateSelector x:Key="ParameterTemplateSelector"
+                                                 TextTemplate="{StaticResource TextParameterTemplate}"
+                                                 NumberTemplate="{StaticResource NumberParameterTemplate}"
+                                                 BoolTemplate="{StaticResource BoolParameterTemplate}"
+                                                 ChoiceTemplate="{StaticResource ChoiceParameterTemplate}" />
         </ResourceDictionary>
     </ContentPage.Resources>
 
@@ -155,22 +188,9 @@
                             <!-- ... (Same as before) ... -->
                             <Label Text="{Binding SelectedBlock.Title}" FontSize="20" FontAttributes="Bold" TextColor="{StaticResource TextMain}"/>
                             <BoxView HeightRequest="1" Color="#444" Margin="0,10"/>
-                            <StackLayout BindableLayout.ItemsSource="{Binding SelectedBlock.Parameters}" Spacing="18">
-                                <BindableLayout.ItemTemplate>
-                                    <DataTemplate x:DataType="models:ConfigurationParameter">
-                                        <VerticalStackLayout Spacing="6">
-                                            <Label Text="{Binding Name}" TextColor="{StaticResource TextMain}" FontSize="13" FontAttributes="Bold"/>
-                                            <Entry Text="{Binding Value}" BackgroundColor="{StaticResource InputBg}" TextColor="White" IsVisible="{Binding ., Converter={StaticResource TypeIsTextConverter}}" />
-                                            <Entry Text="{Binding Value}" Keyboard="Numeric" BackgroundColor="{StaticResource InputBg}" TextColor="{StaticResource Accent}" IsVisible="{Binding ., Converter={StaticResource TypeIsNumberConverter}}" />
-                                            <Switch IsToggled="{Binding Value}" OnColor="{StaticResource Accent}" HorizontalOptions="Start" IsVisible="{Binding ., Converter={StaticResource TypeIsBoolConverter}}"/>
-                                            <Border Stroke="#444" StrokeThickness="1" StrokeShape="RoundRectangle 4" BackgroundColor="{StaticResource InputBg}" IsVisible="{Binding ., Converter={StaticResource TypeIsChoiceConverter}}">
-                                                <Picker ItemsSource="{Binding Options}" SelectedItem="{Binding SelectedOption}" TextColor="White" TitleColor="Gray" FontSize="13"/>
-                                            </Border>
-                                        </VerticalStackLayout>
-                                    </DataTemplate>
-                                </BindableLayout.ItemTemplate>
-                            </StackLayout>
-                        </VerticalStackLayout>
+            <StackLayout BindableLayout.ItemsSource="{Binding SelectedBlock.Parameters}"
+                         BindableLayout.ItemTemplateSelector="{StaticResource ParameterTemplateSelector}" Spacing="18" />
+        </VerticalStackLayout>
 
                         <!-- Connection Selection (Keep) -->
                         <VerticalStackLayout IsVisible="{Binding SelectedConnection, Converter={StaticResource IsNotNullConverter}}">
