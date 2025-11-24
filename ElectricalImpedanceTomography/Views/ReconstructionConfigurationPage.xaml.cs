@@ -158,6 +158,7 @@ namespace ElectricalImpedanceTomography.Views
             outPort.GestureRecognizers.Add(connectGesture);
 
             var container = new Grid { WidthRequest = 214, BindingContext = block };
+            // Ensure individual blocks remain hit-testable even though the parent layout is transparent.
             container.InputTransparent = false;
             container.Add(border);
             container.Add(inPort);
