@@ -12,6 +12,11 @@
         Initialization,
 
         /// <summary>
+        /// Block describing the incoming measurements and their preprocessing.
+        /// </summary>
+        Measurement,
+
+        /// <summary>
         /// Block for the forward problem solver (e.g., FEM, LBM).
         /// </summary>
         Solver,

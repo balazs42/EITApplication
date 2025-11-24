@@ -32,6 +32,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         public ObservableCollection<BlockType> BlockTypes { get; } = new()
         {
             BlockType.Initialization,
+            BlockType.Measurement,
             BlockType.Solver,
             BlockType.Regularizer,
             BlockType.ErrorMetric,

@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using System.Collections.ObjectModel;
 using System.Linq;
 using Utility.Classes.Factories;
+using Utility.Classes.Measurement;
 using Utility.Classes.ReconstructionParameters;
 
 namespace Utility.Classes.Configurations.ReconstructionConfiguration
@@ -88,6 +89,7 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
             IconColor = Type switch
             {
                 BlockType.Initialization => "#FFD166", // Yellow
+                BlockType.Measurement => "#4ECDC4",    // Teal
                 BlockType.Solver => "#06D6A0",         // Green
                 BlockType.Regularizer => "#118AB2",    // Blue
                 BlockType.ErrorMetric => "#EF476F",    // Red
@@ -135,6 +137,33 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
                     });
                     Parameters.Add(new NumberParameter { Name = "FEM Order", Key = "fem_order", Value = 1, Min = 1, Max = 2, Step = 1 });
                     Parameters.Add(new NumberParameter { Name = "LBM Relaxation Time (tau)", Key = "lbm_tau", Value = 0.51, Min = 0.50001, Step = 0.01 });
+                    break;
+
+                case BlockType.Measurement:
+                    Parameters.Add(new ChoiceParameter
+                    {
+                        Name = "Measurement Source",
+                        Key = "measurement_source",
+                        Options = Enum.GetNames(typeof(MeasurementSourceOption)).Select(FriendlyName).ToList(),
+                        SelectedOption = FriendlyName(nameof(MeasurementSourceOption.Simulated))
+                    });
+                    Parameters.Add(new ChoiceParameter
+                    {
+                        Name = "Electrode Setup",
+                        Key = "electrode_setup",
+                        Options = Enum.GetNames(typeof(ElectrodeMeasurementSetup)).Select(FriendlyName).ToList(),
+                        SelectedOption = FriendlyName(nameof(ElectrodeMeasurementSetup.Active))
+                    });
+                    Parameters.Add(new BoolParameter { Name = "Use Potential Differences", Key = "use_potential_differences", Value = false });
+                    Parameters.Add(new BoolParameter { Name = "Apply Measurement Noise", Key = "apply_noise", Value = false });
+                    Parameters.Add(new ChoiceParameter
+                    {
+                        Name = "Noise Type",
+                        Key = "noise_type",
+                        Options = Enum.GetNames(typeof(MeasurementNoiseType)).Select(FriendlyName).ToList(),
+                        SelectedOption = FriendlyName(nameof(MeasurementNoiseType.None))
+                    });
+                    Parameters.Add(new NumberParameter { Name = "Noise Amplitude / dB", Key = "noise_amplitude", Value = 0.0, Min = 0.0, Step = 0.1 });
                     break;
 
                 case BlockType.Regularizer:
