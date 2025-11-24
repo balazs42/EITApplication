@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
@@ -6,6 +7,7 @@ using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Measurement;
 using Utility.Classes.Reconstruction;
 using Utility.Classes.ReconstructionParameters;
+using Utility.Classes.Configurations.ReconstructionConfiguration;
 
 namespace Utility.Classes.Application
 {
@@ -29,6 +31,7 @@ namespace Utility.Classes.Application
 
         private static List<ReconstructionResult> _reconstructionResults = [];
         private static List<ReconstructionFrame> _reconstructionFrames = [];
+        private static List<ReconstructionConfigurationBlock> _reconstructionBlocks = [];
         private static List<WorkspaceMessage> _messages = [];
         private static ConductivityDistribution? _originalConductivityDistribution = null;
         private static ConductivityDistribution? _initialConductivityDistribution = null;
@@ -82,6 +85,7 @@ namespace Utility.Classes.Application
         public static void SetInitialDiscretization(IDiscretization? initialDiscretization) => _initialDiscretization = initialDiscretization;
         public static void SetReconstructionResults(List<ReconstructionResult> results) => _reconstructionResults = results;
         public static void SetReconstructionFrames(List<ReconstructionFrame> frames) => _reconstructionFrames = frames;
+        public static void SetReconstructionBlocks(List<ReconstructionConfigurationBlock> blocks) => _reconstructionBlocks = blocks;
         public static void SetOriginalConductivityDistribution(ConductivityDistribution? sigma) => _originalConductivityDistribution = sigma;
         public static void SetInitialConductivityDistribution(ConductivityDistribution? sigma) => _initialConductivityDistribution = sigma;
 
@@ -92,6 +96,7 @@ namespace Utility.Classes.Application
         public static IDiscretization? GetInitialDiscretization() => _initialDiscretization;
         public static List<ReconstructionResult> GetReconstructionResults() => _reconstructionResults;
         public static List<ReconstructionFrame> GetReconstructionFrames() => _reconstructionFrames;
+        public static IReadOnlyList<ReconstructionConfigurationBlock> GetReconstructionBlocks() => _reconstructionBlocks;
         public static ConductivityDistribution? GetOriginalConductivityDistribution() => _originalConductivityDistribution;
         public static ConductivityDistribution? GetInitialConductivityDistribution() => _initialConductivityDistribution;
 
