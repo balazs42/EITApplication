@@ -5,7 +5,9 @@ using System.Collections.ObjectModel;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
+using Utility.Classes.Application;
 using Utility.Classes.Configurations.ReconstructionConfiguration;
+using Utility.Classes.ReconstructionParameters;
 
 namespace ElectricalImpedanceTomography.ViewModels
 {
@@ -30,11 +32,25 @@ namespace ElectricalImpedanceTomography.ViewModels
         // Connection rules: when empty, any block can connect to any other block.
         private readonly Dictionary<BlockType, HashSet<BlockType>> _connectionRules = new();
 
-        public ObservableCollection<BlockType> BlockTypes { get; } = new(Enum.GetValues<BlockType>());
+        public ObservableCollection<BlockType> BlockTypes { get; } = new(ReconstructionBlockRegistry.BlockTypes);
 
         public ReconstructionConfigurationPageViewModel()
         {
-            AddBlock(BlockType.Initialization, 50, 50);
+            var workspaceBlocks = Workspace.GetReconstructionBlocks();
+            if (workspaceBlocks.Any())
+            {
+                foreach (var block in workspaceBlocks)
+                {
+                    RegisterBlock(block);
+                    Blocks.Add(block);
+                }
+            }
+            else
+            {
+                AddBlock(BlockType.Initialization, 50, 50);
+            }
+
+            ApplyConfigurationToWorkspace();
         }
 
         /// <summary>
@@ -55,11 +71,16 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public void AddBlock(BlockType type, double x, double y)
         {
-            string title = GetBlockTypeName(type);
-            var newBlock = new ReconstructionConfigurationBlock(title, type, x, y);
+            var newBlock = ReconstructionBlockRegistry.CreateBlock(type, x, y);
+            RegisterBlock(newBlock);
             Blocks.Add(newBlock);
-            // Don't auto-select if doing bulk operations, but for single add it's fine.
             SelectBlock(newBlock);
+            ApplyConfigurationToWorkspace();
+        }
+
+        private void RegisterBlock(ReconstructionConfigurationBlock block)
+        {
+            block.ParametersChanged += _ => ApplyConfigurationToWorkspace();
         }
 
         [RelayCommand]
@@ -93,41 +114,21 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public void UpdateSelection(Rect selectionRect)
         {
-            // Iterate blocks
             foreach (var block in Blocks)
             {
-                // Assuming block size approx 200x80 for hit testing
-                // Better if View passes bounds, but estimation works for VM logic if coords match
                 var blockRect = new Rect(block.X, block.Y, 200, 80);
                 block.IsSelected = selectionRect.IntersectsWith(blockRect);
             }
 
-            // Iterate connections (Simplified: check if endpoints are in rect)
             foreach (var conn in Connections)
             {
-                // Logic: If source or target block is selected, or the line is contained?
-                // Let's stick to: If center point is in rect, or if both nodes are selected.
-                // For simplicity in "box select", usually we select nodes. 
-                // If nodes are selected, we might implicitly select connections or just leave them.
-                // Let's strictly select connections if their "midpoint" is in the box.
                 var midX = (conn.Source.X + 214 + conn.Target.X) / 2;
                 var midY = (conn.Source.Y + 30 + conn.Target.Y + 30) / 2;
-                if (selectionRect.Contains(midX, midY))
-                {
-                    conn.IsSelected = true;
-                }
-                else
-                {
-                    // Don't deselect if it was manually selected? 
-                    // For box drag, usually we strictly set state based on box.
-                    conn.IsSelected = false;
-                }
+                conn.IsSelected = selectionRect.Contains(midX, midY);
             }
 
-            // Update 'SelectedBlock' to the first selected one to show properties, or null if multiple
             var selectedBlocks = Blocks.Where(b => b.IsSelected).ToList();
-            if (selectedBlocks.Count == 1) SelectedBlock = selectedBlocks[0];
-            else SelectedBlock = null;
+            SelectedBlock = selectedBlocks.Count == 1 ? selectedBlocks[0] : null;
         }
 
         [RelayCommand]
@@ -136,7 +137,6 @@ namespace ElectricalImpedanceTomography.ViewModels
             var blocksToRemove = Blocks.Where(b => b.IsSelected).ToList();
             var connectionsToRemove = Connections.Where(c => c.IsSelected).ToList();
 
-            // Also remove connections attached to removed blocks
             foreach (var block in blocksToRemove)
             {
                 var attached = Connections.Where(c => c.Source == block || c.Target == block).ToList();
@@ -151,6 +151,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             SelectedBlock = null;
             SelectedConnection = null;
+            ApplyConfigurationToWorkspace();
         }
 
         public void AddConnection(ReconstructionConfigurationBlock source, ReconstructionConfigurationBlock target)
@@ -175,7 +176,6 @@ namespace ElectricalImpedanceTomography.ViewModels
                 return allowedTargets.Count == 0 || allowedTargets.Contains(target);
             }
 
-            // No explicit rule for this source, allow by default.
             return true;
         }
 
@@ -186,9 +186,11 @@ namespace ElectricalImpedanceTomography.ViewModels
             Blocks.Clear();
             SelectedBlock = null;
             SelectedConnection = null;
+            ApplyConfigurationToWorkspace();
         }
 
-        public string GetBlockTypeName(BlockType type) => type.ToString();
+        public string GetBlockTypeName(BlockType type) => ReconstructionBlockRegistry.GetDefinition(type).Title;
+
         [RelayCommand]
         public async Task SaveConfiguration()
         {
@@ -217,21 +219,10 @@ namespace ElectricalImpedanceTomography.ViewModels
 
                 string json = JsonSerializer.Serialize(dto, new JsonSerializerOptions { WriteIndented = true });
 
-                // Save to file
                 string fileName = $"config_{DateTime.Now:yyyyMMdd_HHmm}.json";
-                var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(json));
-
-                // Using FileSaver (CommunityToolkit) or just writing to AppData for simplicity in this demo context?
-                // The user asked for "Save Option", implied File Picker.
-                // Since FileSaver is platform specific setup, I'll use a simpler approach or assume FileSaver is available.
-                // I will output to AppData and show an alert for this implementation to be dependency-light.
-
                 string path = Path.Combine(FileSystem.AppDataDirectory, fileName);
                 await File.WriteAllTextAsync(path, json);
 
-                // Notify (In a real app, use a Service)
-                // Console.WriteLine($"Saved to {path}"); 
-                // We can't easily show alert from VM without service, but the View can subscribe or we use Shell.
                 await Shell.Current.DisplayAlert("Success", $"Configuration saved to: {path}", "OK");
             }
             catch (Exception ex)
@@ -264,56 +255,22 @@ namespace ElectricalImpedanceTomography.ViewModels
 
                 if (dto == null) return;
 
-                ClearAll();
-
-                // Reconstruct Blocks
-                foreach (var bDto in dto.Blocks)
-                {
-                    AddBlock(bDto.Type, bDto.X, bDto.Y);
-                    var newBlock = Blocks.Last();
-                    // Restore parameters
-                    foreach (var pDto in bDto.Parameters)
-                    {
-                        var param = newBlock.Parameters.FirstOrDefault(p => p.Key == pDto.Key);
-                        if (param != null) SetParamValue(param, pDto.Value);
-                    }
-                }
-
-                // Reconstruct Connections
-                foreach (var cDto in dto.Connections)
-                {
-                    var source = Blocks.FirstOrDefault(b => b.Id == cDto.SourceId); // Note: ID generation might mismatch if we don't persist IDs.
-                    // Fix: We need to match by position or order? Or persist IDs.
-                    // The Block constructor generates new GUIDs. 
-                    // Real implementation should allow setting ID or we map by index if order preserved.
-                    // Let's update Block model to allow ID set or map by visual index for this demo?
-                    // Better: Update DTO to use index or matching logic. 
-                    // Actually, since `Blocks` is ordered, let's use ID matching BUT we need to ensure we can find the blocks we just created.
-                    // Issue: `AddBlock` generates new ID.
-                    // Fix: I will rely on the order. Or better, update AddBlock to return the block so I can map old IDs to new Objects.
-                }
-
-                // Refined Load Logic for Connections:
-                // We need a mapping from File-ID to Runtime-Block-Object.
-                var idMap = new Dictionary<string, ReconstructionConfigurationBlock>();
-
-                // Clear again to be safe
                 Blocks.Clear();
                 Connections.Clear();
 
+                var idMap = new Dictionary<string, ReconstructionConfigurationBlock>();
+
                 foreach (var bDto in dto.Blocks)
                 {
-                    // Manually create to capture object
-                    string title = GetBlockTypeName(bDto.Type);
-                    var blk = new ReconstructionConfigurationBlock(title, bDto.Type, bDto.X, bDto.Y);
+                    var blk = ReconstructionBlockRegistry.CreateBlock(bDto.Type, bDto.X, bDto.Y, bDto.Id);
 
-                    // Restore params
                     foreach (var pDto in bDto.Parameters)
                     {
                         var param = blk.Parameters.FirstOrDefault(p => p.Key == pDto.Key);
                         if (param != null) SetParamValue(param, pDto.Value);
                     }
 
+                    RegisterBlock(blk);
                     Blocks.Add(blk);
                     idMap[bDto.Id] = blk;
                 }
@@ -325,6 +282,8 @@ namespace ElectricalImpedanceTomography.ViewModels
                         Connections.Add(new ReconstructionConnection { Source = src, Target = tgt });
                     }
                 }
+
+                ApplyConfigurationToWorkspace();
             }
             catch (Exception ex)
             {
@@ -332,7 +291,11 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
         }
 
-        // Helper to get value as string
+        private void ApplyConfigurationToWorkspace()
+        {
+            ReconstructionBlockRegistry.ApplyBlocksToWorkspace(Blocks);
+        }
+
         private string GetParamValue(ConfigurationParameter p) => p switch
         {
             TextParameter t => t.Value,
@@ -342,7 +305,6 @@ namespace ElectricalImpedanceTomography.ViewModels
             _ => ""
         };
 
-        // Helper to set value from string
         private void SetParamValue(ConfigurationParameter p, string value)
         {
             try
@@ -355,7 +317,6 @@ namespace ElectricalImpedanceTomography.ViewModels
             catch { }
         }
 
-        // DTO Classes
         public class ConfigurationDto
         {
             public List<BlockDto> Blocks { get; set; }
