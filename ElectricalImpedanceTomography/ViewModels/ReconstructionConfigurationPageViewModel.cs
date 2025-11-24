@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text.Json;
 using Utility.Classes.Application;
 using Utility.Classes.Configurations.ReconstructionConfiguration;
+using Utility.Classes.Configurations.ReconstructionConfiguration.Rules;
 using Utility.Classes.ReconstructionParameters;
 
 namespace ElectricalImpedanceTomography.ViewModels
@@ -28,6 +29,10 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         [ObservableProperty]
         private ReconstructionConnection? selectedConnection;
+
+        public ObservableCollection<string> DebugLines { get; } = new();
+
+        public ObservableCollection<string> ValidationIssues { get; } = new();
 
         // Connection rules: when empty, any block can connect to any other block.
         private readonly Dictionary<BlockType, HashSet<BlockType>> _connectionRules = new();
@@ -51,6 +56,8 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
 
             ApplyConfigurationToWorkspace();
+            Blocks.CollectionChanged += (_, __) => UpdateDiagnostics();
+            Connections.CollectionChanged += (_, __) => UpdateDiagnostics();
         }
 
         /// <summary>
@@ -81,6 +88,14 @@ namespace ElectricalImpedanceTomography.ViewModels
         private void RegisterBlock(ReconstructionConfigurationBlock block)
         {
             block.ParametersChanged += _ => ApplyConfigurationToWorkspace();
+            block.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName == nameof(ReconstructionConfigurationBlock.X) ||
+                    args.PropertyName == nameof(ReconstructionConfigurationBlock.Y))
+                {
+                    ApplyConfigurationToWorkspace();
+                }
+            };
         }
 
         [RelayCommand]
@@ -158,9 +173,22 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             if (source == null || target == null || source == target) return;
             if (!CanConnect(source.Type, target.Type)) return;
+            if (!ReconstructionConfigurationRules.HasAvailableOutput(source, Connections))
+            {
+                TrackIssue($"{source.Title} has no remaining output connectors.");
+                return;
+            }
+
+            if (!ReconstructionConfigurationRules.HasAvailableInput(target, Connections))
+            {
+                TrackIssue($"{target.Title} cannot accept more inputs.");
+                return;
+            }
+
             if (!Connections.Any(c => c.Source == source && c.Target == target))
             {
                 Connections.Add(new ReconstructionConnection { Source = source, Target = target });
+                ApplyConfigurationToWorkspace();
             }
         }
 
@@ -196,6 +224,19 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             try
             {
+                var issues = ReconstructionConfigurationRules.Validate(Blocks, Connections);
+                ValidationIssues.Clear();
+                foreach (var issue in issues)
+                {
+                    ValidationIssues.Add(issue);
+                }
+
+                if (issues.Any())
+                {
+                    await Shell.Current.DisplayAlert("Cannot Save", string.Join("\n", issues), "OK");
+                    return;
+                }
+
                 var dto = new ConfigurationDto
                 {
                     Blocks = Blocks.Select(b => new BlockDto
@@ -294,7 +335,14 @@ namespace ElectricalImpedanceTomography.ViewModels
         private void ApplyConfigurationToWorkspace()
         {
             ReconstructionBlockRegistry.ApplyBlocksToWorkspace(Blocks);
+            UpdateDiagnostics();
         }
+
+        public bool HasOutputCapacity(ReconstructionConfigurationBlock block) =>
+            ReconstructionConfigurationRules.HasAvailableOutput(block, Connections);
+
+        public bool HasInputCapacity(ReconstructionConfigurationBlock block) =>
+            ReconstructionConfigurationRules.HasAvailableInput(block, Connections);
 
         private string GetParamValue(ConfigurationParameter p) => p switch
         {
@@ -315,6 +363,49 @@ namespace ElectricalImpedanceTomography.ViewModels
                 else if (p is ChoiceParameter c) c.SelectedOption = value;
             }
             catch { }
+        }
+
+        public void NotifyLayoutChanged() => ApplyConfigurationToWorkspace();
+
+        private void UpdateDiagnostics()
+        {
+            DebugLines.Clear();
+            var blockSummary = string.Join(", ", Blocks
+                .GroupBy(b => b.Type)
+                .Select(g => $"{g.Key}({g.Count()})"));
+            DebugLines.Add(string.IsNullOrWhiteSpace(blockSummary)
+                ? "Blocks: none"
+                : $"Blocks: {blockSummary}");
+
+            if (Connections.Any())
+            {
+                foreach (var conn in Connections.Take(6))
+                {
+                    DebugLines.Add($"Connection: {conn.Source.Title} -> {conn.Target.Title}");
+                }
+                if (Connections.Count > 6)
+                {
+                    DebugLines.Add($"(+{Connections.Count - 6} more)");
+                }
+            }
+            else
+            {
+                DebugLines.Add("Connections: none");
+            }
+
+            ValidationIssues.Clear();
+            foreach (var issue in ReconstructionConfigurationRules.Validate(Blocks, Connections))
+            {
+                ValidationIssues.Add(issue);
+            }
+        }
+
+        private void TrackIssue(string message)
+        {
+            if (!ValidationIssues.Contains(message))
+            {
+                ValidationIssues.Add(message);
+            }
         }
 
         public class ConfigurationDto

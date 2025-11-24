@@ -90,6 +90,12 @@
         <Grid Grid.Column="1" BackgroundColor="#1E1E2E">
             <BoxView Color="#232330" Opacity="0.5"/>
 
+            <!-- Dotted background grid -->
+            <skia:SKCanvasView x:Name="GridCanvas"
+                               PaintSurface="OnGridPaintSurface"
+                               InputTransparent="True"
+                               IgnorePixelScaling="True" />
+
             <!-- SkiaSharp Layer: Touch Enabled -->
             <skia:SKCanvasView x:Name="ConnectionsCanvas"
                                PaintSurface="OnCanvasPaintSurface"
@@ -111,6 +117,29 @@
                      IsVisible="False"
                      HorizontalOptions="Start"
                      VerticalOptions="Start"/>
+
+            <!-- Debug window -->
+            <Border BackgroundColor="#111827" StrokeThickness="1" Stroke="#2C2C3A" CornerRadius="10"
+                    HorizontalOptions="Center" VerticalOptions="End" Margin="0,0,0,20" Padding="12"
+                    WidthRequest="420">
+                <VerticalStackLayout Spacing="4">
+                    <Label Text="DEBUG" FontSize="12" FontAttributes="Bold" TextColor="#9CA3AF" HorizontalOptions="Center"/>
+                    <StackLayout BindableLayout.ItemsSource="{Binding DebugLines}" Spacing="2">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <Label Text="{Binding .}" FontSize="11" TextColor="#E5E7EB"/> 
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </StackLayout>
+                    <StackLayout BindableLayout.ItemsSource="{Binding ValidationIssues}" Spacing="2" Margin="0,6,0,0">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <Label Text="{Binding .}" FontSize="11" TextColor="#FCA5A5"/> 
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </StackLayout>
+                </VerticalStackLayout>
+            </Border>
         </Grid>
 
         <!-- RIGHT SIDE: PROPERTIES -->

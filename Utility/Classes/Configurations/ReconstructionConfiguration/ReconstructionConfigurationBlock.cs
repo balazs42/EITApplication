@@ -108,6 +108,11 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
             {
                 toggle.PropertyChanged += (_, __) => ParametersChanged?.Invoke(this);
             }
+
+            foreach (var text in Parameters.OfType<TextParameter>())
+            {
+                text.PropertyChanged += (_, __) => ParametersChanged?.Invoke(this);
+            }
         }
 
         private void UpdateHighlightedOption()
