@@ -99,6 +99,7 @@
                                InputTransparent="False" />
 
             <!-- Container for blocks -->
+            <!-- Allow the canvas below to receive touches for box selection while keeping blocks interactive. -->
             <AbsoluteLayout x:Name="NodeContainer" BackgroundColor="Transparent" InputTransparent="True">
             </AbsoluteLayout>
 

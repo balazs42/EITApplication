@@ -22,14 +22,22 @@ namespace ElectricalImpedanceTomography.Views
 
         private Point? _tempConnectionStart;
         private Point? _tempConnectionEnd;
+        private ReconstructionConfigurationBlock? _tempConnectionSource;
 
         // Selection Rectangle State
         private Point? _selectionStart;
         private bool _isSelecting = false;
 
+        // Dragging state
+        private ReconstructionConfigurationBlock? _draggedBlock;
+        private Point _dragStartPoint;
+        private Point _dragStartBlockPosition;
+
         private const double PortCenterY = 30;
         private const double OutputPortXOffset = 214;
         private const double InputPortXOffset = 0;
+        private const double BlockWidth = 214;
+        private const double BlockHeight = 80;
 
         // Mesh preview drawing helpers
         private readonly SKPaint _lbmFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.Black };
@@ -158,6 +166,7 @@ namespace ElectricalImpedanceTomography.Views
             outPort.GestureRecognizers.Add(connectGesture);
 
             var container = new Grid { WidthRequest = 214, BindingContext = block };
+            // Ensure individual blocks remain hit-testable even though the parent layout is transparent.
             container.InputTransparent = false;
             container.Add(border);
             container.Add(inPort);
@@ -210,6 +219,7 @@ namespace ElectricalImpedanceTomography.Views
                 case GestureStatus.Started:
                     double startX = sourceBlock.X + OutputPortXOffset;
                     double startY = sourceBlock.Y + PortCenterY;
+                    _tempConnectionSource = sourceBlock;
                     _tempConnectionStart = new Point(startX, startY);
                     _tempConnectionEnd = _tempConnectionStart;
                     ConnectionsCanvas.InvalidateSurface();
@@ -231,6 +241,7 @@ namespace ElectricalImpedanceTomography.Views
                             _viewModel.AddConnection(sourceBlock, targetBlock);
                         }
                     }
+                    _tempConnectionSource = null;
                     _tempConnectionStart = null;
                     _tempConnectionEnd = null;
                     ConnectionsCanvas.InvalidateSurface();
@@ -264,55 +275,176 @@ namespace ElectricalImpedanceTomography.Views
             switch (e.ActionType)
             {
                 case SKTouchAction.Pressed:
-                    // Try selecting a connection first
                     if (TrySelectConnection(viewSkPoint))
                     {
-                        _isSelecting = false;
+                        ResetInteractionState();
+                        break;
                     }
-                    else
-                    {
-                        // Start Selection Rectangle
-                        _selectionStart = viewPoint;
-                        _isSelecting = true;
-                        _viewModel.ClearSelection();
 
-                        SelectionBox.IsVisible = true;
-                        SelectionBox.WidthRequest = 0;
-                        SelectionBox.HeightRequest = 0;
-                        SelectionBox.Margin = new Thickness(viewPoint.X, viewPoint.Y, 0, 0);
+                    if (TryBeginPortConnection(viewPoint))
+                    {
+                        break;
                     }
+
+                    if (TryBeginBlockDrag(viewPoint))
+                    {
+                        break;
+                    }
+
+                    BeginSelection(viewPoint);
                     break;
 
                 case SKTouchAction.Moved:
-                    if (_isSelecting && _selectionStart.HasValue)
-                    {
-                        double x = Math.Min(_selectionStart.Value.X, viewPoint.X);
-                        double y = Math.Min(_selectionStart.Value.Y, viewPoint.Y);
-                        double w = Math.Abs(_selectionStart.Value.X - viewPoint.X);
-                        double h = Math.Abs(_selectionStart.Value.Y - viewPoint.Y);
-
-                        // Update Visual Rect
-                        SelectionBox.Margin = new Thickness(x, y, 0, 0);
-                        SelectionBox.WidthRequest = w;
-                        SelectionBox.HeightRequest = h;
-
-                        // Real-time selection updates
-                        _viewModel.UpdateSelection(new Rect(x, y, w, h));
-                    }
+                    HandleMove(viewPoint);
                     break;
 
                 case SKTouchAction.Released:
                 case SKTouchAction.Cancelled:
-                    if (_isSelecting)
-                    {
-                        SelectionBox.IsVisible = false;
-                        _isSelecting = false;
-                        _selectionStart = null;
-                    }
+                    CompleteInteraction(viewPoint);
                     break;
             }
 
             e.Handled = true;
+        }
+
+        private bool TryBeginPortConnection(Point viewPoint)
+        {
+            var block = FindBlockAtPoint(viewPoint);
+            if (block == null)
+            {
+                return false;
+            }
+
+            var portCenter = new Point(block.X + OutputPortXOffset, block.Y + PortCenterY);
+            if (Distance(viewPoint, portCenter) <= 16)
+            {
+                _tempConnectionSource = block;
+                _tempConnectionStart = portCenter;
+                _tempConnectionEnd = portCenter;
+                ConnectionsCanvas.InvalidateSurface();
+                return true;
+            }
+
+            return false;
+        }
+
+        private bool TryBeginBlockDrag(Point viewPoint)
+        {
+            var block = FindBlockAtPoint(viewPoint);
+            if (block == null)
+            {
+                return false;
+            }
+
+            _draggedBlock = block;
+            _dragStartPoint = viewPoint;
+            _dragStartBlockPosition = new Point(block.X, block.Y);
+            _viewModel.SelectBlock(block);
+            return true;
+        }
+
+        private void BeginSelection(Point viewPoint)
+        {
+            _selectionStart = viewPoint;
+            _isSelecting = true;
+            _viewModel.ClearSelection();
+
+            SelectionBox.IsVisible = true;
+            SelectionBox.WidthRequest = 0;
+            SelectionBox.HeightRequest = 0;
+            SelectionBox.Margin = new Thickness(viewPoint.X, viewPoint.Y, 0, 0);
+        }
+
+        private void HandleMove(Point viewPoint)
+        {
+            if (_tempConnectionStart.HasValue && _tempConnectionSource != null)
+            {
+                _tempConnectionEnd = viewPoint;
+                ConnectionsCanvas.InvalidateSurface();
+                return;
+            }
+
+            if (_draggedBlock != null)
+            {
+                var delta = new Point(viewPoint.X - _dragStartPoint.X, viewPoint.Y - _dragStartPoint.Y);
+                var newX = _dragStartBlockPosition.X + delta.X;
+                var newY = _dragStartBlockPosition.Y + delta.Y;
+                _draggedBlock.X = newX;
+                _draggedBlock.Y = newY;
+                var view = NodeContainer.Children.FirstOrDefault(c => ReferenceEquals(c.BindingContext, _draggedBlock));
+                if (view != null)
+                {
+                    AbsoluteLayout.SetLayoutBounds(view, new Rect(newX, newY, AbsoluteLayout.AutoSize, AbsoluteLayout.AutoSize));
+                }
+                ConnectionsCanvas.InvalidateSurface();
+                return;
+            }
+
+            if (_isSelecting && _selectionStart.HasValue)
+            {
+                double x = Math.Min(_selectionStart.Value.X, viewPoint.X);
+                double y = Math.Min(_selectionStart.Value.Y, viewPoint.Y);
+                double w = Math.Abs(_selectionStart.Value.X - viewPoint.X);
+                double h = Math.Abs(_selectionStart.Value.Y - viewPoint.Y);
+
+                SelectionBox.Margin = new Thickness(x, y, 0, 0);
+                SelectionBox.WidthRequest = w;
+                SelectionBox.HeightRequest = h;
+
+                _viewModel.UpdateSelection(new Rect(x, y, w, h));
+            }
+        }
+
+        private void CompleteInteraction(Point viewPoint)
+        {
+            if (_tempConnectionStart.HasValue && _tempConnectionSource != null)
+            {
+                var targetBlock = FindTargetBlock(viewPoint);
+                if (targetBlock != null && targetBlock != _tempConnectionSource)
+                {
+                    _viewModel.AddConnection(_tempConnectionSource, targetBlock);
+                }
+                ResetInteractionState();
+                return;
+            }
+
+            if (_draggedBlock != null)
+            {
+                _draggedBlock = null;
+                return;
+            }
+
+            if (_isSelecting)
+            {
+                SelectionBox.IsVisible = false;
+                _isSelecting = false;
+                _selectionStart = null;
+            }
+        }
+
+        private void ResetInteractionState()
+        {
+            _tempConnectionSource = null;
+            _tempConnectionStart = null;
+            _tempConnectionEnd = null;
+            _draggedBlock = null;
+            _isSelecting = false;
+            _selectionStart = null;
+            SelectionBox.IsVisible = false;
+        }
+
+        private ReconstructionConfigurationBlock? FindBlockAtPoint(Point point)
+        {
+            return _viewModel.Blocks.FirstOrDefault(block =>
+                point.X >= block.X && point.X <= block.X + BlockWidth &&
+                point.Y >= block.Y && point.Y <= block.Y + BlockHeight);
+        }
+
+        private static double Distance(Point a, Point b)
+        {
+            var dx = a.X - b.X;
+            var dy = a.Y - b.Y;
+            return Math.Sqrt(dx * dx + dy * dy);
         }
 
         private bool TrySelectConnection(SKPoint clickPoint)
