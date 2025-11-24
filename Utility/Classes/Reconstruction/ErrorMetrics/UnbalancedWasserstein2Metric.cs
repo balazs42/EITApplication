@@ -119,6 +119,12 @@ public sealed class UnbalancedWasserstein2Metric : IErrorMetric
     // while still supporting concurrent rentals within a single evaluation.
     private readonly Dictionary<int, Stack<double[]>> _vectorPool = new();
 
+    // Cached arc-length ground cost for the current electrode geometry.
+    private readonly object _costLock = new();
+    private IDiscretization? _cachedDiscretization;
+    private int[]? _cachedElectrodeIds;
+    private double[,]? _cachedArcCost;
+
     /// <summary>
     /// Initialises the metric with optional custom configuration.
     /// </summary>
@@ -194,6 +200,7 @@ public sealed class UnbalancedWasserstein2Metric : IErrorMetric
         Func<Electrode, (double x, double y)> coordinateProvider)
     {
         int count = Math.Min(measured.Length, electrodes.Count);
+        EnsureArcLengthCost(discretization, electrodes, coordinateProvider);
         var include = new List<int>(count);
         for (int i = 0; i < count; i++)
         {
@@ -205,18 +212,16 @@ public sealed class UnbalancedWasserstein2Metric : IErrorMetric
         if (include.Count == 0)
             return new OptimalTransportResult(measured, simulated, 0.0, new double[count]);
 
-        var coords = new (double x, double y)[include.Count];
         var simValues = new double[include.Count];
         var measValues = new double[include.Count];
         for (int i = 0; i < include.Count; i++)
         {
             int idx = include[i];
-            coords[i] = coordinateProvider(electrodes[idx]);
             simValues[i] = ClampNonNegative(simulated[idx]);
             measValues[i] = ClampNonNegative(measured[idx]);
         }
 
-        var cost = BuildEuclideanCost(coords, _amplitudeCostScratch);
+        var cost = GetSubsetCost(discretization, electrodes, coordinateProvider, include, _amplitudeCostScratch);
         var result = ComputeSinkhorn(simValues, measValues, cost);
 
         var gradient = new double[count];
@@ -238,6 +243,7 @@ public sealed class UnbalancedWasserstein2Metric : IErrorMetric
             throw new ArgumentException("Measured and simulated difference vectors must share the same length.");
 
         int differenceCount = measured.Length;
+        EnsureArcLengthCost(discretization, electrodes, coordinateProvider);
         var include = new List<int>(differenceCount);
         for (int i = 0; i < differenceCount; i++)
         {
@@ -250,13 +256,13 @@ public sealed class UnbalancedWasserstein2Metric : IErrorMetric
             return new OptimalTransportResult(measured, simulated, 0.0, new double[differenceCount]);
 
         var activePattern = pattern != null && pattern.SanitizedLength == differenceCount ? pattern : null;
-        var (simValues, coords, mapping, _) = BuildDifferenceDistribution(simulated, electrodes, coordinateProvider, include, activePattern);
+        var (simValues, coords, mapping, leftIndices) = BuildDifferenceDistribution(simulated, electrodes, coordinateProvider, include, activePattern);
         var (measValues, _, _, _) = BuildDifferenceDistribution(measured, electrodes, coordinateProvider, include, activePattern);
 
         if (simValues.Length == 0)
             return new OptimalTransportResult(measured, simulated, 0.0, new double[differenceCount]);
 
-        var cost = BuildEuclideanCost(coords, _differenceCostScratch);
+        var cost = GetSubsetCost(discretization, electrodes, coordinateProvider, leftIndices, _differenceCostScratch);
         var result = ComputeDifference(measValues, simValues, coords, mapping, cost);
 
         var gradient = new double[differenceCount];
@@ -570,22 +576,51 @@ public sealed class UnbalancedWasserstein2Metric : IErrorMetric
         return buffers;
     }
 
-    private static double[,] BuildEuclideanCost((double x, double y)[] coords, Dictionary<int, double[,]> scratchPool)
+    private void EnsureArcLengthCost(IDiscretization discretization, IReadOnlyList<Electrode> electrodes,
+        Func<Electrode, (double x, double y)> coordinateProvider)
     {
-        int n = coords.Length;
-        var matrix = GetScratchMatrix(scratchPool, n);
-        Parallel.For(0, n, i =>
+        lock (_costLock)
         {
-            matrix[i, i] = 0.0;
-            for (int j = i + 1; j < n; j++)
+            bool reuse = _cachedArcCost != null && _cachedElectrodeIds != null &&
+                         ReferenceEquals(_cachedDiscretization, discretization) &&
+                         _cachedElectrodeIds.Length == electrodes.Count;
+
+            if (reuse)
             {
-                double dx = coords[i].x - coords[j].x;
-                double dy = coords[i].y - coords[j].y;
-                double value = dx * dx + dy * dy;
-                matrix[i, j] = value;
-                matrix[j, i] = value;
+                for (int i = 0; i < electrodes.Count; i++)
+                {
+                    if (_cachedElectrodeIds[i] != electrodes[i].Id)
+                    {
+                        reuse = false;
+                        break;
+                    }
+                }
             }
-        });
+
+            if (reuse)
+                return;
+
+            var coords = electrodes.Select(coordinateProvider).ToArray();
+            _cachedArcCost = ArcLengthGroundCostHelper.BuildArcLengthCost(coords);
+            _cachedElectrodeIds = electrodes.Select(e => e.Id).ToArray();
+            _cachedDiscretization = discretization;
+        }
+    }
+
+    private double[,] GetSubsetCost(IDiscretization discretization, IReadOnlyList<Electrode> electrodes,
+        Func<Electrode, (double x, double y)> coordinateProvider, IReadOnlyList<int> indices,
+        Dictionary<int, double[,]> scratchPool)
+    {
+        EnsureArcLengthCost(discretization, electrodes, coordinateProvider);
+        var matrix = GetScratchMatrix(scratchPool, indices.Count);
+        for (int i = 0; i < indices.Count; i++)
+        {
+            int ii = indices[i];
+            for (int j = 0; j < indices.Count; j++)
+            {
+                matrix[i, j] = _cachedArcCost![ii, indices[j]];
+            }
+        }
         return matrix;
     }
 

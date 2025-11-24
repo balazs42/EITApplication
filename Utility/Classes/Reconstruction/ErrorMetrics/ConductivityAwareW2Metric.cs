@@ -89,7 +89,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         /// Geometric ground cost matrix: c_geo(i,j) = |x_i - x_j|^2 for all electrodes on the
         /// current discretization (global electrode index space).
         /// </summary>
-        private double[,]? _euclideanCost;
+        private double[,]? _arcLengthCost;
 
         /// <summary>
         /// Conductivity-aware ground cost matrix C_sigma(i,j) ~ scaled (conductive geodesic)^2.
@@ -483,7 +483,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             if (!_useConductivityAware)
                 return;
 
-            bool rebuild = _cPhysAmp == null || _euclideanCost == null;
+            bool rebuild = _cPhysAmp == null || _arcLengthCost == null;
             if (!rebuild && _lastCostBuildIter >= 0 &&
                 (_solveCounter - _lastCostBuildIter) >= Math.Max(1, _config.RecomputeEvery))
                 rebuild = true;
@@ -509,7 +509,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
 
             lock (_costLock)
             {
-                bool need = _cPhysAmp == null || _euclideanCost == null;
+                bool need = _cPhysAmp == null || _arcLengthCost == null;
                 if (!need && _lastCostBuildIter >= 0 &&
                     (_solveCounter - _lastCostBuildIter) >= Math.Max(1, _config.RecomputeEvery))
                     need = true;
@@ -541,7 +541,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                     positions[i] = getCoord(electrodes[i]);
 
                 // Geometric cost: c_geo(i,j) = |x_i - x_j|^2.
-                _euclideanCost ??= ComputeEuclideanCost(positions);
+                _arcLengthCost ??= ComputeArcLengthCost(positions);
 
                 // Conductivity-aware distances: d_sigma(i,j).
                 double[,] dsigma = mesh switch
@@ -555,7 +555,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 };
 
                 // Scale d_sigma^2 so its median matches median(c_geo).
-                double medE = ComputeMedian(_euclideanCost);
+                double medE = ComputeMedian(_arcLengthCost);
                 double medD = ComputeMedianSquared(dsigma); // median of d_sigma^2 (ignoring tiny distances).
                 _scale = medD <= Tiny ? 1.0 : medE / medD;
 
@@ -620,25 +620,12 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
         }
 
         /// <summary>
-        /// Compute geometric squared distances between electrode positions.
+        /// Compute arc-length-based squared distances between electrode positions.
         /// </summary>
-        private static double[,] ComputeEuclideanCost(IReadOnlyList<(double x, double y)> positions)
+        private static double[,] ComputeArcLengthCost(IReadOnlyList<(double x, double y)> positions)
         {
-            int k = positions.Count;
-            var cost = new double[k, k];
-            for (int i = 0; i < k; i++)
-            {
-                cost[i, i] = 0.0;
-                for (int j = i + 1; j < k; j++)
-                {
-                    double dx = positions[i].x - positions[j].x;
-                    double dy = positions[i].y - positions[j].y;
-                    double d2 = dx * dx + dy * dy;
-                    cost[i, j] = d2;
-                    cost[j, i] = d2;
-                }
-            }
-            return cost;
+            var coords = positions.ToArray();
+            return ArcLengthGroundCostHelper.BuildArcLengthCost(coords);
         }
 
         /// <summary>
