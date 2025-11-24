@@ -359,9 +359,9 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
 
             // (Optional) combine costs for reporting; mass-weighted average is a reasonable choice.
             double massTot = massPlusA + massMinusA + 1e-12;
-            double cost = (massPlusA * resPlus.Cost + massMinusA * resMinus.Cost) / massTot;
+            double totalCost = (massPlusA * resPlus.Cost + massMinusA * resMinus.Cost) / massTot;
 
-            return new OptimalTransportResult(measured, simulated, cost, gradOut);
+            return new OptimalTransportResult(measured, simulated, totalCost, gradOut);
         }
 
         // Signed-split W2 for PotentialDifference with a tiny mass/balance penalty
@@ -510,9 +510,9 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 Math.Pow((massMinusA - massMinusB) / Math.Max(massMinusB, eps), 2.0)
             );
 
-            double cost = costW2 + costMass;
+            double totalCost = costW2 + costMass;
 
-            return new OptimalTransportResult(measured, simulated, cost, gradOut);
+            return new OptimalTransportResult(measured, simulated, totalCost, gradOut);
         }
 
 
