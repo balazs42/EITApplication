@@ -99,7 +99,7 @@
                                InputTransparent="False" />
 
             <!-- Container for blocks -->
-            <AbsoluteLayout x:Name="NodeContainer" BackgroundColor="Transparent" InputTransparent="True">
+            <AbsoluteLayout x:Name="NodeContainer" BackgroundColor="Transparent" InputTransparent="False">
             </AbsoluteLayout>
 
             <!-- Selection Rectangle Overlay (New) -->
