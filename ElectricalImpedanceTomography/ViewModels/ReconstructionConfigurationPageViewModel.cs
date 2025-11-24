@@ -1,6 +1,8 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using Utility.Classes.Configurations.ReconstructionConfiguration;
 
@@ -24,6 +26,9 @@ namespace ElectricalImpedanceTomography.ViewModels
         [ObservableProperty]
         private ReconstructionConnection? selectedConnection;
 
+        // Connection rules: when empty, any block can connect to any other block.
+        private readonly Dictionary<BlockType, HashSet<BlockType>> _connectionRules = new();
+
         public ObservableCollection<BlockType> BlockTypes { get; } = new()
         {
             BlockType.Initialization,
@@ -37,6 +42,22 @@ namespace ElectricalImpedanceTomography.ViewModels
         public ReconstructionConfigurationPageViewModel()
         {
             AddBlock(BlockType.Initialization, 50, 50);
+        }
+
+        /// <summary>
+        /// Explicitly allows all block types to connect to one another.
+        /// </summary>
+        public void AllowAllConnections() => _connectionRules.Clear();
+
+        /// <summary>
+        /// Configures which targets a given source block type is allowed to connect to.
+        /// An empty set for the source means no restrictions (connect to any type).
+        /// </summary>
+        public void ConfigureConnectionRule(BlockType source, params BlockType[] allowedTargets)
+        {
+            _connectionRules[source] = allowedTargets?.Length > 0
+                ? allowedTargets.ToHashSet()
+                : new HashSet<BlockType>();
         }
 
         public void AddBlock(BlockType type, double x, double y)
@@ -142,10 +163,27 @@ namespace ElectricalImpedanceTomography.ViewModels
         public void AddConnection(ReconstructionConfigurationBlock source, ReconstructionConfigurationBlock target)
         {
             if (source == null || target == null || source == target) return;
+            if (!CanConnect(source.Type, target.Type)) return;
             if (!Connections.Any(c => c.Source == source && c.Target == target))
             {
                 Connections.Add(new ReconstructionConnection { Source = source, Target = target });
             }
+        }
+
+        private bool CanConnect(BlockType source, BlockType target)
+        {
+            if (_connectionRules.Count == 0)
+            {
+                return true; // default: everything can connect to anything
+            }
+
+            if (_connectionRules.TryGetValue(source, out var allowedTargets))
+            {
+                return allowedTargets.Count == 0 || allowedTargets.Contains(target);
+            }
+
+            // No explicit rule for this source, allow by default.
+            return true;
         }
 
         [RelayCommand]
