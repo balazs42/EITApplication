@@ -54,6 +54,21 @@ namespace Utility.Classes.ReconstructionParameters
 
         public DiscretizationType Mesh = DiscretizationType.FEM;
 
+        [ObservableProperty]
+        private bool useCurtisImigranMorrowPresolve;
+
+        [ObservableProperty]
+        private double initializationCurrentAmplitude = 1.0;
+
+        [ObservableProperty]
+        private bool solveInitializationInComplexDomain;
+
+        [ObservableProperty]
+        private double lbmPhysicalDomainSize = 1.0;
+
+        [ObservableProperty]
+        private LatticeBoltzmannRelaxationModel lbmRelaxationModel = LatticeBoltzmannRelaxationModel.BGK;
+
         /// <summary>
         /// Creates a parameter set using the default reconstruction configuration.
         /// </summary>

@@ -1,3 +1,4 @@
+using CommunityToolkit.Maui.Views;
 using ElectricalImpedanceTomography.ViewModels;
 using Microsoft.Maui.Controls.Shapes;
 using SkiaSharp;
@@ -162,6 +163,10 @@ namespace ElectricalImpedanceTomography.Views
             tapGesture.Tapped += (s, e) => _viewModel.SelectBlockCommand.Execute(block);
             border.GestureRecognizers.Add(tapGesture);
 
+            var doubleTapGesture = new TapGestureRecognizer { NumberOfTapsRequired = 2 };
+            doubleTapGesture.Tapped += async (s, e) => await OnBlockDoubleTappedAsync(block);
+            border.GestureRecognizers.Add(doubleTapGesture);
+
             var connectGesture = new PanGestureRecognizer();
             connectGesture.PanUpdated += (s, e) => OnConnectionPanUpdated(block, e);
             outPort.GestureRecognizers.Add(connectGesture);
@@ -186,6 +191,33 @@ namespace ElectricalImpedanceTomography.Views
             border.Triggers.Add(trigger);
 
             return container;
+        }
+
+        private async Task OnBlockDoubleTappedAsync(ReconstructionConfigurationBlock block)
+        {
+            if (block.Type != BlockType.Initialization)
+                return;
+
+            var discretization = Workspace.GetDiscretization();
+            if (discretization == null)
+            {
+                await DisplayAlert("No Mesh", "You should create or load a mesh before editing the initial distribution!", "Ok");
+                return;
+            }
+
+            var initial = Workspace.GetInitialConductivityDistribution() ?? discretization.GetConductivityDistribution();
+            var original = Workspace.GetOriginalConductivityDistribution();
+            var parameters = Workspace.GetReconstructionParameters();
+
+            var popup = new InitialDistributionEditorPopup(discretization,
+                                                           initial,
+                                                           original,
+                                                           parameters.InitialDistributionType);
+
+            EventHandler handler = (_, _) => MeshPreviewCanvas?.InvalidateSurface();
+            popup.DistributionChanged += handler;
+            await this.ShowPopupAsync(popup);
+            popup.DistributionChanged -= handler;
         }
 
         private void OnBlockPanUpdated(ReconstructionConfigurationBlock block, View view, PanUpdatedEventArgs e)
