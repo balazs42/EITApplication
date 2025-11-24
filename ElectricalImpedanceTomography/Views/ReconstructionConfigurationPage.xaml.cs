@@ -3,7 +3,11 @@ using Microsoft.Maui.Controls.Shapes;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
 using System.Collections.Specialized;
+using System.Linq;
+using Utility.Classes.Application;
 using Utility.Classes.Configurations.ReconstructionConfiguration;
+using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 
 namespace ElectricalImpedanceTomography.Views
 {
@@ -27,6 +31,17 @@ namespace ElectricalImpedanceTomography.Views
         private const double OutputPortXOffset = 214;
         private const double InputPortXOffset = 0;
 
+        // Mesh preview drawing helpers
+        private readonly SKPaint _lbmFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.Black };
+        private readonly SKPaint _lbmWall = new() { Style = SKPaintStyle.Fill, Color = SKColors.White };
+        private readonly SKPaint _lbmElectrode = new() { Style = SKPaintStyle.Fill, Color = SKColors.Orange };
+        private readonly SKPaint _lbmStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.LightGray, StrokeWidth = 1 };
+
+        private readonly SKPaint _femStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1 };
+        private readonly SKPaint _femFill = new() { Style = SKPaintStyle.Fill };
+        private readonly SKPaint _electrodeFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.Yellow };
+        private readonly SKPaint _electrodeSegmentStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Gold, StrokeWidth = 3, IsAntialias = true };
+
         public ReconstructionConfigurationPage()
         {
             InitializeComponent();
@@ -37,6 +52,12 @@ namespace ElectricalImpedanceTomography.Views
             _viewModel.Connections.CollectionChanged += (s, e) => ConnectionsCanvas.InvalidateSurface();
 
             RefreshNodeContainer();
+        }
+
+        protected override void OnAppearing()
+        {
+            base.OnAppearing();
+            MeshPreviewCanvas?.InvalidateSurface();
         }
 
         private void OnBlocksChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -72,17 +93,26 @@ namespace ElectricalImpedanceTomography.Views
             var mainStack = new VerticalStackLayout();
             var headerGrid = new Grid { BackgroundColor = headerColor.WithAlpha(0.15f), Padding = 10, HeightRequest = 40 };
             headerGrid.Add(new BoxView { Color = headerColor, WidthRequest = 4, HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.Fill });
-            headerGrid.Add(new Label
+            var titleLabel = new Label
             {
-                Text = block.Title,
                 FontSize = 13,
                 FontAttributes = FontAttributes.Bold,
                 TextColor = Color.FromArgb("#F0F0F0"),
                 VerticalOptions = LayoutOptions.Center,
-                Margin = new Thickness(10, 0, 0, 0)
-            });
+                Margin = new Thickness(10, 0, 0, 0),
+                BindingContext = block
+            };
+            titleLabel.SetBinding(Label.TextProperty, nameof(ReconstructionConfigurationBlock.Title));
+            headerGrid.Add(titleLabel);
 
-            var contentLabel = new Label { Text = $"{block.Type}", FontSize = 11, TextColor = Color.FromArgb("#999"), Margin = 10 };
+            var contentLabel = new Label
+            {
+                FontSize = 11,
+                TextColor = Color.FromArgb("#999"),
+                Margin = 10,
+                BindingContext = block
+            };
+            contentLabel.SetBinding(Label.TextProperty, nameof(ReconstructionConfigurationBlock.HighlightedOption));
 
             mainStack.Add(headerGrid);
             mainStack.Add(contentLabel);
@@ -127,7 +157,7 @@ namespace ElectricalImpedanceTomography.Views
             connectGesture.PanUpdated += (s, e) => OnConnectionPanUpdated(block, e);
             outPort.GestureRecognizers.Add(connectGesture);
 
-            var container = new Grid { WidthRequest = 214 };
+            var container = new Grid { WidthRequest = 214, BindingContext = block };
             container.InputTransparent = false;
             container.Add(border);
             container.Add(inPort);
@@ -228,37 +258,38 @@ namespace ElectricalImpedanceTomography.Views
         private void OnCanvasTouch(object sender, SKTouchEventArgs e)
         {
             // Coordinate conversion if needed, assuming Canvas scale is 1:1 with MAUI Points
-            var pt = e.Location;
+            var viewPoint = ToViewPoint(e.Location);
+            var viewSkPoint = new SKPoint((float)viewPoint.X, (float)viewPoint.Y);
 
             switch (e.ActionType)
             {
                 case SKTouchAction.Pressed:
                     // Try selecting a connection first
-                    if (TrySelectConnection(pt))
+                    if (TrySelectConnection(viewSkPoint))
                     {
                         _isSelecting = false;
                     }
                     else
                     {
                         // Start Selection Rectangle
-                        _selectionStart = new Point(pt.X, pt.Y);
+                        _selectionStart = viewPoint;
                         _isSelecting = true;
                         _viewModel.ClearSelection();
 
                         SelectionBox.IsVisible = true;
                         SelectionBox.WidthRequest = 0;
                         SelectionBox.HeightRequest = 0;
-                        SelectionBox.Margin = new Thickness(pt.X, pt.Y, 0, 0);
+                        SelectionBox.Margin = new Thickness(viewPoint.X, viewPoint.Y, 0, 0);
                     }
                     break;
 
                 case SKTouchAction.Moved:
                     if (_isSelecting && _selectionStart.HasValue)
                     {
-                        double x = Math.Min(_selectionStart.Value.X, pt.X);
-                        double y = Math.Min(_selectionStart.Value.Y, pt.Y);
-                        double w = Math.Abs(_selectionStart.Value.X - pt.X);
-                        double h = Math.Abs(_selectionStart.Value.Y - pt.Y);
+                        double x = Math.Min(_selectionStart.Value.X, viewPoint.X);
+                        double y = Math.Min(_selectionStart.Value.Y, viewPoint.Y);
+                        double w = Math.Abs(_selectionStart.Value.X - viewPoint.X);
+                        double h = Math.Abs(_selectionStart.Value.Y - viewPoint.Y);
 
                         // Update Visual Rect
                         SelectionBox.Margin = new Thickness(x, y, 0, 0);
@@ -374,6 +405,22 @@ namespace ElectricalImpedanceTomography.Views
             }
         }
 
+        private Point ToViewPoint(SKPoint skPoint)
+        {
+            var canvasSize = ConnectionsCanvas.CanvasSize;
+            var viewWidth = ConnectionsCanvas.Width;
+            var viewHeight = ConnectionsCanvas.Height;
+
+            if (canvasSize.Width <= 0 || canvasSize.Height <= 0 || viewWidth <= 0 || viewHeight <= 0)
+            {
+                return new Point(skPoint.X, skPoint.Y);
+            }
+
+            double x = skPoint.X * viewWidth / canvasSize.Width;
+            double y = skPoint.Y * viewHeight / canvasSize.Height;
+            return new Point(x, y);
+        }
+
         private void DrawConnectionCurve(SKCanvas canvas, SKPaint paint, float x1, float y1, float x2, float y2)
         {
             using var path = new SKPath();
@@ -382,6 +429,118 @@ namespace ElectricalImpedanceTomography.Views
             float cp2X = x2 - 60;
             path.CubicTo(cp1X, y1, cp2X, y2, x2, y2);
             canvas.DrawPath(path, paint);
+        }
+
+        private void OnMeshPreviewPaintSurface(object sender, SKPaintSurfaceEventArgs e)
+        {
+            var canvas = e.Surface.Canvas;
+            var info = e.Info;
+            canvas.Clear(SKColors.Black.WithAlpha(20));
+
+            var discretization = Workspace.GetDiscretization();
+            MeshPreviewPlaceholder.IsVisible = discretization == null;
+            if (discretization == null)
+                return;
+
+            if (discretization is LBMGrid lbm)
+            {
+                DrawLbmPreview(canvas, info, lbm);
+            }
+            else if (discretization is FEMMesh fem)
+            {
+                DrawFemPreview(canvas, info, fem);
+            }
+        }
+
+        private void DrawLbmPreview(SKCanvas canvas, SKImageInfo info, LBMGrid grid)
+        {
+            float cellW = (float)info.Width / grid.Nx;
+            float cellH = (float)info.Height / grid.Ny;
+
+            for (int y = 0; y < grid.Ny; y++)
+            {
+                for (int x = 0; x < grid.Nx; x++)
+                {
+                    var el = grid.GetElementAt(x, y);
+                    SKPaint fill = el.IsElectrode
+                        ? _lbmElectrode
+                        : el.IsWall
+                            ? _lbmWall
+                            : _lbmFill;
+                    var r = SKRect.Create(x * cellW, y * cellH, cellW, cellH);
+                    canvas.DrawRect(r, fill);
+                    canvas.DrawRect(r, _lbmStroke);
+                }
+            }
+        }
+
+        private static SKColor ColorForValue(double val, double min, double max)
+        {
+            double mid = (min + max) * 0.5;
+            if (val >= mid)
+            {
+                float t = (float)((val - mid) / (max - mid));
+                t = Math.Clamp(t, 0f, 1f);
+                byte r = (byte)(255 * t);
+                return new SKColor(r, 0, 0);
+            }
+            else
+            {
+                float t = (float)((mid - val) / (mid - min));
+                t = Math.Clamp(t, 0f, 1f);
+                byte b = (byte)(255 * t);
+                return new SKColor(0, 0, b);
+            }
+        }
+
+        private void DrawFemPreview(SKCanvas canvas, SKImageInfo info, FEMMesh mesh)
+        {
+            const float pad = 6f;
+            float availW = info.Width - 2 * pad;
+            float availH = info.Height - 2 * pad;
+            var verts = mesh.Vertices;
+            float minX = (float)verts.Min(v => v.X);
+            float minY = (float)verts.Min(v => v.Y);
+            var maxX = (float)verts.Max(v => v.X);
+            var maxY = (float)verts.Max(v => v.Y);
+            float meshWidth = maxX - minX;
+            float meshHeight = maxY - minY;
+            float scale = Math.Min(availW / meshWidth, availH / meshHeight);
+            float usedW = meshWidth * scale;
+            float usedH = meshHeight * scale;
+            float marginX = pad + (availW - usedW) / 2f;
+            float marginY = pad + (availH - usedH) / 2f;
+
+            SKPoint ToCanvas(Utility.Classes.Discretizer.FiniteElementMesh.FEMVertex v)
+                => new((float)(v.X - minX) * scale + marginX,
+                        info.Height - ((float)(v.Y - minY) * scale + marginY));
+
+            var elements = mesh.ElementsTyped;
+            double min = elements.Min(el => el.Conductivity);
+            double max = elements.Max(el => el.Conductivity);
+
+            using var path = new SKPath();
+            foreach (var el in elements)
+            {
+                var p1 = ToCanvas(el.Vertices[0]);
+                var p2 = ToCanvas(el.Vertices[1]);
+                var p3 = ToCanvas(el.Vertices[2]);
+                path.Reset();
+                path.MoveTo(p1); path.LineTo(p2); path.LineTo(p3); path.Close();
+                _femFill.Color = ColorForValue(el.Conductivity, min, max);
+                canvas.DrawPath(path, _femFill);
+                canvas.DrawPath(path, _femStroke);
+            }
+
+            foreach (var segment in mesh.GetElectrodeSegments())
+            {
+                var start = ToCanvas(segment.Start);
+                var end = ToCanvas(segment.End);
+                canvas.DrawLine(start, end, _electrodeSegmentStroke);
+            }
+
+            foreach (var v in mesh.Vertices.Where(v => v.IsElectrode))
+                canvas.DrawCircle(ToCanvas(v), 3f, _electrodeFill);
         }
 
         private void OnAddBlockClicked(object sender, EventArgs e)

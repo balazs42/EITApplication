@@ -39,7 +39,17 @@
                 <VerticalStackLayout Grid.Row="0" Spacing="10">
                     <Label Text="DOMAIN PREVIEW" FontSize="11" FontAttributes="Bold" TextColor="{StaticResource TextMuted}" />
                     <Border HeightRequest="160" BackgroundColor="#111" Stroke="#444" StrokeShape="RoundRectangle 6">
-                        <Label Text="FEM Mesh Preview" FontSize="10" TextColor="#666" HorizontalOptions="Center" VerticalOptions="Center"/>
+                        <Grid>
+                            <skia:SKCanvasView x:Name="MeshPreviewCanvas"
+                                               PaintSurface="OnMeshPreviewPaintSurface"
+                                               IgnorePixelScaling="True"/>
+                            <Label x:Name="MeshPreviewPlaceholder"
+                                   Text="No mesh loaded in workspace"
+                                   FontSize="10"
+                                   TextColor="#666"
+                                   HorizontalOptions="Center"
+                                   VerticalOptions="Center"/>
+                        </Grid>
                     </Border>
                 </VerticalStackLayout>
 
@@ -81,10 +91,11 @@
             <BoxView Color="#232330" Opacity="0.5"/>
 
             <!-- SkiaSharp Layer: Touch Enabled -->
-            <skia:SKCanvasView x:Name="ConnectionsCanvas" 
-                               PaintSurface="OnCanvasPaintSurface" 
+            <skia:SKCanvasView x:Name="ConnectionsCanvas"
+                               PaintSurface="OnCanvasPaintSurface"
                                EnableTouchEvents="True"
                                Touch="OnCanvasTouch"
+                               IgnorePixelScaling="True"
                                InputTransparent="False" />
 
             <!-- Container for blocks -->
