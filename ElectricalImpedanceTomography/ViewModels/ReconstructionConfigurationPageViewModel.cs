@@ -30,6 +30,15 @@ namespace ElectricalImpedanceTomography.ViewModels
         [ObservableProperty]
         private ReconstructionConnection? selectedConnection;
 
+        [ObservableProperty]
+        private double gridSpacing = DefaultGridSpacing;
+
+        [ObservableProperty]
+        private double canvasWidth = 2400;
+
+        [ObservableProperty]
+        private double canvasHeight = 1600;
+
         public ObservableCollection<string> DebugLines { get; } = new();
 
         public ObservableCollection<string> ValidationIssues { get; } = new();
@@ -38,6 +47,10 @@ namespace ElectricalImpedanceTomography.ViewModels
         private readonly Dictionary<BlockType, HashSet<BlockType>> _connectionRules = new();
 
         public ObservableCollection<BlockType> BlockTypes { get; } = new(ReconstructionBlockRegistry.BlockTypes);
+
+        public const double MinGridSpacing = 12;
+        public const double MaxGridSpacing = 96;
+        private const double DefaultGridSpacing = 32;
 
         public ReconstructionConfigurationPageViewModel()
         {
@@ -84,6 +97,18 @@ namespace ElectricalImpedanceTomography.ViewModels
             Blocks.Add(newBlock);
             SelectBlock(newBlock);
             ApplyConfigurationToWorkspace();
+        }
+
+        [RelayCommand]
+        public void IncreaseGridSpacing()
+        {
+            GridSpacing = Math.Min(MaxGridSpacing, GridSpacing + 4);
+        }
+
+        [RelayCommand]
+        public void DecreaseGridSpacing()
+        {
+            GridSpacing = Math.Max(MinGridSpacing, GridSpacing - 4);
         }
 
         private void RegisterBlock(ReconstructionConfigurationBlock block)
@@ -460,6 +485,12 @@ namespace ElectricalImpedanceTomography.ViewModels
             {
                 ValidationIssues.Add(message);
             }
+        }
+
+        partial void OnGridSpacingChanged(double value)
+        {
+            // trigger diagnostics so connected UI elements reflect new spacing immediately
+            UpdateDiagnostics();
         }
 
         public class ConfigurationDto
