@@ -432,7 +432,7 @@
                                 <x:String>Rainbow</x:String>
                             </Picker.Items>
                         </Picker>
-                        <Border Grid.Column="6" Grid.Row="1" Background="Transparent" Stroke="Transparent">
+                        <Border Grid.Column="5" Grid.Row="1" Background="Transparent" Stroke="Transparent">
                             <Button x:Name="ExportVideoButton"
                                     Text="Export"
                                     Margin="10"
@@ -475,14 +475,14 @@
                                Text="0 / 0"
                                FontFamily="SF Pro Text"/>
 
-                        <Image x:Name="PlayerBackButton"
+                        <Image x:Name="PlayerForwardButton"
                                Grid.Row="1"
                                Grid.Column="4"
-                               Rotation="180"
                                Source="icon_next_player.png"
                                HeightRequest="35"
                                WidthRequest="35"
-                               HorizontalOptions="End"
+                               HorizontalOptions="Start"
+                               Rotation="180"
                                Margin="5"
                                IsEnabled="False">
                             <Image.Shadow>
@@ -492,13 +492,13 @@
                                 <TapGestureRecognizer Tapped="OnPlayerBackButtontapped"/>
                             </Image.GestureRecognizers>
                         </Image>
-                        <Image x:Name="PlayerForwardButton"
+                        <Image x:Name="PlayerBackButton"
                                Grid.Row="1"
-                               Grid.Column="5"
+                               Grid.Column="4"
                                Source="icon_next_player.png"
                                HeightRequest="35"
                                WidthRequest="35"
-                               HorizontalOptions="Start"
+                               HorizontalOptions="End"
                                Margin="5"
                                IsEnabled="False">
                             <Image.Shadow>
