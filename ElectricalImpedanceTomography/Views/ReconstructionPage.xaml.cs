@@ -44,6 +44,7 @@ public partial class ReconstructionPage : ContentPage
     private string[]? _hoverGradientLines; private SKPoint? _hoverGradientPt;
 
     private PotentialDisplayMode _potMode = PotentialDisplayMode.Default;
+    private ConductivityDisplayMode _conductivityMode = ConductivityDisplayMode.Classic;
 
     private bool _isPaused = false;
     private bool _sliderChanging = false;
@@ -55,6 +56,17 @@ public partial class ReconstructionPage : ContentPage
     private static readonly SKColor ChartGridColor = new SKColor(255, 255, 255, 50);
     private static readonly SKColor ChartPrimaryTextColor = new SKColor(198, 212, 245);
     private static readonly SKColor ChartSecondaryTextColor = new SKColor(157, 170, 211);
+
+    private static readonly (double Position, SKColor Color)[] EnhancedDivergingPalette =
+    {
+        (0.0, SKColor.Parse("#2B83BA")),
+        (0.17, SKColor.Parse("#74ADD1")),
+        (0.33, SKColor.Parse("#E0F3F8")),
+        (0.5, SKColor.Parse("#FFFFBF")),
+        (0.67, SKColor.Parse("#FEE08B")),
+        (0.83, SKColor.Parse("#FC8D59")),
+        (1.0, SKColor.Parse("#D53E4F"))
+    };
 
     // For FEM, which node do we use as "visual ground"?
     private const int VisualReferenceNodeId = 1;
@@ -117,6 +129,11 @@ public partial class ReconstructionPage : ContentPage
 
         PotentialModeChanged += OnPotentialModeChanged;
 
+        ConductivityModePicker.SelectedIndexChanged += (s, e) =>
+        {
+            OnConductivityModeChanged(this, ConductivityModePicker.SelectedIndex);
+        };
+
         _viewModel.ReconstructionUpdated += OnReconstructionUpdated;
         _viewModel.ReconstructionFrameUpdated += OnReconstructionFrameUpdated;
         _viewModel.SelectedTrendMetricHistoryChanged += OnSelectedTrendMetricHistoryChanged;
@@ -128,6 +145,8 @@ public partial class ReconstructionPage : ContentPage
         PauseButton.IsVisible = false;
         PlayerBackButton.IsEnabled = false;
         PlayerForwardButton.IsEnabled = false;
+
+        ConductivityModePicker.SelectedIndex = (int)_conductivityMode;
 
         UpdateExportButtonState();
 
@@ -464,6 +483,45 @@ public partial class ReconstructionPage : ContentPage
         }
     }
 
+    private static SKColor Lerp(SKColor a, SKColor b, double t)
+    {
+        byte r = (byte)Math.Round(a.Red + (b.Red - a.Red) * t);
+        byte g = (byte)Math.Round(a.Green + (b.Green - a.Green) * t);
+        byte bl = (byte)Math.Round(a.Blue + (b.Blue - a.Blue) * t);
+        byte al = (byte)Math.Round(a.Alpha + (b.Alpha - a.Alpha) * t);
+        return new SKColor(r, g, bl, al);
+    }
+
+    private static SKColor InterpolatePalette((double Position, SKColor Color)[] palette, double t)
+    {
+        t = Math.Clamp(t, 0.0, 1.0);
+        for (int i = 0; i < palette.Length - 1; i++)
+        {
+            var (p0, c0) = palette[i];
+            var (p1, c1) = palette[i + 1];
+            if (t >= p0 && t <= p1)
+            {
+                double localT = (t - p0) / (p1 - p0);
+                return Lerp(c0, c1, localT);
+            }
+        }
+        return palette[^1].Color;
+    }
+
+    private SKColor GetConductivityColor(double val, double min, double max)
+    {
+        double norm = (val - min) / (max - min);
+        norm = double.IsNaN(norm) ? 0.0 : Math.Clamp(norm, 0.0, 1.0);
+
+        return _conductivityMode switch
+        {
+            ConductivityDisplayMode.Classic => ColorForValue(val, min, max),
+            ConductivityDisplayMode.EnhancedDiverging => InterpolatePalette(EnhancedDivergingPalette, norm),
+            ConductivityDisplayMode.Rainbow => SKColor.FromHsv((float)(240.0 * (1.0 - norm)), 90f, 100f),
+            _ => ColorForValue(val, min, max)
+        };
+    }
+
     private SKColor GetPotentialColor(double val, double min, double max, PotentialDisplayMode? modeOverride = null)
     {
         var mode = modeOverride ?? _potMode;
@@ -522,7 +580,7 @@ public partial class ReconstructionPage : ContentPage
         foreach (var elem in mesh.GetElements().Cast<FEMElement>())
         {
             double val = cd.GetConductivity(elem.Id);
-            fill.Color = ColorForValue(val, minVal, maxVal);
+            fill.Color = GetConductivityColor(val, minVal, maxVal);
             using var path = new SKPath();
             path.MoveTo(ToCanvas(elem.Vertices[0]));
             path.LineTo(ToCanvas(elem.Vertices[1]));
@@ -621,7 +679,7 @@ public partial class ReconstructionPage : ContentPage
                         ? SKColors.Black
                         : isPotential
                             ? GetPotentialColor(val, minVal, maxVal, modeOverride)
-                            : ColorForValue(val, minVal, maxVal);
+                            : GetConductivityColor(val, minVal, maxVal);
                 using var paint = new SKPaint { Style = SKPaintStyle.Fill, Color = col };
                 var r = SKRect.Create(x * cw, y * ch, cw, ch);
                 canvas.DrawRect(r, paint);
@@ -691,7 +749,9 @@ public partial class ReconstructionPage : ContentPage
         {
             double t = i / (double)(steps - 1);
             double val = min + (max - min) * t;
-            colors[i] = isPotential ? GetPotentialColor(val, min, max, modeOverride) : ColorForValue(val, min, max);
+            colors[i] = isPotential
+                ? GetPotentialColor(val, min, max, modeOverride)
+                : GetConductivityColor(val, min, max);
             positions[i] = (float)t;
         }
         using var paint = new SKPaint
@@ -1491,6 +1551,18 @@ public partial class ReconstructionPage : ContentPage
         GradientColorbarCanvas.InvalidateSurface();
     }
 
+    private void InvalidateConductivityDisplays()
+    {
+        OriginalDistributionCanvas.InvalidateSurface();
+        InitialDistributionCanvas.InvalidateSurface();
+        ReconstructedDistributionCanvas.InvalidateSurface();
+        GradientDistributionCanvas.InvalidateSurface();
+        OriginalColorbarCanvas.InvalidateSurface();
+        InitialColorbarCanvas.InvalidateSurface();
+        ReconstructedColorbarCanvas.InvalidateSurface();
+        GradientColorbarCanvas.InvalidateSurface();
+    }
+
     private static double CalculateResidual(ReconstructionResult result)
     {
         if (result.Frames.Count == 0)
@@ -1780,6 +1852,15 @@ public partial class ReconstructionPage : ContentPage
         AdjointDistributionCanvas.InvalidateSurface();
         PotentialColorbarCanvas.InvalidateSurface();
         AdjointColorbarCanvas.InvalidateSurface();
+    }
+
+    private void OnConductivityModeChanged(object? sender, int index)
+    {
+        if (index < 0)
+            return;
+
+        _conductivityMode = (ConductivityDisplayMode)index;
+        InvalidateConductivityDisplays();
     }
 
     private async void OnResetReconstructionClicked(object sender, EventArgs e)
