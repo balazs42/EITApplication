@@ -32,8 +32,21 @@ namespace BusinessLayer
 
         public void Initialize(CompleteReconstructionConfiguration configuration)
         {
-            // TODO: properly extract and initialize all components from the configuration
-            _completeReconstructionConfiguration = configuration;
+            _completeReconstructionConfiguration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+
+            var runtimeContext = ReconstructionConfigurationMaterializer.Materialize(configuration);
+
+            _mesh = runtimeContext.Mesh;
+            _differentialEquationSolver = runtimeContext.DifferentialEquationSolver;
+            _numericSolver = runtimeContext.NumericSolver;
+            _regularizers = runtimeContext.Regularizers;
+            _errorMetrics = runtimeContext.ErrorMetrics;
+            _numericOptimizers = runtimeContext.NumericOptimizers;
+            _initialDistributionType = runtimeContext.InitialDistributionType;
+            _originalDistribution = runtimeContext.OriginalDistribution;
+            _initialDistribution = runtimeContext.InitialDistribution;
+            _measurementSetup = runtimeContext.MeasurementSetup;
+            _usePotentialDifferences = runtimeContext.UsePotentialDifferences;
         }
 
         public List<ReconstructionFrame> Step(EITMeasurement measurement)
