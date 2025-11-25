@@ -77,7 +77,7 @@ namespace BusinessLayer
                 .Where(b => b.Type == BlockType.Regularizer)
                 .Select(block =>
                 {
-                    double weight = configuration.ErrorMetricToRegularizerWeights
+                    double weight = configuration.ModelToRegularizerWeights
                         .Where(c => c.TargetId == block.Id)
                         .Sum(c => c.Weight);
                     weight = weight == 0 ? 1.0 : weight;
