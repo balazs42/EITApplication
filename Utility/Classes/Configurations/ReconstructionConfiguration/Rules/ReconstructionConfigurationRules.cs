@@ -57,15 +57,21 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration.Rules
                 return false;
             }
 
-            if (target == BlockType.Regularizer && source != BlockType.ErrorMetric)
+            if (target == BlockType.Regularizer && source != BlockType.Model)
             {
-                reason = "Regularizer inputs must come from an Error Metric block.";
+                reason = "Regularizer inputs must come from the Model block.";
                 return false;
             }
 
             if (source == BlockType.Optimizer && target != BlockType.Model)
             {
                 reason = "Optimizer outputs must connect into the Model block.";
+                return false;
+            }
+
+            if (source == BlockType.Regularizer && target != BlockType.Optimizer)
+            {
+                reason = "Regularizer outputs must connect into an Optimizer block.";
                 return false;
             }
 
@@ -149,12 +155,33 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration.Rules
                 }
             }
 
+            foreach (var regularizer in blocks.Where(b => b.Type == BlockType.Regularizer))
+            {
+                var hasModelInput = connections.Any(c => c.Target == regularizer && c.Source.Type == BlockType.Model);
+                if (!hasModelInput)
+                {
+                    issues.Add($"Regularizer '{regularizer.Title}' must be connected to the Model block.");
+                }
+
+                var hasOptimizerOutput = connections.Any(c => c.Source == regularizer && c.Target.Type == BlockType.Optimizer);
+                if (!hasOptimizerOutput)
+                {
+                    issues.Add($"Regularizer '{regularizer.Title}' must feed into an Optimizer block.");
+                }
+            }
+
             foreach (var type in Enum.GetValues<BlockType>().Where(t => t != BlockType.PostProcessing && t != BlockType.Regularizer))
             {
                 if (!blocks.Any(b => b.Type == type))
                 {
                     issues.Add($"Add at least one {type} block to the configuration.");
                 }
+            }
+
+            var modelCount = blocks.Count(b => b.Type == BlockType.Model);
+            if (modelCount > 1)
+            {
+                issues.Add("Only one Model block is allowed in the configuration.");
             }
 
             var discretization = Workspace.GetDiscretization();

@@ -46,6 +46,9 @@ namespace ElectricalImpedanceTomography.ViewModels
         [ObservableProperty]
         private bool isConnectionMode;
 
+        [ObservableProperty]
+        private bool canUseConfiguration;
+
         public ObservableCollection<string> DebugLines { get; } = new();
 
         public ObservableCollection<string> ValidationIssues { get; } = new();
@@ -108,6 +111,12 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public void AddBlock(BlockType type, double x, double y)
         {
+            if (type == BlockType.Model && Blocks.Any(b => b.Type == BlockType.Model))
+            {
+                TrackIssue("Only one Model block can be added to the configuration.");
+                return;
+            }
+
             var newBlock = ReconstructionBlockRegistry.CreateBlock(type, x, y);
             RegisterBlock(newBlock);
             Blocks.Add(newBlock);
@@ -420,6 +429,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         }
 
         [RelayCommand]
+        [RelayCommand(CanExecute = nameof(CanUseConfiguration))]
         public void UseConfiguration()
         {
             var configuration = CompleteReconstructionConfigurationBuilder.Create(Blocks, Connections);
@@ -461,6 +471,11 @@ namespace ElectricalImpedanceTomography.ViewModels
         }
 
         public void NotifyLayoutChanged() => ApplyConfigurationToWorkspace();
+
+        partial void OnCanUseConfigurationChanged(bool value)
+        {
+            UseConfigurationCommand.NotifyCanExecuteChanged();
+        }
 
         /// <summary>
         /// Keeps connection subscriptions and normalized weights in sync when the graph changes.
@@ -578,6 +593,8 @@ namespace ElectricalImpedanceTomography.ViewModels
             {
                 ValidationIssues.Add(issue);
             }
+
+            CanUseConfiguration = !ValidationIssues.Any();
         }
 
         private void TrackIssue(string message)
@@ -712,7 +729,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                     .ToList();
             }
 
-            if (connection.Source.Type == BlockType.ErrorMetric && connection.Target.Type == BlockType.Regularizer)
+            if (connection.Source.Type == BlockType.Model && connection.Target.Type == BlockType.Regularizer)
             {
                 return Connections
                     .Where(c => c.Source == connection.Source && c.Target.Type == BlockType.Regularizer)
@@ -745,8 +762,8 @@ namespace ElectricalImpedanceTomography.ViewModels
                 .GroupBy(c => c.Target)
                 .Select(g => (IReadOnlyCollection<ReconstructionConnection>)g.ToList());
 
-            var errorToRegularizer = Connections
-                .Where(c => c.Source.Type == BlockType.ErrorMetric && c.Target.Type == BlockType.Regularizer)
+            var modelToRegularizer = Connections
+                .Where(c => c.Source.Type == BlockType.Model && c.Target.Type == BlockType.Regularizer)
                 .GroupBy(c => c.Source)
                 .Select(g => (IReadOnlyCollection<ReconstructionConnection>)g.ToList());
 
@@ -762,7 +779,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 .Select(g => (IReadOnlyCollection<ReconstructionConnection>)g.ToList());
 
             return solverToError
-                .Concat(errorToRegularizer)
+                .Concat(modelToRegularizer)
                 .Concat(optimizerInputs)
                 .Concat(optimizerToModel);
         }

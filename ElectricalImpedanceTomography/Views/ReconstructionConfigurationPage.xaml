@@ -118,7 +118,8 @@
                                 BackgroundColor="{StaticResource Accent}"
                                 TextColor="Black"
                                 FontAttributes="Bold"
-                                Command="{Binding UseConfigurationCommand}" />
+                                Command="{Binding UseConfigurationCommand}"
+                                IsEnabled="{Binding CanUseConfiguration}" />
                         <Button Text="Delete Selected" BackgroundColor="#FF4757" TextColor="White" HeightRequest="40" CornerRadius="6" Command="{Binding DeleteSelectedCommand}"/>
                     <Grid ColumnDefinitions="*,*">
                         <Button Grid.Column="0" Text="Save" BackgroundColor="#2E8B57" TextColor="White" HeightRequest="40" CornerRadius="6" Margin="0,0,5,0" Command="{Binding SaveConfigurationCommand}"/>
