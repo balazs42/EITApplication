@@ -170,16 +170,25 @@
             </ScrollView>
 
             <!-- Floating grid + zoom controls -->
-            <Border HorizontalOptions="End"
-                    VerticalOptions="Start"
-                    Margin="0,12,12,0"
-                    Padding="10"
-                    BackgroundColor="#2A2A3A"
-                    Stroke="#444"
-                    StrokeShape="RoundRectangle 8"
-                    Opacity="0.95"
-                    WidthRequest="220">
+                <Border HorizontalOptions="End"
+                        VerticalOptions="Start"
+                        Margin="0,12,12,0"
+                        Padding="10"
+                        BackgroundColor="#2A2A3A"
+                        Stroke="#444"
+                        StrokeShape="RoundRectangle 8"
+                        Opacity="0.95"
+                        WidthRequest="220">
                 <VerticalStackLayout Spacing="8">
+                    <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+                        <CheckBox IsChecked="{Binding IsConnectionMode}"
+                                  Color="{StaticResource Accent}"
+                                  VerticalOptions="Center" />
+                        <VerticalStackLayout Spacing="0">
+                            <Label Text="Connect" FontSize="13" TextColor="{StaticResource TextMain}" />
+                            <Label Text="Left-click and drag to link" FontSize="10" TextColor="{StaticResource TextMuted}" />
+                        </VerticalStackLayout>
+                    </HorizontalStackLayout>
                     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
                         <Button Text="-" BackgroundColor="#444" TextColor="#CCC" HeightRequest="36" CornerRadius="6" WidthRequest="40" Command="{Binding DecreaseGridSpacingCommand}"/>
                         <Label Grid.Column="1" Text="{Binding GridSpacing, StringFormat='{}Grid: {0:0} px'}" VerticalTextAlignment="Center" TextColor="{StaticResource TextMain}" FontSize="13" HorizontalOptions="Center" />

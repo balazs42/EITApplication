@@ -39,6 +39,9 @@ namespace ElectricalImpedanceTomography.ViewModels
         [ObservableProperty]
         private double canvasHeight = 1600;
 
+        [ObservableProperty]
+        private bool isConnectionMode;
+
         public ObservableCollection<string> DebugLines { get; } = new();
 
         public ObservableCollection<string> ValidationIssues { get; } = new();
