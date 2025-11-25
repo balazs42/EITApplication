@@ -63,7 +63,7 @@
         </ResourceDictionary>
     </ContentPage.Resources>
 
-    <Grid RowDefinitions="*,Auto">
+    <Grid>
         <Grid Grid.Row="0" ColumnDefinitions="260, *, 320">
 
         <!-- LEFT SIDE: TOOLBOX -->
@@ -222,7 +222,7 @@
         </Grid>
 
         <!-- Debug window (fixed to bottom of screen) -->
-        <Border Grid.Row="1" BackgroundColor="#111827" StrokeThickness="1" Stroke="#2C2C3A" StrokeShape="RoundRectangle 10"
+        <Border BackgroundColor="#111827" StrokeThickness="1" Stroke="#2C2C3A" StrokeShape="RoundRectangle 10"
                 HorizontalOptions="Center" VerticalOptions="End" Margin="0,10" Padding="12"
                 WidthRequest="420">
             <VerticalStackLayout Spacing="4">
