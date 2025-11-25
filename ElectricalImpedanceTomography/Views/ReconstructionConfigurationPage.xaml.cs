@@ -242,8 +242,11 @@ namespace ElectricalImpedanceTomography.Views
             //outPort.Cursor = Cursor.Cross;
 
             // Gestures
-            // 1) Pan on the border moves the selected block(s)
-            var panGesture = new PanGestureRecognizer();
+            // 1) Pan on the border moves the selected block(s) with the primary button
+            var panGesture = new PanGestureRecognizer
+            {
+                Buttons = Microsoft.Maui.Controls.ButtonsMask.Primary
+            };
             panGesture.PanUpdated += (s, e) => OnBlockPanUpdated(block, border.Parent as View, e);
             border.GestureRecognizers.Add(panGesture);
 
@@ -262,8 +265,12 @@ namespace ElectricalImpedanceTomography.Views
             rightClickConnectGesture.Tapped += (s, e) => StartConnectionFromBlock(block);
             border.GestureRecognizers.Add(rightClickConnectGesture);
 
-            // 4) Double tap either arms resize (bottom-right corner) or opens the initialization editor
-            var doubleTapGesture = new TapGestureRecognizer { NumberOfTapsRequired = 2 };
+            // 4) Double primary tap either arms resize (bottom-right corner) or opens the initialization editor
+            var doubleTapGesture = new TapGestureRecognizer
+            {
+                NumberOfTapsRequired = 2,
+                Buttons = Microsoft.Maui.Controls.ButtonsMask.Primary
+            };
             doubleTapGesture.Tapped += async (s, e) => await OnBlockDoubleTappedAsync(block, e, s as View);
             border.GestureRecognizers.Add(doubleTapGesture);
 
