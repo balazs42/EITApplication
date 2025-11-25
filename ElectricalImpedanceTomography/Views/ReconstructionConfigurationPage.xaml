@@ -122,6 +122,15 @@
 
         <!-- CENTER: CANVAS -->
         <Grid Grid.Column="1">
+            <Button Text="Use this configuration"
+                    HorizontalOptions="Start"
+                    VerticalOptions="Start"
+                    Margin="12"
+                    Padding="14,8"
+                    BackgroundColor="{StaticResource Accent}"
+                    TextColor="Black"
+                    FontAttributes="Bold"
+                    Command="{Binding UseConfigurationCommand}" />
             <ScrollView
                 x:Name="CanvasScrollView"
                 Orientation="Both"

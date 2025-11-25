@@ -32,6 +32,7 @@ namespace Utility.Classes.Application
         private static List<ReconstructionResult> _reconstructionResults = [];
         private static List<ReconstructionFrame> _reconstructionFrames = [];
         private static List<ReconstructionConfigurationBlock> _reconstructionBlocks = [];
+        private static CompleteReconstructionConfiguration? _completeReconstructionConfiguration;
         private static List<WorkspaceMessage> _messages = [];
         private static ConductivityDistribution? _originalConductivityDistribution = null;
         private static ConductivityDistribution? _initialConductivityDistribution = null;
@@ -86,6 +87,8 @@ namespace Utility.Classes.Application
         public static void SetReconstructionResults(List<ReconstructionResult> results) => _reconstructionResults = results;
         public static void SetReconstructionFrames(List<ReconstructionFrame> frames) => _reconstructionFrames = frames;
         public static void SetReconstructionBlocks(List<ReconstructionConfigurationBlock> blocks) => _reconstructionBlocks = blocks;
+        public static void SetCompleteReconstructionConfiguration(CompleteReconstructionConfiguration? configuration)
+            => _completeReconstructionConfiguration = configuration;
         public static void SetOriginalConductivityDistribution(ConductivityDistribution? sigma) => _originalConductivityDistribution = sigma;
         public static void SetInitialConductivityDistribution(ConductivityDistribution? sigma) => _initialConductivityDistribution = sigma;
 
@@ -97,6 +100,7 @@ namespace Utility.Classes.Application
         public static List<ReconstructionResult> GetReconstructionResults() => _reconstructionResults;
         public static List<ReconstructionFrame> GetReconstructionFrames() => _reconstructionFrames;
         public static IReadOnlyList<ReconstructionConfigurationBlock> GetReconstructionBlocks() => _reconstructionBlocks;
+        public static CompleteReconstructionConfiguration? GetCompleteReconstructionConfiguration() => _completeReconstructionConfiguration;
         public static ConductivityDistribution? GetOriginalConductivityDistribution() => _originalConductivityDistribution;
         public static ConductivityDistribution? GetInitialConductivityDistribution() => _initialConductivityDistribution;
 
