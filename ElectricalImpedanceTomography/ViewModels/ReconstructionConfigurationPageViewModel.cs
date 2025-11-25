@@ -1,8 +1,12 @@
+/// \file ReconstructionConfigurationPageViewModel.cs
+/// \brief ViewModel responsible for orchestrating the reconstruction configuration canvas state.
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System;
+using System.Collections.Specialized;
 using System.Collections.ObjectModel;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Text.Json;
 using Utility.Classes.Application;
@@ -54,6 +58,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         public const double MinGridSpacing = 12;
         public const double MaxGridSpacing = 96;
         private const double DefaultGridSpacing = 32;
+        private bool _isNormalizingWeights;
 
         public ReconstructionConfigurationPageViewModel()
         {
@@ -74,7 +79,15 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             ApplyConfigurationToWorkspace();
             Blocks.CollectionChanged += (_, __) => UpdateDiagnostics();
-            Connections.CollectionChanged += (_, __) => UpdateDiagnostics();
+            Connections.CollectionChanged += OnConnectionsCollectionChanged;
+
+            foreach (var connection in Connections)
+            {
+                RegisterConnection(connection);
+            }
+
+            NormalizeConnectionWeights();
+            UpdateDiagnostics();
         }
 
         /// <summary>
@@ -441,26 +454,80 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public void NotifyLayoutChanged() => ApplyConfigurationToWorkspace();
 
-        private void UpdateConnectionWeightRequirements()
+        /// <summary>
+        /// Keeps connection subscriptions and normalized weights in sync when the graph changes.
+        /// </summary>
+        private void OnConnectionsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
-            bool multiError = Blocks.Count(b => b.Type == BlockType.ErrorMetric) >= 2;
-            bool multiRegularizer = Blocks.Count(b => b.Type == BlockType.Regularizer) >= 2;
-            bool multiOptimizer = Blocks.Count(b => b.Type == BlockType.Optimizer) >= 2;
-
-            foreach (var connection in Connections)
+            if (e.OldItems != null)
             {
-                bool requires =
-                    (multiError && (connection.Source.Type == BlockType.ErrorMetric || connection.Target.Type == BlockType.ErrorMetric)) ||
-                    (multiRegularizer && (connection.Source.Type == BlockType.Regularizer || connection.Target.Type == BlockType.Regularizer)) ||
-                    (multiOptimizer && (connection.Source.Type == BlockType.Optimizer || connection.Target.Type == BlockType.Optimizer));
+                foreach (var old in e.OldItems.OfType<ReconstructionConnection>())
+                {
+                    UnregisterConnection(old);
+                }
+            }
 
-                connection.RequiresWeight = requires;
+            if (e.NewItems != null)
+            {
+                foreach (var added in e.NewItems.OfType<ReconstructionConnection>())
+                {
+                    RegisterConnection(added);
+                }
+            }
+
+            if (e.Action == NotifyCollectionChangedAction.Reset)
+            {
+                foreach (var connection in Connections)
+                {
+                    UnregisterConnection(connection);
+                }
+
+                foreach (var connection in Connections)
+                {
+                    RegisterConnection(connection);
+                }
+            }
+
+            NormalizeConnectionWeights();
+            UpdateDiagnostics();
+        }
+
+        /// <summary>
+        /// Hooks property change notifications for a connection to react to weight edits.
+        /// </summary>
+        private void RegisterConnection(ReconstructionConnection connection)
+        {
+            connection.PropertyChanged -= OnConnectionPropertyChanged;
+            connection.PropertyChanged += OnConnectionPropertyChanged;
+        }
+
+        /// <summary>
+        /// Removes property change subscriptions when a connection is removed from the canvas.
+        /// </summary>
+        private void UnregisterConnection(ReconstructionConnection connection)
+        {
+            connection.PropertyChanged -= OnConnectionPropertyChanged;
+        }
+
+        /// <summary>
+        /// Rebalances connection weights when a weight edit occurs from the UI.
+        /// </summary>
+        private void OnConnectionPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(ReconstructionConnection.Weight))
+            {
+                if (_isNormalizingWeights)
+                {
+                    return;
+                }
+
+                NormalizeConnectionWeights();
+                ApplyConfigurationToWorkspace();
             }
         }
 
         private void UpdateDiagnostics()
         {
-            UpdateConnectionWeightRequirements();
             DebugLines.Clear();
             var blockSummary = string.Join(", ", Blocks
                 .GroupBy(b => b.Type)
@@ -497,6 +564,114 @@ namespace ElectricalImpedanceTomography.ViewModels
             if (!ValidationIssues.Contains(message))
             {
                 ValidationIssues.Add(message);
+            }
+        }
+
+        /// <summary>
+        /// Normalizes solver->error, error->regularizer, and optimizer->model weights so each compatible set sums to one.
+        /// Connections that are not meant to be weighted (e.g., measurement->error) are forced back to unity and disabled in the UI.
+        /// </summary>
+        private void NormalizeConnectionWeights()
+        {
+            if (_isNormalizingWeights)
+            {
+                return;
+            }
+
+            try
+            {
+                _isNormalizingWeights = true;
+
+                foreach (var connection in Connections)
+                {
+                    connection.RequiresWeight = false;
+                }
+
+                foreach (var connection in Connections.Where(c => c.Source.Type == BlockType.Measurement && c.Target.Type == BlockType.ErrorMetric))
+                {
+                    connection.Weight = 1.0;
+                }
+
+                foreach (var group in Connections
+                    .Where(c => c.Source.Type == BlockType.Solver && c.Target.Type == BlockType.ErrorMetric)
+                    .GroupBy(c => c.Target))
+                {
+                    foreach (var connection in group)
+                    {
+                        connection.RequiresWeight = true;
+                    }
+
+                    NormalizeConnectionGroup(group);
+                }
+
+                foreach (var group in Connections
+                    .Where(c => c.Source.Type == BlockType.ErrorMetric && c.Target.Type == BlockType.Regularizer)
+                    .GroupBy(c => c.Source))
+                {
+                    foreach (var connection in group)
+                    {
+                        connection.RequiresWeight = true;
+                    }
+
+                    NormalizeConnectionGroup(group);
+                }
+
+                foreach (var group in Connections
+                    .Where(c => c.Source.Type == BlockType.Optimizer && c.Target.Type == BlockType.Model)
+                    .GroupBy(c => c.Target))
+                {
+                    foreach (var connection in group)
+                    {
+                        connection.RequiresWeight = true;
+                    }
+
+                    NormalizeConnectionGroup(group);
+                }
+            }
+            finally
+            {
+                _isNormalizingWeights = false;
+            }
+        }
+
+        /// <summary>
+        /// Rescales a specific connection group to sum to one while keeping larger weights proportionally closer to their requested values.
+        /// </summary>
+        private void NormalizeConnectionGroup(IEnumerable<ReconstructionConnection> connections)
+        {
+            var groupList = connections.ToList();
+
+            if (!groupList.Any())
+            {
+                return;
+            }
+
+            var total = groupList.Sum(c => c.Weight);
+
+            if (total <= 0)
+            {
+                var even = Math.Round(1.0 / groupList.Count, 4);
+                foreach (var connection in groupList)
+                {
+                    connection.Weight = even;
+                }
+                return;
+            }
+
+            var ordered = groupList.OrderByDescending(c => c.Weight).ToList();
+            var remaining = 1.0;
+
+            foreach (var connection in ordered)
+            {
+                var portion = connection.Weight / total;
+                var adjusted = Math.Min(remaining, portion);
+                connection.Weight = adjusted;
+                remaining -= connection.Weight;
+            }
+
+            if (remaining > 0 && ordered.Any())
+            {
+                ordered.First().Weight = ordered.First().Weight + remaining;
             }
         }
 

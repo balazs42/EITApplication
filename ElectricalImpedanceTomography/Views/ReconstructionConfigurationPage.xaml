@@ -225,8 +225,18 @@
                             <Label Text="Press 'Delete Selected' to remove." FontSize="12" TextColor="#888" HorizontalOptions="Center"/>
                             <VerticalStackLayout Spacing="6" Margin="0,8,0,0">
                                 <Label Text="Weight" FontSize="14" TextColor="{StaticResource TextMain}" HorizontalOptions="Center"/>
-                                <Slider Minimum="0" Maximum="1" Value="{Binding SelectedConnection.Weight, Mode=TwoWay}" ThumbColor="{StaticResource Accent}" MinimumTrackColor="{StaticResource Accent}" StepFrequency="0.0001"/>
-                                <Label Text="{Binding SelectedConnection.Weight, StringFormat='{}{0:0.0000}'}" FontSize="12" TextColor="{StaticResource TextMuted}" HorizontalOptions="Center"/>
+                                <Slider Minimum="0" Maximum="1" Value="{Binding SelectedConnection.Weight, Mode=TwoWay}" ThumbColor="{StaticResource Accent}" MinimumTrackColor="{StaticResource Accent}" StepFrequency="0.0001" IsEnabled="{Binding SelectedConnection.RequiresWeight}"/>
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                    <Label Grid.Column="0" Text="{Binding SelectedConnection.Weight, StringFormat='{}{0:0.0000}'}" FontSize="12" TextColor="{StaticResource TextMuted}" HorizontalOptions="Start"/>
+                                    <Entry Grid.Column="1"
+                                           WidthRequest="120"
+                                           HorizontalTextAlignment="Center"
+                                           TextColor="{StaticResource TextMain}"
+                                           BackgroundColor="{StaticResource InputBg}"
+                                           Keyboard="Numeric"
+                                           IsEnabled="{Binding SelectedConnection.RequiresWeight}"
+                                           Text="{Binding SelectedConnection.Weight, Mode=TwoWay}" />
+                                </Grid>
                                 <Label Text="Weight required when combining similar blocks." FontSize="11" TextColor="#F0AD4E" HorizontalOptions="Center" IsVisible="{Binding SelectedConnection.RequiresWeight}"/>
                             </VerticalStackLayout>
                         </VerticalStackLayout>

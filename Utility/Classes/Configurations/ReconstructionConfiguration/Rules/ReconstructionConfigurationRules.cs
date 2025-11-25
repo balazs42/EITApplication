@@ -134,14 +134,6 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration.Rules
                 }
             }
 
-            foreach (var connection in connections.Where(c => c.RequiresWeight))
-            {
-                if (connection.Weight <= 0)
-                {
-                    issues.Add($"Set a positive weight for connection {connection.Source.Title} -> {connection.Target.Title}.");
-                }
-            }
-
             foreach (var errorMetric in blocks.Where(b => b.Type == BlockType.ErrorMetric))
             {
                 var hasMeasurement = connections.Any(c => c.Target == errorMetric && c.Source.Type == BlockType.Measurement);
