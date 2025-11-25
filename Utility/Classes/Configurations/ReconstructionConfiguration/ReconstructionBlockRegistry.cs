@@ -28,6 +28,7 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
             double x,
             double y,
             string? id = null,
+            double fontSize = 13,
             double width = 214,
             double height = 80,
             double rotation = 0)
@@ -44,6 +45,7 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
                 x,
                 y,
                 parameters,
+                fontSize,
                 width,
                 height,
                 rotation);

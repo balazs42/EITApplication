@@ -23,6 +23,7 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
             double x,
             double y,
             IEnumerable<ConfigurationParameter> parameters,
+            double fontSize = 13,
             double width = 214,
             double height = 80,
             double rotation = 0)
@@ -33,6 +34,7 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
             IconColor = iconColor;
             X = x;
             Y = y;
+            FontSize = fontSize;
             Width = width;
             Height = height;
             Rotation = rotation;
@@ -101,6 +103,12 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
         /// Visual height of the block on the canvas.
         /// </summary>
         public double Height { get => _height; set => SetProperty(ref _height, value); }
+
+        private double _fontSize = 13;
+        /// <summary>
+        /// Font size used for block labels.
+        /// </summary>
+        public double FontSize { get => _fontSize; set => SetProperty(ref _fontSize, value); }
 
         private double _rotation;
         /// <summary>

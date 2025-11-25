@@ -110,16 +110,6 @@
 
                 <!-- ACTIONS (Updated) -->
                 <VerticalStackLayout Grid.Row="2" VerticalOptions="End" Spacing="10">
-                    <Label Text="GRID" FontSize="11" FontAttributes="Bold" TextColor="{StaticResource TextMuted}" />
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
-                        <Button Text="-" BackgroundColor="#444" TextColor="#CCC" HeightRequest="36" CornerRadius="6" WidthRequest="40" Command="{Binding DecreaseGridSpacingCommand}"/>
-                        <Label Grid.Column="1" Text="{Binding GridSpacing, StringFormat='{}Grid: {0:0} px'}" VerticalTextAlignment="Center" TextColor="{StaticResource TextMain}" FontSize="13" HorizontalOptions="Center" />
-                        <Button Grid.Column="2" Text="+" BackgroundColor="#444" TextColor="#CCC" HeightRequest="36" CornerRadius="6" WidthRequest="40" Command="{Binding IncreaseGridSpacingCommand}"/>
-                    </Grid>
-                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                        <Button Text="Zoom -" BackgroundColor="#353543" TextColor="#DDD" HeightRequest="36" CornerRadius="6" Clicked="OnZoomOutClicked"/>
-                        <Button Grid.Column="1" Text="Zoom +" BackgroundColor="#353543" TextColor="#DDD" HeightRequest="36" CornerRadius="6" Clicked="OnZoomInClicked"/>
-                    </Grid>
                     <Button Text="Delete Selected" BackgroundColor="#FF4757" TextColor="White" HeightRequest="40" CornerRadius="6" Command="{Binding DeleteSelectedCommand}"/>
                     <Grid ColumnDefinitions="*,*">
                         <Button Grid.Column="0" Text="Save" BackgroundColor="#2E8B57" TextColor="White" HeightRequest="40" CornerRadius="6" Margin="0,0,5,0" Command="{Binding SaveConfigurationCommand}"/>
@@ -131,52 +121,77 @@
         </Border>
 
         <!-- CENTER: CANVAS -->
-        <ScrollView Grid.Column="1"
-                    x:Name="CanvasScrollView"
-                    Orientation="Both"
-                    HorizontalScrollBarVisibility="Always"
-                    VerticalScrollBarVisibility="Always"
-                    BackgroundColor="#1E1E2E">
-            <Grid x:Name="CanvasWrapper"
-                  WidthRequest="{Binding CanvasWidth}"
-                  HeightRequest="{Binding CanvasHeight}"
-                  BackgroundColor="#1E1E2E">
-                <BoxView Color="#232330" Opacity="0.5"/>
+        <Grid Grid.Column="1">
+            <ScrollView
+                x:Name="CanvasScrollView"
+                Orientation="Both"
+                HorizontalScrollBarVisibility="Always"
+                VerticalScrollBarVisibility="Always"
+                BackgroundColor="#1E1E2E">
+                <Grid x:Name="CanvasWrapper"
+                      WidthRequest="{Binding CanvasWidth}"
+                      HeightRequest="{Binding CanvasHeight}"
+                      BackgroundColor="#1E1E2E">
+                    <BoxView Color="#232330" Opacity="0.5"/>
 
-                <!-- Dotted background grid -->
-                <skia:SKCanvasView x:Name="GridCanvas"
-                                   PaintSurface="OnGridPaintSurface"
-                                   InputTransparent="True"
-                                   IgnorePixelScaling="True" />
+                    <!-- Dotted background grid -->
+                    <skia:SKCanvasView x:Name="GridCanvas"
+                                       PaintSurface="OnGridPaintSurface"
+                                       InputTransparent="True"
+                                       IgnorePixelScaling="True" />
 
-                <!-- SkiaSharp Layer: Touch Enabled -->
-                <skia:SKCanvasView x:Name="ConnectionsCanvas"
-                                   PaintSurface="OnCanvasPaintSurface"
-                                   EnableTouchEvents="True"
-                                   Touch="OnCanvasTouch"
-                                   IgnorePixelScaling="True"
-                                   InputTransparent="False" />
+                    <!-- SkiaSharp Layer: Touch Enabled -->
+                    <skia:SKCanvasView x:Name="ConnectionsCanvas"
+                                       PaintSurface="OnCanvasPaintSurface"
+                                       EnableTouchEvents="True"
+                                       Touch="OnCanvasTouch"
+                                       IgnorePixelScaling="True"
+                                       InputTransparent="False" />
 
-                <!-- Container for blocks -->
-                <!-- Allow the canvas below to receive touches for box selection while keeping blocks interactive. -->
-                <AbsoluteLayout x:Name="NodeContainer"
-                                BackgroundColor="Transparent"
-                                InputTransparent="True"
-                                WidthRequest="{Binding CanvasWidth}"
-                                HeightRequest="{Binding CanvasHeight}">
-                </AbsoluteLayout>
+                    <!-- Container for blocks -->
+                    <!-- Allow the canvas below to receive touches for box selection while keeping blocks interactive. -->
+                    <AbsoluteLayout x:Name="NodeContainer"
+                                    BackgroundColor="Transparent"
+                                    InputTransparent="True"
+                                    WidthRequest="{Binding CanvasWidth}"
+                                    HeightRequest="{Binding CanvasHeight}">
+                    </AbsoluteLayout>
 
-                <!-- Selection Rectangle Overlay (New) -->
-                <BoxView x:Name="SelectionBox"
-                         Color="#4CC9F0"
-                         Opacity="0.2"
-                         InputTransparent="True"
-                         IsVisible="False"
-                         HorizontalOptions="Start"
-                         VerticalOptions="Start"/>
+                    <!-- Selection Rectangle Overlay (New) -->
+                    <BoxView x:Name="SelectionBox"
+                             Color="#4CC9F0"
+                             Opacity="0.2"
+                             InputTransparent="True"
+                             IsVisible="False"
+                             HorizontalOptions="Start"
+                             VerticalOptions="Start"/>
 
-            </Grid>
-        </ScrollView>
+                </Grid>
+            </ScrollView>
+
+            <!-- Floating grid + zoom controls -->
+            <Border HorizontalOptions="End"
+                    VerticalOptions="Start"
+                    Margin="0,12,12,0"
+                    Padding="10"
+                    BackgroundColor="#2A2A3A"
+                    Stroke="#444"
+                    StrokeShape="RoundRectangle 8"
+                    Opacity="0.95"
+                    WidthRequest="220">
+                <VerticalStackLayout Spacing="8">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
+                        <Button Text="-" BackgroundColor="#444" TextColor="#CCC" HeightRequest="36" CornerRadius="6" WidthRequest="40" Command="{Binding DecreaseGridSpacingCommand}"/>
+                        <Label Grid.Column="1" Text="{Binding GridSpacing, StringFormat='{}Grid: {0:0} px'}" VerticalTextAlignment="Center" TextColor="{StaticResource TextMain}" FontSize="13" HorizontalOptions="Center" />
+                        <Button Grid.Column="2" Text="+" BackgroundColor="#444" TextColor="#CCC" HeightRequest="36" CornerRadius="6" WidthRequest="40" Command="{Binding IncreaseGridSpacingCommand}"/>
+                    </Grid>
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                        <Button Text="Zoom -" BackgroundColor="#353543" TextColor="#DDD" HeightRequest="36" CornerRadius="6" Clicked="OnZoomOutClicked"/>
+                        <Button Grid.Column="1" Text="Zoom +" BackgroundColor="#353543" TextColor="#DDD" HeightRequest="36" CornerRadius="6" Clicked="OnZoomInClicked"/>
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+        </Grid>
 
         <!-- RIGHT SIDE: PROPERTIES -->
         <Border Grid.Column="2" BackgroundColor="{StaticResource BgPanel}" StrokeThickness="0" Padding="20">
@@ -194,6 +209,25 @@
             <StackLayout BindableLayout.ItemsSource="{Binding SelectedBlock.Parameters}"
                          BindableLayout.ItemTemplateSelector="{StaticResource ParameterTemplateSelector}" Spacing="18" />
         </VerticalStackLayout>
+
+                        <VerticalStackLayout IsVisible="{Binding SelectedBlock, Converter={StaticResource IsNotNullConverter}}" Spacing="10">
+                            <BoxView HeightRequest="1" Color="#444" />
+                            <Label Text="Appearance" FontSize="12" TextColor="{StaticResource TextMuted}" FontAttributes="Bold" />
+                            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="8">
+                                <VerticalStackLayout Grid.Row="0" Grid.Column="0" Spacing="4">
+                                    <Label Text="Width" FontSize="12" TextColor="{StaticResource TextMain}" />
+                                    <Entry Text="{Binding SelectedBlock.Width, Mode=TwoWay}" Keyboard="Numeric" BackgroundColor="{StaticResource InputBg}" TextColor="White" />
+                                </VerticalStackLayout>
+                                <VerticalStackLayout Grid.Row="0" Grid.Column="1" Spacing="4">
+                                    <Label Text="Height" FontSize="12" TextColor="{StaticResource TextMain}" />
+                                    <Entry Text="{Binding SelectedBlock.Height, Mode=TwoWay}" Keyboard="Numeric" BackgroundColor="{StaticResource InputBg}" TextColor="White" />
+                                </VerticalStackLayout>
+                                <VerticalStackLayout Grid.Row="1" Grid.ColumnSpan="2" Spacing="4">
+                                    <Label Text="Font Size" FontSize="12" TextColor="{StaticResource TextMain}" />
+                                    <Entry Text="{Binding SelectedBlock.FontSize, Mode=TwoWay}" Keyboard="Numeric" BackgroundColor="{StaticResource InputBg}" TextColor="White" />
+                                </VerticalStackLayout>
+                            </Grid>
+                        </VerticalStackLayout>
 
                         <!-- Connection Selection (Keep) -->
                         <VerticalStackLayout IsVisible="{Binding SelectedConnection, Converter={StaticResource IsNotNullConverter}}">

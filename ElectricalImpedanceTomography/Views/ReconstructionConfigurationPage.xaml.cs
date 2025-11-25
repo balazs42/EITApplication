@@ -36,10 +36,6 @@ namespace ElectricalImpedanceTomography.Views
         private ReconstructionConfigurationBlock? _draggedBlock;
         private Point _dragStartPoint;
 
-        // Resizing state for blocks
-        private readonly Dictionary<ReconstructionConfigurationBlock, (double Width, double Height)> _resizeStartSizes = new();
-        private ReconstructionConfigurationBlock? _resizeArmedBlock;
-
         // Canvas panning state for right-click drag
         private bool _isCanvasPanning;
         private Point _canvasPanStart;
@@ -60,11 +56,15 @@ namespace ElectricalImpedanceTomography.Views
         // Enlarged hit-targets for connection interactions to make drawing easier
         private const double OutputPortHitRadius = 40;   // was 16
         private const double TargetPortHitHalfSize = 70; // was 40
-        private const double ResizeHotZone = 36;
         private const double MinBlockWidth = 140;
         private const double MinBlockHeight = 60;
         private const double MaxBlockWidth = 520;
         private const double MaxBlockHeight = 360;
+
+        private const double PortMarginTop = 22;
+        private const double PortSize = 22;
+
+        private readonly HashSet<ReconstructionConfigurationBlock> _subscribedBlocks = new();
 
         private double _canvasScale = 1.0;
         private const double MinCanvasScale = 0.5;
@@ -101,6 +101,17 @@ namespace ElectricalImpedanceTomography.Views
 
         private void OnBlocksChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
+            if (e.OldItems != null)
+            {
+                foreach (var old in e.OldItems.OfType<ReconstructionConfigurationBlock>())
+                {
+                    if (_subscribedBlocks.Remove(old))
+                    {
+                        old.PropertyChanged -= OnBlockPropertyChanged;
+                    }
+                }
+            }
+
             // Re-create visual containers for blocks after any add/remove
             RefreshNodeContainer();
             SnapBlocksToGrid();
@@ -129,9 +140,22 @@ namespace ElectricalImpedanceTomography.Views
             NodeContainer.Children.Clear();
             foreach (var block in _viewModel.Blocks)
             {
+                EnsureBlockSubscription(block);
                 var view = CreateBlockView(block);
                 NodeContainer.Children.Add(view);
             }
+        }
+
+        private void EnsureBlockSubscription(ReconstructionConfigurationBlock block)
+        {
+            if (_subscribedBlocks.Contains(block))
+            {
+                return;
+            }
+
+            _subscribedBlocks.Add(block);
+            block.PropertyChanged += OnBlockPropertyChanged;
+            EnforceBlockSize(block);
         }
 
         private View CreateBlockView(ReconstructionConfigurationBlock block)
@@ -160,7 +184,7 @@ namespace ElectricalImpedanceTomography.Views
             headerGrid.Add(new BoxView { Color = headerColor, WidthRequest = 4, HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.Fill });
             var titleLabel = new Label
             {
-                FontSize = 13,
+                FontSize = block.FontSize,
                 FontAttributes = FontAttributes.Bold,
                 TextColor = Color.FromArgb("#F0F0F0"),
                 VerticalOptions = LayoutOptions.Center,
@@ -168,17 +192,19 @@ namespace ElectricalImpedanceTomography.Views
                 BindingContext = block
             };
             titleLabel.SetBinding(Label.TextProperty, nameof(ReconstructionConfigurationBlock.Title));
+            titleLabel.SetBinding(Label.FontSizeProperty, new Binding(nameof(ReconstructionConfigurationBlock.FontSize), source: block));
             headerGrid.Add(titleLabel);
 
             // Secondary info text (e.g., highlighted option)
             var contentLabel = new Label
             {
-                FontSize = 11,
+                FontSize = block.FontSize,
                 TextColor = Color.FromArgb("#999"),
                 Margin = 10,
                 BindingContext = block
             };
             contentLabel.SetBinding(Label.TextProperty, nameof(ReconstructionConfigurationBlock.HighlightedOption));
+            contentLabel.SetBinding(Label.FontSizeProperty, new Binding(nameof(ReconstructionConfigurationBlock.FontSize), source: block));
 
             mainStack.Add(headerGrid);
             mainStack.Add(contentLabel);
@@ -281,6 +307,29 @@ namespace ElectricalImpedanceTomography.Views
             return container;
         }
 
+        private void OnBlockPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (sender is not ReconstructionConfigurationBlock block)
+            {
+                return;
+            }
+
+            if (e.PropertyName == nameof(ReconstructionConfigurationBlock.Width) ||
+                e.PropertyName == nameof(ReconstructionConfigurationBlock.Height))
+            {
+                EnforceBlockSize(block);
+                UpdateBlockViewLayout(block);
+                ConnectionsCanvas.InvalidateSurface();
+                _viewModel.NotifyLayoutChanged();
+            }
+            else if (e.PropertyName == nameof(ReconstructionConfigurationBlock.X) ||
+                     e.PropertyName == nameof(ReconstructionConfigurationBlock.Y))
+            {
+                UpdateBlockViewLayout(block);
+                ConnectionsCanvas.InvalidateSurface();
+            }
+        }
+
         /// <summary>
         /// Handles double-tap on a block card. If the block is the Initialization block,
         /// opens a popup to edit the initial conductivity distribution.
@@ -288,14 +337,6 @@ namespace ElectricalImpedanceTomography.Views
         private async Task OnBlockDoubleTappedAsync(ReconstructionConfigurationBlock block, TappedEventArgs tapArgs, View? sourceView)
         {
             var position = sourceView != null ? tapArgs.GetPosition(sourceView) : null;
-            if (position.HasValue && IsInResizeHotZone(block, position.Value))
-            {
-                ArmResize(block);
-                return;
-            }
-
-            _resizeArmedBlock = null;
-
             // Only Initialization blocks support this editor
             if (block.Type != BlockType.Initialization)
                 return;
@@ -333,26 +374,10 @@ namespace ElectricalImpedanceTomography.Views
             switch (e.StatusType)
             {
                 case GestureStatus.Started:
-                    if (_resizeArmedBlock == block)
-                    {
-                        _resizeStartSizes[block] = (block.Width, block.Height);
-                        break;
-                    }
-                    _resizeArmedBlock = null;
                     // Capture starting positions for selected blocks
                     PrepareDragPositions(block);
                     break;
                 case GestureStatus.Running:
-                    if (_resizeArmedBlock == block)
-                    {
-                        if (_resizeStartSizes.TryGetValue(block, out var startSize))
-                        {
-                            UpdateBlockSize(block,
-                                startSize.Width + e.TotalX / _canvasScale,
-                                startSize.Height + e.TotalY / _canvasScale);
-                        }
-                        break;
-                    }
                     // Apply delta to every moved block
                     foreach (var kvp in _dragStartPositions)
                     {
@@ -366,13 +391,6 @@ namespace ElectricalImpedanceTomography.Views
                     break;
                 case GestureStatus.Completed:
                 case GestureStatus.Canceled:
-                    if (_resizeArmedBlock == block)
-                    {
-                        _resizeArmedBlock = null;
-                        _resizeStartSizes.Remove(block);
-                        _viewModel.NotifyLayoutChanged();
-                        break;
-                    }
                     // Clear temp state and notify ViewModel so it can update workspace/state
                     _dragStartPositions.Clear();
                     _viewModel.NotifyLayoutChanged();
@@ -418,29 +436,6 @@ namespace ElectricalImpedanceTomography.Views
             }
         }
 
-        /// <summary>
-        /// Resizes a block while enforcing minimum size. Updates visual bounds and redraws connections.
-        /// </summary>
-        private void UpdateBlockSize(ReconstructionConfigurationBlock block, double newWidth, double newHeight)
-        {
-            var clampedWidth = Math.Clamp(SnapToGrid(newWidth), MinBlockWidth, MaxBlockWidth);
-            var clampedHeight = Math.Clamp(SnapToGrid(newHeight), MinBlockHeight, MaxBlockHeight);
-
-            block.Width = clampedWidth;
-            block.Height = clampedHeight;
-
-            var view = NodeContainer.Children
-                .OfType<View>()
-                .FirstOrDefault(c => ReferenceEquals(c.BindingContext, block));
-
-            if (view != null)
-            {
-                ApplyBlockLayout(block, view);
-            }
-
-            ConnectionsCanvas.InvalidateSurface();
-        }
-
         private double SnapToGrid(double value)
         {
             var spacing = _viewModel.GridSpacing;
@@ -458,22 +453,32 @@ namespace ElectricalImpedanceTomography.Views
             {
                 block.X = SnapToGrid(block.X);
                 block.Y = SnapToGrid(block.Y);
-                block.Width = Math.Clamp(SnapToGrid(block.Width), MinBlockWidth, MaxBlockWidth);
-                block.Height = Math.Clamp(SnapToGrid(block.Height), MinBlockHeight, MaxBlockHeight);
+                EnforceBlockSize(block);
 
-                var view = NodeContainer.Children
-                    .OfType<View>()
-                    .FirstOrDefault(c => ReferenceEquals(c.BindingContext, block));
-
-                if (view != null)
-                {
-                    ApplyBlockLayout(block, view);
-                }
+                UpdateBlockViewLayout(block);
             }
 
             ConnectionsCanvas.InvalidateSurface();
             GridCanvas.InvalidateSurface();
             _viewModel.NotifyLayoutChanged();
+        }
+
+        private void EnforceBlockSize(ReconstructionConfigurationBlock block)
+        {
+            block.Width = Math.Clamp(block.Width, MinBlockWidth, MaxBlockWidth);
+            block.Height = Math.Clamp(block.Height, MinBlockHeight, MaxBlockHeight);
+        }
+
+        private void UpdateBlockViewLayout(ReconstructionConfigurationBlock block)
+        {
+            var view = NodeContainer.Children
+                .OfType<View>()
+                .FirstOrDefault(c => ReferenceEquals(c.BindingContext, block));
+
+            if (view != null)
+            {
+                ApplyBlockLayout(block, view);
+            }
         }
 
         private void ApplyBlockLayout(ReconstructionConfigurationBlock block, View view)
@@ -867,36 +872,23 @@ namespace ElectricalImpedanceTomography.Views
             return Math.Sqrt(dx * dx + dy * dy);
         }
 
-        private bool IsInResizeHotZone(ReconstructionConfigurationBlock block, Point tapPosition)
+        private double GetPortCenterY(ReconstructionConfigurationBlock block)
         {
-            var logicalX = tapPosition.X / _canvasScale;
-            var logicalY = tapPosition.Y / _canvasScale;
-
-            return logicalX >= block.Width - ResizeHotZone && logicalY >= block.Height - ResizeHotZone;
+            var desiredCenter = PortMarginTop + (PortSize * 0.5);
+            return Math.Min(block.Height - PortSize * 0.5, desiredCenter);
         }
-
-        private void ArmResize(ReconstructionConfigurationBlock block)
-        {
-            _resizeArmedBlock = block;
-            _resizeStartSizes[block] = (block.Width, block.Height);
-        }
-
-        /// <summary>
-        /// Vertical offset of port location (40% down from top edge).
-        /// </summary>
-        private static double GetPortOffsetY(ReconstructionConfigurationBlock block) => block.Height * 0.4;
 
         /// <summary>
         /// Left-side input port center in view coordinates.
         /// </summary>
-        private static Point GetInputPortAnchor(ReconstructionConfigurationBlock block)
-            => new(block.X, block.Y + GetPortOffsetY(block));
+        private Point GetInputPortAnchor(ReconstructionConfigurationBlock block)
+            => new(block.X, block.Y + GetPortCenterY(block));
 
         /// <summary>
         /// Right-side output port center in view coordinates.
         /// </summary>
-        private static Point GetOutputPortAnchor(ReconstructionConfigurationBlock block)
-            => new(block.X + block.Width, block.Y + GetPortOffsetY(block));
+        private Point GetOutputPortAnchor(ReconstructionConfigurationBlock block)
+            => new(block.X + block.Width, block.Y + GetPortCenterY(block));
 
         /// <summary>
         /// Attempts to select a connection by clicking near the geometric midpoint of its curve.
