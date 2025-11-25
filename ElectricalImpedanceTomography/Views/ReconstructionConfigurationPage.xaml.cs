@@ -242,8 +242,11 @@ namespace ElectricalImpedanceTomography.Views
             //outPort.Cursor = Cursor.Cross;
 
             // Gestures
-            // 1) Pan on the border moves the selected block(s)
-            var panGesture = new PanGestureRecognizer();
+            // 1) Pan on the border moves the selected block(s) with the primary button
+            var panGesture = new PanGestureRecognizer
+            {
+                Buttons = Microsoft.Maui.Controls.ButtonsMask.Primary
+            };
             panGesture.PanUpdated += (s, e) => OnBlockPanUpdated(block, border.Parent as View, e);
             border.GestureRecognizers.Add(panGesture);
 
@@ -257,26 +260,35 @@ namespace ElectricalImpedanceTomography.Views
             tapGesture.Buttons = Microsoft.Maui.Controls.ButtonsMask.Primary;
             border.GestureRecognizers.Add(tapGesture);
 
-            // 3) Secondary click (right-click) rotates the block by 15� and selects it
-            // Note: on touch-only devices there is no secondary button, so rotation is desktop-centric
-            var rightClickRotateGesture = new TapGestureRecognizer { NumberOfTapsRequired = 1 };
-            rightClickRotateGesture.Buttons = Microsoft.Maui.Controls.ButtonsMask.Secondary;
-            rightClickRotateGesture.Tapped += (s, e) =>
+            // 3) Secondary pan (right click + drag) begins a connection from the block's output port
+            var connectGesture = new PanGestureRecognizer
+            {
+                Buttons = Microsoft.Maui.Controls.ButtonsMask.Secondary
+            };
+            connectGesture.PanUpdated += (s, e) => OnConnectionPanUpdated(block, e);
+            border.GestureRecognizers.Add(connectGesture);
+
+            // 4) Double primary tap either arms resize (bottom-right corner) or opens the initialization editor
+            var doubleTapGesture = new TapGestureRecognizer
+            {
+                NumberOfTapsRequired = 2,
+                Buttons = Microsoft.Maui.Controls.ButtonsMask.Primary
+            };
+            doubleTapGesture.Tapped += async (s, e) => await OnBlockDoubleTappedAsync(block, e, s as View);
+            border.GestureRecognizers.Add(doubleTapGesture);
+
+            // 5) Double secondary click rotates the block and selects it
+            var doubleRightClickRotateGesture = new TapGestureRecognizer
+            {
+                NumberOfTapsRequired = 2,
+                Buttons = Microsoft.Maui.Controls.ButtonsMask.Secondary
+            };
+            doubleRightClickRotateGesture.Tapped += (s, e) =>
             {
                 _viewModel.SelectBlockCommand.Execute(block);
                 _viewModel.RotateBlockCommand.Execute(block);
             };
-            border.GestureRecognizers.Add(rightClickRotateGesture);
-
-            // 4) Double tap either arms resize (bottom-right corner) or opens the initialization editor
-            var doubleTapGesture = new TapGestureRecognizer { NumberOfTapsRequired = 2 };
-            doubleTapGesture.Tapped += async (s, e) => await OnBlockDoubleTappedAsync(block, e, s as View);
-            border.GestureRecognizers.Add(doubleTapGesture);
-
-            // 5) Pan from output port begins a connection and tracks its end point until release
-            var connectGesture = new PanGestureRecognizer();
-            connectGesture.PanUpdated += (s, e) => OnConnectionPanUpdated(block, e);
-            outPort.GestureRecognizers.Add(connectGesture);
+            border.GestureRecognizers.Add(doubleRightClickRotateGesture);
 
             // Container that hosts the card and port bubbles; also bound to rotation
             var container = new Grid { WidthRequest = 214, HeightRequest = 80, BindingContext = block };
