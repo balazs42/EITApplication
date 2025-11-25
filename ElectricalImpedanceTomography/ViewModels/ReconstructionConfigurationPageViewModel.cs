@@ -53,6 +53,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             else
             {
                 AddBlock(BlockType.Initialization, 50, 50);
+                AddBlock(BlockType.Model, 300, 50);
             }
 
             ApplyConfigurationToWorkspace();
@@ -109,6 +110,19 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
         }
 
+        [RelayCommand]
+        public void RotateBlock(ReconstructionConfigurationBlock? block)
+        {
+            if (block == null)
+            {
+                return;
+            }
+
+            block.Rotation = (block.Rotation + 15) % 360;
+            SelectBlock(block);
+            NotifyLayoutChanged();
+        }
+
         public void SelectConnection(ReconstructionConnection? connection)
         {
             ClearSelection();
@@ -131,14 +145,14 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             foreach (var block in Blocks)
             {
-                var blockRect = new Rect(block.X, block.Y, 200, 80);
+                var blockRect = new Rect(block.X, block.Y, block.Width, block.Height);
                 block.IsSelected = selectionRect.IntersectsWith(blockRect);
             }
 
             foreach (var conn in Connections)
             {
-                var midX = (conn.Source.X + 214 + conn.Target.X) / 2;
-                var midY = (conn.Source.Y + 30 + conn.Target.Y + 30) / 2;
+                var midX = (conn.Source.X + conn.Source.Width + conn.Target.X) / 2;
+                var midY = (conn.Source.Y + conn.Source.Height * 0.4 + conn.Target.Y + conn.Target.Height * 0.4) / 2;
                 conn.IsSelected = selectionRect.Contains(midX, midY);
             }
 
@@ -193,7 +207,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             if (!Connections.Any(c => c.Source == source && c.Target == target))
             {
-                Connections.Add(new ReconstructionConnection { Source = source, Target = target });
+                Connections.Add(new ReconstructionConnection { Source = source, Target = target, Weight = 1.0 });
                 ApplyConfigurationToWorkspace();
             }
         }
@@ -251,6 +265,9 @@ namespace ElectricalImpedanceTomography.ViewModels
                         Type = b.Type,
                         X = b.X,
                         Y = b.Y,
+                        Width = b.Width,
+                        Height = b.Height,
+                        Rotation = b.Rotation,
                         Parameters = b.Parameters.Select(p => new ParameterDto
                         {
                             Key = p.Key,
@@ -260,7 +277,8 @@ namespace ElectricalImpedanceTomography.ViewModels
                     Connections = Connections.Select(c => new ConnectionDto
                     {
                         SourceId = c.Source.Id,
-                        TargetId = c.Target.Id
+                        TargetId = c.Target.Id,
+                        Weight = c.Weight
                     }).ToList()
                 };
 
@@ -309,7 +327,14 @@ namespace ElectricalImpedanceTomography.ViewModels
 
                 foreach (var bDto in dto.Blocks)
                 {
-                    var blk = ReconstructionBlockRegistry.CreateBlock(bDto.Type, bDto.X, bDto.Y, bDto.Id);
+                    var blk = ReconstructionBlockRegistry.CreateBlock(
+                        bDto.Type,
+                        bDto.X,
+                        bDto.Y,
+                        bDto.Id,
+                        bDto.Width <= 0 ? 214 : bDto.Width,
+                        bDto.Height <= 0 ? 80 : bDto.Height,
+                        bDto.Rotation);
 
                     foreach (var pDto in bDto.Parameters)
                     {
@@ -326,7 +351,12 @@ namespace ElectricalImpedanceTomography.ViewModels
                 {
                     if (idMap.TryGetValue(cDto.SourceId, out var src) && idMap.TryGetValue(cDto.TargetId, out var tgt))
                     {
-                        Connections.Add(new ReconstructionConnection { Source = src, Target = tgt });
+                        Connections.Add(new ReconstructionConnection
+                        {
+                            Source = src,
+                            Target = tgt,
+                            Weight = cDto.Weight <= 0 ? 1.0 : cDto.Weight
+                        });
                     }
                 }
 
@@ -373,8 +403,26 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public void NotifyLayoutChanged() => ApplyConfigurationToWorkspace();
 
+        private void UpdateConnectionWeightRequirements()
+        {
+            bool multiError = Blocks.Count(b => b.Type == BlockType.ErrorMetric) >= 2;
+            bool multiRegularizer = Blocks.Count(b => b.Type == BlockType.Regularizer) >= 2;
+            bool multiOptimizer = Blocks.Count(b => b.Type == BlockType.Optimizer) >= 2;
+
+            foreach (var connection in Connections)
+            {
+                bool requires =
+                    (multiError && (connection.Source.Type == BlockType.ErrorMetric || connection.Target.Type == BlockType.ErrorMetric)) ||
+                    (multiRegularizer && (connection.Source.Type == BlockType.Regularizer || connection.Target.Type == BlockType.Regularizer)) ||
+                    (multiOptimizer && (connection.Source.Type == BlockType.Optimizer || connection.Target.Type == BlockType.Optimizer));
+
+                connection.RequiresWeight = requires;
+            }
+        }
+
         private void UpdateDiagnostics()
         {
+            UpdateConnectionWeightRequirements();
             DebugLines.Clear();
             var blockSummary = string.Join(", ", Blocks
                 .GroupBy(b => b.Type)
@@ -426,6 +474,9 @@ namespace ElectricalImpedanceTomography.ViewModels
             public BlockType Type { get; set; }
             public double X { get; set; }
             public double Y { get; set; }
+            public double Width { get; set; }
+            public double Height { get; set; }
+            public double Rotation { get; set; }
             public List<ParameterDto> Parameters { get; set; }
         }
 
@@ -439,6 +490,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             public string SourceId { get; set; }
             public string TargetId { get; set; }
+            public double Weight { get; set; }
         }
     }
 }

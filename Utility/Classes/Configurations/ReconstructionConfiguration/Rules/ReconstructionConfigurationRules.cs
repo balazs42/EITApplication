@@ -21,6 +21,7 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration.Rules
         private static readonly Dictionary<BlockType, BlockConnectionConstraint> ConnectionConstraints = new()
         {
             { BlockType.Initialization, new BlockConnectionConstraint(0, int.MaxValue) },
+            { BlockType.Model, BlockConnectionConstraint.Unlimited },
             { BlockType.Measurement, new BlockConnectionConstraint(0, int.MaxValue) },
             { BlockType.ErrorMetric, BlockConnectionConstraint.Unlimited },
             { BlockType.Optimizer, BlockConnectionConstraint.Unlimited },
@@ -38,9 +39,33 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration.Rules
         {
             reason = null;
 
+            if (source == BlockType.Initialization && target != BlockType.Model)
+            {
+                reason = "Initializer output must feed the Model block.";
+                return false;
+            }
+
             if (source == BlockType.Measurement && target != BlockType.ErrorMetric)
             {
                 reason = "Measurement outputs can only feed Error Metric blocks.";
+                return false;
+            }
+
+            if (target == BlockType.ErrorMetric && source != BlockType.Solver && source != BlockType.Measurement)
+            {
+                reason = "Error Metric inputs must originate from a Solver or Measurement block.";
+                return false;
+            }
+
+            if (target == BlockType.Regularizer && source != BlockType.Model)
+            {
+                reason = "Regularizer inputs must come from the Model block.";
+                return false;
+            }
+
+            if (source == BlockType.Optimizer && target != BlockType.Model)
+            {
+                reason = "Optimizer outputs must connect into the Model block.";
                 return false;
             }
 
@@ -98,6 +123,22 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration.Rules
                 if (constraint.MaxOutputs < int.MaxValue && outgoing > constraint.MaxOutputs)
                 {
                     issues.Add($"{block.Title} exceeds its allowed number of outputs ({constraint.MaxOutputs}).");
+                }
+            }
+
+            foreach (var optimizer in blocks.Where(b => b.Type == BlockType.Optimizer))
+            {
+                if (!connections.Any(c => c.Source == optimizer && c.Target.Type == BlockType.Model))
+                {
+                    issues.Add($"Optimizer '{optimizer.Title}' must feed the Model block.");
+                }
+            }
+
+            foreach (var connection in connections.Where(c => c.RequiresWeight))
+            {
+                if (connection.Weight <= 0)
+                {
+                    issues.Add($"Set a positive weight for connection {connection.Source.Title} -> {connection.Target.Title}.");
                 }
             }
 

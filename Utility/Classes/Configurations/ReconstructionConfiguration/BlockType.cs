@@ -12,6 +12,12 @@
         Initialization,
 
         /// <summary>
+        /// Physical model description for the domain, e.g., electrode contact
+        /// impedances and conductivity bounds.
+        /// </summary>
+        Model,
+
+        /// <summary>
         /// Block describing the incoming measurements and their preprocessing.
         /// </summary>
         Measurement,
