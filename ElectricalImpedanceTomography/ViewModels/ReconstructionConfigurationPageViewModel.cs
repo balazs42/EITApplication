@@ -290,6 +290,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                         Type = b.Type,
                         X = b.X,
                         Y = b.Y,
+                        FontSize = b.FontSize,
                         Width = b.Width,
                         Height = b.Height,
                         Rotation = b.Rotation,
@@ -357,6 +358,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                         bDto.X,
                         bDto.Y,
                         bDto.Id,
+                        bDto.FontSize <= 0 ? 13 : bDto.FontSize,
                         bDto.Width <= 0 ? 214 : bDto.Width,
                         bDto.Height <= 0 ? 80 : bDto.Height,
                         bDto.Rotation);
@@ -505,6 +507,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             public BlockType Type { get; set; }
             public double X { get; set; }
             public double Y { get; set; }
+            public double FontSize { get; set; }
             public double Width { get; set; }
             public double Height { get; set; }
             public double Rotation { get; set; }
