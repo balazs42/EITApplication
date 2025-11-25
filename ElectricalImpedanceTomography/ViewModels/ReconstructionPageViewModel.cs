@@ -48,6 +48,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         private bool _updatingDrivePatternSelection;
         private EITReconstructionParameters? _trackedParameters;
         private MeasurementSourceOption _selectedMeasurementSource = Workspace.GetMeasurementSource();
+        private PotentialDisplayMode _selectedDisplayMode = PotentialDisplayMode.Default;
 
         public VirtualElectrodeSettings VirtualElectrodeSettings => ReconstructionParameters.VirtualElectrodeSettings;
 
@@ -1614,7 +1615,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             ResetVideoExportState();
 
-            _ = mode;
+            _selectedDisplayMode = mode;
 
             _videoExportDistributionSize = ReconstructionVideoRenderer.NormalizeSize(distributionCanvasSize, 250, 250);
             _videoExportColorbarSize = ReconstructionVideoRenderer.NormalizeSize(colorbarCanvasSize, 250, 20);
@@ -1648,6 +1649,8 @@ namespace ElectricalImpedanceTomography.ViewModels
                                                                             IProgress<VideoExportProgressReport>? progress = null,
                                                                             CancellationToken cancellationToken = default)
         {
+            _selectedDisplayMode = mode;
+
             var frames = Workspace.GetReconstructionFrames().ToList();
             if (frames.Count == 0)
                 return VideoExportResult.CreateFailure("No Frames", "There are no reconstruction frames to export.");
@@ -1717,14 +1720,14 @@ namespace ElectricalImpedanceTomography.ViewModels
                                 : residualHistory.Count;
 
                             using var image = ReconstructionVideoRenderer.RenderFrameSnapshot(frames[i],
-                                                                                               context,
-                                                                                               fallbackDiscretization,
-                                                                                               residualHistory,
-                                                                                               residualCount,
-                                                                                               distributionSize,
-                                                                                               colorbarSize,
-                                                                                               residualSize,
-                                                                                               mode);
+                                                                                                 context,
+                                                                                                 fallbackDiscretization,
+                                                                                                 residualHistory,
+                                                                                                 residualCount,
+                                                                                                 distributionSize,
+                                                                                                 colorbarSize,
+                                                                                                 residualSize,
+                                                                                                 _selectedDisplayMode);
 
                             if (videoWidth == 0 || videoHeight == 0)
                             {
@@ -1885,7 +1888,8 @@ namespace ElectricalImpedanceTomography.ViewModels
         public Task<DataExportResult> ExportReconstructionDataAsync(PotentialDisplayMode mode)
         {
             string rootDirectory = FileSystem.Current.AppDataDirectory;
-            return _exportService.ExportAsync(rootDirectory, mode);
+            _selectedDisplayMode = mode;
+            return _exportService.ExportAsync(rootDirectory, _selectedDisplayMode);
         }
 
         private static DistributionMetrics? ComputeInitialDistributionMetrics(ReconstructionResult snapshot)
