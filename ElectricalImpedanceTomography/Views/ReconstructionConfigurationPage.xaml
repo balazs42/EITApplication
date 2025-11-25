@@ -180,16 +180,21 @@
                         Opacity="0.95"
                         WidthRequest="220">
                 <VerticalStackLayout Spacing="8">
-                    <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
-                        <CheckBox IsChecked="{Binding IsConnectionMode}"
-                                  Color="{StaticResource Accent}"
-                                  VerticalOptions="Center" />
-                        <VerticalStackLayout Spacing="0">
-                            <Label Text="Connect" FontSize="13" TextColor="{StaticResource TextMain}" />
+                        <Label Text="Connections and Grid" FontFamily="SF Pro Text" FontSize="Small"/>
+                        <BoxView HeightRequest="2" Color="White"/>
+                        <HorizontalStackLayout Spacing="0" VerticalOptions="Start">
+                        <VerticalStackLayout Spacing="8">
+                            <Label Text="Check to Connect" FontSize="13" TextColor="{StaticResource TextMain}" />
                             <Label Text="Left-click and drag to link" FontSize="10" TextColor="{StaticResource TextMuted}" />
                         </VerticalStackLayout>
+                        <CheckBox IsChecked="{Binding IsConnectionMode}"
+                                  Color="{StaticResource Accent}"
+                                  VerticalOptions="Center"
+                                  HorizontalOptions="End"
+                                  WidthRequest="30"/>
                     </HorizontalStackLayout>
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
+                        <BoxView HeightRequest="2" Color="White"/>
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
                         <Button Text="-" BackgroundColor="#444" TextColor="#CCC" HeightRequest="36" CornerRadius="6" WidthRequest="40" Command="{Binding DecreaseGridSpacingCommand}"/>
                         <Label Grid.Column="1" Text="{Binding GridSpacing, StringFormat='{}Grid: {0:0} px'}" VerticalTextAlignment="Center" TextColor="{StaticResource TextMain}" FontSize="13" HorizontalOptions="Center" />
                         <Button Grid.Column="2" Text="+" BackgroundColor="#444" TextColor="#CCC" HeightRequest="36" CornerRadius="6" WidthRequest="40" Command="{Binding IncreaseGridSpacingCommand}"/>
