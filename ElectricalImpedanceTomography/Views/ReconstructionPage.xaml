@@ -414,25 +414,6 @@
                             <Button Text="Reset Reconstruction" Margin="10" BackgroundColor="DarkRed" TextColor="White" FontAttributes="Bold" Clicked="OnResetReconstructionClicked"/>
                         </Border>
                         <Border Grid.Column="6" Margin="2" Background="Transparent" Stroke="Transparent">
-                        </Border>
-                        <Picker x:Name="PotentialModePicker"
-                                Margin="5"
-                                Grid.Column="7"
-                                TitleColor="#9DAAD3"
-                                TextColor="#F0F4FF"
-                                HorizontalOptions="Center"
-                                VerticalOptions="Center"
-                                SelectedItem="Default"
-                                Title="Potential Display Mode">
-                            <Picker.Items>
-                                <x:String>Default</x:String>
-                                <x:String>Grayscale</x:String>
-                                <x:String>Inverted</x:String>
-                                <x:String>Heatmap</x:String>
-                                <x:String>Rainbow</x:String>
-                            </Picker.Items>
-                        </Picker>
-                        <Border Grid.Column="7" Grid.Row="1"  Background="Transparent" Stroke="Transparent">
                             <Button x:Name="ExportVideoButton"
                                     Text="Export"
                                     Margin="10"
@@ -442,6 +423,37 @@
                                     Clicked="OnExportClicked"
                                     IsEnabled="False"/>
                         </Border>
+                        <VerticalStackLayout Grid.Column="7" Grid.RowSpan="2" VerticalOptions="Center" Spacing="4">
+                            <Picker x:Name="PotentialModePicker"
+                                    Margin="5"
+                                    TitleColor="#9DAAD3"
+                                    TextColor="#F0F4FF"
+                                    HorizontalOptions="Center"
+                                    VerticalOptions="Center"
+                                    SelectedItem="Default"
+                                    Title="Potential Display Mode">
+                                <Picker.Items>
+                                    <x:String>Default</x:String>
+                                    <x:String>Grayscale</x:String>
+                                    <x:String>Inverted</x:String>
+                                    <x:String>Heatmap</x:String>
+                                    <x:String>Rainbow</x:String>
+                                </Picker.Items>
+                            </Picker>
+                            <Picker x:Name="ConductivityModePicker"
+                                    Margin="5"
+                                    TitleColor="#9DAAD3"
+                                    TextColor="#F0F4FF"
+                                    HorizontalOptions="Center"
+                                    VerticalOptions="Center"
+                                    SelectedItem="Classic"
+                                    Title="Conductivity Display Mode">
+                                <Picker.Items>
+                                    <x:String>Classic</x:String>
+                                    <x:String>Vivid Diverging</x:String>
+                                </Picker.Items>
+                            </Picker>
+                        </VerticalStackLayout>
                         <Slider x:Name="PlaybackSlider"
                                 Margin="5"
                                 Grid.Row="1"
