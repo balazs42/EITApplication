@@ -13,67 +13,82 @@ using Utility.Classes.Configurations.ReconstructionConfiguration.Rules;
 
 namespace ElectricalImpedanceTomography.Views
 {
-    /// <summary>
-    /// Code-behind for the Reconstruction Configuration Page.
-    /// Handles dynamic UI generation, block dragging, and connection creation (drag-and-drop).
-    /// </summary>
     public partial class ReconstructionConfigurationPage : ContentPage
     {
+        // ViewModel backing this page
         private readonly ReconstructionConfigurationPageViewModel _viewModel;
+
+        // Tracks initial positions of blocks at the start of a drag (for multi-move)
         private readonly Dictionary<ReconstructionConfigurationBlock, Point> _dragStartPositions = new();
 
+        // Temporary connection state while the user drags from an output port
         private Point? _tempConnectionStart;
         private Point? _tempConnectionEnd;
         private ReconstructionConfigurationBlock? _tempConnectionSource;
 
-        // Selection Rectangle State
+        // Selection rectangle state when dragging on empty canvas
         private Point? _selectionStart;
         private bool _isSelecting = false;
 
-        // Dragging state
+        // Dragging state for block moves
         private ReconstructionConfigurationBlock? _draggedBlock;
         private Point _dragStartPoint;
 
-        // Resizing state
+        // Resizing state for blocks
         private readonly Dictionary<ReconstructionConfigurationBlock, (double Width, double Height)> _resizeStartSizes = new();
 
-        // Mesh preview drawing helpers
+        // LBM preview drawing brushes
         private readonly SKPaint _lbmFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.Black };
         private readonly SKPaint _lbmWall = new() { Style = SKPaintStyle.Fill, Color = SKColors.White };
         private readonly SKPaint _lbmElectrode = new() { Style = SKPaintStyle.Fill, Color = SKColors.Orange };
         private readonly SKPaint _lbmStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.LightGray, StrokeWidth = 1 };
 
+        // FEM preview drawing brushes
         private readonly SKPaint _femStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1 };
         private readonly SKPaint _femFill = new() { Style = SKPaintStyle.Fill };
         private readonly SKPaint _electrodeFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.Yellow };
         private readonly SKPaint _electrodeSegmentStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Gold, StrokeWidth = 3, IsAntialias = true };
 
+        // Enlarged hit-targets for connection interactions to make drawing easier
+        private const double OutputPortHitRadius = 30;   // was 16
+        private const double TargetPortHitHalfSize = 70; // was 40
+
         public ReconstructionConfigurationPage()
         {
             InitializeComponent();
+
+            // Create and attach the ViewModel
             _viewModel = new ReconstructionConfigurationPageViewModel();
             BindingContext = _viewModel;
 
+            // Rebuild the node visuals whenever blocks change
             _viewModel.Blocks.CollectionChanged += OnBlocksChanged;
+
+            // Redraw connections whenever the connection collection changes
             _viewModel.Connections.CollectionChanged += (s, e) => ConnectionsCanvas.InvalidateSurface();
 
+            // Initial layout of blocks
             RefreshNodeContainer();
         }
 
         protected override void OnAppearing()
         {
             base.OnAppearing();
+            // Ensure mesh preview is up-to-date when the page becomes visible
             MeshPreviewCanvas?.InvalidateSurface();
         }
 
         private void OnBlocksChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
+            // Re-create visual containers for blocks after any add/remove
             RefreshNodeContainer();
+            // Connections depend on block positions/sizes; redraw
             ConnectionsCanvas.InvalidateSurface();
         }
 
         private void RefreshNodeContainer()
         {
+            // Clear and re-add all block visuals (simpler than diffing)
             NodeContainer.Children.Clear();
             foreach (var block in _viewModel.Blocks)
             {
@@ -84,6 +99,7 @@ namespace ElectricalImpedanceTomography.Views
 
         private View CreateBlockView(ReconstructionConfigurationBlock block)
         {
+            // Visual card for a block (rounded border with header and content)
             var border = new Border
             {
                 Stroke = Color.FromArgb("#555"),
@@ -95,11 +111,13 @@ namespace ElectricalImpedanceTomography.Views
                 Shadow = new Shadow { Brush = Brush.Black, Offset = new Point(0, 5), Opacity = 0.4f, Radius = 10 }
             };
 
+            // Bind visual size to block model properties
             border.SetBinding(WidthRequestProperty, new Binding(nameof(ReconstructionConfigurationBlock.Width), source: block));
             border.SetBinding(HeightRequestProperty, new Binding(nameof(ReconstructionConfigurationBlock.Height), source: block));
 
             var headerColor = Color.FromArgb(block.IconColor);
 
+            // Build header with colored strip and title
             var mainStack = new VerticalStackLayout();
             var headerGrid = new Grid { BackgroundColor = headerColor.WithAlpha(0.15f), Padding = 10, HeightRequest = 40 };
             headerGrid.Add(new BoxView { Color = headerColor, WidthRequest = 4, HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.Fill });
@@ -115,6 +133,7 @@ namespace ElectricalImpedanceTomography.Views
             titleLabel.SetBinding(Label.TextProperty, nameof(ReconstructionConfigurationBlock.Title));
             headerGrid.Add(titleLabel);
 
+            // Secondary info text (e.g., highlighted option)
             var contentLabel = new Label
             {
                 FontSize = 11,
@@ -128,6 +147,7 @@ namespace ElectricalImpedanceTomography.Views
             mainStack.Add(contentLabel);
             border.Content = mainStack;
 
+            // Input port bubble (left side). Visible only if the block accepts inputs per rules
             var inPort = new Border
             {
                 WidthRequest = 14,
@@ -142,6 +162,7 @@ namespace ElectricalImpedanceTomography.Views
                 IsVisible = ReconstructionConfigurationRules.GetConnectionConstraint(block.Type).MaxInputs > 0
             };
 
+            // Output port bubble (right side)
             var outPort = new Border
             {
                 WidthRequest = 14,
@@ -156,26 +177,43 @@ namespace ElectricalImpedanceTomography.Views
             };
 
             // Gestures
+            // 1) Pan on the border moves the selected block(s)
             var panGesture = new PanGestureRecognizer();
             panGesture.PanUpdated += (s, e) => OnBlockPanUpdated(block, border.Parent as View, e);
             border.GestureRecognizers.Add(panGesture);
 
+            // 2) Primary click/tap selects the block (no rotation)
             var tapGesture = new TapGestureRecognizer();
             tapGesture.Tapped += (s, e) =>
             {
                 _viewModel.SelectBlockCommand.Execute(block);
-                _viewModel.RotateBlockCommand.Execute(block);
             };
+            // Only respond to primary pointer (left mouse button / normal tap)
+            tapGesture.Buttons = Microsoft.Maui.Controls.ButtonsMask.Primary;
             border.GestureRecognizers.Add(tapGesture);
 
+            // 3) Secondary click (right-click) rotates the block by 15° and selects it
+            // Note: on touch-only devices there is no secondary button, so rotation is desktop-centric
+            var rightClickRotateGesture = new TapGestureRecognizer { NumberOfTapsRequired = 1 };
+            rightClickRotateGesture.Buttons = Microsoft.Maui.Controls.ButtonsMask.Secondary;
+            rightClickRotateGesture.Tapped += (s, e) =>
+            {
+                _viewModel.SelectBlockCommand.Execute(block);
+                _viewModel.RotateBlockCommand.Execute(block);
+            };
+            border.GestureRecognizers.Add(rightClickRotateGesture);
+
+            // 4) Double tap opens specialized editor for Initialization block
             var doubleTapGesture = new TapGestureRecognizer { NumberOfTapsRequired = 2 };
             doubleTapGesture.Tapped += async (s, e) => await OnBlockDoubleTappedAsync(block);
             border.GestureRecognizers.Add(doubleTapGesture);
 
+            // 5) Pan from output port begins a connection and tracks its end point until release
             var connectGesture = new PanGestureRecognizer();
             connectGesture.PanUpdated += (s, e) => OnConnectionPanUpdated(block, e);
             outPort.GestureRecognizers.Add(connectGesture);
 
+            // Resize handle at bottom-right corner of the card
             var resizeHandle = new Border
             {
                 WidthRequest = 16,
@@ -189,24 +227,27 @@ namespace ElectricalImpedanceTomography.Views
                 Margin = new Thickness(0, 0, -6, -6)
             };
 
+            // Pan on resize handle changes Width/Height with clamping
             var resizePan = new PanGestureRecognizer();
             resizePan.PanUpdated += (s, e) => OnResizePanUpdated(block, e);
             resizeHandle.GestureRecognizers.Add(resizePan);
 
+            // Container that hosts the card and port bubbles; also bound to rotation
             var container = new Grid { WidthRequest = 214, HeightRequest = 80, BindingContext = block };
             container.SetBinding(WidthRequestProperty, new Binding(nameof(ReconstructionConfigurationBlock.Width), source: block));
             container.SetBinding(HeightRequestProperty, new Binding(nameof(ReconstructionConfigurationBlock.Height), source: block));
             container.SetBinding(RotationProperty, new Binding(nameof(ReconstructionConfigurationBlock.Rotation), source: block));
-            // Ensure individual blocks remain hit-testable even though the parent layout is transparent.
+            // Keep hit-testing enabled for the child visuals
             container.InputTransparent = false;
             container.Add(border);
             container.Add(inPort);
             container.Add(outPort);
             container.Add(resizeHandle);
 
+            // Initial placement in the absolute layout
             AbsoluteLayout.SetLayoutBounds(container, new Rect(block.X, block.Y, block.Width, block.Height));
 
-            // Bind IsSelected to trigger visual changes on block
+            // Visual selection cue: thicker cyan border when block.IsSelected is true
             var trigger = new DataTrigger(typeof(Border))
             {
                 Binding = new Binding("IsSelected", source: block),
@@ -219,11 +260,17 @@ namespace ElectricalImpedanceTomography.Views
             return container;
         }
 
+        /// <summary>
+        /// Handles double-tap on a block card. If the block is the Initialization block,
+        /// opens a popup to edit the initial conductivity distribution.
+        /// </summary>
         private async Task OnBlockDoubleTappedAsync(ReconstructionConfigurationBlock block)
         {
+            // Only Initialization blocks support this editor
             if (block.Type != BlockType.Initialization)
                 return;
 
+            // You must have a discretization/mesh to preview/edit
             var discretization = Workspace.GetDiscretization();
             if (discretization == null)
             {
@@ -231,10 +278,12 @@ namespace ElectricalImpedanceTomography.Views
                 return;
             }
 
+            // Use current distribution if present, otherwise take a copy from mesh
             var initial = Workspace.GetInitialConductivityDistribution() ?? discretization.GetConductivityDistribution();
             var original = Workspace.GetOriginalConductivityDistribution();
             var parameters = Workspace.GetReconstructionParameters();
 
+            // Create and show popup; update preview while changes are made
             var popup = new InitialDistributionEditorPopup(discretization,
                                                            initial,
                                                            original,
@@ -246,14 +295,19 @@ namespace ElectricalImpedanceTomography.Views
             popup.DistributionChanged -= handler;
         }
 
+        /// <summary>
+        /// Pan gesture on the block body. Moves all selected blocks as a group.
+        /// </summary>
         private void OnBlockPanUpdated(ReconstructionConfigurationBlock block, View view, PanUpdatedEventArgs e)
         {
             switch (e.StatusType)
             {
                 case GestureStatus.Started:
+                    // Capture starting positions for selected blocks
                     PrepareDragPositions(block);
                     break;
                 case GestureStatus.Running:
+                    // Apply delta to every moved block
                     foreach (var kvp in _dragStartPositions)
                     {
                         var start = kvp.Value;
@@ -261,16 +315,22 @@ namespace ElectricalImpedanceTomography.Views
                         var newY = start.Y + e.TotalY;
                         UpdateBlockPosition(kvp.Key, newX, newY);
                     }
+                    // Redraw connection curves
                     ConnectionsCanvas.InvalidateSurface();
                     break;
                 case GestureStatus.Completed:
                 case GestureStatus.Canceled:
+                    // Clear temp state and notify ViewModel so it can update workspace/state
                     _dragStartPositions.Clear();
                     _viewModel.NotifyLayoutChanged();
                     break;
             }
         }
 
+        /// <summary>
+        /// Initializes the map of blocks to their starting positions at the beginning of a drag.
+        /// If no block is selected, only the current block moves.
+        /// </summary>
         private void PrepareDragPositions(ReconstructionConfigurationBlock block)
         {
             _dragStartPositions.Clear();
@@ -286,6 +346,9 @@ namespace ElectricalImpedanceTomography.Views
             }
         }
 
+        /// <summary>
+        /// Writes new X/Y to the block model and updates its visual bounds in the absolute layout.
+        /// </summary>
         private void UpdateBlockPosition(ReconstructionConfigurationBlock block, double newX, double newY)
         {
             block.X = newX;
@@ -299,6 +362,9 @@ namespace ElectricalImpedanceTomography.Views
             }
         }
 
+        /// <summary>
+        /// Resizes a block while enforcing minimum size. Updates visual bounds and redraws connections.
+        /// </summary>
         private void UpdateBlockSize(ReconstructionConfigurationBlock block, double newWidth, double newHeight)
         {
             var clampedWidth = Math.Max(140, newWidth);
@@ -319,11 +385,15 @@ namespace ElectricalImpedanceTomography.Views
             ConnectionsCanvas.InvalidateSurface();
         }
 
+        /// <summary>
+        /// Tracks the creation of a new connection while the user drags from an output port.
+        /// </summary>
         private void OnConnectionPanUpdated(ReconstructionConfigurationBlock sourceBlock, PanUpdatedEventArgs e)
         {
             switch (e.StatusType)
             {
                 case GestureStatus.Started:
+                    // Verify the block can still output (capacity rules)
                     if (!_viewModel.HasOutputCapacity(sourceBlock))
                     {
                         return;
@@ -335,6 +405,7 @@ namespace ElectricalImpedanceTomography.Views
                     ConnectionsCanvas.InvalidateSurface();
                     break;
                 case GestureStatus.Running:
+                    // Update the temporary end point relative to drag delta
                     if (_tempConnectionStart.HasValue)
                     {
                         _tempConnectionEnd = new Point(_tempConnectionStart.Value.X + e.TotalX, _tempConnectionStart.Value.Y + e.TotalY);
@@ -343,6 +414,7 @@ namespace ElectricalImpedanceTomography.Views
                     break;
                 case GestureStatus.Completed:
                 case GestureStatus.Canceled:
+                    // On release, try to find a valid target and commit the connection
                     if (_tempConnectionEnd.HasValue)
                     {
                         var targetBlock = FindTargetBlock(_tempConnectionEnd.Value);
@@ -359,11 +431,15 @@ namespace ElectricalImpedanceTomography.Views
             }
         }
 
+        /// <summary>
+        /// Resizing gesture on the block's resize handle.
+        /// </summary>
         private void OnResizePanUpdated(ReconstructionConfigurationBlock block, PanUpdatedEventArgs e)
         {
             switch (e.StatusType)
             {
                 case GestureStatus.Started:
+                    // Remember starting size for delta calculations
                     _resizeStartSizes[block] = (block.Width, block.Height);
                     break;
                 case GestureStatus.Running:
@@ -374,12 +450,17 @@ namespace ElectricalImpedanceTomography.Views
                     break;
                 case GestureStatus.Completed:
                 case GestureStatus.Canceled:
+                    // Cleanup and inform ViewModel
                     _resizeStartSizes.Remove(block);
                     _viewModel.NotifyLayoutChanged();
                     break;
             }
         }
 
+        /// <summary>
+        /// Finds a target block whose input port lies near the provided location.
+        /// Uses a proximity threshold around the input anchor.
+        /// </summary>
         private ReconstructionConfigurationBlock FindTargetBlock(Point location)
         {
             foreach (var block in _viewModel.Blocks)
@@ -390,7 +471,8 @@ namespace ElectricalImpedanceTomography.Views
                 }
 
                 var anchor = GetInputPortAnchor(block);
-                if (Math.Abs(location.X - anchor.X) < 40 && Math.Abs(location.Y - anchor.Y) < 40)
+                // Expanded target area: square region around input port center
+                if (Math.Abs(location.X - anchor.X) < TargetPortHitHalfSize && Math.Abs(location.Y - anchor.Y) < TargetPortHitHalfSize)
                 {
                     return block;
                 }
@@ -398,34 +480,39 @@ namespace ElectricalImpedanceTomography.Views
             return null;
         }
 
-        // Combined Touch Handler for:
-        // 1. Connection Selection (Click)
-        // 2. Multi-Selection Rectangle (Drag)
+        // Combined Touch Handler on the connection canvas for:
+        // 1) Selecting a connection by clicking near its midpoint
+        // 2) Drawing a selection rectangle on empty space
+        // 3) Delegating to connection-drag or block-drag initiation when appropriate
         private void OnCanvasTouch(object sender, SKTouchEventArgs e)
         {
-            // Coordinate conversion if needed, assuming Canvas scale is 1:1 with MAUI Points
+            // Convert Skia coordinates into MAUI view coordinates to compare with block bounds
             var viewPoint = ToViewPoint(e.Location);
             var viewSkPoint = new SKPoint((float)viewPoint.X, (float)viewPoint.Y);
 
             switch (e.ActionType)
             {
                 case SKTouchAction.Pressed:
+                    // Prefer selecting connections if the press is near a connection midpoint
                     if (TrySelectConnection(viewSkPoint))
                     {
                         ResetInteractionState();
                         break;
                     }
 
+                    // If press is near an output, begin port connection creation
                     if (TryBeginPortConnection(viewPoint))
                     {
                         break;
                     }
 
+                    // If press is over a block, begin a drag of the block (or selected group)
                     if (TryBeginBlockDrag(viewPoint))
                     {
                         break;
                     }
 
+                    // Otherwise, start selection rectangle on empty canvas
                     BeginSelection(viewPoint);
                     break;
 
@@ -442,6 +529,9 @@ namespace ElectricalImpedanceTomography.Views
             e.Handled = true;
         }
 
+        /// <summary>
+        /// If the pointer is on an output port (and capacity allows), start a temp connection drag.
+        /// </summary>
         private bool TryBeginPortConnection(Point viewPoint)
         {
             var block = FindBlockAtPoint(viewPoint);
@@ -456,7 +546,8 @@ namespace ElectricalImpedanceTomography.Views
             }
 
             var portCenter = GetOutputPortAnchor(block);
-            if (Distance(viewPoint, portCenter) <= 16)
+            // Enlarged hit radius to make starting a connection easier
+            if (Distance(viewPoint, portCenter) <= OutputPortHitRadius)
             {
                 _tempConnectionSource = block;
                 _tempConnectionStart = portCenter;
@@ -468,6 +559,9 @@ namespace ElectricalImpedanceTomography.Views
             return false;
         }
 
+        /// <summary>
+        /// If the pointer is over a block, begin dragging it (and any currently selected blocks).
+        /// </summary>
         private bool TryBeginBlockDrag(Point viewPoint)
         {
             var block = FindBlockAtPoint(viewPoint);
@@ -479,6 +573,7 @@ namespace ElectricalImpedanceTomography.Views
             _draggedBlock = block;
             _dragStartPoint = viewPoint;
 
+            // Prepare group dragging; if nothing selected, select the block being dragged
             _dragStartPositions.Clear();
             var blocksToMove = _viewModel.Blocks.Where(b => b.IsSelected).ToList();
             if (!blocksToMove.Any())
@@ -495,20 +590,28 @@ namespace ElectricalImpedanceTomography.Views
             return true;
         }
 
+        /// <summary>
+        /// Initializes the selection rectangle and clears current selection.
+        /// </summary>
         private void BeginSelection(Point viewPoint)
         {
             _selectionStart = viewPoint;
             _isSelecting = true;
             _viewModel.ClearSelection();
 
+            // Initialize the selection box overlay
             SelectionBox.IsVisible = true;
             SelectionBox.WidthRequest = 0;
             SelectionBox.HeightRequest = 0;
             SelectionBox.Margin = new Thickness(viewPoint.X, viewPoint.Y, 0, 0);
         }
 
+        /// <summary>
+        /// Moves either the temporary connection end, the dragged blocks, or updates selection rectangle.
+        /// </summary>
         private void HandleMove(Point viewPoint)
         {
+            // Dragging a connection: update its end point and redraw
             if (_tempConnectionStart.HasValue && _tempConnectionSource != null)
             {
                 _tempConnectionEnd = viewPoint;
@@ -516,6 +619,7 @@ namespace ElectricalImpedanceTomography.Views
                 return;
             }
 
+            // Dragging block(s): apply delta to all and redraw
             if (_draggedBlock != null)
             {
                 var delta = new Point(viewPoint.X - _dragStartPoint.X, viewPoint.Y - _dragStartPoint.Y);
@@ -531,6 +635,7 @@ namespace ElectricalImpedanceTomography.Views
                 return;
             }
 
+            // Updating selection rectangle overlay and selection in ViewModel
             if (_isSelecting && _selectionStart.HasValue)
             {
                 double x = Math.Min(_selectionStart.Value.X, viewPoint.X);
@@ -546,8 +651,12 @@ namespace ElectricalImpedanceTomography.Views
             }
         }
 
+        /// <summary>
+        /// Finalizes the current user interaction: commits connection, finishes drag, or hides selection box.
+        /// </summary>
         private void CompleteInteraction(Point viewPoint)
         {
+            // If finishing a connection, try to attach to a nearby input port
             if (_tempConnectionStart.HasValue && _tempConnectionSource != null)
             {
                 var targetBlock = FindTargetBlock(viewPoint);
@@ -559,6 +668,7 @@ namespace ElectricalImpedanceTomography.Views
                 return;
             }
 
+            // Finish a block drag and notify VM
             if (_draggedBlock != null)
             {
                 _draggedBlock = null;
@@ -567,6 +677,7 @@ namespace ElectricalImpedanceTomography.Views
                 return;
             }
 
+            // End selection mode and hide overlay
             if (_isSelecting)
             {
                 SelectionBox.IsVisible = false;
@@ -575,6 +686,9 @@ namespace ElectricalImpedanceTomography.Views
             }
         }
 
+        /// <summary>
+        /// Resets any in-progress interaction (connection/drag/selection) and hides selection overlay.
+        /// </summary>
         private void ResetInteractionState()
         {
             _tempConnectionSource = null;
@@ -586,6 +700,9 @@ namespace ElectricalImpedanceTomography.Views
             SelectionBox.IsVisible = false;
         }
 
+        /// <summary>
+        /// Returns the top-most block whose bounds contain the given point, or null.
+        /// </summary>
         private ReconstructionConfigurationBlock? FindBlockAtPoint(Point point)
         {
             return _viewModel.Blocks.FirstOrDefault(block =>
@@ -593,6 +710,9 @@ namespace ElectricalImpedanceTomography.Views
                 point.Y >= block.Y && point.Y <= block.Y + block.Height);
         }
 
+        /// <summary>
+        /// Euclidean distance between two MAUI Points.
+        /// </summary>
         private static double Distance(Point a, Point b)
         {
             var dx = a.X - b.X;
@@ -600,14 +720,27 @@ namespace ElectricalImpedanceTomography.Views
             return Math.Sqrt(dx * dx + dy * dy);
         }
 
+        /// <summary>
+        /// Vertical offset of port location (40% down from top edge).
+        /// </summary>
         private static double GetPortOffsetY(ReconstructionConfigurationBlock block) => block.Height * 0.4;
 
+        /// <summary>
+        /// Left-side input port center in view coordinates.
+        /// </summary>
         private static Point GetInputPortAnchor(ReconstructionConfigurationBlock block)
             => new(block.X, block.Y + GetPortOffsetY(block));
 
+        /// <summary>
+        /// Right-side output port center in view coordinates.
+        /// </summary>
         private static Point GetOutputPortAnchor(ReconstructionConfigurationBlock block)
             => new(block.X + block.Width, block.Y + GetPortOffsetY(block));
 
+        /// <summary>
+        /// Attempts to select a connection by clicking near the geometric midpoint of its curve.
+        /// The closest midpoint under a threshold is chosen.
+        /// </summary>
         private bool TrySelectConnection(SKPoint clickPoint)
         {
             ReconstructionConnection bestMatch = null;
@@ -625,6 +758,7 @@ namespace ElectricalImpedanceTomography.Views
                 float x2 = (float)targetAnchor.X;
                 float y2 = (float)targetAnchor.Y;
 
+                // Use straight midpoint for hit-testing simplicity (not actual Bezier mid)
                 float midX = (x1 + x2) / 2;
                 float midY = (y1 + y2) / 2;
 
@@ -645,6 +779,9 @@ namespace ElectricalImpedanceTomography.Views
             return false;
         }
 
+        /// <summary>
+        /// Draws a subtle dotted grid as the background of the canvas (purely cosmetic).
+        /// </summary>
         private void OnGridPaintSurface(object sender, SKPaintSurfaceEventArgs e)
         {
             var canvas = e.Surface.Canvas;
@@ -667,11 +804,16 @@ namespace ElectricalImpedanceTomography.Views
             }
         }
 
+        /// <summary>
+        /// Paints all committed connections and any temporary connection being dragged.
+        /// Adds style variations for selection and weight requirements.
+        /// </summary>
         private void OnCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
         {
             var canvas = e.Surface.Canvas;
             canvas.Clear();
 
+            // Base paint for normal connections
             using var paintNormal = new SKPaint
             {
                 Style = SKPaintStyle.Stroke,
@@ -681,6 +823,7 @@ namespace ElectricalImpedanceTomography.Views
                 StrokeCap = SKStrokeCap.Round
             };
 
+            // Highlight paint for selected connections
             using var paintSelected = new SKPaint
             {
                 Style = SKPaintStyle.Stroke,
@@ -690,6 +833,7 @@ namespace ElectricalImpedanceTomography.Views
                 StrokeCap = SKStrokeCap.Round
             };
 
+            // Paint for connections that require a weight label
             using var weightPaint = new SKPaint
             {
                 Style = SKPaintStyle.Stroke,
@@ -699,6 +843,7 @@ namespace ElectricalImpedanceTomography.Views
                 StrokeCap = SKStrokeCap.Round
             };
 
+            // Draw each connection as a cubic Bezier between port anchors
             foreach (var conn in _viewModel.Connections)
             {
                 if (conn.Source == null || conn.Target == null) continue;
@@ -711,21 +856,23 @@ namespace ElectricalImpedanceTomography.Views
                 float x2 = (float)targetAnchor.X;
                 float y2 = (float)targetAnchor.Y;
 
+                // Select style based on selection and weight requirement
                 var paintToUse = conn.IsSelected
                     ? paintSelected
                     : conn.RequiresWeight
                         ? weightPaint
                         : paintNormal;
 
-                using var styledPaint = new SKPaint(paintToUse)
-                {
-                    PathEffect = (conn.Source.Type == BlockType.Optimizer && conn.Target.Type == BlockType.Model)
-                        ? SKPathEffect.CreateDash(new float[] { 6, 6 }, 0)
-                        : paintToUse.PathEffect
-                };
+                // Clone so we can attach a dashed path effect without mutating shared instances
+                using var styledPaint = paintToUse.Clone();
+                // Example of special styling: Optimizer -> Model is dashed
+                styledPaint.PathEffect = (conn.Source.Type == BlockType.Optimizer && conn.Target.Type == BlockType.Model)
+                                       ? SKPathEffect.CreateDash(new float[] { 6, 6 }, 0)
+                                       : paintToUse.PathEffect;
 
                 DrawConnectionCurve(canvas, styledPaint, x1, y1, x2, y2);
 
+                // Optional weight label centered (approx) on the curve
                 if (conn.RequiresWeight)
                 {
                     var label = $"{conn.Weight:0.##}";
@@ -755,6 +902,7 @@ namespace ElectricalImpedanceTomography.Views
                 }
             }
 
+            // Draw the temporary connection being dragged (dashed white)
             if (_tempConnectionStart.HasValue && _tempConnectionEnd.HasValue)
             {
                 using var tempPaint = new SKPaint
@@ -776,6 +924,10 @@ namespace ElectricalImpedanceTomography.Views
             }
         }
 
+        /// <summary>
+        /// Converts a SkiaSharp point (in canvas pixels) to the corresponding MAUI view coordinate,
+        /// accounting for canvas size vs. the view's layout size.
+        /// </summary>
         private Point ToViewPoint(SKPoint skPoint)
         {
             var canvasSize = ConnectionsCanvas.CanvasSize;
@@ -784,6 +936,7 @@ namespace ElectricalImpedanceTomography.Views
 
             if (canvasSize.Width <= 0 || canvasSize.Height <= 0 || viewWidth <= 0 || viewHeight <= 0)
             {
+                // Fallback: best effort mapping
                 return new Point(skPoint.X, skPoint.Y);
             }
 
@@ -792,16 +945,23 @@ namespace ElectricalImpedanceTomography.Views
             return new Point(x, y);
         }
 
+        /// <summary>
+        /// Draws a cubic Bezier from source (x1,y1) to target (x2,y2) with horizontal control points.
+        /// This creates a smooth "S"-shaped curve between ports.
+        /// </summary>
         private void DrawConnectionCurve(SKCanvas canvas, SKPaint paint, float x1, float y1, float x2, float y2)
         {
             using var path = new SKPath();
             path.MoveTo(x1, y1);
-            float cp1X = x1 + 60;
-            float cp2X = x2 - 60;
+            float cp1X = x1 + 60;  // Pull right from source
+            float cp2X = x2 - 60;  // Pull left toward target
             path.CubicTo(cp1X, y1, cp2X, y2, x2, y2);
             canvas.DrawPath(path, paint);
         }
 
+        /// <summary>
+        /// Mesh preview canvas paint. Detects discretization type and dispatches to LBM/FEM renderers.
+        /// </summary>
         private void OnMeshPreviewPaintSurface(object sender, SKPaintSurfaceEventArgs e)
         {
             var canvas = e.Surface.Canvas;
@@ -823,6 +983,9 @@ namespace ElectricalImpedanceTomography.Views
             }
         }
 
+        /// <summary>
+        /// Simple LBM view: draw each cell with fill color by type and a light grid stroke.
+        /// </summary>
         private void DrawLbmPreview(SKCanvas canvas, SKImageInfo info, LBMGrid grid)
         {
             float cellW = (float)info.Width / grid.Nx;
@@ -845,6 +1008,9 @@ namespace ElectricalImpedanceTomography.Views
             }
         }
 
+        /// <summary>
+        /// Maps element conductivity to a red/blue diverging color scale centered at the mid.
+        /// </summary>
         private static SKColor ColorForValue(double val, double min, double max)
         {
             double mid = (min + max) * 0.5;
@@ -864,6 +1030,9 @@ namespace ElectricalImpedanceTomography.Views
             }
         }
 
+        /// <summary>
+        /// FEM preview: draw filled triangles colored by conductivity, outline, and electrode overlays.
+        /// </summary>
         private void DrawFemPreview(SKCanvas canvas, SKImageInfo info, FEMMesh mesh)
         {
             const float pad = 6f;
@@ -882,6 +1051,7 @@ namespace ElectricalImpedanceTomography.Views
             float marginX = pad + (availW - usedW) / 2f;
             float marginY = pad + (availH - usedH) / 2f;
 
+            // Local function mapping FEM vertex to canvas coordinates (Y-up to Y-down conversion applied)
             SKPoint ToCanvas(Utility.Classes.Discretizer.FiniteElementMesh.FEMVertex v)
                 => new((float)(v.X - minX) * scale + marginX,
                         info.Height - ((float)(v.Y - minY) * scale + marginY));
@@ -893,6 +1063,7 @@ namespace ElectricalImpedanceTomography.Views
             using var path = new SKPath();
             foreach (var el in elements)
             {
+                // Fill each triangle by conductivity color, then stroke outline
                 var p1 = ToCanvas(el.Vertices[0]);
                 var p2 = ToCanvas(el.Vertices[1]);
                 var p3 = ToCanvas(el.Vertices[2]);
@@ -903,6 +1074,7 @@ namespace ElectricalImpedanceTomography.Views
                 canvas.DrawPath(path, _femStroke);
             }
 
+            // Stroke electrode line segments along the boundary
             foreach (var segment in mesh.GetElectrodeSegments())
             {
                 var start = ToCanvas(segment.Start);
@@ -910,10 +1082,14 @@ namespace ElectricalImpedanceTomography.Views
                 canvas.DrawLine(start, end, _electrodeSegmentStroke);
             }
 
+            // Draw point electrodes as small yellow circles
             foreach (var v in mesh.Vertices.Where(v => v.IsElectrode))
                 canvas.DrawCircle(ToCanvas(v), 3f, _electrodeFill);
         }
 
+        /// <summary>
+        /// Toolbar/command handler to add a new block at a default position.
+        /// </summary>
         private void OnAddBlockClicked(object sender, EventArgs e)
         {
             if (sender is Button btn && btn.CommandParameter is BlockType type)
