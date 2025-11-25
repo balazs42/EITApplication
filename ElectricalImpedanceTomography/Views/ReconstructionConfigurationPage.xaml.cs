@@ -56,6 +56,7 @@ namespace ElectricalImpedanceTomography.Views
         // Enlarged hit-targets for connection interactions to make drawing easier
         private const double OutputPortHitRadius = 40;   // was 16
         private const double TargetPortHitHalfSize = 70; // was 40
+        private const double DefaultControlOffset = 60.0;
         private const double MinBlockWidth = 140;
         private const double MinBlockHeight = 60;
         private const double MaxBlockWidth = 520;
@@ -69,6 +70,10 @@ namespace ElectricalImpedanceTomography.Views
         private double _canvasScale = 1.0;
         private const double MinCanvasScale = 0.5;
         private const double MaxCanvasScale = 2.5;
+
+        private ReconstructionConnection? _draggedConnectionCurve;
+        private Point? _curveDragStart;
+        private (double cp1x, double cp1y, double cp2x, double cp2y) _initialCurveOffsets;
 
         public ReconstructionConfigurationPage()
         {
@@ -662,9 +667,11 @@ namespace ElectricalImpedanceTomography.Views
             switch (e.ActionType)
             {
                 case SKTouchAction.Pressed:
-                    if (TrySelectConnection(viewSkPoint))
+                    var hitConnection = GetConnectionNearPoint(viewSkPoint);
+                    if (hitConnection != null)
                     {
-                        ResetInteractionState();
+                        _viewModel.SelectConnection(hitConnection);
+                        StartConnectionCurveDrag(hitConnection, logicalPoint);
                         return;
                     }
 
@@ -676,6 +683,12 @@ namespace ElectricalImpedanceTomography.Views
                     break;
 
                 case SKTouchAction.Moved:
+                    if (_draggedConnectionCurve != null)
+                    {
+                        UpdateConnectionCurveDrag(logicalPoint);
+                        break;
+                    }
+
                     if (_tempConnectionStart.HasValue && _tempConnectionSource != null)
                     {
                         _tempConnectionEnd = logicalPoint;
@@ -685,6 +698,12 @@ namespace ElectricalImpedanceTomography.Views
 
                 case SKTouchAction.Released:
                 case SKTouchAction.Cancelled:
+                    if (_draggedConnectionCurve != null)
+                    {
+                        EndConnectionCurveDrag();
+                        break;
+                    }
+
                     if (_tempConnectionStart.HasValue && _tempConnectionSource != null)
                     {
                         var targetBlock = FindTargetBlock(logicalPoint);
@@ -850,6 +869,36 @@ namespace ElectricalImpedanceTomography.Views
             return true;
         }
 
+        private void StartConnectionCurveDrag(ReconstructionConnection connection, Point startPoint)
+        {
+            _draggedConnectionCurve = connection;
+            _curveDragStart = startPoint;
+            _initialCurveOffsets = (connection.ControlOffset1X, connection.ControlOffset1Y, connection.ControlOffset2X, connection.ControlOffset2Y);
+        }
+
+        private void UpdateConnectionCurveDrag(Point currentPoint)
+        {
+            if (_draggedConnectionCurve == null || !_curveDragStart.HasValue)
+            {
+                return;
+            }
+
+            var delta = new Point(currentPoint.X - _curveDragStart.Value.X, currentPoint.Y - _curveDragStart.Value.Y);
+
+            _draggedConnectionCurve.ControlOffset1X = _initialCurveOffsets.cp1x + delta.X;
+            _draggedConnectionCurve.ControlOffset1Y = _initialCurveOffsets.cp1y + delta.Y;
+            _draggedConnectionCurve.ControlOffset2X = _initialCurveOffsets.cp2x + delta.X;
+            _draggedConnectionCurve.ControlOffset2Y = _initialCurveOffsets.cp2y + delta.Y;
+
+            ConnectionsCanvas.InvalidateSurface();
+        }
+
+        private void EndConnectionCurveDrag()
+        {
+            _draggedConnectionCurve = null;
+            _curveDragStart = null;
+        }
+
         /// <summary>
         /// Initializes the selection rectangle and clears current selection.
         /// </summary>
@@ -954,11 +1003,14 @@ namespace ElectricalImpedanceTomography.Views
             _tempConnectionSource = null;
             _tempConnectionStart = null;
             _tempConnectionEnd = null;
+            _draggedConnectionCurve = null;
+            _curveDragStart = null;
             _draggedBlock = null;
             _isSelecting = false;
             _selectionStart = null;
             SelectionBox.IsVisible = false;
             EndCanvasPan();
+            ConnectionsCanvas?.InvalidateSurface();
         }
 
         private void BeginCanvasPan(Point viewPoint)
@@ -1031,40 +1083,64 @@ namespace ElectricalImpedanceTomography.Views
         /// </summary>
         private bool TrySelectConnection(SKPoint clickPoint)
         {
-            ReconstructionConnection bestMatch = null;
-            double minDistance = 20.0;
+            var match = GetConnectionNearPoint(clickPoint);
 
-            foreach (var conn in _viewModel.Connections)
+            if (match != null)
             {
-                if (conn.Source == null || conn.Target == null) continue;
-
-                var sourceAnchor = ScalePoint(GetOutputPortAnchor(conn.Source));
-                var targetAnchor = ScalePoint(GetInputPortAnchor(conn.Target));
-
-                float x1 = (float)sourceAnchor.X;
-                float y1 = (float)sourceAnchor.Y;
-                float x2 = (float)targetAnchor.X;
-                float y2 = (float)targetAnchor.Y;
-
-                // Use straight midpoint for hit-testing simplicity (not actual Bezier mid)
-                float midX = (x1 + x2) / 2;
-                float midY = (y1 + y2) / 2;
-
-                double dist = Math.Sqrt(Math.Pow(clickPoint.X - midX, 2) + Math.Pow(clickPoint.Y - midY, 2));
-                if (dist < minDistance)
-                {
-                    minDistance = dist;
-                    bestMatch = conn;
-                }
-            }
-
-            if (bestMatch != null)
-            {
-                _viewModel.SelectConnection(bestMatch);
+                _viewModel.SelectConnection(match);
                 ConnectionsCanvas.InvalidateSurface();
                 return true;
             }
             return false;
+        }
+
+        private ReconstructionConnection? GetConnectionNearPoint(SKPoint clickPoint, double threshold = 18.0)
+        {
+            ReconstructionConnection? bestMatch = null;
+            double minDistance = threshold;
+
+            foreach (var conn in _viewModel.Connections)
+            {
+                if (conn.Source == null || conn.Target == null)
+                {
+                    continue;
+                }
+
+                var curve = GetConnectionCurvePoints(conn);
+
+                // Sample along the curve for hit testing
+                for (int i = 0; i <= 30; i++)
+                {
+                    double t = i / 30.0;
+                    var pointOnCurve = EvaluateCubic(curve, t);
+                    double dist = Distance(pointOnCurve, clickPoint);
+                    if (dist < minDistance)
+                    {
+                        minDistance = dist;
+                        bestMatch = conn;
+                    }
+                }
+            }
+
+            return bestMatch;
+        }
+
+        private static SKPoint EvaluateCubic((SKPoint p0, SKPoint p1, SKPoint p2, SKPoint p3) curve, double t)
+        {
+            var mt = 1 - t;
+            var mt2 = mt * mt;
+            var t2 = t * t;
+
+            float x = (float)(mt2 * mt * curve.p0.X + 3 * mt2 * t * curve.p1.X + 3 * mt * t2 * curve.p2.X + t2 * t * curve.p3.X);
+            float y = (float)(mt2 * mt * curve.p0.Y + 3 * mt2 * t * curve.p1.Y + 3 * mt * t2 * curve.p2.Y + t2 * t * curve.p3.Y);
+            return new SKPoint(x, y);
+        }
+
+        private static double Distance(SKPoint a, SKPoint b)
+        {
+            var dx = a.X - b.X;
+            var dy = a.Y - b.Y;
+            return Math.Sqrt(dx * dx + dy * dy);
         }
 
         /// <summary>
@@ -1136,14 +1212,6 @@ namespace ElectricalImpedanceTomography.Views
             {
                 if (conn.Source == null || conn.Target == null) continue;
 
-                var sourceAnchor = ScalePoint(GetOutputPortAnchor(conn.Source));
-                var targetAnchor = ScalePoint(GetInputPortAnchor(conn.Target));
-
-                float x1 = (float)sourceAnchor.X;
-                float y1 = (float)sourceAnchor.Y;
-                float x2 = (float)targetAnchor.X;
-                float y2 = (float)targetAnchor.Y;
-
                 // Select style based on selection and weight requirement
                 var paintToUse = conn.IsSelected
                     ? paintSelected
@@ -1157,13 +1225,13 @@ namespace ElectricalImpedanceTomography.Views
                 styledPaint.PathEffect = (conn.Source.Type == BlockType.Optimizer && conn.Target.Type == BlockType.Model)
                                        ? SKPathEffect.CreateDash(new float[] { 6, 6 }, 0)
                                        : paintToUse.PathEffect;
+                var curve = GetConnectionCurvePoints(conn);
+                DrawConnectionCurve(canvas, styledPaint, curve);
 
-                DrawConnectionCurve(canvas, styledPaint, x1, y1, x2, y2);
-
-                // Optional weight label centered (approx) on the curve
+                // Optional weight label centered on the curve
                 if (conn.RequiresWeight)
                 {
-                    var label = $"{conn.Weight:0.##}";
+                    var label = $"{conn.Weight:0.####}";
                     using var textPaint = new SKPaint
                     {
                         Color = SKColors.White,
@@ -1172,21 +1240,10 @@ namespace ElectricalImpedanceTomography.Views
                         Typeface = SKTypeface.FromFamilyName("Arial", SKFontStyle.Bold)
                     };
 
-                    float labelX = (x1 + x2) / 2f;
-                    float labelY = (y1 + y2) / 2f - 6;
+                    var midPoint = EvaluateCubic(curve, 0.5);
                     var textBounds = new SKRect();
                     textPaint.MeasureText(label, ref textBounds);
-                    var padding = 6f;
-
-                    using var bgPaint = new SKPaint
-                    {
-                        Color = SKColor.Parse("#66000000"),
-                        IsAntialias = true
-                    };
-                    var rect = SKRect.Create(labelX - textBounds.MidX - padding, labelY + textBounds.Top - padding,
-                        textBounds.Width + 2 * padding, textBounds.Height + 2 * padding);
-                    canvas.DrawRoundRect(rect, 6, 6, bgPaint);
-                    canvas.DrawText(label, labelX - textBounds.MidX, labelY, textPaint);
+                    canvas.DrawText(label, midPoint.X - textBounds.MidX, midPoint.Y - textBounds.MidY, textPaint);
                 }
             }
 
@@ -1206,12 +1263,9 @@ namespace ElectricalImpedanceTomography.Views
                 var start = ScalePoint(_tempConnectionStart.Value);
                 var end = ScalePoint(_tempConnectionEnd.Value);
 
-                float x1 = (float)start.X;
-                float y1 = (float)start.Y;
-                float x2 = (float)end.X;
-                float y2 = (float)end.Y;
+                var tempCurve = BuildCurve(new SKPoint((float)start.X, (float)start.Y), new SKPoint((float)end.X, (float)end.Y));
 
-                DrawConnectionCurve(canvas, tempPaint, x1, y1, x2, y2);
+                DrawConnectionCurve(canvas, tempPaint, tempCurve);
             }
         }
 
@@ -1242,17 +1296,34 @@ namespace ElectricalImpedanceTomography.Views
             return new Point(viewPoint.X / _canvasScale, viewPoint.Y / _canvasScale);
         }
 
+        private (SKPoint p0, SKPoint p1, SKPoint p2, SKPoint p3) GetConnectionCurvePoints(ReconstructionConnection connection)
+        {
+            var sourceAnchor = ScalePoint(GetOutputPortAnchor(connection.Source));
+            var targetAnchor = ScalePoint(GetInputPortAnchor(connection.Target));
+            var start = new SKPoint((float)sourceAnchor.X, (float)sourceAnchor.Y);
+            var end = new SKPoint((float)targetAnchor.X, (float)targetAnchor.Y);
+
+            return BuildCurve(start, end, connection);
+        }
+
+        private (SKPoint p0, SKPoint p1, SKPoint p2, SKPoint p3) BuildCurve(SKPoint start, SKPoint end, ReconstructionConnection? connection = null)
+        {
+            var cp1X = start.X + (float)((connection?.ControlOffset1X ?? DefaultControlOffset) * _canvasScale);
+            var cp1Y = start.Y + (float)((connection?.ControlOffset1Y ?? 0) * _canvasScale);
+            var cp2X = end.X + (float)((connection?.ControlOffset2X ?? -DefaultControlOffset) * _canvasScale);
+            var cp2Y = end.Y + (float)((connection?.ControlOffset2Y ?? 0) * _canvasScale);
+
+            return (start, new SKPoint(cp1X, cp1Y), new SKPoint(cp2X, cp2Y), end);
+        }
+
         /// <summary>
-        /// Draws a cubic Bezier from source (x1,y1) to target (x2,y2) with horizontal control points.
-        /// This creates a smooth "S"-shaped curve between ports.
+        /// Draws a cubic Bezier from the provided control points.
         /// </summary>
-        private void DrawConnectionCurve(SKCanvas canvas, SKPaint paint, float x1, float y1, float x2, float y2)
+        private void DrawConnectionCurve(SKCanvas canvas, SKPaint paint, (SKPoint p0, SKPoint p1, SKPoint p2, SKPoint p3) curve)
         {
             using var path = new SKPath();
-            path.MoveTo(x1, y1);
-            float cp1X = x1 + 60 * (float)_canvasScale;  // Pull right from source
-            float cp2X = x2 - 60 * (float)_canvasScale;  // Pull left toward target
-            path.CubicTo(cp1X, y1, cp2X, y2, x2, y2);
+            path.MoveTo(curve.p0);
+            path.CubicTo(curve.p1, curve.p2, curve.p3);
             canvas.DrawPath(path, paint);
         }
 

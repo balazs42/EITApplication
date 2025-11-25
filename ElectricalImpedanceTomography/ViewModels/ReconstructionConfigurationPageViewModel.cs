@@ -307,7 +307,11 @@ namespace ElectricalImpedanceTomography.ViewModels
                     {
                         SourceId = c.Source.Id,
                         TargetId = c.Target.Id,
-                        Weight = c.Weight
+                        Weight = c.Weight,
+                        ControlOffset1X = c.ControlOffset1X,
+                        ControlOffset1Y = c.ControlOffset1Y,
+                        ControlOffset2X = c.ControlOffset2X,
+                        ControlOffset2Y = c.ControlOffset2Y
                     }).ToList()
                 };
 
@@ -385,7 +389,11 @@ namespace ElectricalImpedanceTomography.ViewModels
                         {
                             Source = src,
                             Target = tgt,
-                            Weight = cDto.Weight <= 0 ? 1.0 : cDto.Weight
+                            Weight = cDto.Weight,
+                            ControlOffset1X = cDto.ControlOffset1X,
+                            ControlOffset1Y = cDto.ControlOffset1Y,
+                            ControlOffset2X = cDto.ControlOffset2X,
+                            ControlOffset2Y = cDto.ControlOffset2Y
                         });
                     }
                 }
@@ -528,6 +536,10 @@ namespace ElectricalImpedanceTomography.ViewModels
             public string SourceId { get; set; }
             public string TargetId { get; set; }
             public double Weight { get; set; }
+            public double ControlOffset1X { get; set; } = 60;
+            public double ControlOffset1Y { get; set; }
+            public double ControlOffset2X { get; set; } = -60;
+            public double ControlOffset2Y { get; set; }
         }
     }
 }
