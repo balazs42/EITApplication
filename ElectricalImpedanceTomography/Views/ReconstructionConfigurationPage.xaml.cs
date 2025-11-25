@@ -132,6 +132,10 @@ namespace ElectricalImpedanceTomography.Views
             {
                 ApplyCanvasScale();
             }
+            else if (e.PropertyName == nameof(ReconstructionConfigurationPageViewModel.IsConnectionMode))
+            {
+                ResetInteractionState();
+            }
         }
 
         private void RefreshNodeContainer()
@@ -254,18 +258,20 @@ namespace ElectricalImpedanceTomography.Views
             var tapGesture = new TapGestureRecognizer();
             tapGesture.Tapped += (s, e) =>
             {
-                _viewModel.SelectBlockCommand.Execute(block);
+                if (_viewModel.IsConnectionMode)
+                {
+                    StartConnectionFromBlock(block, null, false);
+                }
+                else
+                {
+                    _viewModel.SelectBlockCommand.Execute(block);
+                }
             };
             // Only respond to primary pointer (left mouse button / normal tap)
             tapGesture.Buttons = Microsoft.Maui.Controls.ButtonsMask.Primary;
             border.GestureRecognizers.Add(tapGesture);
 
-            // 3) Secondary click (right-click) starts drawing a connection from the block's output
-            var rightClickConnectGesture = new TapGestureRecognizer { NumberOfTapsRequired = 1, Buttons = Microsoft.Maui.Controls.ButtonsMask.Secondary };
-            rightClickConnectGesture.Tapped += (s, e) => StartConnectionFromBlock(block);
-            border.GestureRecognizers.Add(rightClickConnectGesture);
-
-            // 4) Double primary tap either arms resize (bottom-right corner) or opens the initialization editor
+            // 3) Double primary tap either arms resize (bottom-right corner) or opens the initialization editor
             var doubleTapGesture = new TapGestureRecognizer
             {
                 NumberOfTapsRequired = 2,
@@ -274,16 +280,21 @@ namespace ElectricalImpedanceTomography.Views
             doubleTapGesture.Tapped += async (s, e) => await OnBlockDoubleTappedAsync(block, e, s as View);
             border.GestureRecognizers.Add(doubleTapGesture);
 
-            // 5) Double right-click rotates the block and selects it
+            // 4) Double right-click rotates the block and selects it
             var doubleRightClickRotateGesture = new TapGestureRecognizer { NumberOfTapsRequired = 2, Buttons = Microsoft.Maui.Controls.ButtonsMask.Secondary };
             doubleRightClickRotateGesture.Tapped += (s, e) =>
             {
+                if (_viewModel.IsConnectionMode)
+                {
+                    return;
+                }
+
                 _viewModel.SelectBlockCommand.Execute(block);
                 _viewModel.RotateBlockCommand.Execute(block);
             };
             border.GestureRecognizers.Add(doubleRightClickRotateGesture);
 
-            // 6) Pan from output port begins a connection and tracks its end point until release
+            // 5) Pan from output port begins a connection and tracks its end point until release
             var connectGesture = new PanGestureRecognizer();
             connectGesture.PanUpdated += (s, e) => OnConnectionPanUpdated(block, e);
             outPort.GestureRecognizers.Add(connectGesture);
@@ -381,6 +392,11 @@ namespace ElectricalImpedanceTomography.Views
         /// </summary>
         private void OnBlockPanUpdated(ReconstructionConfigurationBlock block, View view, PanUpdatedEventArgs e)
         {
+            if (_viewModel.IsConnectionMode)
+            {
+                return;
+            }
+
             switch (e.StatusType)
             {
                 case GestureStatus.Started:
@@ -530,6 +546,11 @@ namespace ElectricalImpedanceTomography.Views
         /// </summary>
         private void OnConnectionPanUpdated(ReconstructionConfigurationBlock sourceBlock, PanUpdatedEventArgs e)
         {
+            if (!_viewModel.IsConnectionMode)
+            {
+                return;
+            }
+
             switch (e.StatusType)
             {
                 case GestureStatus.Started:
@@ -605,46 +626,96 @@ namespace ElectricalImpedanceTomography.Views
             var viewPoint = ToViewPoint(e.Location);
             var viewSkPoint = new SKPoint((float)(logicalPoint.X * _canvasScale), (float)(logicalPoint.Y * _canvasScale));
 
+            if (_viewModel.IsConnectionMode)
+            {
+                HandleConnectionModeTouch(e, logicalPoint, viewPoint, viewSkPoint);
+            }
+            else
+            {
+                HandleEditModeTouch(e, logicalPoint, viewPoint, viewSkPoint);
+            }
+
+            e.Handled = true;
+        }
+
+        private void HandleConnectionModeTouch(SKTouchEventArgs e, Point logicalPoint, Point viewPoint, SKPoint viewSkPoint)
+        {
             if (e.MouseButton == SKMouseButton.Right)
             {
                 switch (e.ActionType)
                 {
                     case SKTouchAction.Pressed:
-                        if (!TryBeginConnectionFromBlock(logicalPoint))
-                        {
-                            BeginCanvasPan(viewPoint);
-                        }
+                        BeginCanvasPan(viewPoint);
                         break;
                     case SKTouchAction.Moved:
-                        if (_tempConnectionStart.HasValue && _tempConnectionSource != null)
-                        {
-                            _tempConnectionEnd = logicalPoint;
-                            ConnectionsCanvas.InvalidateSurface();
-                        }
-                        else
-                        {
-                            UpdateCanvasPan(viewPoint);
-                        }
+                        UpdateCanvasPan(viewPoint);
                         break;
                     case SKTouchAction.Released:
                     case SKTouchAction.Cancelled:
-                        if (_tempConnectionStart.HasValue && _tempConnectionSource != null)
-                        {
-                            var targetBlock = FindTargetBlock(logicalPoint);
-                            if (targetBlock != null && targetBlock != _tempConnectionSource)
-                            {
-                                _viewModel.AddConnection(_tempConnectionSource, targetBlock);
-                            }
-                            ResetInteractionState();
-                        }
-                        else
-                        {
-                            EndCanvasPan();
-                        }
+                        EndCanvasPan();
                         break;
                 }
 
-                e.Handled = true;
+                return;
+            }
+
+            switch (e.ActionType)
+            {
+                case SKTouchAction.Pressed:
+                    if (TrySelectConnection(viewSkPoint))
+                    {
+                        ResetInteractionState();
+                        return;
+                    }
+
+                    var block = FindBlockAtPoint(logicalPoint);
+                    if (block != null)
+                    {
+                        StartConnectionFromBlock(block, logicalPoint, false);
+                    }
+                    break;
+
+                case SKTouchAction.Moved:
+                    if (_tempConnectionStart.HasValue && _tempConnectionSource != null)
+                    {
+                        _tempConnectionEnd = logicalPoint;
+                        ConnectionsCanvas.InvalidateSurface();
+                    }
+                    break;
+
+                case SKTouchAction.Released:
+                case SKTouchAction.Cancelled:
+                    if (_tempConnectionStart.HasValue && _tempConnectionSource != null)
+                    {
+                        var targetBlock = FindTargetBlock(logicalPoint);
+                        if (targetBlock != null && targetBlock != _tempConnectionSource)
+                        {
+                            _viewModel.AddConnection(_tempConnectionSource, targetBlock);
+                        }
+                        ResetInteractionState();
+                    }
+                    break;
+            }
+        }
+
+        private void HandleEditModeTouch(SKTouchEventArgs e, Point logicalPoint, Point viewPoint, SKPoint viewSkPoint)
+        {
+            if (e.MouseButton == SKMouseButton.Right)
+            {
+                switch (e.ActionType)
+                {
+                    case SKTouchAction.Pressed:
+                        BeginCanvasPan(viewPoint);
+                        break;
+                    case SKTouchAction.Moved:
+                        UpdateCanvasPan(viewPoint);
+                        break;
+                    case SKTouchAction.Released:
+                    case SKTouchAction.Cancelled:
+                        EndCanvasPan();
+                        break;
+                }
+
                 return;
             }
 
@@ -655,12 +726,6 @@ namespace ElectricalImpedanceTomography.Views
                     if (TrySelectConnection(viewSkPoint))
                     {
                         ResetInteractionState();
-                        break;
-                    }
-
-                    // If press is near an output, begin port connection creation
-                    if (TryBeginPortConnection(logicalPoint))
-                    {
                         break;
                     }
 
@@ -683,8 +748,6 @@ namespace ElectricalImpedanceTomography.Views
                     CompleteInteraction(logicalPoint);
                     break;
             }
-
-            e.Handled = true;
         }
 
         /// <summary>
@@ -692,6 +755,11 @@ namespace ElectricalImpedanceTomography.Views
         /// </summary>
         private bool TryBeginPortConnection(Point viewPoint)
         {
+            if (!_viewModel.IsConnectionMode)
+            {
+                return false;
+            }
+
             var block = FindBlockAtPoint(viewPoint);
             if (block == null)
             {
@@ -703,6 +771,11 @@ namespace ElectricalImpedanceTomography.Views
 
         private bool TryBeginConnectionFromBlock(Point viewPoint)
         {
+            if (!_viewModel.IsConnectionMode)
+            {
+                return false;
+            }
+
             var block = FindBlockAtPoint(viewPoint);
             if (block == null)
             {
@@ -714,6 +787,11 @@ namespace ElectricalImpedanceTomography.Views
 
         private bool StartConnectionFromBlock(ReconstructionConfigurationBlock block, Point? viewPoint = null, bool requireOutputHit = false)
         {
+            if (!_viewModel.IsConnectionMode)
+            {
+                return false;
+            }
+
             if (!_viewModel.HasOutputCapacity(block))
             {
                 return false;
@@ -725,7 +803,10 @@ namespace ElectricalImpedanceTomography.Views
                 return false;
             }
 
-            _viewModel.SelectBlockCommand.Execute(block);
+            if (!_viewModel.IsConnectionMode)
+            {
+                _viewModel.SelectBlockCommand.Execute(block);
+            }
             _tempConnectionSource = block;
             _tempConnectionStart = portCenter;
             _tempConnectionEnd = portCenter;
@@ -738,6 +819,11 @@ namespace ElectricalImpedanceTomography.Views
         /// </summary>
         private bool TryBeginBlockDrag(Point viewPoint)
         {
+            if (_viewModel.IsConnectionMode)
+            {
+                return false;
+            }
+
             var block = FindBlockAtPoint(viewPoint);
             if (block == null)
             {
