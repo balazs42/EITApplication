@@ -32,6 +32,12 @@ namespace Utility.Classes.ReconstructionParameters
         private double measurementNoiseAmplitude = 0.0;
 
         [ObservableProperty]
+        private double contactImpedanceOhms = 0.1;
+
+        [ObservableProperty]
+        private double contactImpedanceVariation = 0.0;
+
+        [ObservableProperty]
         private DrivePattern drivePattern = DrivePattern.Adjecent;
 
         [ObservableProperty]

@@ -23,7 +23,14 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
 
         public static IReadOnlyCollection<BlockType> BlockTypes => Definitions.Keys;
 
-        public static ReconstructionConfigurationBlock CreateBlock(BlockType type, double x, double y, string? id = null)
+        public static ReconstructionConfigurationBlock CreateBlock(
+            BlockType type,
+            double x,
+            double y,
+            string? id = null,
+            double width = 214,
+            double height = 80,
+            double rotation = 0)
         {
             if (!Definitions.TryGetValue(type, out var definition))
                 throw new ArgumentException($"No block definition found for type {type}.", nameof(type));
@@ -36,7 +43,10 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
                 definition.IconColor,
                 x,
                 y,
-                parameters);
+                parameters,
+                width,
+                height,
+                rotation);
         }
 
         public static void ApplyBlocksToWorkspace(IEnumerable<ReconstructionConfigurationBlock> blocks)
@@ -113,6 +123,64 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
                     target.SolveInitializationInComplexDomain = block.Parameters
                         .OfType<BoolParameter>().FirstOrDefault(p => p.Key == "init_complex")?.Value
                         ?? target.SolveInitializationInComplexDomain;
+                });
+
+            yield return new ReconstructionBlockDefinition(
+                BlockType.Model,
+                "Model",
+                "#8BC34A",
+                () => new List<ConfigurationParameter>
+                {
+                    new NumberParameter
+                    {
+                        Name = "Contact Impedance (Ω)",
+                        Key = "contact_impedance",
+                        Value = 0.1,
+                        Min = 0.0,
+                        Step = 0.01
+                    },
+                    new NumberParameter
+                    {
+                        Name = "Contact Impedance Variation (Ω)",
+                        Key = "contact_impedance_var",
+                        Value = 0.0,
+                        Min = 0.0,
+                        Step = 0.01
+                    },
+                    new NumberParameter
+                    {
+                        Name = "Conductivity Lower Bound",
+                        Key = "sigma_min",
+                        Value = 0.1,
+                        Min = 0.0,
+                        Step = 0.05
+                    },
+                    new NumberParameter
+                    {
+                        Name = "Conductivity Upper Bound",
+                        Key = "sigma_max",
+                        Value = 10.0,
+                        Min = 0.1,
+                        Step = 0.1
+                    }
+                },
+                (block, target) =>
+                {
+                    target.ConductivityMinimumBound = block.Parameters
+                        .OfType<NumberParameter>()
+                        .FirstOrDefault(p => p.Key == "sigma_min")?.Value ?? target.ConductivityMinimumBound;
+
+                    target.ConductivityMaximumBound = block.Parameters
+                        .OfType<NumberParameter>()
+                        .FirstOrDefault(p => p.Key == "sigma_max")?.Value ?? target.ConductivityMaximumBound;
+
+                    target.ContactImpedanceOhms = block.Parameters
+                        .OfType<NumberParameter>()
+                        .FirstOrDefault(p => p.Key == "contact_impedance")?.Value ?? target.ContactImpedanceOhms;
+
+                    target.ContactImpedanceVariation = block.Parameters
+                        .OfType<NumberParameter>()
+                        .FirstOrDefault(p => p.Key == "contact_impedance_var")?.Value ?? target.ContactImpedanceVariation;
                 });
 
             yield return new ReconstructionBlockDefinition(

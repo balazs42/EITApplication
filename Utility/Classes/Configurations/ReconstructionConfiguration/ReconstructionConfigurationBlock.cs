@@ -22,7 +22,10 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
             string iconColor,
             double x,
             double y,
-            IEnumerable<ConfigurationParameter> parameters)
+            IEnumerable<ConfigurationParameter> parameters,
+            double width = 214,
+            double height = 80,
+            double rotation = 0)
         {
             Id = id;
             Title = title;
@@ -30,6 +33,9 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
             IconColor = iconColor;
             X = x;
             Y = y;
+            Width = width;
+            Height = height;
+            Rotation = rotation;
             Parameters = new ObservableCollection<ConfigurationParameter>(parameters);
             HookParameterChanges();
             UpdateHighlightedOption();
@@ -83,6 +89,24 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
         /// Collection of configurable parameters associated with this block.
         /// </summary>
         public ObservableCollection<ConfigurationParameter> Parameters { get; set; } = new();
+
+        private double _width = 214;
+        /// <summary>
+        /// Visual width of the block on the canvas.
+        /// </summary>
+        public double Width { get => _width; set => SetProperty(ref _width, value); }
+
+        private double _height = 80;
+        /// <summary>
+        /// Visual height of the block on the canvas.
+        /// </summary>
+        public double Height { get => _height; set => SetProperty(ref _height, value); }
+
+        private double _rotation;
+        /// <summary>
+        /// Rotation angle in degrees applied to the block container.
+        /// </summary>
+        public double Rotation { get => _rotation; set => SetProperty(ref _rotation, value % 360); }
 
         public event Action<ReconstructionConfigurationBlock>? ParametersChanged;
 

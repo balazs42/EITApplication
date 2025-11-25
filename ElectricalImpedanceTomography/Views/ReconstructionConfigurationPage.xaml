@@ -196,6 +196,12 @@
                         <VerticalStackLayout IsVisible="{Binding SelectedConnection, Converter={StaticResource IsNotNullConverter}}">
                             <Label Text="Connection Selected" FontSize="18" TextColor="#DDD" HorizontalOptions="Center"/>
                             <Label Text="Press 'Delete Selected' to remove." FontSize="12" TextColor="#888" HorizontalOptions="Center"/>
+                            <VerticalStackLayout Spacing="6" Margin="0,8,0,0">
+                                <Label Text="Weight" FontSize="14" TextColor="{StaticResource TextMain}" HorizontalOptions="Center"/>
+                                <Slider Minimum="0" Maximum="10" Value="{Binding SelectedConnection.Weight}"/>
+                                <Label Text="{Binding SelectedConnection.Weight, StringFormat='{}{0:0.00}'}" FontSize="12" TextColor="{StaticResource TextMuted}" HorizontalOptions="Center"/>
+                                <Label Text="Weight required when combining similar blocks." FontSize="11" TextColor="#F0AD4E" HorizontalOptions="Center" IsVisible="{Binding SelectedConnection.RequiresWeight}"/>
+                            </VerticalStackLayout>
                         </VerticalStackLayout>
 
                         <!-- Empty State -->

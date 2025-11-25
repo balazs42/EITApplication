@@ -12,6 +12,28 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
         public ReconstructionConfigurationBlock Source { get; set; }
         public ReconstructionConfigurationBlock Target { get; set; }
 
+        private double _weight = 1.0;
+        /// <summary>
+        /// Relative influence of this connection when multiple blocks of the
+        /// same category are present.
+        /// </summary>
+        public double Weight
+        {
+            get => _weight;
+            set => SetProperty(ref _weight, value);
+        }
+
+        private bool _requiresWeight;
+        /// <summary>
+        /// Indicates whether the connection should display and enforce a
+        /// weight (e.g., when multiple regularizers are active).
+        /// </summary>
+        public bool RequiresWeight
+        {
+            get => _requiresWeight;
+            set => SetProperty(ref _requiresWeight, value);
+        }
+
         private bool _isSelected;
         public bool IsSelected
         {
