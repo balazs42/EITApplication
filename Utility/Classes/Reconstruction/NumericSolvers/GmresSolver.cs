@@ -54,11 +54,16 @@ namespace Utility.Classes.Reconstruction.NumericSolvers
             for (k = 0; k < maxIter; k++)
             {
                 Vector w = A * V[k];
-                for (int j = 0; j <= k; j++)
+               
+                Parallel.For(0, k, j=>
                 {
-                    H[j, k] = w.DotProduct(V[j]);
-                    w -= H[j, k] * V[j];
-                }
+                    double dot = w.DotProduct(V[j]);
+                    lock (H)
+                    {
+                        H[j, k] = dot;
+                        w -= dot * V[j];
+                    }
+                });
 
                 H[k + 1, k] = w.L2Norm();
                 if (H[k + 1, k] < 1e-14) // happy breakdown
@@ -67,12 +72,15 @@ namespace Utility.Classes.Reconstruction.NumericSolvers
                 V.Add(w / H[k + 1, k]);
 
                 // Apply existing Givens rotations
-                for (int j = 0; j < k; j++)
+                Parallel.For(0, k, j=>
                 {
                     double temp = c[j] * H[j, k] + s[j] * H[j + 1, k];
-                    H[j + 1, k] = -s[j] * H[j, k] + c[j] * H[j + 1, k];
-                    H[j, k] = temp;
-                }
+                    lock (H)
+                    {
+                        H[j + 1, k] = -s[j] * H[j, k] + c[j] * H[j + 1, k];
+                        H[j, k] = temp;
+                    }
+                });
 
                 // Create new Givens rotation
                 double rho = Math.Sqrt(H[k, k] * H[k, k] + H[k + 1, k] * H[k + 1, k]);

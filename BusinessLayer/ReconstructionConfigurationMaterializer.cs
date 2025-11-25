@@ -1,12 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using Utility.Classes.Application;
+﻿using Utility.Classes.Application;
 using Utility.Classes.Configurations.ReconstructionConfiguration;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Factories;
 using Utility.Classes.Measurement;
-using Utility.Classes.Reconstruction;
+using Utility.Classes;
 using Utility.Classes.ReconstructionParameters;
 
 namespace BusinessLayer
@@ -56,8 +53,8 @@ namespace BusinessLayer
             var mesh = Workspace.GetDiscretization() as FEMMesh
                 ?? throw new InvalidOperationException("FEM mesh is required before starting reconstruction.");
 
-            var differentialEquationSolver = DifferentialEquationSolverFactory.Create(parameters.DifferentialEquationSolver);
             var numericSolver = NumericSolverFactory.Create(parameters.NumericSolver, parameters.UseOmpParallelization, parameters.UseCudaAcceleration);
+            var differentialEquationSolver = DifferentialEquationSolverFactory.Create(mesh, parameters.DifferentialEquationSolver, numericSolver);
 
             var initialDistribution = BuildInitialDistribution(mesh, parameters, configuration.Blocks);
 
@@ -69,7 +66,7 @@ namespace BusinessLayer
                         .Where(c => c.TargetId == block.Id)
                         .Sum(c => c.Weight);
                     weight = weight == 0 ? 1.0 : weight;
-                    return (weight, (IErrorMetric)ErrorMetricFactory.Create(ParseEnum<ErrorMetric>(GetParameterValue(block, "metric_type"))));
+                    return (weight, ErrorMetricFactory.Create(ParseEnum<ErrorMetric>(GetParameterValue(block, "metric_type"))));
                 })
                 .ToList();
 
@@ -82,7 +79,7 @@ namespace BusinessLayer
                         .Sum(c => c.Weight);
                     weight = weight == 0 ? 1.0 : weight;
                     var technique = ParseEnum<RegularizationTechnique>(GetParameterValue(block, "reg_tech"));
-                    return (weight, (IRegularizer)RegularizationFactory.Create(technique));
+                    return (weight, RegularizationFactory.Create(technique, mesh));
                 })
                 .ToList();
 
@@ -94,7 +91,7 @@ namespace BusinessLayer
                         .Where(c => c.TargetId == block.Id)
                         .Sum(c => c.Weight);
                     weight = weight == 0 ? 1.0 : weight;
-                    var optimizer = NumericOptimizerFactory.Create(ParseEnum<NumericOptimizer>(GetParameterValue(block, "opt_algo")));
+                    var optimizer = NumericOptimizerFactory.Create(ParseEnum<NumericOptimizer>(GetParameterValue(block, "opt_algo")), null);
                     return (weight, optimizer);
                 })
                 .ToList();

@@ -428,7 +428,6 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
         }
 
-        [RelayCommand]
         [RelayCommand(CanExecute = nameof(CanUseConfiguration))]
         public void UseConfiguration()
         {

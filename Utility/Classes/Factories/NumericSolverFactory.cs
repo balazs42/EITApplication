@@ -11,7 +11,7 @@ namespace Utility.Classes.Factories
     /// </summary>
     public static class NumericSolverFactory
     {
-        public static INumericSolver Create(NumericSolver ns) => ns switch
+        public static INumericSolver Create(NumericSolver ns, bool useOmpParallelization = false, bool useCudaAcceleration = false) => ns switch
         {
             NumericSolver.LU => CreateLUDecompositionSolver(),
             NumericSolver.SVD => CreateSVDSolver(),

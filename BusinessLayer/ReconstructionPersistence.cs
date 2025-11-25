@@ -140,7 +140,7 @@ namespace BusinessLayer
                                                                                       _numericSolver,
                                                                                       _useOmpParallelization,
                                                                                       _useCudaParallelization);
-                _regularizer = RegularisationFactory.Create(parameters.RegularizationTechnique, _discretization);
+                _regularizer = RegularizationFactory.Create(parameters.RegularizationTechnique, _discretization);
                 _errorMetricChoice = parameters.ErrorMetric;
                 _errorMetric = ErrorMetricFactory.Create(_errorMetricChoice);
                 _initialDistributionType = parameters.InitialDistributionType;
