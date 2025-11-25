@@ -63,7 +63,8 @@
         </ResourceDictionary>
     </ContentPage.Resources>
 
-    <Grid ColumnDefinitions="260, *, 320">
+    <Grid RowDefinitions="*,Auto">
+        <Grid Grid.Row="0" ColumnDefinitions="260, *, 320">
 
         <!-- LEFT SIDE: TOOLBOX -->
         <Border Grid.Column="0" BackgroundColor="{StaticResource BgPanel}" StrokeThickness="0" Padding="15">
@@ -174,28 +175,6 @@
                          HorizontalOptions="Start"
                          VerticalOptions="Start"/>
 
-                <!-- Debug window -->
-                <Border BackgroundColor="#111827" StrokeThickness="1" Stroke="#2C2C3A" StrokeShape="RoundRectangle 10"
-                        HorizontalOptions="Center" VerticalOptions="End" Margin="0,0,0,20" Padding="12"
-                        WidthRequest="420">
-                    <VerticalStackLayout Spacing="4">
-                        <Label Text="DEBUG" FontSize="12" FontAttributes="Bold" TextColor="#9CA3AF" HorizontalOptions="Center"/>
-                        <StackLayout BindableLayout.ItemsSource="{Binding DebugLines}" Spacing="2">
-                            <BindableLayout.ItemTemplate>
-                                <DataTemplate>
-                                    <Label Text="{Binding .}" FontSize="11" TextColor="#E5E7EB"/>
-                                </DataTemplate>
-                            </BindableLayout.ItemTemplate>
-                        </StackLayout>
-                        <StackLayout BindableLayout.ItemsSource="{Binding ValidationIssues}" Spacing="2" Margin="0,6,0,0">
-                            <BindableLayout.ItemTemplate>
-                                <DataTemplate>
-                                    <Label Text="{Binding .}" FontSize="11" TextColor="#FCA5A5"/>
-                                </DataTemplate>
-                            </BindableLayout.ItemTemplate>
-                        </StackLayout>
-                    </VerticalStackLayout>
-                </Border>
             </Grid>
         </ScrollView>
 
@@ -239,6 +218,30 @@
                     </VerticalStackLayout>
                 </ScrollView>
             </Grid>
+        </Border>
+        </Grid>
+
+        <!-- Debug window (fixed to bottom of screen) -->
+        <Border Grid.Row="1" BackgroundColor="#111827" StrokeThickness="1" Stroke="#2C2C3A" StrokeShape="RoundRectangle 10"
+                HorizontalOptions="Center" VerticalOptions="End" Margin="0,10" Padding="12"
+                WidthRequest="420">
+            <VerticalStackLayout Spacing="4">
+                <Label Text="DEBUG" FontSize="12" FontAttributes="Bold" TextColor="#9CA3AF" HorizontalOptions="Center"/>
+                <StackLayout BindableLayout.ItemsSource="{Binding DebugLines}" Spacing="2">
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate>
+                            <Label Text="{Binding .}" FontSize="11" TextColor="#E5E7EB"/>
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </StackLayout>
+                <StackLayout BindableLayout.ItemsSource="{Binding ValidationIssues}" Spacing="2" Margin="0,6,0,0">
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate>
+                            <Label Text="{Binding .}" FontSize="11" TextColor="#FCA5A5"/>
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </StackLayout>
+            </VerticalStackLayout>
         </Border>
     </Grid>
 </ContentPage>
