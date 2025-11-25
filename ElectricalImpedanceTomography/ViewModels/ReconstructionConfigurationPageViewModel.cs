@@ -724,7 +724,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             if (connection.Source.Type == BlockType.Solver && connection.Target.Type == BlockType.ErrorMetric)
             {
                 return Connections
-                    .Where(c => c.Source.Type == BlockType.Solver && c.Target == connection.Target)
+                    .Where(c => c.Source == connection.Source && c.Target.Type == BlockType.ErrorMetric)
                     .ToList();
             }
 
@@ -758,7 +758,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             var solverToError = Connections
                 .Where(c => c.Source.Type == BlockType.Solver && c.Target.Type == BlockType.ErrorMetric)
-                .GroupBy(c => c.Target)
+                .GroupBy(c => c.Source)
                 .Select(g => (IReadOnlyCollection<ReconstructionConnection>)g.ToList());
 
             var modelToRegularizer = Connections
