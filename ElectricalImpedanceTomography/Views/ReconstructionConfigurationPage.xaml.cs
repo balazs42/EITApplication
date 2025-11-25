@@ -257,23 +257,26 @@ namespace ElectricalImpedanceTomography.Views
             tapGesture.Buttons = Microsoft.Maui.Controls.ButtonsMask.Primary;
             border.GestureRecognizers.Add(tapGesture);
 
-            // 3) Secondary click (right-click) rotates the block by 15� and selects it
-            // Note: on touch-only devices there is no secondary button, so rotation is desktop-centric
-            var rightClickRotateGesture = new TapGestureRecognizer { NumberOfTapsRequired = 1 };
-            rightClickRotateGesture.Buttons = Microsoft.Maui.Controls.ButtonsMask.Secondary;
-            rightClickRotateGesture.Tapped += (s, e) =>
-            {
-                _viewModel.SelectBlockCommand.Execute(block);
-                _viewModel.RotateBlockCommand.Execute(block);
-            };
-            border.GestureRecognizers.Add(rightClickRotateGesture);
+            // 3) Secondary click (right-click) starts drawing a connection from the block's output
+            var rightClickConnectGesture = new TapGestureRecognizer { NumberOfTapsRequired = 1, Buttons = Microsoft.Maui.Controls.ButtonsMask.Secondary };
+            rightClickConnectGesture.Tapped += (s, e) => StartConnectionFromBlock(block);
+            border.GestureRecognizers.Add(rightClickConnectGesture);
 
             // 4) Double tap either arms resize (bottom-right corner) or opens the initialization editor
             var doubleTapGesture = new TapGestureRecognizer { NumberOfTapsRequired = 2 };
             doubleTapGesture.Tapped += async (s, e) => await OnBlockDoubleTappedAsync(block, e, s as View);
             border.GestureRecognizers.Add(doubleTapGesture);
 
-            // 5) Pan from output port begins a connection and tracks its end point until release
+            // 5) Double right-click rotates the block and selects it
+            var doubleRightClickRotateGesture = new TapGestureRecognizer { NumberOfTapsRequired = 2, Buttons = Microsoft.Maui.Controls.ButtonsMask.Secondary };
+            doubleRightClickRotateGesture.Tapped += (s, e) =>
+            {
+                _viewModel.SelectBlockCommand.Execute(block);
+                _viewModel.RotateBlockCommand.Execute(block);
+            };
+            border.GestureRecognizers.Add(doubleRightClickRotateGesture);
+
+            // 6) Pan from output port begins a connection and tracks its end point until release
             var connectGesture = new PanGestureRecognizer();
             connectGesture.PanUpdated += (s, e) => OnConnectionPanUpdated(block, e);
             outPort.GestureRecognizers.Add(connectGesture);
@@ -590,30 +593,53 @@ namespace ElectricalImpedanceTomography.Views
         // 3) Delegating to connection-drag or block-drag initiation when appropriate
         private void OnCanvasTouch(object sender, SKTouchEventArgs e)
         {
+            // Convert Skia coordinates into MAUI view coordinates to compare with block bounds
+            var logicalPoint = ToLogicalPoint(e.Location);
+            var viewPoint = ToViewPoint(e.Location);
+            var viewSkPoint = new SKPoint((float)(logicalPoint.X * _canvasScale), (float)(logicalPoint.Y * _canvasScale));
+
             if (e.MouseButton == SKMouseButton.Right)
             {
-                var viewPoint = ToViewPoint(e.Location);
                 switch (e.ActionType)
                 {
                     case SKTouchAction.Pressed:
-                        BeginCanvasPan(viewPoint);
+                        if (!TryBeginConnectionFromBlock(logicalPoint))
+                        {
+                            BeginCanvasPan(viewPoint);
+                        }
                         break;
                     case SKTouchAction.Moved:
-                        UpdateCanvasPan(viewPoint);
+                        if (_tempConnectionStart.HasValue && _tempConnectionSource != null)
+                        {
+                            _tempConnectionEnd = logicalPoint;
+                            ConnectionsCanvas.InvalidateSurface();
+                        }
+                        else
+                        {
+                            UpdateCanvasPan(viewPoint);
+                        }
                         break;
                     case SKTouchAction.Released:
                     case SKTouchAction.Cancelled:
-                        EndCanvasPan();
+                        if (_tempConnectionStart.HasValue && _tempConnectionSource != null)
+                        {
+                            var targetBlock = FindTargetBlock(logicalPoint);
+                            if (targetBlock != null && targetBlock != _tempConnectionSource)
+                            {
+                                _viewModel.AddConnection(_tempConnectionSource, targetBlock);
+                            }
+                            ResetInteractionState();
+                        }
+                        else
+                        {
+                            EndCanvasPan();
+                        }
                         break;
                 }
 
                 e.Handled = true;
                 return;
             }
-
-            // Convert Skia coordinates into MAUI view coordinates to compare with block bounds
-            var logicalPoint = ToLogicalPoint(e.Location);
-            var viewSkPoint = new SKPoint((float)(logicalPoint.X * _canvasScale), (float)(logicalPoint.Y * _canvasScale));
 
             switch (e.ActionType)
             {
@@ -665,23 +691,39 @@ namespace ElectricalImpedanceTomography.Views
                 return false;
             }
 
+            return StartConnectionFromBlock(block, viewPoint, true);
+        }
+
+        private bool TryBeginConnectionFromBlock(Point viewPoint)
+        {
+            var block = FindBlockAtPoint(viewPoint);
+            if (block == null)
+            {
+                return false;
+            }
+
+            return StartConnectionFromBlock(block);
+        }
+
+        private bool StartConnectionFromBlock(ReconstructionConfigurationBlock block, Point? viewPoint = null, bool requireOutputHit = false)
+        {
             if (!_viewModel.HasOutputCapacity(block))
             {
                 return false;
             }
 
             var portCenter = GetOutputPortAnchor(block);
-            // Enlarged hit radius to make starting a connection easier
-            if (Distance(viewPoint, portCenter) <= OutputPortHitRadius)
+            if (requireOutputHit && viewPoint.HasValue && Distance(viewPoint.Value, portCenter) > OutputPortHitRadius)
             {
-                _tempConnectionSource = block;
-                _tempConnectionStart = portCenter;
-                _tempConnectionEnd = portCenter;
-                ConnectionsCanvas.InvalidateSurface();
-                return true;
+                return false;
             }
 
-            return false;
+            _viewModel.SelectBlockCommand.Execute(block);
+            _tempConnectionSource = block;
+            _tempConnectionStart = portCenter;
+            _tempConnectionEnd = portCenter;
+            ConnectionsCanvas.InvalidateSurface();
+            return true;
         }
 
         /// <summary>
