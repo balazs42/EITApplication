@@ -110,7 +110,16 @@
 
                 <!-- ACTIONS (Updated) -->
                 <VerticalStackLayout Grid.Row="2" VerticalOptions="End" Spacing="10">
-                    <Button Text="Delete Selected" BackgroundColor="#FF4757" TextColor="White" HeightRequest="40" CornerRadius="6" Command="{Binding DeleteSelectedCommand}"/>
+                        <Button Text="Use this configuration"
+                                HorizontalOptions="Start"
+                                VerticalOptions="Start"
+                                Margin="12"
+                                Padding="14,8"
+                                BackgroundColor="{StaticResource Accent}"
+                                TextColor="Black"
+                                FontAttributes="Bold"
+                                Command="{Binding UseConfigurationCommand}" />
+                        <Button Text="Delete Selected" BackgroundColor="#FF4757" TextColor="White" HeightRequest="40" CornerRadius="6" Command="{Binding DeleteSelectedCommand}"/>
                     <Grid ColumnDefinitions="*,*">
                         <Button Grid.Column="0" Text="Save" BackgroundColor="#2E8B57" TextColor="White" HeightRequest="40" CornerRadius="6" Margin="0,0,5,0" Command="{Binding SaveConfigurationCommand}"/>
                         <Button Grid.Column="1" Text="Load" BackgroundColor="#3A7CA5" TextColor="White" HeightRequest="40" CornerRadius="6" Margin="5,0,0,0" Command="{Binding LoadConfigurationCommand}"/>
@@ -121,17 +130,8 @@
         </Border>
 
         <!-- CENTER: CANVAS -->
-        <Grid Grid.Column="1">
-            <Button Text="Use this configuration"
-                    HorizontalOptions="Start"
-                    VerticalOptions="Start"
-                    Margin="12"
-                    Padding="14,8"
-                    BackgroundColor="{StaticResource Accent}"
-                    TextColor="Black"
-                    FontAttributes="Bold"
-                    Command="{Binding UseConfigurationCommand}" />
-            <ScrollView
+            <Grid Grid.Column="1">
+                <ScrollView
                 x:Name="CanvasScrollView"
                 Orientation="Both"
                 HorizontalScrollBarVisibility="Always"
