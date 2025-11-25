@@ -1,3 +1,5 @@
+/// \file ReconstructionConfigurationPage.xaml.cs
+/// \brief Interactive canvas and control logic for the reconstruction configuration editor UI.
 using CommunityToolkit.Maui.Views;
 using ElectricalImpedanceTomography.ViewModels;
 using Microsoft.Maui.Controls.Shapes;
@@ -1170,7 +1172,7 @@ namespace ElectricalImpedanceTomography.Views
 
         /// <summary>
         /// Paints all committed connections and any temporary connection being dragged.
-        /// Adds style variations for selection and weight requirements.
+        /// Adds style variations for selection and weight requirements and positions weight labels beside the path for clarity.
         /// </summary>
         private void OnCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
         {
@@ -1201,7 +1203,7 @@ namespace ElectricalImpedanceTomography.Views
             using var weightPaint = new SKPaint
             {
                 Style = SKPaintStyle.Stroke,
-                Color = SKColors.Yellow,
+                Color = SKColor.Parse("#4CC9F0"),
                 StrokeWidth = 4,
                 IsAntialias = true,
                 StrokeCap = SKStrokeCap.Round
@@ -1234,7 +1236,7 @@ namespace ElectricalImpedanceTomography.Views
                     var label = $"{conn.Weight:0.####}";
                     using var textPaint = new SKPaint
                     {
-                        Color = SKColors.White,
+                        Color = SKColor.Parse("#A6E3FA"),
                         IsAntialias = true,
                         TextSize = 16,
                         Typeface = SKTypeface.FromFamilyName("Arial", SKFontStyle.Bold)
@@ -1243,7 +1245,14 @@ namespace ElectricalImpedanceTomography.Views
                     var midPoint = EvaluateCubic(curve, 0.5);
                     var textBounds = new SKRect();
                     textPaint.MeasureText(label, ref textBounds);
-                    canvas.DrawText(label, midPoint.X - textBounds.MidX, midPoint.Y - textBounds.MidY, textPaint);
+
+                    var isHorizontal = Math.Abs(curve.p3.X - curve.p0.X) >= Math.Abs(curve.p3.Y - curve.p0.Y);
+                    var offset = isHorizontal
+                        ? new SKPoint(0, -Math.Max(10, textBounds.Height))
+                        : new SKPoint(Math.Max(10, textBounds.Width * 0.6f), 0);
+
+                    var labelPosition = new SKPoint(midPoint.X + offset.X - textBounds.MidX, midPoint.Y + offset.Y - textBounds.MidY);
+                    canvas.DrawText(label, labelPosition.X, labelPosition.Y, textPaint);
                 }
             }
 
