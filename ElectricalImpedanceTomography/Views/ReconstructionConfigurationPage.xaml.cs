@@ -256,7 +256,7 @@ namespace ElectricalImpedanceTomography.Views
             // 1) Pan on the border moves the selected block(s) with the primary button
             var panGesture = new PanGestureRecognizer
             {
-                Buttons = Microsoft.Maui.Controls.ButtonsMask.Primary
+                TouchPoints = 1
             };
             panGesture.PanUpdated += (s, e) => OnBlockPanUpdated(block, border.Parent as View, e);
             border.GestureRecognizers.Add(panGesture);
