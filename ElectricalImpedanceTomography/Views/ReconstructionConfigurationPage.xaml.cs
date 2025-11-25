@@ -186,7 +186,7 @@ namespace ElectricalImpedanceTomography.Views
                 Margin = new Thickness(-11, 22, 0, 0),
                 IsVisible = ReconstructionConfigurationRules.GetConnectionConstraint(block.Type).MaxInputs > 0
             };
-            inPort.Cursor = Cursor.Cross;
+            //inPort.Cursor = Cursor.Cross;
 
             // Output port bubble (right side)
             var outPort = new Border
@@ -201,7 +201,7 @@ namespace ElectricalImpedanceTomography.Views
                 VerticalOptions = LayoutOptions.Start,
                 Margin = new Thickness(0, 22, -11, 0)
             };
-            outPort.Cursor = Cursor.Cross;
+            //outPort.Cursor = Cursor.Cross;
 
             // Gestures
             // 1) Pan on the border moves the selected block(s)
@@ -251,8 +251,8 @@ namespace ElectricalImpedanceTomography.Views
                 StrokeShape = new RoundRectangle { CornerRadius = 4 },
                 HorizontalOptions = LayoutOptions.End,
                 VerticalOptions = LayoutOptions.End,
-                Margin = new Thickness(0, 0, -10, -10),
-                Cursor = Cursor.SizeNWSE
+                Margin = new Thickness(0, 0, -10, -10)
+                //Cursor = Cursor.SizeNWSE
             };
 
             // Pan on resize handle changes Width/Height with clamping
