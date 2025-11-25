@@ -57,9 +57,9 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration.Rules
                 return false;
             }
 
-            if (target == BlockType.Regularizer && source != BlockType.Model)
+            if (target == BlockType.Regularizer && source != BlockType.ErrorMetric)
             {
-                reason = "Regularizer inputs must come from the Model block.";
+                reason = "Regularizer inputs must come from an Error Metric block.";
                 return false;
             }
 
@@ -157,7 +157,7 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration.Rules
                 }
             }
 
-            foreach (var type in Enum.GetValues<BlockType>().Where(t => t != BlockType.PostProcessing))
+            foreach (var type in Enum.GetValues<BlockType>().Where(t => t != BlockType.PostProcessing && t != BlockType.Regularizer))
             {
                 if (!blocks.Any(b => b.Type == type))
                 {
