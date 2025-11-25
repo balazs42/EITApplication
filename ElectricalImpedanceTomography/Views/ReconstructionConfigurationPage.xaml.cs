@@ -1,6 +1,7 @@
 using CommunityToolkit.Maui.Views;
 using ElectricalImpedanceTomography.ViewModels;
 using Microsoft.Maui.Controls.Shapes;
+using Microsoft.Maui.ApplicationModel;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
 using System.Collections.Specialized;
@@ -37,6 +38,12 @@ namespace ElectricalImpedanceTomography.Views
 
         // Resizing state for blocks
         private readonly Dictionary<ReconstructionConfigurationBlock, (double Width, double Height)> _resizeStartSizes = new();
+        private ReconstructionConfigurationBlock? _resizeArmedBlock;
+
+        // Canvas panning state for right-click drag
+        private bool _isCanvasPanning;
+        private Point _canvasPanStart;
+        private Point _canvasScrollStart;
 
         // LBM preview drawing brushes
         private readonly SKPaint _lbmFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.Black };
@@ -53,6 +60,11 @@ namespace ElectricalImpedanceTomography.Views
         // Enlarged hit-targets for connection interactions to make drawing easier
         private const double OutputPortHitRadius = 40;   // was 16
         private const double TargetPortHitHalfSize = 70; // was 40
+        private const double ResizeHotZone = 36;
+        private const double MinBlockWidth = 140;
+        private const double MinBlockHeight = 60;
+        private const double MaxBlockWidth = 520;
+        private const double MaxBlockHeight = 360;
 
         private double _canvasScale = 1.0;
         private const double MinCanvasScale = 0.5;
@@ -230,9 +242,9 @@ namespace ElectricalImpedanceTomography.Views
             };
             border.GestureRecognizers.Add(rightClickRotateGesture);
 
-            // 4) Double tap opens specialized editor for Initialization block
+            // 4) Double tap either arms resize (bottom-right corner) or opens the initialization editor
             var doubleTapGesture = new TapGestureRecognizer { NumberOfTapsRequired = 2 };
-            doubleTapGesture.Tapped += async (s, e) => await OnBlockDoubleTappedAsync(block);
+            doubleTapGesture.Tapped += async (s, e) => await OnBlockDoubleTappedAsync(block, e, s as View);
             border.GestureRecognizers.Add(doubleTapGesture);
 
             // 5) Pan from output port begins a connection and tracks its end point until release
@@ -240,37 +252,18 @@ namespace ElectricalImpedanceTomography.Views
             connectGesture.PanUpdated += (s, e) => OnConnectionPanUpdated(block, e);
             outPort.GestureRecognizers.Add(connectGesture);
 
-            // Resize handle at bottom-right corner of the card
-            var resizeHandle = new Border
-            {
-                WidthRequest = 22,
-                HeightRequest = 22,
-                BackgroundColor = Color.FromArgb("#55FFFFFF"),
-                Stroke = Color.FromArgb("#444"),
-                StrokeThickness = 1,
-                StrokeShape = new RoundRectangle { CornerRadius = 4 },
-                HorizontalOptions = LayoutOptions.End,
-                VerticalOptions = LayoutOptions.End,
-                Margin = new Thickness(0, 0, -10, -10)
-                //Cursor = Cursor.SizeNWSE
-            };
-
-            // Pan on resize handle changes Width/Height with clamping
-            var resizePan = new PanGestureRecognizer();
-            resizePan.PanUpdated += (s, e) => OnResizePanUpdated(block, e);
-            resizeHandle.GestureRecognizers.Add(resizePan);
-
             // Container that hosts the card and port bubbles; also bound to rotation
             var container = new Grid { WidthRequest = 214, HeightRequest = 80, BindingContext = block };
             container.SetBinding(WidthRequestProperty, new Binding(nameof(ReconstructionConfigurationBlock.Width), source: block));
             container.SetBinding(HeightRequestProperty, new Binding(nameof(ReconstructionConfigurationBlock.Height), source: block));
             container.SetBinding(RotationProperty, new Binding(nameof(ReconstructionConfigurationBlock.Rotation), source: block));
+            container.AnchorX = 0;
+            container.AnchorY = 0;
             // Keep hit-testing enabled for the child visuals
             container.InputTransparent = false;
             container.Add(border);
             container.Add(inPort);
             container.Add(outPort);
-            container.Add(resizeHandle);
 
             // Initial placement in the absolute layout
             ApplyBlockLayout(block, container);
@@ -292,8 +285,17 @@ namespace ElectricalImpedanceTomography.Views
         /// Handles double-tap on a block card. If the block is the Initialization block,
         /// opens a popup to edit the initial conductivity distribution.
         /// </summary>
-        private async Task OnBlockDoubleTappedAsync(ReconstructionConfigurationBlock block)
+        private async Task OnBlockDoubleTappedAsync(ReconstructionConfigurationBlock block, TappedEventArgs tapArgs, View? sourceView)
         {
+            var position = sourceView != null ? tapArgs.GetPosition(sourceView) : null;
+            if (position.HasValue && IsInResizeHotZone(block, position.Value))
+            {
+                ArmResize(block);
+                return;
+            }
+
+            _resizeArmedBlock = null;
+
             // Only Initialization blocks support this editor
             if (block.Type != BlockType.Initialization)
                 return;
@@ -331,10 +333,26 @@ namespace ElectricalImpedanceTomography.Views
             switch (e.StatusType)
             {
                 case GestureStatus.Started:
+                    if (_resizeArmedBlock == block)
+                    {
+                        _resizeStartSizes[block] = (block.Width, block.Height);
+                        break;
+                    }
+                    _resizeArmedBlock = null;
                     // Capture starting positions for selected blocks
                     PrepareDragPositions(block);
                     break;
                 case GestureStatus.Running:
+                    if (_resizeArmedBlock == block)
+                    {
+                        if (_resizeStartSizes.TryGetValue(block, out var startSize))
+                        {
+                            UpdateBlockSize(block,
+                                startSize.Width + e.TotalX / _canvasScale,
+                                startSize.Height + e.TotalY / _canvasScale);
+                        }
+                        break;
+                    }
                     // Apply delta to every moved block
                     foreach (var kvp in _dragStartPositions)
                     {
@@ -348,6 +366,13 @@ namespace ElectricalImpedanceTomography.Views
                     break;
                 case GestureStatus.Completed:
                 case GestureStatus.Canceled:
+                    if (_resizeArmedBlock == block)
+                    {
+                        _resizeArmedBlock = null;
+                        _resizeStartSizes.Remove(block);
+                        _viewModel.NotifyLayoutChanged();
+                        break;
+                    }
                     // Clear temp state and notify ViewModel so it can update workspace/state
                     _dragStartPositions.Clear();
                     _viewModel.NotifyLayoutChanged();
@@ -398,8 +423,8 @@ namespace ElectricalImpedanceTomography.Views
         /// </summary>
         private void UpdateBlockSize(ReconstructionConfigurationBlock block, double newWidth, double newHeight)
         {
-            var clampedWidth = Math.Max(140, SnapToGrid(newWidth));
-            var clampedHeight = Math.Max(60, SnapToGrid(newHeight));
+            var clampedWidth = Math.Clamp(SnapToGrid(newWidth), MinBlockWidth, MaxBlockWidth);
+            var clampedHeight = Math.Clamp(SnapToGrid(newHeight), MinBlockHeight, MaxBlockHeight);
 
             block.Width = clampedWidth;
             block.Height = clampedHeight;
@@ -433,8 +458,8 @@ namespace ElectricalImpedanceTomography.Views
             {
                 block.X = SnapToGrid(block.X);
                 block.Y = SnapToGrid(block.Y);
-                block.Width = Math.Max(140, SnapToGrid(block.Width));
-                block.Height = Math.Max(60, SnapToGrid(block.Height));
+                block.Width = Math.Clamp(SnapToGrid(block.Width), MinBlockWidth, MaxBlockWidth);
+                block.Height = Math.Clamp(SnapToGrid(block.Height), MinBlockHeight, MaxBlockHeight);
 
                 var view = NodeContainer.Children
                     .OfType<View>()
@@ -453,7 +478,8 @@ namespace ElectricalImpedanceTomography.Views
 
         private void ApplyBlockLayout(ReconstructionConfigurationBlock block, View view)
         {
-            AbsoluteLayout.SetLayoutBounds(view, new Rect(block.X * _canvasScale, block.Y * _canvasScale, block.Width * _canvasScale, block.Height * _canvasScale));
+            view.Scale = _canvasScale;
+            AbsoluteLayout.SetLayoutBounds(view, new Rect(block.X * _canvasScale, block.Y * _canvasScale, block.Width, block.Height));
         }
 
         private void ApplyCanvasScale()
@@ -531,32 +557,6 @@ namespace ElectricalImpedanceTomography.Views
         }
 
         /// <summary>
-        /// Resizing gesture on the block's resize handle.
-        /// </summary>
-        private void OnResizePanUpdated(ReconstructionConfigurationBlock block, PanUpdatedEventArgs e)
-        {
-            switch (e.StatusType)
-            {
-                case GestureStatus.Started:
-                    // Remember starting size for delta calculations
-                    _resizeStartSizes[block] = (block.Width, block.Height);
-                    break;
-                case GestureStatus.Running:
-                    if (_resizeStartSizes.TryGetValue(block, out var start))
-                    {
-                        UpdateBlockSize(block, start.Width + e.TotalX / _canvasScale, start.Height + e.TotalY / _canvasScale);
-                    }
-                    break;
-                case GestureStatus.Completed:
-                case GestureStatus.Canceled:
-                    // Cleanup and inform ViewModel
-                    _resizeStartSizes.Remove(block);
-                    _viewModel.NotifyLayoutChanged();
-                    break;
-            }
-        }
-
-        /// <summary>
         /// Finds a target block whose input port lies near the provided location.
         /// Uses a proximity threshold around the input anchor.
         /// </summary>
@@ -585,6 +585,27 @@ namespace ElectricalImpedanceTomography.Views
         // 3) Delegating to connection-drag or block-drag initiation when appropriate
         private void OnCanvasTouch(object sender, SKTouchEventArgs e)
         {
+            if (e.MouseButton == SKMouseButton.Right)
+            {
+                var viewPoint = ToViewPoint(e.Location);
+                switch (e.ActionType)
+                {
+                    case SKTouchAction.Pressed:
+                        BeginCanvasPan(viewPoint);
+                        break;
+                    case SKTouchAction.Moved:
+                        UpdateCanvasPan(viewPoint);
+                        break;
+                    case SKTouchAction.Released:
+                    case SKTouchAction.Cancelled:
+                        EndCanvasPan();
+                        break;
+                }
+
+                e.Handled = true;
+                return;
+            }
+
             // Convert Skia coordinates into MAUI view coordinates to compare with block bounds
             var logicalPoint = ToLogicalPoint(e.Location);
             var viewSkPoint = new SKPoint((float)(logicalPoint.X * _canvasScale), (float)(logicalPoint.Y * _canvasScale));
@@ -797,6 +818,33 @@ namespace ElectricalImpedanceTomography.Views
             _isSelecting = false;
             _selectionStart = null;
             SelectionBox.IsVisible = false;
+            EndCanvasPan();
+        }
+
+        private void BeginCanvasPan(Point viewPoint)
+        {
+            _isCanvasPanning = true;
+            _canvasPanStart = viewPoint;
+            _canvasScrollStart = new Point(CanvasScrollView.ScrollX, CanvasScrollView.ScrollY);
+        }
+
+        private void UpdateCanvasPan(Point currentPoint)
+        {
+            if (!_isCanvasPanning)
+            {
+                return;
+            }
+
+            var delta = new Point(currentPoint.X - _canvasPanStart.X, currentPoint.Y - _canvasPanStart.Y);
+            var targetX = Math.Max(0, _canvasScrollStart.X - delta.X);
+            var targetY = Math.Max(0, _canvasScrollStart.Y - delta.Y);
+
+            MainThread.BeginInvokeOnMainThread(async () => await CanvasScrollView.ScrollToAsync(targetX, targetY, false));
+        }
+
+        private void EndCanvasPan()
+        {
+            _isCanvasPanning = false;
         }
 
         /// <summary>
@@ -817,6 +865,20 @@ namespace ElectricalImpedanceTomography.Views
             var dx = a.X - b.X;
             var dy = a.Y - b.Y;
             return Math.Sqrt(dx * dx + dy * dy);
+        }
+
+        private bool IsInResizeHotZone(ReconstructionConfigurationBlock block, Point tapPosition)
+        {
+            var logicalX = tapPosition.X / _canvasScale;
+            var logicalY = tapPosition.Y / _canvasScale;
+
+            return logicalX >= block.Width - ResizeHotZone && logicalY >= block.Height - ResizeHotZone;
+        }
+
+        private void ArmResize(ReconstructionConfigurationBlock block)
+        {
+            _resizeArmedBlock = block;
+            _resizeStartSizes[block] = (block.Width, block.Height);
         }
 
         /// <summary>
