@@ -432,7 +432,7 @@
                                 <x:String>Rainbow</x:String>
                             </Picker.Items>
                         </Picker>
-                        <Border Grid.Column="7" Grid.Row="1"  Background="Transparent" Stroke="Transparent">
+                        <Border Grid.Column="6" Grid.Row="1" Background="Transparent" Stroke="Transparent">
                             <Button x:Name="ExportVideoButton"
                                     Text="Export"
                                     Margin="10"
@@ -442,6 +442,21 @@
                                     Clicked="OnExportClicked"
                                     IsEnabled="False"/>
                         </Border>
+                        <Picker x:Name="ConductivityModePicker"
+                                Margin="5"
+                                Grid.Column="7"
+                                Grid.Row="1"
+                                TitleColor="#9DAAD3"
+                                TextColor="#F0F4FF"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center"
+                                Title="Conductivity Display Mode">
+                            <Picker.Items>
+                                <x:String>Classic</x:String>
+                                <x:String>Enhanced Diverging</x:String>
+                                <x:String>Rainbow</x:String>
+                            </Picker.Items>
+                        </Picker>
                         <Slider x:Name="PlaybackSlider"
                                 Margin="5"
                                 Grid.Row="1"
