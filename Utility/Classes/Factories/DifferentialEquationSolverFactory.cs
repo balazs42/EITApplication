@@ -16,10 +16,12 @@ namespace Utility.Classes.Factories
                                                          DifferentialEquationSolver des,
                                                          INumericSolver numericSolver,
                                                          bool useOmpParallelization = false,
-                                                         bool useCudaAcceleration = false) => des switch
+                                                         bool useCudaAcceleration = false,
+                                                         bool useLbmPotentialFilter = false,
+                                                         int lbmGaussianKernelSize = 3) => des switch
         {
             DifferentialEquationSolver.FEM => CreateFiniteElementSolver((FEMMesh)discretization, numericSolver, useOmpParallelization),
-            DifferentialEquationSolver.LBM => CreateLatticeBoltzmannSolver(useCudaAcceleration),
+            DifferentialEquationSolver.LBM => CreateLatticeBoltzmannSolver(useCudaAcceleration, useLbmPotentialFilter, lbmGaussianKernelSize),
             DifferentialEquationSolver.Graph => CreateGraphBasedSolver((FEMMesh)discretization, numericSolver),
             _ => throw new NotSupportedException()
         };
@@ -33,9 +35,11 @@ namespace Utility.Classes.Factories
             return deSolver;
         }
 
-        private static LatticeBoltzmannDESolver CreateLatticeBoltzmannSolver(bool useCudaAcceleration)
+        private static LatticeBoltzmannDESolver CreateLatticeBoltzmannSolver(bool useCudaAcceleration, bool useLbmPotentialFilter, int lbmGaussianKernelSize)
         {
-            var deSolver = new LatticeBoltzmannDESolver(useCudaAcceleration: useCudaAcceleration);
+            var deSolver = new LatticeBoltzmannDESolver(useCudaAcceleration: useCudaAcceleration,
+                                                        applyGaussianFilter: useLbmPotentialFilter,
+                                                        gaussianFilterSize: lbmGaussianKernelSize);
 
             Workspace.AddLogMessage("DifferentialEquationSolverFactory", "Created Lattice Boltzmann solver object.");
 
