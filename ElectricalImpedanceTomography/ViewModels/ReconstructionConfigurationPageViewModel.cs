@@ -297,9 +297,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 var issues = ReconstructionConfigurationRules.Validate(Blocks, Connections);
                 ValidationIssues.Clear();
                 foreach (var issue in issues)
-                {
                     ValidationIssues.Add(issue);
-                }
 
                 if (issues.Any())
                 {
@@ -484,30 +482,22 @@ namespace ElectricalImpedanceTomography.ViewModels
             if (e.OldItems != null)
             {
                 foreach (var old in e.OldItems.OfType<ReconstructionConnection>())
-                {
                     UnregisterConnection(old);
-                }
             }
 
             if (e.NewItems != null)
             {
                 foreach (var added in e.NewItems.OfType<ReconstructionConnection>())
-                {
                     RegisterConnection(added);
-                }
             }
 
             if (e.Action == NotifyCollectionChangedAction.Reset)
             {
                 foreach (var connection in Connections)
-                {
                     UnregisterConnection(connection);
-                }
-
+                
                 foreach (var connection in Connections)
-                {
                     RegisterConnection(connection);
-                }
             }
 
             NormalizeConnectionWeights();
@@ -539,9 +529,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             if (e.PropertyName == nameof(ReconstructionConnection.Weight))
             {
                 if (_isNormalizingWeights)
-                {
                     return;
-                }
 
                 if (sender is ReconstructionConnection connection)
                 {
@@ -574,34 +562,25 @@ namespace ElectricalImpedanceTomography.ViewModels
             if (Connections.Any())
             {
                 foreach (var conn in Connections.Take(6))
-                {
                     DebugLines.Add($"Connection: {conn.Source.Title} -> {conn.Target.Title}");
-                }
+           
                 if (Connections.Count > 6)
-                {
                     DebugLines.Add($"(+{Connections.Count - 6} more)");
-                }
             }
             else
-            {
                 DebugLines.Add("Connections: none");
-            }
 
             ValidationIssues.Clear();
             foreach (var issue in ReconstructionConfigurationRules.Validate(Blocks, Connections))
-            {
                 ValidationIssues.Add(issue);
-            }
-
+           
             CanUseConfiguration = !ValidationIssues.Any();
         }
 
         private void TrackIssue(string message)
         {
             if (!ValidationIssues.Contains(message))
-            {
                 ValidationIssues.Add(message);
-            }
         }
 
         /// <summary>
@@ -620,26 +599,18 @@ namespace ElectricalImpedanceTomography.ViewModels
                 _isNormalizingWeights = true;
 
                 foreach (var connection in Connections)
-                {
                     connection.RequiresWeight = false;
-                }
-
+                
                 foreach (var connection in Connections.Where(c => c.Source.Type == BlockType.Measurement && c.Target.Type == BlockType.ErrorMetric))
-                {
                     connection.Weight = 1.0;
-                }
-
+                
                 foreach (var group in GetWeightedConnectionGroups())
                 {
                     foreach (var connection in group)
-                    {
                         connection.RequiresWeight = true;
-                    }
 
                     if (redistributeGroups)
-                    {
-                        NormalizeConnectionGroup(group);
-                    }
+                       NormalizeConnectionGroup(group);
                 }
             }
             finally
@@ -654,9 +625,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         private void NormalizeConnectionGroup(IReadOnlyCollection<ReconstructionConnection> connections)
         {
             if (connections.Count == 0)
-            {
                 return;
-            }
 
             var evenWeight = Math.Round(1.0 / connections.Count, 4);
             var remaining = 1.0;
@@ -679,9 +648,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             var group = FindWeightedGroupForConnection(changed);
 
             if (group.Count == 0)
-            {
                 return;
-            }
 
             if (group.Count == 1)
             {
