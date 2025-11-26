@@ -183,22 +183,24 @@
                         </Border>
                         <!-- Parameter Configuration -->
                         <Border Grid.Column="1"
+                                MaximumWidthRequest="180"
                                 Style="{StaticResource PanelSectionBorderStyle}"
                                 BackgroundColor="{AppThemeBinding Light=#25324A, Dark=#25324A}">
                             <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
                                 <Label Grid.Row="0" Text="Parameters" FontSize="Medium" FontAttributes="Bold" Margin="0,0,0,12"/>
                                 <Label Grid.Row="3" HorizontalOptions="Start" Text="Max Iteration Count" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Entry Grid.Row="4" Text="{Binding MaxIterationCount}"/>
+                                <Entry Grid.Row="4" Text="{Binding MaxIterationCount}" MaximumWidthRequest="130" HorizontalOptions="Start"/>
                                 <Label Grid.Row="5" HorizontalOptions="Start" Text="Regularization Weight (θ)" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Entry Grid.Row="6" Text="{Binding RegularizationWeight}"/>
+                                <Entry Grid.Row="6" Text="{Binding RegularizationWeight}" MaximumWidthRequest="130" HorizontalOptions="Start"/>
                                 <Label Grid.Row="7" HorizontalOptions="Start" Text="Gradient Step Size (β)" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Entry Grid.Row="8" Text="{Binding StepSize}"/>
+                                <Entry Grid.Row="8" Text="{Binding StepSize}" MaximumWidthRequest="130" HorizontalOptions="Start"/>
                                 <Label Grid.Row="9" HorizontalOptions="Start" Text="Measurement Noise" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="10" ItemsSource="{Binding MeasurementNoiseTypeOptions}" SelectedItem="{Binding ReconstructionParameters.MeasurementNoiseType}"/>
+                                <Picker Grid.Row="10" ItemsSource="{Binding MeasurementNoiseTypeOptions}" SelectedItem="{Binding ReconstructionParameters.MeasurementNoiseType}" MaximumWidthRequest="130" HorizontalOptions="Start"/>
                                 <Label Grid.Row="11" HorizontalOptions="Start" Text="Noise Amplitude / dB" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Entry Grid.Row="12"
                                        Text="{Binding ReconstructionParameters.MeasurementNoiseAmplitude}"
                                        Keyboard="Numeric"
+                                       HorizontalOptions="Start"
                                        IsEnabled="{Binding IsNoiseAmplitudeEnabled}"/>
 
                                 <Label Grid.Row="13"
@@ -209,10 +211,14 @@
                                 <Grid Grid.Row="14" ColumnDefinitions="*, *" ColumnSpacing="8">
                                     <Entry Grid.Column="0"
                                            Placeholder="Min"
+                                           HorizontalOptions="Start"
                                            Keyboard="Numeric"
+                                           MaximumWidthRequest="60"
                                            Text="{Binding ReconstructionParameters.ConductivityMinimumBound}"/>
                                     <Entry Grid.Column="1"
                                            Placeholder="Max"
+                                           HorizontalOptions="Start"
+                                           MaximumWidthRequest="60"
                                            Keyboard="Numeric"
                                            Text="{Binding ReconstructionParameters.ConductivityMaximumBound}"/>
                                 </Grid>
@@ -225,18 +231,13 @@
                                        IsVisible="{Binding IsLbmSolverSelected}"/>
                                 <Grid Grid.Row="16" ColumnDefinitions="*,Auto" ColumnSpacing="8"
                                       IsVisible="{Binding IsLbmSolverSelected}">
-                                    <Label Text="Apply Gaussian filter (kernel size fixed on this page)"
+                                    <Label Text="Filter"
                                            VerticalOptions="Center"
                                            FontFamily="SF Pro Text"/>
                                     <Switch Grid.Column="1"
                                             IsToggled="{Binding ReconstructionParameters.UseLbmGaussianFilter}"
                                             HorizontalOptions="End"/>
                                 </Grid>
-                                <Label Grid.Row="17"
-                                       HorizontalOptions="Start"
-                                       Text="{Binding ReconstructionParameters.LbmGaussianFilterSize, StringFormat='Kernel size: {0}x{0}'}"
-                                       FontFamily="SF Pro Text"
-                                       IsVisible="{Binding IsLbmSolverSelected}"/>
 
                                 <Label Grid.Row="18"
                                        HorizontalOptions="Start"
