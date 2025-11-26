@@ -38,11 +38,14 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public bool IsNoiseAmplitudeEnabled => ReconstructionParameters.MeasurementNoiseType != MeasurementNoiseType.None;
 
+        public bool IsLbmSolverSelected => ReconstructionParameters.DifferentialEquationSolver == DifferentialEquationSolver.LBM;
+
         public BaseReconstructionPageViewModel()
         {
             _currentParameters = ReconstructionParameters;
             _currentParameters.PropertyChanged += OnReconstructionParametersPropertyChanged;
             OnPropertyChanged(nameof(IsNoiseAmplitudeEnabled));
+            OnPropertyChanged(nameof(IsLbmSolverSelected));
             Workspace.ConductivityMinimumBound = _currentParameters.ConductivityMinimumBound;
             Workspace.ConductivityMaximumBound = _currentParameters.ConductivityMaximumBound;
             ConductivityClipper.UpdateBounds(_currentParameters.ConductivityMinimumBound,
@@ -59,12 +62,16 @@ namespace ElectricalImpedanceTomography.ViewModels
             _currentParameters = value;
             _currentParameters.PropertyChanged += OnReconstructionParametersPropertyChanged;
             OnPropertyChanged(nameof(IsNoiseAmplitudeEnabled));
+            OnPropertyChanged(nameof(IsLbmSolverSelected));
         }
 
         private void OnReconstructionParametersPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(EITReconstructionParameters.MeasurementNoiseType))
                 OnPropertyChanged(nameof(IsNoiseAmplitudeEnabled));
+
+            if (e.PropertyName == nameof(EITReconstructionParameters.DifferentialEquationSolver))
+                OnPropertyChanged(nameof(IsLbmSolverSelected));
 
             if (e.PropertyName == nameof(EITReconstructionParameters.ConductivityMinimumBound)
                 || e.PropertyName == nameof(EITReconstructionParameters.ConductivityMaximumBound))

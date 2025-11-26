@@ -50,6 +50,12 @@ namespace Utility.Classes.ReconstructionParameters
         private bool useCudaAcceleration = false;
 
         [ObservableProperty]
+        private bool useLbmGaussianFilter = false;
+
+        [ObservableProperty]
+        private int lbmGaussianFilterSize = 3;
+
+        [ObservableProperty]
         private double conductivityMinimumBound = 0.1;
 
         [ObservableProperty]

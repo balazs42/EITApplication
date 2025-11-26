@@ -24,6 +24,8 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         private double SolutionTolerance = 1e-8;               // Convergence tolerance for steady-state detection
         private int ConvergenceCheckFrequency = 100;           // How often to check convergence (computational cost)
         private readonly bool _useCuda;                        // Whether to use GPU acceleration
+        private readonly bool _applyGaussianFilter;            // Smooth potential maps with Gaussian kernel
+        private readonly int _gaussianKernelSize;              // Kernel size (odd) for Gaussian smoothing
 
         // LBM stability constants
         private const double TauSafetyEpsilon = 0.02;          // Keep τ safely away from 0.5 to limit anisotropy
@@ -136,12 +138,19 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
         /// <param name="solutionTolerance">Relative change threshold for convergence</param>
         /// <param name="convergenceCheckFrequency">Iteration interval for convergence testing</param>
         /// <param name="useCuda">Enable GPU acceleration if available</param>
-        public LatticeBoltzmannSolver(int maxIterationCount, double solutionTolerance, int convergenceCheckFrequency, bool useCuda = false)
+        public LatticeBoltzmannSolver(int maxIterationCount,
+                                      double solutionTolerance,
+                                      int convergenceCheckFrequency,
+                                      bool useCuda = false,
+                                      bool applyGaussianFilter = false,
+                                      int gaussianFilterSize = 3)
         {
             MaxIterationCount = maxIterationCount;
             SolutionTolerance = solutionTolerance;
             ConvergenceCheckFrequency = convergenceCheckFrequency;
             _useCuda = useCuda;
+            _applyGaussianFilter = applyGaussianFilter;
+            _gaussianKernelSize = EnsureOddKernel(Math.Max(1, gaussianFilterSize));
         }
 
         /// <summary>
@@ -158,6 +167,33 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             return Math.Max(0.0, conductivity);
         }
 
+        private static int EnsureOddKernel(int size) => size % 2 == 0 ? size + 1 : size;
+
+        private static double[] BuildBinomialKernel(int size)
+        {
+            int n = size - 1;
+            double[] coeffs = new double[size];
+
+            for (int k = 0; k < size; k++)
+                coeffs[k] = BinomialCoefficient(n, k);
+
+            return coeffs;
+        }
+
+        private static double BinomialCoefficient(int n, int k)
+        {
+            k = Math.Min(k, n - k);
+            double result = 1.0;
+
+            for (int i = 1; i <= k; i++)
+            {
+                result *= n - (k - i);
+                result /= i;
+            }
+
+            return result;
+        }
+
         /// <summary>
         /// Computes BGK relaxation time from material conductivity and clamps it for stability.
         /// </summary>
@@ -170,6 +206,68 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
             // Enforce minimum relaxation time to prevent numerical instability
             // Values below 0.5 can cause negative distribution functions
             return tau < MinTau ? MinTau : tau;
+        }
+
+        private Dictionary<int, double> ApplyPotentialFilter(LBMGrid lbmGrid, Dictionary<int, double> potentials)
+        {
+            if (!_applyGaussianFilter)
+                return potentials;
+
+            return ApplyGaussianFilter(lbmGrid, potentials);
+        }
+
+        private Dictionary<int, double> ApplyGaussianFilter(LBMGrid lbmGrid, IReadOnlyDictionary<int, double> potentials)
+        {
+            var kernel1D = BuildBinomialKernel(_gaussianKernelSize);
+            int half = _gaussianKernelSize / 2;
+            var filtered = new Dictionary<int, double>(potentials.Count);
+
+            for (int y = 0; y < lbmGrid.Ny; y++)
+            {
+                for (int x = 0; x < lbmGrid.Nx; x++)
+                {
+                    var element = lbmGrid.GetElementAt(x, y);
+                    double original = potentials.TryGetValue(element.Id, out double value) ? value : 0.0;
+
+                    if (element.IsWall || element.GhostElement)
+                    {
+                        filtered[element.Id] = original;
+                        continue;
+                    }
+
+                    double weightedSum = 0.0;
+                    double weightTotal = 0.0;
+
+                    for (int ky = -half; ky <= half; ky++)
+                    {
+                        int ny = y + ky;
+                        if (ny < 0 || ny >= lbmGrid.Ny)
+                            continue;
+
+                        for (int kx = -half; kx <= half; kx++)
+                        {
+                            int nx = x + kx;
+                            if (nx < 0 || nx >= lbmGrid.Nx)
+                                continue;
+
+                            var neighbor = lbmGrid.GetElementAt(nx, ny);
+                            if (neighbor.IsWall || neighbor.GhostElement)
+                                continue;
+
+                            if (!potentials.TryGetValue(neighbor.Id, out double neighborValue))
+                                continue;
+
+                            double weight = kernel1D[kx + half] * kernel1D[ky + half];
+                            weightedSum += weight * neighborValue;
+                            weightTotal += weight;
+                        }
+                    }
+
+                    filtered[element.Id] = weightTotal > 0.0 ? weightedSum / weightTotal : original;
+                }
+            }
+
+            return filtered;
         }
 
         /// <summary>
@@ -597,7 +695,8 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 result[elements[idx].Id] = value;
             }
 
-            var pd = new PotentialDistribution(result);
+            var filtered = ApplyPotentialFilter(lbmGrid, result);
+            var pd = new PotentialDistribution(filtered);
             lbmGrid.SetPotentialDistribution(pd);
             return pd;
         }
@@ -973,7 +1072,8 @@ namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
                 result[elementIds[idx]] = phiValue - gauge;
             }
 
-            var pd = new PotentialDistribution(result);
+            var filtered = ApplyPotentialFilter(lbmGrid, result);
+            var pd = new PotentialDistribution(filtered);
             lbmGrid.SetPotentialDistribution(pd);
             return pd;
         }

@@ -339,6 +339,24 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
                         IsVisible = solverChoice.SelectedOption == FriendlyName(nameof(DifferentialEquationSolver.LBM))
                     };
 
+                    var lbmGaussianFilter = new BoolParameter
+                    {
+                        Name = "Gaussian Filter Potential",
+                        Key = "lbm_gaussian_filter",
+                        Value = false,
+                        IsVisible = solverChoice.SelectedOption == FriendlyName(nameof(DifferentialEquationSolver.LBM))
+                    };
+
+                    var lbmGaussianKernel = new NumberParameter
+                    {
+                        Name = "Gaussian Kernel Size",
+                        Key = "lbm_gaussian_kernel",
+                        Value = 3,
+                        Min = 1,
+                        Step = 2,
+                        IsVisible = solverChoice.SelectedOption == FriendlyName(nameof(DifferentialEquationSolver.LBM))
+                    };
+
                     solverChoice.PropertyChanged += (_, args) =>
                     {
                         if (args.PropertyName == nameof(ChoiceParameter.SelectedOption))
@@ -347,6 +365,8 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
                             femOrder.IsVisible = isFem;
                             lbmDomainSize.IsVisible = !isFem;
                             lbmRelaxation.IsVisible = !isFem;
+                            lbmGaussianFilter.IsVisible = !isFem;
+                            lbmGaussianKernel.IsVisible = !isFem;
                         }
                     };
 
@@ -362,7 +382,9 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
                         },
                         femOrder,
                         lbmDomainSize,
-                        lbmRelaxation
+                        lbmRelaxation,
+                        lbmGaussianFilter,
+                        lbmGaussianKernel
                     };
                 },
                 (block, target) =>
@@ -376,6 +398,15 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
                     target.LbmPhysicalDomainSize = block.Parameters.OfType<NumberParameter>().FirstOrDefault(p => p.Key == "lbm_domain_size")?.Value
                         ?? target.LbmPhysicalDomainSize;
                     target.LbmRelaxationModel = ParseEnumFromChoice<LatticeBoltzmannRelaxationModel>(block, "lbm_relaxation");
+
+                    var gaussianToggle = block.Parameters.OfType<BoolParameter>().FirstOrDefault(p => p.Key == "lbm_gaussian_filter")?.Value ?? target.UseLbmGaussianFilter;
+                    var gaussianSizeRaw = block.Parameters.OfType<NumberParameter>().FirstOrDefault(p => p.Key == "lbm_gaussian_kernel")?.Value ?? target.LbmGaussianFilterSize;
+                    int gaussianSize = (int)Math.Max(1, gaussianSizeRaw);
+                    if (gaussianSize % 2 == 0)
+                        gaussianSize += 1;
+
+                    target.UseLbmGaussianFilter = gaussianToggle;
+                    target.LbmGaussianFilterSize = gaussianSize;
                 });
 
             yield return new ReconstructionBlockDefinition(

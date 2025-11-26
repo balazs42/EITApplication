@@ -135,11 +135,14 @@ namespace BusinessLayer
                 }
 
                 // Create differential equation solver according to discretization and requested backend
+                int lbmKernelSize = Math.Max(1, parameters.LbmGaussianFilterSize);
                 _differentialEquationSolver = DifferentialEquationSolverFactory.Create(discretization,
-                                                                                      parameters.DifferentialEquationSolver,
-                                                                                      _numericSolver,
-                                                                                      _useOmpParallelization,
-                                                                                      _useCudaParallelization);
+                                                                                       parameters.DifferentialEquationSolver,
+                                                                                       _numericSolver,
+                                                                                       _useOmpParallelization,
+                                                                                       _useCudaParallelization,
+                                                                                       parameters.UseLbmGaussianFilter,
+                                                                                       lbmKernelSize);
                 _regularizer = RegularizationFactory.Create(parameters.RegularizationTechnique, _discretization);
                 _errorMetricChoice = parameters.ErrorMetric;
                 _errorMetric = ErrorMetricFactory.Create(_errorMetricChoice);

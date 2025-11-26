@@ -17,14 +17,21 @@ namespace Utility.Classes.Reconstruction.DESolvers
         public LatticeBoltzmannDESolver(int maxIterations = 2000,
                                         double convergenceThreshold = 1e-7,
                                         int checkInterval = 200,
-                                        bool useCudaAcceleration = false)
+                                        bool useCudaAcceleration = false,
+                                        bool applyGaussianFilter = false,
+                                        int gaussianFilterSize = 3)
         {
             _maxIterations = maxIterations;
             _convergenceThreshold = convergenceThreshold;
             _checkInterval = checkInterval;
             _useCuda = useCudaAcceleration;
 
-            _solver = new LatticeBoltzmannSolver(_maxIterations, _convergenceThreshold, _checkInterval, _useCuda);
+            _solver = new LatticeBoltzmannSolver(_maxIterations,
+                                                 _convergenceThreshold,
+                                                 _checkInterval,
+                                                 _useCuda,
+                                                 applyGaussianFilter,
+                                                 gaussianFilterSize);
         }
 
         public PotentialDistribution Solve(IDiscretization discretization, BoundaryCondition bc, Complex[]? adjointSource)
