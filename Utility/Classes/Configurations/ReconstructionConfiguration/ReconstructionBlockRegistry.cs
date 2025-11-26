@@ -357,22 +357,6 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
                         IsVisible = solverChoice.SelectedOption == FriendlyName(nameof(DifferentialEquationSolver.LBM))
                     };
 
-                    solverChoice.PropertyChanged += (_, args) =>
-                    {
-                        if (args.PropertyName == nameof(ChoiceParameter.SelectedOption))
-                        {
-                            var isFem = solverChoice.SelectedOption == FriendlyName(nameof(DifferentialEquationSolver.FEM));
-                            femOrder.IsVisible = isFem;
-                            numericSolverChoice.IsVisible = isFem;
-                            lbmDomainSize.IsVisible = !isFem;
-                            lbmRelaxation.IsVisible = !isFem;
-                            lbmGaussianFilter.IsVisible = !isFem;
-                            lbmGaussianKernel.IsVisible = !isFem;
-                            lbmConductivityFilter.IsVisible = !isFem;
-                            lbmConductivityFilterInterval.IsVisible = !isFem;
-                        }
-                    };
-
                     var numericSolverChoice = new ChoiceParameter
                     {
                         Name = "Numeric Solver",
@@ -399,6 +383,23 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
                         Step = 1,
                         IsVisible = solverChoice.SelectedOption == FriendlyName(nameof(DifferentialEquationSolver.LBM))
                     };
+
+                    solverChoice.PropertyChanged += (_, args) =>
+                    {
+                        if (args.PropertyName == nameof(ChoiceParameter.SelectedOption))
+                        {
+                            var isFem = solverChoice.SelectedOption == FriendlyName(nameof(DifferentialEquationSolver.FEM));
+                            femOrder.IsVisible = isFem;
+                            numericSolverChoice.IsVisible = isFem;
+                            lbmDomainSize.IsVisible = !isFem;
+                            lbmRelaxation.IsVisible = !isFem;
+                            lbmGaussianFilter.IsVisible = !isFem;
+                            lbmGaussianKernel.IsVisible = !isFem;
+                            lbmConductivityFilter.IsVisible = !isFem;
+                            lbmConductivityFilterInterval.IsVisible = !isFem;
+                        }
+                    };
+
 
                     return new List<ConfigurationParameter>
                     {
