@@ -53,7 +53,13 @@ namespace Utility.Classes.ReconstructionParameters
         private bool useLbmGaussianFilter = false;
 
         [ObservableProperty]
+        private bool useLbmConductivityFilter = false;
+
+        [ObservableProperty]
         private int lbmGaussianFilterSize = 3;
+
+        [ObservableProperty]
+        private int lbmConductivityFilterInterval = 5;
 
         [ObservableProperty]
         private double conductivityMinimumBound = 0.1;

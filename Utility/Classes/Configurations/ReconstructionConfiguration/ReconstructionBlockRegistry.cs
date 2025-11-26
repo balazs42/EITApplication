@@ -363,28 +363,54 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
                         {
                             var isFem = solverChoice.SelectedOption == FriendlyName(nameof(DifferentialEquationSolver.FEM));
                             femOrder.IsVisible = isFem;
+                            numericSolverChoice.IsVisible = isFem;
                             lbmDomainSize.IsVisible = !isFem;
                             lbmRelaxation.IsVisible = !isFem;
                             lbmGaussianFilter.IsVisible = !isFem;
                             lbmGaussianKernel.IsVisible = !isFem;
+                            lbmConductivityFilter.IsVisible = !isFem;
+                            lbmConductivityFilterInterval.IsVisible = !isFem;
                         }
+                    };
+
+                    var numericSolverChoice = new ChoiceParameter
+                    {
+                        Name = "Numeric Solver",
+                        Key = "numeric_solver",
+                        Options = Enum.GetNames(typeof(NumericSolver)).Select(FriendlyName).ToList(),
+                        SelectedOption = FriendlyName(nameof(NumericSolver.GMRES)),
+                        IsVisible = solverChoice.SelectedOption == FriendlyName(nameof(DifferentialEquationSolver.FEM))
+                    };
+
+                    var lbmConductivityFilter = new BoolParameter
+                    {
+                        Name = "Gaussian Filter Conductivity",
+                        Key = "lbm_conductivity_filter",
+                        Value = false,
+                        IsVisible = solverChoice.SelectedOption == FriendlyName(nameof(DifferentialEquationSolver.LBM))
+                    };
+
+                    var lbmConductivityFilterInterval = new NumberParameter
+                    {
+                        Name = "Conductivity Filter Interval",
+                        Key = "lbm_conductivity_filter_interval",
+                        Value = 5,
+                        Min = 1,
+                        Step = 1,
+                        IsVisible = solverChoice.SelectedOption == FriendlyName(nameof(DifferentialEquationSolver.LBM))
                     };
 
                     return new List<ConfigurationParameter>
                     {
                         solverChoice,
-                        new ChoiceParameter
-                        {
-                            Name = "Numeric Solver",
-                            Key = "numeric_solver",
-                            Options = Enum.GetNames(typeof(NumericSolver)).Select(FriendlyName).ToList(),
-                            SelectedOption = FriendlyName(nameof(NumericSolver.GMRES))
-                        },
+                        numericSolverChoice,
                         femOrder,
                         lbmDomainSize,
                         lbmRelaxation,
                         lbmGaussianFilter,
-                        lbmGaussianKernel
+                        lbmGaussianKernel,
+                        lbmConductivityFilter,
+                        lbmConductivityFilterInterval
                     };
                 },
                 (block, target) =>
@@ -405,8 +431,17 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
                     if (gaussianSize % 2 == 0)
                         gaussianSize += 1;
 
+                    var conductivityFilterToggle = block.Parameters.OfType<BoolParameter>().FirstOrDefault(p => p.Key == "lbm_conductivity_filter")?.Value
+                        ?? target.UseLbmConductivityFilter;
+                    var conductivityFilterIntervalRaw = block.Parameters.OfType<NumberParameter>()
+                        .FirstOrDefault(p => p.Key == "lbm_conductivity_filter_interval")?.Value
+                        ?? target.LbmConductivityFilterInterval;
+                    int conductivityFilterInterval = (int)Math.Max(1, conductivityFilterIntervalRaw);
+
                     target.UseLbmGaussianFilter = gaussianToggle;
                     target.LbmGaussianFilterSize = gaussianSize;
+                    target.UseLbmConductivityFilter = conductivityFilterToggle;
+                    target.LbmConductivityFilterInterval = conductivityFilterInterval;
                 });
 
             yield return new ReconstructionBlockDefinition(

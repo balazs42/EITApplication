@@ -56,6 +56,9 @@ namespace BusinessLayer
         private bool _useOmpParallelization = false;        // enable OMP for FEM assembly
         private bool _useCudaParallelization = false;       // enable CUDA in LBM routines
         private bool _usePotentialDifferences = false;      // represent data as sequential potential differences instead of absolute values
+        private bool _useLbmConductivityFilter = false;     // apply smoothing to conductivity updates on LBM grids
+        private int _lbmConductivityFilterInterval = 5;     // iteration cadence for conductivity smoothing
+        private int _lbmGaussianKernelSize = 3;             // shared kernel size for LBM Gaussian filters
         private NumericSolver _numericSolverChoice = NumericSolver.LU;
         private ErrorMetric _errorMetricChoice = ErrorMetric.L2;
 
@@ -135,18 +138,22 @@ namespace BusinessLayer
                 }
 
                 // Create differential equation solver according to discretization and requested backend
-                int lbmKernelSize = Math.Max(1, parameters.LbmGaussianFilterSize);
+                _lbmGaussianKernelSize = (int)Math.Max(1, parameters.LbmGaussianFilterSize);
+                if (_lbmGaussianKernelSize % 2 == 0)
+                    _lbmGaussianKernelSize += 1;
                 _differentialEquationSolver = DifferentialEquationSolverFactory.Create(discretization,
                                                                                        parameters.DifferentialEquationSolver,
                                                                                        _numericSolver,
                                                                                        _useOmpParallelization,
                                                                                        _useCudaParallelization,
                                                                                        parameters.UseLbmGaussianFilter,
-                                                                                       lbmKernelSize);
+                                                                                       _lbmGaussianKernelSize);
                 _regularizer = RegularizationFactory.Create(parameters.RegularizationTechnique, _discretization);
                 _errorMetricChoice = parameters.ErrorMetric;
                 _errorMetric = ErrorMetricFactory.Create(_errorMetricChoice);
                 _initialDistributionType = parameters.InitialDistributionType;
+                _useLbmConductivityFilter = parameters.UseLbmConductivityFilter;
+                _lbmConductivityFilterInterval = Math.Max(1, parameters.LbmConductivityFilterInterval);
 
                 // Initial conductivity distribution; may be provided externally
                 var initSigma = _initialSigma ?? ConductivityDistributionFactory.CreateInitialDistribution(discretization, _initialDistributionType);
@@ -815,6 +822,91 @@ namespace BusinessLayer
                                             frames);
         }
 
+        private ConductivityDistribution ApplyLbmConductivityGaussianFilter(LBMGrid mesh, ConductivityDistribution source)
+        {
+            int kernelSize = _lbmGaussianKernelSize;
+            if (kernelSize % 2 == 0)
+                kernelSize += 1;
+
+            var kernel1D = BuildBinomialKernel(kernelSize);
+            int half = kernelSize / 2;
+
+            var filtered = new Dictionary<int, double>(source.Conductivities.Count);
+
+            for (int y = 0; y < mesh.Ny; y++)
+            {
+                for (int x = 0; x < mesh.Nx; x++)
+                {
+                    var element = mesh.GetElementAt(x, y);
+                    double original = source.GetConductivity(element.Id);
+
+                    if (element.IsWall || element.GhostElement || element.IsElectrode)
+                    {
+                        filtered[element.Id] = original;
+                        continue;
+                    }
+
+                    double weightedSum = 0.0;
+                    double weightTotal = 0.0;
+
+                    for (int dy = -half; dy <= half; dy++)
+                    {
+                        int ny = y + dy;
+                        if (ny < 0 || ny >= mesh.Ny)
+                            continue;
+
+                        double wy = kernel1D[dy + half];
+
+                        for (int dx = -half; dx <= half; dx++)
+                        {
+                            int nx = x + dx;
+                            if (nx < 0 || nx >= mesh.Nx)
+                                continue;
+
+                            double wx = kernel1D[dx + half];
+                            double weight = wx * wy;
+
+                            var neighbor = mesh.GetElementAt(nx, ny);
+                            if (neighbor.IsWall || neighbor.GhostElement || neighbor.IsElectrode)
+                                continue;
+
+                            weightedSum += weight * source.GetConductivity(neighbor.Id);
+                            weightTotal += weight;
+                        }
+                    }
+
+                    filtered[element.Id] = weightTotal > 0 ? weightedSum / weightTotal : original;
+                }
+            }
+
+            return new ConductivityDistribution(filtered);
+        }
+
+        private static double[] BuildBinomialKernel(int size)
+        {
+            int n = size - 1;
+            double[] coeffs = new double[size];
+
+            for (int k = 0; k < size; k++)
+                coeffs[k] = BinomialCoefficient(n, k);
+
+            return coeffs;
+        }
+
+        private static double BinomialCoefficient(int n, int k)
+        {
+            k = Math.Min(k, n - k);
+            double result = 1.0;
+
+            for (int i = 1; i <= k; i++)
+            {
+                result *= n - (k - i);
+                result /= i;
+            }
+
+            return result;
+        }
+
         /// <summary>
         /// Background reconstruction routine for Lattice Boltzmann meshes.
         /// Mirrors the FEM routine: for each iteration cycles electrode pairs, accumulates data gradients,
@@ -935,6 +1027,13 @@ namespace BusinessLayer
                 mesh.SetConductivityDistribution(updated);
                 // Ghost conductivities are derived quantities; refresh them immediately after interior updates.
                 mesh.UpdateGhostConductivityFromNeighbors();
+
+                if (_useLbmConductivityFilter && (iter + 1) % _lbmConductivityFilterInterval == 0)
+                {
+                    var smoothed = ApplyLbmConductivityGaussianFilter(mesh, mesh.GetConductivityDistribution());
+                    mesh.SetConductivityDistribution(smoothed);
+                    mesh.UpdateGhostConductivityFromNeighbors();
+                }
             }
 
             ConductivityDistribution reconstructed = mesh.GetConductivityDistribution();
