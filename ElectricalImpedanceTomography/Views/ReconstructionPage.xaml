@@ -225,7 +225,7 @@
 
                                 <Label Grid.Row="15"
                                        HorizontalOptions="Start"
-                                       Text="LBM Potential Smoothing"
+                                       Text="Potential Smoothing"
                                        FontFamily="SF Pro Text"
                                        FontAttributes="None"
                                        IsVisible="{Binding IsLbmSolverSelected}"/>
@@ -241,15 +241,12 @@
 
                                 <Label Grid.Row="17"
                                        HorizontalOptions="Start"
-                                       Text="LBM Conductivity Smoothing"
+                                       Text="Conductivity Smoothing"
                                        FontFamily="SF Pro Text"
                                        FontAttributes="None"
                                        IsVisible="{Binding IsLbmSolverSelected}"/>
-                                <Grid Grid.Row="18" ColumnDefinitions="*,Auto" ColumnSpacing="8"
+                                <Grid Grid.Row="18" ColumnDefinitions="Auto" ColumnSpacing="8"
                                       IsVisible="{Binding IsLbmSolverSelected}">
-                                    <Label Text="Filter"
-                                           VerticalOptions="Center"
-                                           FontFamily="SF Pro Text"/>
                                     <Switch Grid.Column="1"
                                             IsToggled="{Binding ReconstructionParameters.UseLbmConductivityFilter}"
                                             HorizontalOptions="End"/>
@@ -398,7 +395,7 @@
             <Grid Grid.Column="1" 
                   BackgroundColor="Transparent"
                   Margin="5"
-                  RowDefinitions="Auto, Auto" 
+                  RowDefinitions="Auto, *" 
                   HorizontalOptions="Center">
 
                 <!-- Control Panel to control reconstruction -->
@@ -406,147 +403,147 @@
                             Grid.Row="0"
                             MaximumWidthRequest="1010"
                             Background="{StaticResource ControlPanelBrush}">
-                    <Border.Stroke>
-                        <SolidColorBrush Color="{AppThemeBinding Light=#3A5F8A, Dark=#3A5F8A}" />
-                    </Border.Stroke>
-                    <Grid ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto"
-                          RowDefinitions="*, Auto"
-                          ColumnSpacing="10"
-                          HorizontalOptions="Center">
-                        <Border x:Name="PlayButton" Grid.Column="0" HeightRequest="60" WidthRequest="60" Margin="5" HorizontalOptions="Center" VerticalOptions="Center" Stroke="Transparent">
-                            <Image Source="icon_play_green.png" WidthRequest="40">
-                                <Image.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnPlayButtonClicked"/>
-                                </Image.GestureRecognizers>
-                                <VisualStateManager.VisualStateGroups>
+                        <Border.Stroke>
+                            <SolidColorBrush Color="{AppThemeBinding Light=#3A5F8A, Dark=#3A5F8A}" />
+                        </Border.Stroke>
+                        <Grid ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto"
+                              RowDefinitions="*, Auto"
+                              ColumnSpacing="10"
+                              HorizontalOptions="Center">
+                            <Border x:Name="PlayButton" Grid.Column="0" HeightRequest="60" WidthRequest="60" Margin="5" HorizontalOptions="Center" VerticalOptions="Center" Stroke="Transparent">
+                                <Image Source="icon_play_green.png" WidthRequest="40">
+                                    <Image.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnPlayButtonClicked"/>
+                                    </Image.GestureRecognizers>
+                                    <VisualStateManager.VisualStateGroups>
                                     
-                                </VisualStateManager.VisualStateGroups>
-                            </Image>
-                        </Border>
-                        <Border x:Name="PauseButton" Grid.Column="0" HeightRequest="50" WidthRequest="50" Margin="5" HorizontalOptions="Center" VerticalOptions="Center" Stroke="Transparent">
-                            <Image Source="icon_pause_blue.png" WidthRequest="40">
+                                    </VisualStateManager.VisualStateGroups>
+                                </Image>
+                            </Border>
+                            <Border x:Name="PauseButton" Grid.Column="0" HeightRequest="50" WidthRequest="50" Margin="5" HorizontalOptions="Center" VerticalOptions="Center" Stroke="Transparent">
+                                <Image Source="icon_pause_blue.png" WidthRequest="40">
+                                    <Image.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnPauseButtonClicked"/>
+                                    </Image.GestureRecognizers>
+                                </Image>
+                            </Border>
+                            <Border x:Name="StepButton" Grid.Column="1" HeightRequest="50" WidthRequest="50" Margin="5" Stroke="Transparent">
+                                <Image Source="icon_next_blue.png" WidthRequest="40">
+                                    <Image.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnStepButtonClicked"/>
+                                    </Image.GestureRecognizers>
+                                </Image>
+                            </Border>
+                            <Border x:Name="StopButton" Grid.Column="2" HeightRequest="50" WidthRequest="50" Margin="5" Stroke="Transparent">
+                                <Image Source="icon_stop_red.png" WidthRequest="40">
+                                    <Image.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnStopButtonClicked"/>
+                                    </Image.GestureRecognizers>
+                                </Image>
+                            </Border>
+
+                            <Label Grid.Column="3" HorizontalOptions="Center" WidthRequest="100"  VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding IterationCount, StringFormat='Iteration: {0}'}" TextColor="#F0F4FF"/>
+                            <Label Grid.Column="4" HorizontalOptions="Center" WidthRequest="160" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding Residual, StringFormat='Residual: {0:F3} [mV]'}" TextColor="#F0F4FF"/>
+
+                            <Border Grid.Column="5" Margin="2" Background="Transparent" Stroke="Transparent">
+                                <Button Text="Reset Reconstruction" Margin="10" BackgroundColor="DarkRed" TextColor="White" FontAttributes="Bold" Clicked="OnResetReconstructionClicked"/>
+                            </Border>
+                            <Border Grid.Column="6" Margin="2" Background="Transparent" Stroke="Transparent">
+                            </Border>
+                            <Picker x:Name="PotentialModePicker"
+                                    Margin="5"
+                                    Grid.Column="7"
+                                    TitleColor="#9DAAD3"
+                                    TextColor="#F0F4FF"
+                                    HorizontalOptions="Center"
+                                    VerticalOptions="Center"
+                                    SelectedItem="Default"
+                                    Title="Potential Display Mode">
+                                <Picker.Items>
+                                    <x:String>Default</x:String>
+                                    <x:String>Grayscale</x:String>
+                                    <x:String>Inverted</x:String>
+                                    <x:String>Heatmap</x:String>
+                                    <x:String>Rainbow</x:String>
+                                </Picker.Items>
+                            </Picker>
+                            <Border Grid.Column="5" Grid.Row="1" Background="Transparent" Stroke="Transparent">
+                                <Button x:Name="ExportVideoButton"
+                                        Text="Export"
+                                        Margin="10"
+                                        BackgroundColor="#3A7CA5"
+                                        TextColor="White"
+                                        FontAttributes="Bold"
+                                        Clicked="OnExportClicked"
+                                        IsEnabled="False"/>
+                            </Border>
+                            <Picker x:Name="ConductivityModePicker"
+                                    Margin="5"
+                                    Grid.Column="7"
+                                    Grid.Row="1"
+                                    TitleColor="#9DAAD3"
+                                    TextColor="#F0F4FF"
+                                    HorizontalOptions="Center"
+                                    VerticalOptions="Center"
+                                    Title="Conductivity Display Mode">
+                                <Picker.Items>
+                                    <x:String>Classic</x:String>
+                                    <x:String>Enhanced Diverging</x:String>
+                                    <x:String>Rainbow</x:String>
+                                </Picker.Items>
+                            </Picker>
+                            <Slider x:Name="PlaybackSlider"
+                                    Margin="5"
+                                    Grid.Row="1"
+                                    WidthRequest="250"
+                                    VerticalOptions="Center"
+                                    HorizontalOptions="Center"
+                                    Grid.ColumnSpan="3"
+                                    Minimum="0"
+                                    Maximum="0"
+                                    ValueChanged="OnPlaybackSliderValueChanged" />
+                            <Label x:Name="PlaybackFrameLabel"
+                                   WidthRequest="100"
+                                   Grid.Row="1"
+                                   Grid.Column="3"
+                                   VerticalOptions="Center"
+                                   Text="0 / 0"
+                                   FontFamily="SF Pro Text"/>
+
+                            <Image x:Name="PlayerForwardButton"
+                                   Grid.Row="1"
+                                   Grid.Column="4"
+                                   Source="icon_next_player.png"
+                                   HeightRequest="35"
+                                   WidthRequest="35"
+                                   HorizontalOptions="Start"
+                                   Rotation="180"
+                                   Margin="5"
+                                   IsEnabled="False">
+                                <Image.Shadow>
+                                    <Shadow Brush="White" Opacity="1.0" Radius="1.0"/>
+                                </Image.Shadow>
                                 <Image.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnPauseButtonClicked"/>
+                                    <TapGestureRecognizer Tapped="OnPlayerBackButtontapped"/>
                                 </Image.GestureRecognizers>
                             </Image>
-                        </Border>
-                        <Border x:Name="StepButton" Grid.Column="1" HeightRequest="50" WidthRequest="50" Margin="5" Stroke="Transparent">
-                            <Image Source="icon_next_blue.png" WidthRequest="40">
+                            <Image x:Name="PlayerBackButton"
+                                   Grid.Row="1"
+                                   Grid.Column="4"
+                                   Source="icon_next_player.png"
+                                   HeightRequest="35"
+                                   WidthRequest="35"
+                                   HorizontalOptions="End"
+                                   Margin="5"
+                                   IsEnabled="False">
+                                <Image.Shadow>
+                                    <Shadow Brush="White" Opacity="1.0" Radius="1.0"/>
+                                </Image.Shadow>
                                 <Image.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnStepButtonClicked"/>
+                                    <TapGestureRecognizer Tapped="OnPlayerForwardButtontapped"/>
                                 </Image.GestureRecognizers>
                             </Image>
-                        </Border>
-                        <Border x:Name="StopButton" Grid.Column="2" HeightRequest="50" WidthRequest="50" Margin="5" Stroke="Transparent">
-                            <Image Source="icon_stop_red.png" WidthRequest="40">
-                                <Image.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnStopButtonClicked"/>
-                                </Image.GestureRecognizers>
-                            </Image>
-                        </Border>
-
-                        <Label Grid.Column="3" HorizontalOptions="Center" WidthRequest="100"  VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding IterationCount, StringFormat='Iteration: {0}'}" TextColor="#F0F4FF"/>
-                        <Label Grid.Column="4" HorizontalOptions="Center" WidthRequest="160" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding Residual, StringFormat='Residual: {0:F3} [mV]'}" TextColor="#F0F4FF"/>
-
-                        <Border Grid.Column="5" Margin="2" Background="Transparent" Stroke="Transparent">
-                            <Button Text="Reset Reconstruction" Margin="10" BackgroundColor="DarkRed" TextColor="White" FontAttributes="Bold" Clicked="OnResetReconstructionClicked"/>
-                        </Border>
-                        <Border Grid.Column="6" Margin="2" Background="Transparent" Stroke="Transparent">
-                        </Border>
-                        <Picker x:Name="PotentialModePicker"
-                                Margin="5"
-                                Grid.Column="7"
-                                TitleColor="#9DAAD3"
-                                TextColor="#F0F4FF"
-                                HorizontalOptions="Center"
-                                VerticalOptions="Center"
-                                SelectedItem="Default"
-                                Title="Potential Display Mode">
-                            <Picker.Items>
-                                <x:String>Default</x:String>
-                                <x:String>Grayscale</x:String>
-                                <x:String>Inverted</x:String>
-                                <x:String>Heatmap</x:String>
-                                <x:String>Rainbow</x:String>
-                            </Picker.Items>
-                        </Picker>
-                        <Border Grid.Column="5" Grid.Row="1" Background="Transparent" Stroke="Transparent">
-                            <Button x:Name="ExportVideoButton"
-                                    Text="Export"
-                                    Margin="10"
-                                    BackgroundColor="#3A7CA5"
-                                    TextColor="White"
-                                    FontAttributes="Bold"
-                                    Clicked="OnExportClicked"
-                                    IsEnabled="False"/>
-                        </Border>
-                        <Picker x:Name="ConductivityModePicker"
-                                Margin="5"
-                                Grid.Column="7"
-                                Grid.Row="1"
-                                TitleColor="#9DAAD3"
-                                TextColor="#F0F4FF"
-                                HorizontalOptions="Center"
-                                VerticalOptions="Center"
-                                Title="Conductivity Display Mode">
-                            <Picker.Items>
-                                <x:String>Classic</x:String>
-                                <x:String>Enhanced Diverging</x:String>
-                                <x:String>Rainbow</x:String>
-                            </Picker.Items>
-                        </Picker>
-                        <Slider x:Name="PlaybackSlider"
-                                Margin="5"
-                                Grid.Row="1"
-                                WidthRequest="250"
-                                VerticalOptions="Center"
-                                HorizontalOptions="Center"
-                                Grid.ColumnSpan="3"
-                                Minimum="0"
-                                Maximum="0"
-                                ValueChanged="OnPlaybackSliderValueChanged" />
-                        <Label x:Name="PlaybackFrameLabel"
-                               WidthRequest="100"
-                               Grid.Row="1"
-                               Grid.Column="3"
-                               VerticalOptions="Center"
-                               Text="0 / 0"
-                               FontFamily="SF Pro Text"/>
-
-                        <Image x:Name="PlayerForwardButton"
-                               Grid.Row="1"
-                               Grid.Column="4"
-                               Source="icon_next_player.png"
-                               HeightRequest="35"
-                               WidthRequest="35"
-                               HorizontalOptions="Start"
-                               Rotation="180"
-                               Margin="5"
-                               IsEnabled="False">
-                            <Image.Shadow>
-                                <Shadow Brush="White" Opacity="1.0" Radius="1.0"/>
-                            </Image.Shadow>
-                            <Image.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnPlayerBackButtontapped"/>
-                            </Image.GestureRecognizers>
-                        </Image>
-                        <Image x:Name="PlayerBackButton"
-                               Grid.Row="1"
-                               Grid.Column="4"
-                               Source="icon_next_player.png"
-                               HeightRequest="35"
-                               WidthRequest="35"
-                               HorizontalOptions="End"
-                               Margin="5"
-                               IsEnabled="False">
-                            <Image.Shadow>
-                                <Shadow Brush="White" Opacity="1.0" Radius="1.0"/>
-                            </Image.Shadow>
-                            <Image.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnPlayerForwardButtontapped"/>
-                            </Image.GestureRecognizers>
-                        </Image>
-                    </Grid>
+                        </Grid>
                 </Border>
 
                 <!-- Displays for reconstruction steps -->
@@ -619,8 +616,6 @@
             </Grid>
             <Grid Grid.Column="2" 
                   WidthRequest="270"
-                  RowDefinitions="Auto, Auto, Auto" 
-                  RowSpacing="10" 
                   Margin="5"
                   HorizontalOptions="End">
                 <!--

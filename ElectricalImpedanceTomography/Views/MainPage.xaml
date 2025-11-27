@@ -68,7 +68,7 @@
         <converters:MessageTypeToColorConverter x:Key="MessageTypeToColorConverter"/>
     </ContentPage.Resources>
 
-    <Grid ColumnDefinitions="280, *, 320"
+    <Grid ColumnDefinitions="280,5, *,5, 320"
           Padding="0">
 
         <!-- LEFT SIDEBAR -->
@@ -190,8 +190,9 @@
             </VerticalStackLayout>
         </Grid>
 
+        <BoxView Grid.Column="1" WidthRequest="1" BackgroundColor="#CCCCCC"/>
         <!-- CENTER WORKSPACE -->
-        <Grid Grid.Column="1">
+        <Grid Grid.Column="2">
             <!-- BACKGROUND LAYER: Dotted Pattern -->
             <GraphicsView x:Name="BackgroundGraphics"
                           InputTransparent="True"/>
@@ -277,8 +278,9 @@
             </Grid>
         </Grid>
 
+        <BoxView Grid.Column="3" WidthRequest="1" BackgroundColor="#CCCCCC"/>
         <!-- RIGHT SIDEBAR: Config -->
-        <Grid Grid.Column="2" BackgroundColor="{StaticResource Slate900}" RowDefinitions="Auto, *" Padding="15">
+        <Grid Grid.Column="4" BackgroundColor="{StaticResource Slate900}" RowDefinitions="Auto, *" Padding="15">
             <VerticalStackLayout Grid.Row="0" Spacing="15">
                 <Grid ColumnDefinitions="Auto, *" ColumnSpacing="8">
                     <Path Fill="{StaticResource Slate700}" Data="{StaticResource IconSettings}" HorizontalOptions="Start" VerticalOptions="Center" Aspect="Uniform" HeightRequest="14" WidthRequest="14"/>

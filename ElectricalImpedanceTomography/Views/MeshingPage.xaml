@@ -28,7 +28,7 @@
             <PathGeometry x:Key="IconChevronDown" Figures="M6 9l6 6 6-6"/>
 
             <Style TargetType="Label" x:Key="HeaderLabel">
-                <Setter Property="FontSize" Value="10"/>
+                <Setter Property="FontSize" Value="Small"/>
                 <Setter Property="FontAttributes" Value="Bold"/>
                 <Setter Property="TextColor" Value="{StaticResource TextSecondary}"/>
                 <Setter Property="TextTransform" Value="Uppercase"/>
@@ -36,7 +36,7 @@
             </Style>
 
             <Style TargetType="Label" x:Key="PropLabel">
-                <Setter Property="FontSize" Value="11"/>
+                <Setter Property="FontSize" Value="16"/>
                 <Setter Property="TextColor" Value="{StaticResource TextSecondary}"/>
                 <Setter Property="VerticalOptions" Value="Center"/>
             </Style>
@@ -51,8 +51,8 @@
             <Style TargetType="Button" x:Key="ToolbarBtn">
                 <Setter Property="BackgroundColor" Value="#1A1D24"/>
                 <Setter Property="TextColor" Value="{StaticResource TextPrimary}"/>
-                <Setter Property="FontSize" Value="11"/>
-                <Setter Property="FontAttributes" Value="Bold"/>
+                <Setter Property="FontSize" Value="Small"/>
+                <Setter Property="FontAttributes" Value="Italic"/>
                 <Setter Property="BorderColor" Value="{StaticResource BorderColor}"/>
                 <Setter Property="BorderWidth" Value="1"/>
                 <Setter Property="CornerRadius" Value="4"/>
@@ -63,7 +63,7 @@
             <Style TargetType="Button" x:Key="PrimaryBtn">
                 <Setter Property="BackgroundColor" Value="#0891b2"/>
                 <Setter Property="TextColor" Value="White"/>
-                <Setter Property="FontSize" Value="11"/>
+                <Setter Property="FontSize" Value="Small"/>
                 <Setter Property="FontAttributes" Value="Bold"/>
                 <Setter Property="BorderColor" Value="#06b6d4"/>
                 <Setter Property="BorderWidth" Value="1"/>
@@ -94,22 +94,21 @@
                 <Grid RowDefinitions="Auto, *, Auto">
                     <VerticalStackLayout Grid.Row="0" Padding="16,16,16,0" Spacing="8">
                         <Label Text="SOLVER METHOD" Style="{StaticResource HeaderLabel}" Margin="0"/>
-                            <Grid ColumnDefinitions="*, Auto">
-                                <Picker ItemsSource="{Binding MeshTypes}" 
-                                        SelectedItem="{Binding SelectedMeshType}"
-                                        VerticalOptions="Center"/>
-                            </Grid>
-                        </VerticalStackLayout>
-
+                        <Grid ColumnDefinitions="*, Auto">
+                            <Picker ItemsSource="{Binding MeshTypes}" 
+                                    FontSize="Micro"
+                                    SelectedItem="{Binding SelectedMeshType}"
+                                    VerticalOptions="Center"/>
+                        </Grid>
+                    </VerticalStackLayout>
                     <ScrollView Grid.Row="1" Padding="16,0,16,16">
                         <VerticalStackLayout>
 
                             <!-- FEM Controls -->
                             <VerticalStackLayout IsVisible="{Binding IsFEM}" Spacing="2">
                                 <Label Text="DISCRETIZATION" Style="{StaticResource HeaderLabel}"/>
-
                                 <Label Text="Geometry" Style="{StaticResource PropLabel}" Margin="0,0,0,4"/>
-                                    <Picker ItemsSource="{Binding GeometryTypes}" SelectedItem="{Binding SelectedGeometry}" VerticalOptions="Center"/>
+                                    <Picker ItemsSource="{Binding GeometryTypes}" SelectedItem="{Binding SelectedGeometry}" FontSize="Micro" VerticalOptions="Center"/>
                                
                                 <controls:PlusMinusEntryControl LabelText="Layers" 
                                                                 Value="{Binding Layers}" 
@@ -143,18 +142,18 @@
 
                                 <Label Text="CONFIGURATION" Style="{StaticResource HeaderLabel}"/>
 
-                                <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,8">
+                                <Grid ColumnDefinitions="*, 50" Margin="0,0,0,8">
                                     <Label Text="Use Virtual Electrodes" Style="{StaticResource PropLabel}"/>
-                                    <Switch Grid.Column="2" IsToggled="{Binding VirtualElectrodeSettings.UseVirtualElectrodes}" OnColor="{StaticResource PrimaryAccent}"/>
+                                    <Switch Grid.Column="1" IsToggled="{Binding VirtualElectrodeSettings.UseVirtualElectrodes}" OnColor="{StaticResource PrimaryAccent}" HorizontalOptions="End"/>
                                 </Grid>
 
-                                <VerticalStackLayout IsVisible="{Binding VirtualElectrodeSettings.UseVirtualElectrodes}" Margin="0,0,0,12">
+                                <Grid ColumnDefinitions="*, Auto" IsVisible="{Binding VirtualElectrodeSettings.UseVirtualElectrodes}" Margin="0,0,0,12">
                                     <Label Text="Virtual per gap" Style="{StaticResource PropLabel}"/>
-                                    <Entry Text="{Binding VirtualElectrodeSettings.VirtualElectrodesPerGap}" Style="{StaticResource PropEntry}" HorizontalOptions="Fill"/>
-                                </VerticalStackLayout>
+                                    <Entry Grid.Column="1" VerticalOptions="End" Text="{Binding VirtualElectrodeSettings.VirtualElectrodesPerGap}" Style="{StaticResource PropEntry}" HorizontalOptions="End"/>
+                                </Grid>
 
                                 <Label Text="Drive Pattern" Style="{StaticResource PropLabel}" Margin="0,0,0,4"/>
-                                <Picker ItemsSource="{Binding DrivePatterns}" SelectedItem="{Binding SelectedDrivePattern}" VerticalOptions="Center"/>
+                                <Picker ItemsSource="{Binding DrivePatterns}" SelectedItem="{Binding SelectedDrivePattern}" FontSize="Micro" VerticalOptions="Center"/>
                             </VerticalStackLayout>
 
                             <!-- LBM Controls -->
@@ -162,7 +161,7 @@
                                 <Label Text="GRID PARAMETERS" Style="{StaticResource HeaderLabel}"/>
 
                                 <Label Text="Geometry" Style="{StaticResource PropLabel}" Margin="0,0,0,4"/>
-                                <Picker ItemsSource="{Binding GeometryTypes}" SelectedItem="{Binding SelectedGeometry}" VerticalOptions="Center"/>
+                                <Picker ItemsSource="{Binding GeometryTypes}" SelectedItem="{Binding SelectedGeometry}" FontSize="Micro" VerticalOptions="Center"/>
 
                                 <controls:PlusMinusEntryControl LabelText="Width (X)" 
                                                                 Value="{Binding Nx}" 
@@ -184,7 +183,7 @@
                                                                 Value="{Binding ElectrodeContactImpedance}" 
                                                                 Min="0" Max="10" />
 
-                                <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,8">
+                                <Grid ColumnDefinitions="*, 50" Margin="0,0,0,8">
                                     <Label Text="Use Virtual Electrodes" Style="{StaticResource PropLabel}"/>
                                     <Switch Grid.Column="1" IsToggled="{Binding VirtualElectrodeSettings.UseVirtualElectrodes}" OnColor="{StaticResource PrimaryAccent}"/>
                                 </Grid>
@@ -213,10 +212,6 @@
                             <Button Style="{StaticResource ToolbarBtn}" Text="SAVE" Clicked="OnSaveClicked"/>
                             <Button Style="{StaticResource ToolbarBtn}" Text="LOAD" Clicked="OnLoadClicked"/>
                             <Button Style="{StaticResource ToolbarBtn}" Text="CLEAR" TextColor="#f87171" Clicked="OnClearClicked"/>
-                            <VerticalStackLayout IsVisible="{Binding InhomogenityEditing}">
-                                <Label Text="Inhomogeneity Value" Style="{StaticResource PropLabel}"/>
-                                <Entry Text="{Binding InhomogenityValue}" Style="{StaticResource PropEntry}" HorizontalOptions="Fill"/>
-                            </VerticalStackLayout>
                         </HorizontalStackLayout>
 
                         <HorizontalStackLayout Grid.Column="2" Spacing="4" VerticalOptions="Center">
@@ -240,8 +235,14 @@
 
                             <Border Stroke="{StaticResource PrimaryAccent}" StrokeThickness="1" BackgroundColor="#1A06b6d4" StrokeShape="RoundRectangle 4" Padding="8,4">
                                 <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
-                                    <Label Text="EDIT MODE" FontSize="10" FontAttributes="Bold" TextColor="{StaticResource PrimaryAccent}" VerticalOptions="Center"/>
-                                    <CheckBox IsChecked="{Binding InhomogenityEditing}" Color="{StaticResource PrimaryAccent}"/>
+                                    <HorizontalStackLayout IsVisible="{Binding InhomogenityEditing}" Padding="5" Spacing="10">
+                                        <Label Text="Inhomogeneity Value" Style="{StaticResource PropLabel}"/>
+                                        <Entry Text="{Binding InhomogenityValue}" Style="{StaticResource PropEntry}" FontSize="Micro" HorizontalOptions="Fill"/>
+                                    </HorizontalStackLayout>
+                                    <Grid ColumnDefinitions="40, *">
+                                        <CheckBox Grid.Column="0" HorizontalOptions="Center" ScaleX="1" ScaleY="1" VerticalOptions="Center" IsChecked="{Binding InhomogenityEditing}" Color="{StaticResource PrimaryAccent}"/>
+                                        <Label Grid.Column="1" HorizontalOptions="Center" Text="EDIT MODE" FontSize="10" FontAttributes="Bold" TextColor="{StaticResource PrimaryAccent}" VerticalOptions="Center"/>
+                                    </Grid>
                                 </HorizontalStackLayout>
                             </Border>
                         </HorizontalStackLayout>
@@ -310,7 +311,7 @@
                                             <Label Grid.Row="0" Text="{Binding Name}" TextColor="{StaticResource TextPrimary}" FontSize="Small" FontAttributes="Bold" FontFamily="SF Pro Text" LineBreakMode="TailTruncation"/>
                                             <Grid Grid.Row="1" ColumnDefinitions="Auto, *" Margin="0,4,0,0">
                                                 <Label Grid.Column="0" Text="{Binding Generator}" FontSize="9" TextColor="{StaticResource TextMuted}" BackgroundColor="#090b10" Padding="4,2"/>
-                                                <Label Grid.Column="1" Text="{Binding Metadata.CreatedOn, StringFormat='{0:MM/dd HH:mm}'}" FontSize="9" TextColor="{StaticResource TextMuted}" HorizontalOptions="End"/>
+                                                <Label Grid.Column="1" Text="{Binding Metadata.CreatedOn, StringFormat='{0:MM/dd HH:mm}'}" FontSize="Micro" TextColor="{StaticResource TextMuted}" HorizontalOptions="Center"/>
                                             </Grid>
                                         </Grid>
                                         <Border.GestureRecognizers>

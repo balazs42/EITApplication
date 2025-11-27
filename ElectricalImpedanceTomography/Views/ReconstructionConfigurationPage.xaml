@@ -111,8 +111,8 @@
                 <!-- ACTIONS (Updated) -->
                 <VerticalStackLayout Grid.Row="2" VerticalOptions="End" Spacing="10">
                         <Button Text="Use this configuration"
-                                HorizontalOptions="Start"
-                                VerticalOptions="Start"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center"
                                 Margin="12"
                                 Padding="14,8"
                                 BackgroundColor="{StaticResource Accent}"

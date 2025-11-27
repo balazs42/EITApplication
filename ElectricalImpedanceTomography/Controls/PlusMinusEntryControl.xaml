@@ -18,7 +18,7 @@
                 <Setter Property="BorderColor" Value="{StaticResource BorderColor}"/>
                 <Setter Property="BorderWidth" Value="1"/>
                 <Setter Property="CornerRadius" Value="4"/>
-                <Setter Property="HeightRequest" Value="20"/>
+                <Setter Property="HeightRequest" Value="30"/>
                 <Setter Property="WidthRequest" Value="20"/>
                 <Setter Property="Padding" Value="0"/>
             </Style>
@@ -26,10 +26,9 @@
             <Style TargetType="Entry" x:Key="PropEntry">
                 <Setter Property="BackgroundColor" Value="{StaticResource InputBackground}"/>
                 <Setter Property="TextColor" Value="{StaticResource PrimaryAccent}"/>
-                <Setter Property="FontSize" Value="11"/>
+                <Setter Property="FontSize" Value="Micro"/>
                 <Setter Property="FontFamily" Value="Monospace"/>
-                <Setter Property="HorizontalTextAlignment" Value="Center"/>
-                <Setter Property="HeightRequest" Value="24"/>
+                <Setter Property="MaximumHeightRequest" Value="24"/>
             </Style>
 
             <Style TargetType="Slider">
@@ -40,17 +39,18 @@
         </ResourceDictionary>
     </ContentView.Resources>
 
-    <VerticalStackLayout Spacing="0">
+    <VerticalStackLayout Spacing="2">
         <!-- Label Row -->
         <Label Text="{Binding Source={x:Reference Root}, Path=LabelText}"
-               FontSize="11"
+               FontSize="Micro"
                TextColor="{StaticResource TextSecondary}"
                VerticalOptions="Center"
-               Margin="0,0,0,4"/>
+               Margin="0,4,0,4"/>
 
         <!-- Control Row -->
-        <Grid ColumnDefinitions="*, Auto, 40, Auto" ColumnSpacing="8" Margin="0,0,0,12">
+        <Grid ColumnDefinitions="*, Auto, 50, Auto" ColumnSpacing="8" Margin="0,0,0,12">
             <Slider Grid.Column="0"
+                    VerticalOptions="Center"
                     Value="{Binding Source={x:Reference Root}, Path=Value}"
                     Minimum="{Binding Source={x:Reference Root}, Path=Min}"
                     Maximum="{Binding Source={x:Reference Root}, Path=Max}"/>

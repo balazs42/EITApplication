@@ -18,11 +18,11 @@
         <ShellContent Title="Meshing" Route="MeshingPage">
             <views:MeshingPage />
         </ShellContent>
-        <ShellContent Title="Reconstruction" Route="ReconstructionPage">
-            <views:ReconstructionPage />
-        </ShellContent>
         <ShellContent Title="Reconstruction Configuration" Route="ReconstructionConfigurationPage">
             <views:ReconstructionConfigurationPage />
+        </ShellContent>
+        <ShellContent Title="Reconstruction" Route="ReconstructionPage">
+            <views:ReconstructionPage />
         </ShellContent>
     </TabBar>
 
