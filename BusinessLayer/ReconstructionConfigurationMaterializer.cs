@@ -62,9 +62,6 @@ namespace BusinessLayer
             var originalDistribution = new ConductivityDistribution(mesh.GetConductivityDistribution().Conductivities);
             var initialDistribution = BuildInitialDistribution(mesh, parameters, configuration.Blocks);
 
-            // Ensure the mesh used by the reconstruction pipeline begins from the initial distribution.
-            mesh.SetConductivityDistribution(new ConductivityDistribution(initialDistribution.Conductivities));
-
             var errorMetrics = configuration.Blocks
                 .Where(b => b.Type == BlockType.ErrorMetric)
                 .Select(block =>

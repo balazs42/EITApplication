@@ -42,6 +42,8 @@ namespace BusinessLayer
         private Dictionary<string, (double weight, IErrorMetric errorMetric)> _errorMetricMap = new();
         private Dictionary<string, (double weight, INumericOptimizer optimizer)> _optimizerMap = new();
 
+        private bool _initialized = false; 
+
         /// <summary>
         /// Exposes the active differential equation solver so services can share it with
         /// measurement preparation pipelines.
@@ -50,6 +52,9 @@ namespace BusinessLayer
 
         public void Initialize(CompleteReconstructionConfiguration configuration)
         {
+            if(_initialized)
+                return;
+
             _completeReconstructionConfiguration = configuration ?? throw new ArgumentNullException(nameof(configuration));
 
             RuntimeContext = ReconstructionConfigurationMaterializer.Materialize(configuration);
@@ -68,6 +73,8 @@ namespace BusinessLayer
             _connections = RuntimeContext.AllConnections;
 
             BuildLookupMaps();
+
+            _initialized = true;
         }
 
         /// <summary>
