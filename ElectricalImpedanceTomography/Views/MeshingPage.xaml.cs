@@ -13,6 +13,9 @@ public partial class MeshingPage : ContentPage
 {
     private readonly MeshingPageViewModel _viewModel;
 
+    private readonly SKPaint _gridPaintMajor = new() { Style = SKPaintStyle.Stroke, Color = SKColor.Parse("#253045"), StrokeWidth = 1 };
+    private readonly SKPaint _gridPaintMinor = new() { Style = SKPaintStyle.Stroke, Color = SKColor.Parse("#1A2332"), StrokeWidth = 1 };
+
     // paints for LBM drawing
     private readonly SKPaint _lbmDefault = new() { Style = SKPaintStyle.Fill, Color = SKColors.White };
     private readonly SKPaint _lbmWall = new() { Style = SKPaintStyle.Fill, Color = SKColors.Black };
@@ -148,7 +151,27 @@ public partial class MeshingPage : ContentPage
     private void OnMeshCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
         var canvas = e.Surface.Canvas;
-        canvas.Clear(SKColor.Parse("#1C2638"));
+        var info = e.Info;
+
+        // 1. Draw Background (Dark Blue/Black)
+        canvas.Clear(SKColor.Parse("#13161C"));
+
+        // 2. Draw Checkerboard/Grid Pattern
+        float gridSize = 40.0f;
+
+        // Draw Vertical Lines
+        for (float x = 0; x < info.Width; x += gridSize)
+        {
+            canvas.DrawLine(x, 0, x, info.Height, (x % (gridSize * 5) == 0) ? _gridPaintMajor : _gridPaintMinor);
+        }
+
+        // Draw Horizontal Lines
+        for (float y = 0; y < info.Height; y += gridSize)
+        {
+            canvas.DrawLine(0, y, info.Width, y, (y % (gridSize * 5) == 0) ? _gridPaintMajor : _gridPaintMinor);
+        }
+
+        // 3. Draw Mesh Content
         var mesh = _viewModel.GetCurrentMesh();
         if (mesh is null)
         {
@@ -279,68 +302,50 @@ public partial class MeshingPage : ContentPage
         }
     }
 
-        private async void OnClearClicked(object sender, EventArgs e)
-        {
-            if (sender is VisualElement v) await ShrinkViewAsync(v);
-            _outlinePoints.Clear();
-            _selectedCells.Clear();
-            _outlineClosed = false;
-            _isDrawing = false;
-            _viewModel.HoveredElementInfo = string.Empty;
-            _viewModel.PushState();
-            _viewModel.Clear();
-            MeshCanvas.InvalidateSurface();
-        }
-
-    private async void OnEditClicked(object sender, TappedEventArgs e)
+    private async void OnClearClicked(object sender, EventArgs e)
     {
         if (sender is VisualElement v) await ShrinkViewAsync(v);
-        bool isChecked = EditingCheckbox.IsChecked;
-
-        if (isChecked)
-        {
-            EditingCheckbox.IsChecked = false;
-            _viewModel.InhomogenityEditing = false;
-        }
-        else
-        {
-            EditingCheckbox.IsChecked = true;
-            _viewModel.InhomogenityEditing = true;
-        }
-
+        _outlinePoints.Clear();
+        _selectedCells.Clear();
+        _outlineClosed = false;
+        _isDrawing = false;
+        _viewModel.HoveredElementInfo = string.Empty;
+        _viewModel.PushState();
+        _viewModel.Clear();
         MeshCanvas.InvalidateSurface();
     }
 
-    private async void OnUndoClicked(object sender, TappedEventArgs e)
+
+    private async void OnUndoClicked(object sender, EventArgs e)
     {
         if (sender is VisualElement v) await ShrinkViewAsync(v);
         _viewModel.Undo();
         MeshCanvas.InvalidateSurface();
     }
 
-    private async void OnRedoClicked(object sender, TappedEventArgs e)
+    private async void OnRedoClicked(object sender, EventArgs e)
     {
         if (sender is VisualElement v) await ShrinkViewAsync(v);
         _viewModel.Redo();
         MeshCanvas.InvalidateSurface();
     }
 
-        private void DrawPolygonPreview(SKCanvas canvas)
-        {
-            if (_outlinePoints.Count < 1)
-                return;
+    private void DrawPolygonPreview(SKCanvas canvas)
+    {
+        if (_outlinePoints.Count < 1)
+            return;
 
-            using var path = new SKPath();
-            path.MoveTo(_outlinePoints[0]);
-            for (int i = 1; i < _outlinePoints.Count; i++)
-                path.LineTo(_outlinePoints[i]);
-            if (_outlineClosed)
-                path.Close();
-            canvas.DrawPath(path, _femStroke);
+        using var path = new SKPath();
+        path.MoveTo(_outlinePoints[0]);
+        for (int i = 1; i < _outlinePoints.Count; i++)
+            path.LineTo(_outlinePoints[i]);
+        if (_outlineClosed)
+            path.Close();
+        canvas.DrawPath(path, _femStroke);
 
-            foreach (var p in _outlinePoints)
-                canvas.DrawCircle(p, 3f, _pointFill);
-        }
+        foreach (var p in _outlinePoints)
+            canvas.DrawCircle(p, 3f, _pointFill);
+    }
 
     private async void OnAddNoiseTapped(object sender, TappedEventArgs e)
     {
