@@ -13,16 +13,26 @@ namespace ElectricalImpedanceTomography.Views
     {
         private readonly MainPageViewModel _viewModel;
 
-        // Reusable paints to avoid repeated allocations during drawing
-        private readonly SKPaint _lbmFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.Black };
-        private readonly SKPaint _lbmWall = new() { Style = SKPaintStyle.Fill, Color = SKColors.White };
-        private readonly SKPaint _lbmElectrode = new() { Style = SKPaintStyle.Fill, Color = SKColors.Orange };
-        private readonly SKPaint _lbmStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.LightGray, StrokeWidth = 1 };
+        // Paints for Mesh (Stylized)
+        private readonly SKPaint _lbmFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.Black, IsAntialias = true };
+        private readonly SKPaint _lbmWall = new() { Style = SKPaintStyle.Fill, Color = SKColors.White, IsAntialias = true };
+        private readonly SKPaint _lbmElectrode = new() { Style = SKPaintStyle.Fill, Color = SKColors.Orange, IsAntialias = true };
+        private readonly SKPaint _lbmStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.LightGray, StrokeWidth = 1, IsAntialias = true };
 
-        private readonly SKPaint _femStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1 };
-        private readonly SKPaint _femFill = new() { Style = SKPaintStyle.Fill };
-        private readonly SKPaint _electrodeFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.Yellow };
+        // FEM: Thinner strokes, Anti-aliased, Vibrant fill
+        private readonly SKPaint _femStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 0.5f, IsAntialias = true };
+        private readonly SKPaint _femFill = new() { Style = SKPaintStyle.Fill, IsAntialias = true };
+        private readonly SKPaint _electrodeFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.Yellow, IsAntialias = true };
         private readonly SKPaint _electrodeSegmentStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Gold, StrokeWidth = 3, IsAntialias = true };
+
+        // Paints for HEADER Text
+        private readonly SKPaint _textPaint = new()
+        {
+            TextSize = 80,
+            IsAntialias = true,
+            Typeface = SKTypeface.FromFamilyName("Arial", SKFontStyleWeight.Bold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright),
+            TextAlign = SKTextAlign.Center
+        };
 
         private float _scale, _marginX, _marginY, _minX, _minY, _meshWidth, _meshHeight;
 
@@ -30,10 +40,11 @@ namespace ElectricalImpedanceTomography.Views
         {
             InitializeComponent();
 
+            // Set the background drawable for dots
+            BackgroundGraphics.Drawable = new DotPatternDrawable();
+
             _viewModel = Utility.Composition.Container.ResolveObject<MainPageViewModel>();
-
             BindingContext = _viewModel;
-
             _viewModel.DebugLog.CollectionChanged += OnDebugLogChanged;
             _viewModel.MeshUpdated += () => MeshCanvasView?.InvalidateSurface();
         }
@@ -41,32 +52,57 @@ namespace ElectricalImpedanceTomography.Views
         protected override void OnAppearing()
         {
             base.OnAppearing();
-            var (startColor, endColor) = GetBackgroundPulseColors();
-            this.StartBackgroundPulse(startColor, endColor);
             MeshCanvasView?.InvalidateSurface();
+            HeaderCanvasView?.InvalidateSurface();
             if (ConsoleScroll != null && ConsoleStack != null)
-                MainThread.BeginInvokeOnMainThread(async () =>
-                    await ConsoleScroll.ScrollToAsync(0, ConsoleStack.Height, false));
+                MainThread.BeginInvokeOnMainThread(async () => await ConsoleScroll.ScrollToAsync(0, ConsoleStack.Height, false));
         }
 
-        protected override void OnDisappearing()
+        // --- DRAWING THE DOT PATTERN ---
+        private class DotPatternDrawable : IDrawable
         {
-            base.OnDisappearing();
-            this.StopBackgroundPulse();
+            public void Draw(ICanvas canvas, RectF dirtyRect)
+            {
+                canvas.SaveState();
+                canvas.FillColor = Color.FromHex("#334155"); // Slate-700
+                float spacing = 40;
+                float radius = 1;
+
+                for (float x = 0; x < dirtyRect.Width; x += spacing)
+                {
+                    for (float y = 0; y < dirtyRect.Height; y += spacing)
+                    {
+                        canvas.FillCircle(x, y, radius);
+                    }
+                }
+                canvas.RestoreState();
+            }
         }
 
-        private static (Color Start, Color End) GetBackgroundPulseColors()
+        // --- DRAWING THE GRADIENT TEXT ---
+        private void OnHeaderPaintSurface(object sender, SkiaSharp.Views.Maui.SKPaintSurfaceEventArgs e)
         {
-            var theme = Application.Current?.RequestedTheme ?? AppTheme.Light;
-            return theme == AppTheme.Dark
-                ? (Color.FromArgb("#101B2B"), Color.FromArgb("#1A2F45"))
-                : (Color.FromArgb("#D7E4F8"), Color.FromArgb("#C8D6F2"));
+            var canvas = e.Surface.Canvas;
+            var info = e.Info;
+            canvas.Clear(SKColors.Transparent);
+
+            string text = "ITERATE";
+            float x = info.Width / 2;
+            float y = (info.Height + _textPaint.TextSize) / 2 - 10; // Center vertically roughly
+
+            // Create Gradient Shader
+            var colors = new SKColor[] { SKColor.Parse("#e2e8f0"), SKColor.Parse("#64748b") }; // Slate-200 to Slate-500
+            var points = new SKPoint[] { new SKPoint(x - 200, y), new SKPoint(x + 200, y) };
+
+            using (var shader = SKShader.CreateLinearGradient(points[0], points[1], colors, null, SKShaderTileMode.Clamp))
+            {
+                _textPaint.Shader = shader;
+                canvas.DrawText(text, x, y, _textPaint);
+            }
         }
 
-        private void OnLoadMeasurementClicked(object sender, EventArgs e)
-        {
-            _viewModel.OnLoadMeasurementClicked(sender, e);
-        }
+        // --- STANDARD EVENTS & MESH DRAWING (Updated for style) ---
+        private void OnLoadMeasurementClicked(object sender, EventArgs e) => _viewModel.OnLoadMeasurementClicked(sender, e);
 
         private void OnLoadMeshClicked(object sender, EventArgs e)
         {
@@ -74,36 +110,57 @@ namespace ElectricalImpedanceTomography.Views
             MeshCanvasView?.InvalidateSurface();
         }
 
+        private void OnConnectButtonClicked(object sender, EventArgs e) => _viewModel.OnConnectButtonClicked(sender, e);
+
+        private void OnConsoleEntryCompleted(object sender, EventArgs e)
+        {
+            if (!string.IsNullOrWhiteSpace(_viewModel.ConsoleInput))
+                _viewModel.SendConsoleMessageCommand.Execute(null);
+        }
+
+        private void OnDebugLogChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            if (ConsoleScroll == null || ConsoleStack == null) return;
+            MainThread.BeginInvokeOnMainThread(async () => await ConsoleScroll.ScrollToAsync(0, ConsoleStack.Height, false));
+        }
+
+        private async void OnNavigationMenuTapped(object sender, TappedEventArgs e)
+        {
+            if (sender is VisualElement v)
+            {
+                await v.ScaleTo(0.95, 50);
+                await v.ScaleTo(1.0, 50);
+            }
+            if (e.Parameter is string page) _viewModel.NavigateCommand.Execute(page);
+        }
+
         private void OnCanvasViewPaintSurface(object? sender, SkiaSharp.Views.Maui.SKPaintSurfaceEventArgs e)
         {
             var canvas = e.Surface.Canvas;
             var info = e.Info;
-            canvas.Clear(SKColor.Parse("#1C2638"));
+            canvas.Clear(SKColors.Transparent);
 
             var discretization = Workspace.GetDiscretization();
-            if (discretization is LBMGrid lbm)
-                DrawLBMGrid(canvas, info, lbm);
-            else if (discretization is FEMMesh fem)
-                DrawFEMMesh(canvas, info, fem);
+            if (discretization is LBMGrid lbm) DrawLBMGrid(canvas, info, lbm);
+            else if (discretization is FEMMesh fem) DrawFEMMesh(canvas, info, fem);
         }
 
+        // NEW: Vibrant Red-Blue Color Mapping for Style
         private static SKColor ColorForValue(double val, double min, double max)
         {
-            double mid = (min + max) * 0.5;
-            if (val >= mid)
-            {
-                float t = (float)((val - mid) / (max - mid));
-                t = Math.Clamp(t, 0f, 1f);
-                byte r = (byte)(255 * t);
-                return new SKColor(r, 0, 0);
-            }
-            else
-            {
-                float t = (float)((mid - val) / (mid - min));
-                t = Math.Clamp(t, 0f, 1f);
-                byte b = (byte)(255 * t);
-                return new SKColor(0, 0, b);
-            }
+            if (max == min) return SKColors.Red; // Avoid division by zero
+
+            // Normalize to 0..1
+            float t = (float)((val - min) / (max - min));
+            t = Math.Clamp(t, 0f, 1f);
+
+            // Simple "Heatmap" style: Blue (low) -> Red (high)
+            // Interpolate Red and Blue components
+            byte r = (byte)(255 * t);
+            byte b = (byte)(255 * (1 - t));
+
+            // Ensure colors are vibrant (0 Green)
+            return new SKColor(r, 0, b, 255);
         }
 
         private void DrawLBMGrid(SKCanvas canvas, SKImageInfo info, LBMGrid grid)
@@ -116,11 +173,7 @@ namespace ElectricalImpedanceTomography.Views
                 for (int x = 0; x < grid.Nx; x++)
                 {
                     var el = grid.GetElementAt(x, y);
-                    SKPaint fill = el.IsElectrode
-                        ? _lbmElectrode
-                        : el.IsWall
-                            ? _lbmWall
-                            : _lbmFill;
+                    SKPaint fill = el.IsElectrode ? _lbmElectrode : el.IsWall ? _lbmWall : _lbmFill;
                     var r = SKRect.Create(x * cellW, y * cellH, cellW, cellH);
                     canvas.DrawRect(r, fill);
                     canvas.DrawRect(r, _lbmStroke);
@@ -128,9 +181,7 @@ namespace ElectricalImpedanceTomography.Views
             }
         }
 
-        private SKPoint ToCanvas(FEMVertex v)
-            => new((float)(v.X - _minX) * _scale + _marginX,
-                    MeshCanvasView.CanvasSize.Height - ((float)(v.Y - _minY) * _scale + _marginY));
+        private SKPoint ToCanvas(FEMVertex v) => new((float)(v.X - _minX) * _scale + _marginX, MeshCanvasView.CanvasSize.Height - ((float)(v.Y - _minY) * _scale + _marginY));
 
         private void DrawFEMMesh(SKCanvas canvas, SKImageInfo info, FEMMesh mesh)
         {
@@ -155,6 +206,8 @@ namespace ElectricalImpedanceTomography.Views
             double max = elements.Max(el => el.Conductivity);
 
             using var path = new SKPath();
+
+            // Draw Elements (Fill + Thin Stroke)
             foreach (var el in elements)
             {
                 var p1 = ToCanvas(el.Vertices[0]);
@@ -162,11 +215,13 @@ namespace ElectricalImpedanceTomography.Views
                 var p3 = ToCanvas(el.Vertices[2]);
                 path.Reset();
                 path.MoveTo(p1); path.LineTo(p2); path.LineTo(p3); path.Close();
+
                 _femFill.Color = ColorForValue(el.Conductivity, min, max);
                 canvas.DrawPath(path, _femFill);
                 canvas.DrawPath(path, _femStroke);
             }
 
+            // Draw Electrode Segments
             foreach (var segment in mesh.GetElectrodeSegments())
             {
                 var start = ToCanvas(segment.Start);
@@ -174,44 +229,9 @@ namespace ElectricalImpedanceTomography.Views
                 canvas.DrawLine(start, end, _electrodeSegmentStroke);
             }
 
+            // Draw Electrode Points
             foreach (var v in mesh.Vertices.Where(v => v.IsElectrode))
                 canvas.DrawCircle(ToCanvas(v), 4f, _electrodeFill);
-        }
-
-        private void OnConnectButtonClicked(object sender, EventArgs e)
-        {
-
-        }
-
-        private void OnConsoleEntryCompleted(object sender, EventArgs e)
-        {
-            if (!string.IsNullOrWhiteSpace(_viewModel.ConsoleInput))
-                _viewModel.SendConsoleMessageCommand.Execute(null);
-        }
-
-        private void OnDebugLogChanged(object? sender, NotifyCollectionChangedEventArgs e)
-        {
-            if (ConsoleScroll == null || ConsoleStack == null)
-                return;
-
-            MainThread.BeginInvokeOnMainThread(async () =>
-            {
-                await ConsoleScroll.ScrollToAsync(0, ConsoleStack.Height, false);
-            });
-        }
-
-        private async void OnNavigationMenuTapped(object sender, TappedEventArgs e)
-        {
-            if (sender is VisualElement v)
-            {
-                await v.ScaleTo(0.95, 50);
-                await v.ScaleTo(1.0, 50);
-            }
-
-            if (e.Parameter is string page)
-            {
-                _viewModel.NavigateCommand.Execute(page);
-            }
         }
     }
 }

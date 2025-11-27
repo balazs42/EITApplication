@@ -66,7 +66,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         private int ny = 27;
 
         [ObservableProperty]
-        private bool inhomogenityEditing;
+        private bool inhomogenityEditing = true;
 
         [ObservableProperty]
         private double inhomogenityValue = 1.0;

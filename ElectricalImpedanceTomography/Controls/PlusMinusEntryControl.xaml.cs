@@ -3,7 +3,6 @@ using System;
 using System.Threading.Tasks;
 
 namespace ElectricalImpedanceTomography.Controls;
-
 public partial class PlusMinusEntryControl : ContentView
 {
     public static readonly BindableProperty LabelTextProperty =
@@ -15,6 +14,10 @@ public partial class PlusMinusEntryControl : ContentView
     public static readonly BindableProperty MaxProperty =
         BindableProperty.Create(nameof(Max), typeof(int), typeof(PlusMinusEntryControl), int.MaxValue);
 
+    public static readonly BindableProperty MinProperty =
+        BindableProperty.Create(nameof(Min), typeof(int), typeof(PlusMinusEntryControl), 0);
+
+    // Keep ImageSource properties for backward compatibility if needed, though mostly unused in new design
     public static readonly BindableProperty PlusImageSourceProperty =
         BindableProperty.Create(nameof(PlusImageSource), typeof(ImageSource), typeof(PlusMinusEntryControl));
 
@@ -39,6 +42,12 @@ public partial class PlusMinusEntryControl : ContentView
         set => SetValue(MaxProperty, value);
     }
 
+    public int Min
+    {
+        get => (int)GetValue(MinProperty);
+        set => SetValue(MinProperty, value);
+    }
+
     public ImageSource PlusImageSource
     {
         get => (ImageSource)GetValue(PlusImageSourceProperty);
@@ -56,12 +65,12 @@ public partial class PlusMinusEntryControl : ContentView
         InitializeComponent();
     }
 
-    public async void OnPlusTapped(object sender, EventArgs e)
+    private async void OnPlusClicked(object sender, EventArgs e)
     {
-        if (sender is Image img)
+        if (sender is VisualElement v)
         {
-            await img.ScaleTo(0.8, 40);
-            await img.ScaleTo(1, 40);
+            await v.ScaleTo(0.8, 40);
+            await v.ScaleTo(1, 40);
         }
 
         if (Value + 1 <= Max)
@@ -70,15 +79,15 @@ public partial class PlusMinusEntryControl : ContentView
         }
     }
 
-    public async void OnMinusTapped(object sender, EventArgs e)
+    private async void OnMinusClicked(object sender, EventArgs e)
     {
-        if (sender is Image img)
+        if (sender is VisualElement v)
         {
-            await img.ScaleTo(0.8, 40);
-            await img.ScaleTo(1, 40);
+            await v.ScaleTo(0.8, 40);
+            await v.ScaleTo(1, 40);
         }
 
-        if (Value - 1 > 0)
+        if (Value - 1 >= Min)
         {
             Value -= 1;
         }
