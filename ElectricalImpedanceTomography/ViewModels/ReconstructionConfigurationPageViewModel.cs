@@ -431,12 +431,14 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             var configuration = CompleteReconstructionConfigurationBuilder.Create(Blocks, Connections);
             Workspace.SetCompleteReconstructionConfiguration(configuration);
+            Workspace.SetUseBlockConfiguration(true);
             ApplyConfigurationToWorkspace();
         }
 
         private void ApplyConfigurationToWorkspace()
         {
             ReconstructionBlockRegistry.ApplyBlocksToWorkspace(Blocks);
+            Workspace.SetUseBlockConfiguration(true);
             UpdateDiagnostics();
         }
 

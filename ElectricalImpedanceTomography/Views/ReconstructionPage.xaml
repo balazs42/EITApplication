@@ -170,11 +170,11 @@
                                 <Label Grid.Row="3" HorizontalOptions="Start" Text="DE Solver" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Picker Grid.Row="4" ItemsSource="{Binding DifferentialEquationSolverOptions}" SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}" WidthRequest="150"/>
                                 <Label Grid.Row="5" HorizontalOptions="Start" Text="Error Metric" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="6" HorizontalOptions="Start" ItemsSource="{Binding ErrorMetricOptions}" SelectedItem="{Binding ReconstructionParameters.ErrorMetric}" WidthRequest="150"/>
+                                <Picker Grid.Row="6" HorizontalOptions="Start" ItemsSource="{Binding ErrorMetricPickerOptions}" SelectedItem="{Binding SelectedErrorMetricDisplay}" WidthRequest="150" IsEnabled="{Binding IsErrorMetricPickerEnabled}"/>
                                 <Label Grid.Row="7" HorizontalOptions="Start" Text="Regularization" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="8" ItemsSource="{Binding RegularizationTechniqueOptions}" SelectedItem="{Binding ReconstructionParameters.RegularizationTechnique}" WidthRequest="150"/>
+                                <Picker Grid.Row="8" ItemsSource="{Binding RegularizationPickerOptions}" SelectedItem="{Binding SelectedRegularizationDisplay}" WidthRequest="150" IsEnabled="{Binding IsRegularizationPickerEnabled}"/>
                                 <Label Grid.Row="9" HorizontalOptions="Start" Text="Optimizer" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="10" ItemsSource="{Binding NumericOptimizerOptions}" SelectedItem="{Binding ReconstructionParameters.NumericOptimizer}"/>
+                                <Picker Grid.Row="10" ItemsSource="{Binding OptimizerPickerOptions}" SelectedItem="{Binding SelectedOptimizerDisplay}" IsEnabled="{Binding IsOptimizerPickerEnabled}"/>
                                 <Label Grid.Row="11" HorizontalOptions="Start" Text="Linear Solver" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Picker Grid.Row="12" ItemsSource="{Binding NumericSolverOptions}" SelectedItem="{Binding ReconstructionParameters.NumericSolver}" WidthRequest="150"/>
                                 <Label Grid.Row="13" HorizontalOptions="Start" Text="{Binding ParallelizationToggleLabel}" FontFamily="SF Pro Text" FontAttributes="None"/>
