@@ -159,8 +159,8 @@ namespace ServiceLayer
             if (frames.Count == 0)
                 return null;
 
-            var aggregated = AggregateGradient(frames, regularizationWeight);
-            var updated = ApplyOptimizers(currentSigma, aggregated, stepSize);
+            var optimizerGradients = AggregateOptimizerGradients(frames, regularizationWeight);
+            var updated = ApplyOptimizers(currentSigma, optimizerGradients, stepSize);
             updated = ConductivityClipper.Clip(updated);
 
             _persistence.UpdateCurrentDistribution(updated);
@@ -168,42 +168,98 @@ namespace ServiceLayer
             return updated;
         }
 
-        private static ConductivityDistribution AggregateGradient(IReadOnlyList<ReconstructionFrame> frames,
-                                                                  double regularizationWeight)
+        private static Dictionary<string, ConductivityDistribution> AggregateOptimizerGradients(IReadOnlyList<ReconstructionFrame> frames,
+                                                                                               double regularizationWeight)
         {
-            var accumulator = new Dictionary<int, double>();
+            var gradientAccum = new Dictionary<string, Dictionary<int, double>>();
+            var regAccum = new Dictionary<string, Dictionary<int, double>>();
+
             foreach (var frame in frames)
             {
-                foreach (var kvp in frame.ConductivityGradient.Conductivities)
+                foreach (var gradientEntry in frame.OptimizerGradients)
                 {
-                    double reg = frame.CalculatedRegularization?.GetConductivity(kvp.Key) ?? 0.0;
-                    double contribution = kvp.Value - regularizationWeight * reg;
-                    accumulator[kvp.Key] = accumulator.TryGetValue(kvp.Key, out var existing)
-                        ? existing + contribution
-                        : contribution;
+                    if (!gradientAccum.TryGetValue(gradientEntry.Key, out var dict))
+                    {
+                        dict = new Dictionary<int, double>();
+                        gradientAccum[gradientEntry.Key] = dict;
+                    }
+
+                    foreach (var kvp in gradientEntry.Value.Conductivities)
+                    {
+                        dict[kvp.Key] = dict.TryGetValue(kvp.Key, out var existing)
+                            ? existing + kvp.Value
+                            : kvp.Value;
+                    }
+                }
+
+                foreach (var regEntry in frame.OptimizerRegularizations)
+                {
+                    if (!regAccum.TryGetValue(regEntry.Key, out var dict))
+                    {
+                        dict = new Dictionary<int, double>();
+                        regAccum[regEntry.Key] = dict;
+                    }
+
+                    foreach (var kvp in regEntry.Value.Conductivities)
+                    {
+                        dict[kvp.Key] = dict.TryGetValue(kvp.Key, out var existing)
+                            ? existing + kvp.Value
+                            : kvp.Value;
+                    }
                 }
             }
 
             int frameCount = Math.Max(1, frames.Count);
-            var averaged = accumulator.ToDictionary(kvp => kvp.Key, kvp => kvp.Value / frameCount);
-            return new ConductivityDistribution(averaged);
+            var result = new Dictionary<string, ConductivityDistribution>();
+
+            foreach (var optimizerId in gradientAccum.Keys.Union(regAccum.Keys))
+            {
+                var gradDict = gradientAccum.TryGetValue(optimizerId, out var g) ? g : new Dictionary<int, double>();
+                var regDict = regAccum.TryGetValue(optimizerId, out var r) ? r : new Dictionary<int, double>();
+
+                var combined = new Dictionary<int, double>();
+                foreach (var kvp in gradDict)
+                {
+                    double reg = regDict.TryGetValue(kvp.Key, out var regVal) ? regVal : 0.0;
+                    combined[kvp.Key] = (kvp.Value - regularizationWeight * reg) / frameCount;
+                }
+
+                foreach (var kvp in regDict)
+                {
+                    if (combined.ContainsKey(kvp.Key))
+                        continue;
+                    combined[kvp.Key] = (-regularizationWeight * kvp.Value) / frameCount;
+                }
+
+                result[optimizerId] = new ConductivityDistribution(combined);
+            }
+
+            return result;
         }
 
         private ConductivityDistribution ApplyOptimizers(ConductivityDistribution currentSigma,
-                                                         ConductivityDistribution gradient,
+                                                         IReadOnlyDictionary<string, ConductivityDistribution> optimizerGradients,
                                                          double stepSize)
         {
             if (_runtimeContext == null || _runtimeContext.NumericOptimizers == null || _runtimeContext.NumericOptimizers.Count == 0)
                 return currentSigma;
 
             if (_runtimeContext.NumericOptimizers.Count == 1)
-                return _runtimeContext.NumericOptimizers[0].numericOptimizer.OptimizationStep(currentSigma, gradient, stepSize);
+            {
+                var optimizer = _runtimeContext.NumericOptimizers[0];
+                var gradient = optimizerGradients.Values.FirstOrDefault() ?? new ConductivityDistribution(new Dictionary<int, double>());
+                return optimizer.numericOptimizer.OptimizationStep(currentSigma, gradient, stepSize);
+            }
 
             var weightedSum = new Dictionary<int, double>();
             double totalWeight = 0.0;
 
-            foreach (var (weight, optimizer) in _runtimeContext.NumericOptimizers)
+            foreach (var (id, weight, optimizer) in _runtimeContext.NumericOptimizers)
             {
+                var gradient = optimizerGradients.TryGetValue(id, out var specific)
+                    ? specific
+                    : optimizerGradients.Values.FirstOrDefault() ?? new ConductivityDistribution(new Dictionary<int, double>());
+
                 var candidate = optimizer.OptimizationStep(currentSigma, gradient, stepSize);
                 foreach (var kvp in candidate.Conductivities)
                 {
