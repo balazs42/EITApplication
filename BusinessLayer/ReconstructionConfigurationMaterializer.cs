@@ -113,7 +113,10 @@ namespace BusinessLayer
 
         private static void ApplyInitializationParameters(ConfiguredBlockSnapshot block, EITReconstructionParameters parameters)
         {
-            parameters.InitialDistributionType = ParseEnum<InitialDistributionTypes>(GetParameterValue(block, "init_method"));
+            var parsed = ParseEnum<InitialDistributionTypes>(GetParameterValue(block, "init_method"));
+
+            if (Enum.IsDefined(typeof(InitialDistributionTypes), parsed))
+                parameters.InitialDistributionType = parsed;
         }
 
         private static void ApplyModelParameters(ConfiguredBlockSnapshot block, EITReconstructionParameters parameters)
@@ -166,7 +169,7 @@ namespace BusinessLayer
                 InitialDistributionTypes.SlightlyDiffering => ConductivityDistributionFactory.CreateSlightlyDiffering(mesh, scale),
                 InitialDistributionTypes.RandomSlightlyDiffering => ConductivityDistributionFactory.CreateRandomSlightlyDiffering(mesh, differing, scale),
                 InitialDistributionTypes.CloseToTarget => ConductivityDistributionFactory.CreateCloseToTarget(mesh),
-                _ => ConductivityDistributionFactory.FromFEMMesh(mesh)
+                _ => ConductivityDistributionFactory.CreateHomogeneous(mesh)
             };
         }
 
