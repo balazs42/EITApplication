@@ -321,8 +321,8 @@
                 </VerticalStackLayout>
             </VerticalStackLayout>
             <Grid Grid.Row="1" VerticalOptions="End">
-                <Label Text="Version 2.4.0" TextColor="{StaticResource Slate700}" FontSize="10" HorizontalOptions="End"/>
-            </Grid>
+                <Label Grid.Row="0" Text="{Binding Version}" TextColor="{StaticResource Slate700}" FontSize="Micro" HorizontalOptions="End"/>
+                </Grid>
         </Grid>
     </Grid>
 </ContentPage>

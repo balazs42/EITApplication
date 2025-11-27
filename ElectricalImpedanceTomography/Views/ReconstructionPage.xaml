@@ -364,7 +364,7 @@
                             </HorizontalStackLayout>
 
                             <BoxView Grid.Row="7" Color="#BBBBBB" HeightRequest="1"/>
-
+<!--
                             <HorizontalStackLayout Grid.Row="8" Spacing="40">
                                 <Label Grid.Row="3" Text="Starting Excitation Electrode" FontAttributes="None" VerticalOptions="Center"/>
                                 <Entry Grid.Row="4" Text="{Binding ExcitationElectrodeId}" HorizontalOptions="End" WidthRequest="50"/>
@@ -374,6 +374,7 @@
                                 <Label Grid.Row="5" Text="Starting Ground Electrode" FontAttributes="None" VerticalOptions="Center"/>
                                 <Entry Grid.Row="6" Text="{Binding GroundElectrodeId}" HorizontalOptions="End" WidthRequest="50"/>
                             </HorizontalStackLayout>
+                            -->
                         </Grid>
                     </Border>
                     <!--
@@ -446,7 +447,7 @@
                             <Label Grid.Column="4" HorizontalOptions="Center" WidthRequest="160" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding Residual, StringFormat='Residual: {0:F3} [mV]'}" TextColor="#F0F4FF"/>
 
                             <Border Grid.Column="5" Margin="2" Background="Transparent" Stroke="Transparent">
-                                <Button Text="Reset Reconstruction" Margin="10" BackgroundColor="DarkRed" TextColor="White" FontAttributes="Bold" Clicked="OnResetReconstructionClicked"/>
+                                <Button Text="Reset Reconstruction" Margin="10" BackgroundColor="DarkRed" TextColor="White" FontAttributes="Bold" Clicked="OnResetReconstructionClicked" HorizontalOptions="Center" VerticalOptions="Center"/>
                             </Border>
                             <Border Grid.Column="6" Margin="2" Background="Transparent" Stroke="Transparent">
                             </Border>
@@ -572,7 +573,7 @@
                             </VerticalStackLayout>
                             <!-- Gradient -->
                             <VerticalStackLayout Grid.Row="0" Grid.Column="2" HorizontalOptions="Center" Spacing="10">
-                                <Label Text="Conductivity Gradient [∂Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="#F0F4FF"/>
+                                <Label Text="Conductivity Gradient [∂S]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="#F0F4FF"/>
                                 <Border Style="{StaticResource CanvasBorderStyle}" Margin="10" HorizontalOptions="Center">
                                     <Grid RowDefinitions="Auto,Auto">
                                         <skia:SKCanvasView x:Name="GradientDistributionCanvas" PaintSurface="OnGradientCanvasPaintSurface" EnableTouchEvents="True" Touch="OnGradientCanvasTouch" HeightRequest="250" WidthRequest="250" Margin="10"/>
