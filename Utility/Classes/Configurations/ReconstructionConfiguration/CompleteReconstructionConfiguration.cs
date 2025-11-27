@@ -15,14 +15,14 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
             IReadOnlyList<ConfiguredBlockSnapshot> blocks,
             IReadOnlyList<WeightedConnectionSnapshot> allConnections,
             IReadOnlyList<WeightedConnectionSnapshot> solverToErrorMetricWeights,
-            IReadOnlyList<WeightedConnectionSnapshot> modelToRegularizerWeights,
+            IReadOnlyList<WeightedConnectionSnapshot> solverToRegularizerWeights,
             IReadOnlyList<WeightedConnectionSnapshot> optimizerInputWeights,
             IReadOnlyList<WeightedConnectionSnapshot> optimizerToModelWeights)
         {
             Blocks = blocks;
             AllConnections = allConnections;
             SolverToErrorMetricWeights = solverToErrorMetricWeights;
-            ModelToRegularizerWeights = modelToRegularizerWeights;
+            SolverToRegularizerWeights = solverToRegularizerWeights;
             OptimizerInputWeights = optimizerInputWeights;
             OptimizerToModelWeights = optimizerToModelWeights;
             CapturedAtUtc = DateTime.UtcNow;
@@ -44,9 +44,9 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
         public IReadOnlyList<WeightedConnectionSnapshot> SolverToErrorMetricWeights { get; }
 
         /// <summary>
-        /// Weights mapping the Model block into its regularizers.
+        /// Weights applied from solver blocks into regularizers.
         /// </summary>
-        public IReadOnlyList<WeightedConnectionSnapshot> ModelToRegularizerWeights { get; }
+        public IReadOnlyList<WeightedConnectionSnapshot> SolverToRegularizerWeights { get; }
 
         /// <summary>
         /// Combined weights feeding each optimizer (from error metrics and regularizers).
@@ -133,13 +133,18 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
                 .Where(c => c.SourceType == BlockType.Solver && c.TargetType == BlockType.ErrorMetric)
                 .ToList();
 
-            var modelToRegularizerWeights = connectionSnapshots
-                .Where(c => c.SourceType == BlockType.Model && c.TargetType == BlockType.Regularizer)
+            var solverToRegularizerWeights = connectionSnapshots
+                .Where(c => c.SourceType == BlockType.Solver && c.TargetType == BlockType.Regularizer)
                 .ToList();
 
             var optimizerInputWeights = connectionSnapshots
                 .Where(c => c.TargetType == BlockType.Optimizer &&
                             (c.SourceType == BlockType.ErrorMetric || c.SourceType == BlockType.Regularizer))
+                .Select(c => new WeightedConnectionSnapshot(c.SourceId,
+                                                            c.TargetId,
+                                                            c.SourceType,
+                                                            c.TargetType,
+                                                            1.0))
                 .ToList();
 
             var optimizerToModelWeights = connectionSnapshots
@@ -150,7 +155,7 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
                 blockSnapshots,
                 connectionSnapshots,
                 solverToErrorWeights,
-                modelToRegularizerWeights,
+                solverToRegularizerWeights,
                 optimizerInputWeights,
                 optimizerToModelWeights);
         }

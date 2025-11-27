@@ -547,6 +547,21 @@ namespace ElectricalImpedanceTomography.ViewModels
             bool mixedRegularizer = ShouldUseBlockConfiguration && configuration != null && configuration.Blocks.Count(b => b.Type == BlockType.Regularizer) > 1;
             bool mixedOptimizer = ShouldUseBlockConfiguration && configuration != null && configuration.Blocks.Count(b => b.Type == BlockType.Optimizer) > 1;
 
+            // When a single block of each type is used we align the pickers to the configuration
+            // so the UI reflects the canvas selections. If multiple blocks exist we fall back
+            // to the read-only "Mixed" label handled below.
+            if (ShouldUseBlockConfiguration && configuration != null)
+            {
+                if (!mixedErrorMetric && TryParseBlockEnum(configuration, BlockType.ErrorMetric, "metric_type", out ErrorMetric parsedError))
+                    parameters.ErrorMetric = parsedError;
+
+                if (!mixedRegularizer && TryParseBlockEnum(configuration, BlockType.Regularizer, "reg_tech", out RegularizationTechnique parsedReg))
+                    parameters.RegularizationTechnique = parsedReg;
+
+                if (!mixedOptimizer && TryParseBlockEnum(configuration, BlockType.Optimizer, "opt_algo", out NumericOptimizer parsedOpt))
+                    parameters.NumericOptimizer = parsedOpt;
+            }
+
             UpdateMethodPicker(ErrorMetricPickerOptions,
                                ErrorMetricOptions.Select(option => option.ToString()),
                                mixedErrorMetric,
@@ -594,6 +609,33 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             setSelected(target.FirstOrDefault(o => o == currentValue) ?? target.FirstOrDefault());
             setEnabled(true);
+        }
+
+        private static bool TryParseBlockEnum<T>(CompleteReconstructionConfiguration configuration,
+                                                 BlockType blockType,
+                                                 string parameterKey,
+                                                 out T parsed)
+            where T : struct, Enum
+        {
+            parsed = default;
+            var block = configuration.Blocks.FirstOrDefault(b => b.Type == blockType);
+            var rawValue = block?.Parameters.FirstOrDefault(p => p.Key == parameterKey).Value;
+            if (string.IsNullOrWhiteSpace(rawValue))
+                return false;
+
+            static string Normalize(string input) => new string(input.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+
+            var normalized = Normalize(rawValue);
+            foreach (var name in Enum.GetNames(typeof(T)))
+            {
+                if (Normalize(name) == normalized)
+                {
+                    parsed = Enum.Parse<T>(name);
+                    return true;
+                }
+            }
+
+            return Enum.TryParse(rawValue, true, out parsed);
         }
 
         public void SetDrivePattern(DrivePattern pattern)

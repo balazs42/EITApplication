@@ -18,9 +18,9 @@ namespace BusinessLayer
         private FEMMesh? _mesh = null;
         private IDifferentialEquationSolver? _differentialEquationSolver = null;
         private INumericSolver? _numericSolver = null;
-        private List<(double connectionWeight, IRegularizer regulizer)>? _regularizers = null;
-        private List<(double connectionWeight, IErrorMetric errorMetric)>? _errorMetrics = null;
-        private List<(double connectionWeight, INumericOptimizer numericOptimizer)>? _numericOptimizers = null;
+        private List<(string id, double connectionWeight, IRegularizer regulizer)>? _regularizers = null;
+        private List<(string id, double connectionWeight, IErrorMetric errorMetric)>? _errorMetrics = null;
+        private List<(string id, double connectionWeight, INumericOptimizer numericOptimizer)>? _numericOptimizers = null;
 
         private CompleteReconstructionConfiguration? _completeReconstructionConfiguration = null;
 
@@ -36,6 +36,11 @@ namespace BusinessLayer
 
         private ElectrodeMeasurementSetup _measurementSetup = ElectrodeMeasurementSetup.Active;
         private bool _usePotentialDifferences = false;
+
+        private IReadOnlyList<WeightedConnectionSnapshot>? _connections;
+        private Dictionary<string, (double weight, IRegularizer regulizer)> _regularizerMap = new();
+        private Dictionary<string, (double weight, IErrorMetric errorMetric)> _errorMetricMap = new();
+        private Dictionary<string, (double weight, INumericOptimizer optimizer)> _optimizerMap = new();
 
         /// <summary>
         /// Exposes the active differential equation solver so services can share it with
@@ -60,6 +65,9 @@ namespace BusinessLayer
             _initialDistribution = RuntimeContext.InitialDistribution;
             _measurementSetup = RuntimeContext.MeasurementSetup;
             _usePotentialDifferences = RuntimeContext.UsePotentialDifferences;
+            _connections = RuntimeContext.AllConnections;
+
+            BuildLookupMaps();
         }
 
         /// <summary>
@@ -71,6 +79,54 @@ namespace BusinessLayer
         {
             _initialDistribution = updated ?? throw new ArgumentNullException(nameof(updated));
             _mesh?.SetConductivityDistribution(updated);
+        }
+
+        /// <summary>
+        /// Prepares fast lookup dictionaries from block ids to their runtime instances
+        /// so that later gradient assembly can follow the explicit canvas wiring.
+        /// </summary>
+        private void BuildLookupMaps()
+        {
+            _regularizerMap = new Dictionary<string, (double weight, IRegularizer regulizer)>();
+            _errorMetricMap = new Dictionary<string, (double weight, IErrorMetric errorMetric)>();
+            _optimizerMap = new Dictionary<string, (double weight, INumericOptimizer optimizer)>();
+
+            if (_completeReconstructionConfiguration == null)
+                return;
+
+            var regularizerBlocks = _completeReconstructionConfiguration.Blocks.Where(b => b.Type == BlockType.Regularizer).ToList();
+            var errorBlocks = _completeReconstructionConfiguration.Blocks.Where(b => b.Type == BlockType.ErrorMetric).ToList();
+            var optimizerBlocks = _completeReconstructionConfiguration.Blocks.Where(b => b.Type == BlockType.Optimizer).ToList();
+
+            if (_regularizers != null)
+            {
+                for (int i = 0; i < Math.Min(_regularizers.Count, regularizerBlocks.Count); i++)
+                {
+                    var blockId = regularizerBlocks[i].Id;
+                    var entry = _regularizers[i];
+                    _regularizerMap[blockId] = (entry.connectionWeight, entry.regulizer);
+                }
+            }
+
+            if (_errorMetrics != null)
+            {
+                for (int i = 0; i < Math.Min(_errorMetrics.Count, errorBlocks.Count); i++)
+                {
+                    var blockId = errorBlocks[i].Id;
+                    var entry = _errorMetrics[i];
+                    _errorMetricMap[blockId] = (entry.connectionWeight, entry.errorMetric);
+                }
+            }
+
+            if (_numericOptimizers != null)
+            {
+                for (int i = 0; i < Math.Min(_numericOptimizers.Count, optimizerBlocks.Count); i++)
+                {
+                    var blockId = optimizerBlocks[i].Id;
+                    var entry = _numericOptimizers[i];
+                    _optimizerMap[blockId] = (entry.connectionWeight, entry.numericOptimizer);
+                }
+            }
         }
 
         /// <summary>
@@ -148,6 +204,10 @@ namespace BusinessLayer
             // Compute the forward solution
             PotentialDistribution forwardSolution = ForwardSolve(boundaryCondition);
 
+            // Cache the forward field gradient once per frame as it is reused in every
+            // optimizer-specific gradient assembly.
+            VectorField forwardGradient = FiniteElementOperators.CalculateElementWiseGradient(_mesh, forwardSolution);
+
             // Extract electrode potentials
             double[] electrodePotentials = _mesh.GetElectrodePotentials();
 
@@ -162,34 +222,36 @@ namespace BusinessLayer
                                                          measurement,
                                                          electrodePotentials);
 
-            // Evaluate error metrics
-            List<FEMBoundaryCondition> adjointBoundaryConditions = EvaluateAdjointSources(measurement, electrodePotentials);
+            // Evaluate error metrics and adjoint solves (with caching when the same metric type is reused)
+            var adjointSolutionsByBlock = EvaluateAdjointSolutions(measurement, electrodePotentials);
 
-            List<PotentialDistribution> adjointSolutions = new List<PotentialDistribution>();
+            // Calculate gradients of all adjoint fields just once so they can be reused across optimizers
+            var adjointGradientsByBlock = CalculateAdjointGradients(adjointSolutionsByBlock);
 
-            // Perfrom adjoint solves over all adjoint sources
-            Parallel.ForEach(adjointBoundaryConditions, adjointBoundaryCondition =>
-            {
-                var adjointSolution = AdjointSolve(adjointBoundaryCondition, adjointBoundaryCondition.GetElectrodePotentials());
-                lock (adjointSolutions)
-                {
-                    adjointSolutions.Add(adjointSolution);
-                }
-            });
+            // Evaluate all regularizers on the current conductivity distribution once per frame
+            var regularizerGradients = EvaluateRegularizers();
 
-            List<double> connectionWeights = GetGradientWeights();
-            ConductivityDistribution conductivityGradient = CalculateCombinedGradient(forwardSolution, adjointSolutions, connectionWeights);
+            // Build optimizer-specific gradients following the explicit canvas wiring
+            var optimizerGradients = AssembleOptimizerGradients(forwardGradient, adjointGradientsByBlock);
 
-            ConductivityDistribution regularizedDistribution = CalculateCombinedRegularization();
+            // Build optimizer-specific regularization terms with their solver link weights
+            var optimizerRegularizations = AssembleOptimizerRegularizations(regularizerGradients);
+
+            // For legacy consumers that expect a single gradient/regularization pair, blend
+            // the optimizer-specific outputs using the optimizer->model weights.
+            var combinedGradient = CombineOptimizerOutputs(optimizerGradients);
+            var combinedRegularization = CombineOptimizerRegularizations(optimizerRegularizations);
 
             // Combine all components to form the reconstruction frame
 
-            return new ReconstructionFrame(conductivityGradient,
+            return new ReconstructionFrame(combinedGradient,
                                            forwardSolution,
-                                           adjointSolutions.First(), // For now only return the first adjoint solution
-                                           regularizedDistribution,
+                                           adjointSolutionsByBlock.Values.First(), // representative adjoint solution
+                                           combinedRegularization,
                                            measurement,
-                                           electrodePotentials);
+                                           electrodePotentials,
+                                           optimizerGradients,
+                                           optimizerRegularizations);
         }
 
         /// <summary>
@@ -237,11 +299,11 @@ namespace BusinessLayer
         /// <param name="measurement">The corresponding measurement to the problem.</param>
         /// <param name="simulatedMeasurement">The simulated electrode potentials. Must align with the measurements excitation!</param>
         /// <returns></returns>
-        private List<FEMBoundaryCondition> EvaluateAdjointSources(double[] measurement, double[] simulatedMeasurement)
+        private Dictionary<string, PotentialDistribution> EvaluateAdjointSolutions(double[] measurement, double[] simulatedMeasurement)
         {
             var electrodes = _mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
 
-            // Set electrode states for adjoint solve
+            // Reset electrode states for adjoint solves
             foreach (var electrode in electrodes)
             {
                 electrode.IsExcitation = false;
@@ -249,163 +311,231 @@ namespace BusinessLayer
                 electrode.IsMeasuring = true;
             }
 
-            List<double[]> adjointSources = new List<double[]>();
+            // Cache adjoint solutions by error metric type to avoid duplicate evaluation
+            var adjointCache = new Dictionary<Type, PotentialDistribution>();
+            var solutions = new Dictionary<string, PotentialDistribution>();
 
-            Parallel.ForEach(_errorMetrics, (weightErrorMetric) =>
+            Parallel.ForEach(_errorMetricMap, kvp =>
             {
-                var (weight, errorMetric) = weightErrorMetric;
-                var adjointSource = errorMetric.EvaluateAdjointSource(_mesh, measurement, simulatedMeasurement);
-                lock (adjointSources)
+                var errorMetricType = kvp.Value.errorMetric.GetType();
+
+                // Ensure only one evaluation per metric type
+                PotentialDistribution adjointSolution;
+                lock (adjointCache)
                 {
-                    adjointSources.Add(adjointSource);
+                    if (adjointCache.TryGetValue(errorMetricType, out var cached))
+                    {
+                        lock (solutions)
+                        {
+                            solutions[kvp.Key] = cached;
+                        }
+                        return;
+                    }
                 }
-            });
 
-            List<FEMBoundaryCondition> adjointBoundaryConditions = new List<FEMBoundaryCondition>();
-
-            foreach (var adjointSource in adjointSources)
-            {
+                var adjointSource = kvp.Value.errorMetric.EvaluateAdjointSource(_mesh, measurement, simulatedMeasurement);
                 var adjointBoundaryCondition = new FEMBoundaryCondition(electrodes);
                 adjointBoundaryCondition.SetElectrodePotentials(adjointSource);
-                adjointBoundaryConditions.Add(adjointBoundaryCondition);
-            }
+                adjointSolution = AdjointSolve(adjointBoundaryCondition, adjointBoundaryCondition.GetElectrodePotentials());
 
-            return adjointBoundaryConditions;
-        }
-
-        /// <summary>
-        /// Returns the weights for each error metric to be used in the gradient calculation.
-        /// They should be in the same order as the error metrics in the configuration.
-        /// </summary>
-        /// <returns></returns>
-        private List<double> GetGradientWeights()
-        {
-            List<double> weights = new List<double>();
-            foreach (var (weight, errorMetric) in _errorMetrics)
-                weights.Add(weight);
-            return weights;
-        }
-
-        /// <summary>
-        /// Calculates the gradients of the forward and adjoint solutions and combines them into a single conductivity gradient.
-        /// Uses the configuration defined weights for the gradients.
-        /// </summary>
-        /// <param name="forwardGradient">The forward projection potential map.</param>
-        /// <param name="adjointGradients">The adjoint solve's potential maps.</param>
-        /// <param name="connectionWeights">The connection weights for each adjoint gradient.</param>
-        /// <returns>The combination of the gradients in a conductivitiy distribution object</returns>
-        private ConductivityDistribution CalculateCombinedGradient(PotentialDistribution forwardSolution, List<PotentialDistribution> adjointSolutions, List<double> connectionWeights)
-        {
-            if (adjointSolutions.Count != connectionWeights.Count)
-            {
-                throw new ArgumentException("The number of adjoint solutions must match the number of connection weights.");
-            }
-
-            // Calculate field gradients: ∇φ and ∇μ on elements
-            VectorField forwardGradient = FiniteElementOperators.CalculateElementWiseGradient(_mesh, forwardSolution);
-            List<VectorField> adjointGradients = new List<VectorField>();
-
-            Parallel.ForEach(adjointSolutions, mu =>
-            {
-                var adjointGradient = FiniteElementOperators.CalculateElementWiseGradient(_mesh, mu);
-                lock (adjointGradients)
+                lock (adjointCache)
                 {
-                    adjointGradients.Add(adjointGradient);
+                    adjointCache[errorMetricType] = adjointSolution;
+                }
+
+                lock (solutions)
+                {
+                    solutions[kvp.Key] = adjointSolution;
                 }
             });
 
-            List<Dictionary<int, double>> gradientDotProducts = new List<Dictionary<int, double>>();
-
-            var elements = _mesh.GetElements().Cast<FEMElement>().ToList();
-
-            for (int i = 0; i < adjointGradients.Count(); i++)
-            {
-                // Get current adjoint gradient field to dot product with forward gradient
-                VectorField adjointGradient = adjointGradients[i];
-
-                // Get the current weigth for the gradient
-                double currentWeight = connectionWeights[i];
-
-                Dictionary<int, double> gradientValues = new Dictionary<int, double>(adjointGradient.Data.Count());
-
-                // Compute dot product on each element:  −(∇μ·∇φ)·Area per element
-                Parallel.ForEach(elements, element =>
-                {
-                    var gradPhi = forwardGradient.GetVector(element.Id);
-                    var gradMu = adjointGradient.GetVector(element.Id);
-                    // −(∇μ·∇φ)·Area
-                    double dotProduct = -(gradPhi.X * gradMu.X + gradPhi.Y * gradMu.Y) * element.Area;
-
-                    // Scale with w_i: w_i * −(∇μ·∇φ)·Area
-                    gradientValues[element.Id] = currentWeight * dotProduct;
-                });
-
-                gradientDotProducts.Add(gradientValues);
-            }
-
-            // Combined gradient container
-            Dictionary<int, double> combinedGradientValues = new Dictionary<int, double>(gradientDotProducts.First().Count());
-
-            foreach (var gradientDotProduct in gradientDotProducts)
-            {
-                foreach (var kvp in gradientDotProduct)
-                {
-                    if (combinedGradientValues.ContainsKey(kvp.Key))
-                        combinedGradientValues[kvp.Key] += kvp.Value;
-                    else
-                        combinedGradientValues[kvp.Key] = kvp.Value;
-                }
-            }
-
-            return new ConductivityDistribution(combinedGradientValues);
+            return solutions;
         }
 
-        /// <summary>
-        /// Calculate the combined regularization from all regularizers defined in the configuration.
-        /// Weigths each regularization term accordingly, weigths should be ordered as the regularizers.
-        /// </summary>
-        /// <returns></returns>
-        private ConductivityDistribution CalculateCombinedRegularization()
+        private Dictionary<string, VectorField> CalculateAdjointGradients(Dictionary<string, PotentialDistribution> adjointSolutionsByBlock)
+        {
+            var adjointGradients = new Dictionary<string, VectorField>();
+
+            Parallel.ForEach(adjointSolutionsByBlock, kvp =>
+            {
+                var gradient = FiniteElementOperators.CalculateElementWiseGradient(_mesh, kvp.Value);
+                lock (adjointGradients)
+                {
+                    adjointGradients[kvp.Key] = gradient;
+                }
+            });
+
+            return adjointGradients;
+        }
+
+        private Dictionary<string, ConductivityDistribution> AssembleOptimizerGradients(VectorField forwardGradient,
+                                                                                        Dictionary<string, VectorField> adjointGradientsByBlock)
+        {
+            var optimizerGradients = new Dictionary<string, ConductivityDistribution>();
+            var elements = _mesh.GetElements().Cast<FEMElement>().ToList();
+
+            foreach (var optimizer in _optimizerMap)
+            {
+                var optimizerId = optimizer.Key;
+                var connectedErrorMetrics = _connections?
+                    .Where(c => c.TargetId == optimizerId && c.SourceType == BlockType.ErrorMetric)
+                    .Select(c => c.SourceId)
+                    .ToList() ?? new List<string>();
+
+                var gradientAccumulator = new Dictionary<int, double>();
+
+                foreach (var errorMetricId in connectedErrorMetrics)
+                {
+                    if (!adjointGradientsByBlock.TryGetValue(errorMetricId, out var adjointGradient))
+                        continue;
+
+                    if (!_errorMetricMap.TryGetValue(errorMetricId, out var descriptor))
+                        continue;
+
+                    double weight = descriptor.weight;
+
+                    Parallel.ForEach(elements, element =>
+                    {
+                        var gradPhi = forwardGradient.GetVector(element.Id);
+                        var gradMu = adjointGradient.GetVector(element.Id);
+                        double dotProduct = -(gradPhi.X * gradMu.X + gradPhi.Y * gradMu.Y) * element.Area;
+                        double weighted = weight * dotProduct;
+
+                        lock (gradientAccumulator)
+                        {
+                            if (gradientAccumulator.ContainsKey(element.Id))
+                                gradientAccumulator[element.Id] += weighted;
+                            else
+                                gradientAccumulator[element.Id] = weighted;
+                        }
+                    });
+                }
+
+                optimizerGradients[optimizerId] = new ConductivityDistribution(gradientAccumulator);
+            }
+
+            return optimizerGradients;
+        }
+
+        private Dictionary<string, ConductivityDistribution> EvaluateRegularizers()
         {
             var currentDistribution = _mesh?.GetConductivityDistribution() ?? _initialDistribution
                                        ?? throw new InvalidOperationException("No conductivity distribution available for regularization evaluation.");
-            List<ConductivityDistribution> regularizations = new List<ConductivityDistribution>();
 
-            Parallel.ForEach(_regularizers, regulizerEntry =>
+            var regularizations = new Dictionary<string, ConductivityDistribution>();
+
+            Parallel.ForEach(_regularizerMap, kvp =>
             {
-                var (weight, regulizer) = regulizerEntry;
-                var regularization = regulizer.EvaluateGradient(_mesh, currentDistribution);
+                var weighted = kvp.Value.regulizer.EvaluateGradient(_mesh, currentDistribution);
 
-                // Scale regularization with its weight
-                foreach (var elementId in regularization.IdValuePairs.Keys.ToList())
+                // Apply solver->regularizer connection weight here
+                foreach (var elementId in weighted.IdValuePairs.Keys.ToList())
                 {
-                    double value = regularization.GetValue(elementId);
-                    regularization.SetValue(elementId, weight * value);
+                    double value = weighted.GetValue(elementId);
+                    weighted.SetValue(elementId, kvp.Value.weight * value);
                 }
+
                 lock (regularizations)
                 {
-                    regularizations.Add(regularization);
+                    regularizations[kvp.Key] = weighted;
                 }
             });
 
-            // Combined regularization container
-            Dictionary<int, double> combinedRegularizationValues = new Dictionary<int, double>();
+            return regularizations;
+        }
 
-            Parallel.ForEach(regularizations, regularization =>
+        private Dictionary<string, ConductivityDistribution> AssembleOptimizerRegularizations(Dictionary<string, ConductivityDistribution> regularizerGradients)
+        {
+            var optimizerRegularizations = new Dictionary<string, ConductivityDistribution>();
+
+            foreach (var optimizer in _optimizerMap)
             {
-                foreach (var kvp in regularization.IdValuePairs)
+                var optimizerId = optimizer.Key;
+                var connectedRegularizers = _connections?
+                    .Where(c => c.TargetId == optimizerId && c.SourceType == BlockType.Regularizer)
+                    .Select(c => c.SourceId)
+                    .ToList() ?? new List<string>();
+
+                var accumulator = new Dictionary<int, double>();
+
+                foreach (var regId in connectedRegularizers)
                 {
-                    lock (combinedRegularizationValues)
+                    if (!regularizerGradients.TryGetValue(regId, out var reg))
+                        continue;
+
+                    foreach (var kvp in reg.IdValuePairs)
                     {
-                        if (combinedRegularizationValues.ContainsKey(kvp.Key))
-                            combinedRegularizationValues[kvp.Key] += kvp.Value;
+                        if (accumulator.ContainsKey(kvp.Key))
+                            accumulator[kvp.Key] += kvp.Value;
                         else
-                            combinedRegularizationValues[kvp.Key] = kvp.Value;
+                            accumulator[kvp.Key] = kvp.Value;
                     }
                 }
-            });
 
-            return new ConductivityDistribution(combinedRegularizationValues);
+                optimizerRegularizations[optimizerId] = new ConductivityDistribution(accumulator);
+            }
+
+            return optimizerRegularizations;
+        }
+
+        private ConductivityDistribution CombineOptimizerOutputs(IReadOnlyDictionary<string, ConductivityDistribution> optimizerGradients)
+        {
+            var combined = new Dictionary<int, double>();
+            double totalWeight = 0.0;
+
+            foreach (var kvp in optimizerGradients)
+            {
+                if (!_optimizerMap.TryGetValue(kvp.Key, out var optimizerDescriptor))
+                    continue;
+
+                totalWeight += optimizerDescriptor.weight;
+
+                foreach (var value in kvp.Value.IdValuePairs)
+                {
+                    if (combined.ContainsKey(value.Key))
+                        combined[value.Key] += optimizerDescriptor.weight * value.Value;
+                    else
+                        combined[value.Key] = optimizerDescriptor.weight * value.Value;
+                }
+            }
+
+            if (totalWeight > 0)
+            {
+                foreach (var id in combined.Keys.ToList())
+                    combined[id] /= totalWeight;
+            }
+
+            return new ConductivityDistribution(combined);
+        }
+
+        private ConductivityDistribution CombineOptimizerRegularizations(IReadOnlyDictionary<string, ConductivityDistribution> optimizerRegularizations)
+        {
+            var combined = new Dictionary<int, double>();
+            double totalWeight = 0.0;
+
+            foreach (var kvp in optimizerRegularizations)
+            {
+                if (!_optimizerMap.TryGetValue(kvp.Key, out var optimizerDescriptor))
+                    continue;
+
+                totalWeight += optimizerDescriptor.weight;
+
+                foreach (var value in kvp.Value.IdValuePairs)
+                {
+                    if (combined.ContainsKey(value.Key))
+                        combined[value.Key] += optimizerDescriptor.weight * value.Value;
+                    else
+                        combined[value.Key] = optimizerDescriptor.weight * value.Value;
+                }
+            }
+
+            if (totalWeight > 0)
+            {
+                foreach (var id in combined.Keys.ToList())
+                    combined[id] /= totalWeight;
+            }
+
+            return new ConductivityDistribution(combined);
         }
     }
 }

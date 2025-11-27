@@ -66,7 +66,7 @@ namespace BusinessLayer
                         .Where(c => c.TargetId == block.Id)
                         .Sum(c => c.Weight);
                     weight = weight == 0 ? 1.0 : weight;
-                    return (weight, ErrorMetricFactory.Create(ParseEnum<ErrorMetric>(GetParameterValue(block, "metric_type"))));
+                    return (block.Id, weight, ErrorMetricFactory.Create(ParseEnum<ErrorMetric>(GetParameterValue(block, "metric_type"))));
                 })
                 .ToList();
 
@@ -74,12 +74,12 @@ namespace BusinessLayer
                 .Where(b => b.Type == BlockType.Regularizer)
                 .Select(block =>
                 {
-                    double weight = configuration.ModelToRegularizerWeights
+                    double weight = configuration.SolverToRegularizerWeights
                         .Where(c => c.TargetId == block.Id)
                         .Sum(c => c.Weight);
                     weight = weight == 0 ? 1.0 : weight;
                     var technique = ParseEnum<RegularizationTechnique>(GetParameterValue(block, "reg_tech"));
-                    return (weight, RegularizationFactory.Create(technique, mesh));
+                    return (block.Id, weight, RegularizationFactory.Create(technique, mesh));
                 })
                 .ToList();
 
@@ -87,12 +87,12 @@ namespace BusinessLayer
                 .Where(b => b.Type == BlockType.Optimizer)
                 .Select(block =>
                 {
-                    double weight = configuration.OptimizerInputWeights
-                        .Where(c => c.TargetId == block.Id)
+                    double weight = configuration.OptimizerToModelWeights
+                        .Where(c => c.SourceId == block.Id)
                         .Sum(c => c.Weight);
                     weight = weight == 0 ? 1.0 : weight;
                     var optimizer = NumericOptimizerFactory.Create(ParseEnum<NumericOptimizer>(GetParameterValue(block, "opt_algo")), null);
-                    return (weight, optimizer);
+                    return (block.Id, weight, optimizer);
                 })
                 .ToList();
 
@@ -107,7 +107,8 @@ namespace BusinessLayer
                 mesh.GetConductivityDistribution(),
                 initialDistribution,
                 Workspace.GetElectrodeMeasurementSetup(),
-                parameters.UsePotentialDifferences);
+                parameters.UsePotentialDifferences,
+                configuration.AllConnections);
         }
 
         private static void ApplyInitializationParameters(ConfiguredBlockSnapshot block, EITReconstructionParameters parameters)
@@ -208,12 +209,13 @@ namespace BusinessLayer
         FEMMesh Mesh,
         IDifferentialEquationSolver DifferentialEquationSolver,
         INumericSolver NumericSolver,
-        List<(double connectionWeight, IRegularizer regulizer)> Regularizers,
-        List<(double connectionWeight, IErrorMetric errorMetric)> ErrorMetrics,
-        List<(double connectionWeight, INumericOptimizer numericOptimizer)> NumericOptimizers,
+        List<(string id, double connectionWeight, IRegularizer regulizer)> Regularizers,
+        List<(string id, double connectionWeight, IErrorMetric errorMetric)> ErrorMetrics,
+        List<(string id, double connectionWeight, INumericOptimizer numericOptimizer)> NumericOptimizers,
         InitialDistributionTypes InitialDistributionType,
         ConductivityDistribution OriginalDistribution,
         ConductivityDistribution InitialDistribution,
         ElectrodeMeasurementSetup MeasurementSetup,
-        bool UsePotentialDifferences);
+        bool UsePotentialDifferences,
+        IReadOnlyList<WeightedConnectionSnapshot> AllConnections);
 }
