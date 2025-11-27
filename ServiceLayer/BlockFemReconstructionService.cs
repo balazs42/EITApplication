@@ -53,8 +53,14 @@ namespace ServiceLayer
                               ?? throw new InvalidOperationException("Failed to materialize reconstruction runtime context.");
 
             Workspace.SetDiscretization(_runtimeContext.Mesh);
-            Workspace.SetOriginalConductivityDistribution(_runtimeContext.OriginalDistribution);
-            Workspace.SetInitialConductivityDistribution(_runtimeContext.InitialDistribution);
+
+            // Store independent snapshots of the original and initial distributions so later updates
+            // to the mesh conductivity do not mutate these references through shared dictionaries.
+            var originalSnapshot = new ConductivityDistribution(_runtimeContext.OriginalDistribution.Conductivities);
+            var initialSnapshot = new ConductivityDistribution(_runtimeContext.InitialDistribution.Conductivities);
+
+            Workspace.SetOriginalConductivityDistribution(originalSnapshot);
+            Workspace.SetInitialConductivityDistribution(initialSnapshot);
             Workspace.SetElectrodeMeasurementSetup(_runtimeContext.MeasurementSetup);
 
             var parameters = Workspace.GetReconstructionParameters();
