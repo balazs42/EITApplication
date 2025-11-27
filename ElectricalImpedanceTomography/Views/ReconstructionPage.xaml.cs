@@ -160,6 +160,7 @@ public partial class ReconstructionPage : ContentPage
             this.StartBackgroundPulse(startColor, endColor);
             _viewModel.RefreshMeasurementSourceOptions();
             _viewModel.LoadAvailableReconstructions();
+            _viewModel.RefreshMethodPickerOptions();
         }
 
     protected override void OnDisappearing()

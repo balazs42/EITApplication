@@ -1,4 +1,5 @@
-﻿using System.Numerics;
+﻿using System.Collections.Generic;
+using System.Numerics;
 using Utility.Classes;
 using Utility.Classes.Configurations.ReconstructionConfiguration;
 using Utility.Classes.Discretizer;
@@ -23,6 +24,12 @@ namespace BusinessLayer
 
         private CompleteReconstructionConfiguration? _completeReconstructionConfiguration = null;
 
+        /// <summary>
+        /// Materialized runtime context derived from the block configuration. Contains
+        /// the mesh, solver instances and weighted reconstruction components.
+        /// </summary>
+        public ReconstructionRuntimeContext? RuntimeContext { get; private set; }
+
         private InitialDistributionTypes _initialDistributionType = InitialDistributionTypes.Homogeneous;
         private ConductivityDistribution _originalDistribution;
         private ConductivityDistribution _initialDistribution;
@@ -30,25 +37,48 @@ namespace BusinessLayer
         private ElectrodeMeasurementSetup _measurementSetup = ElectrodeMeasurementSetup.Active;
         private bool _usePotentialDifferences = false;
 
+        /// <summary>
+        /// Exposes the active differential equation solver so services can share it with
+        /// measurement preparation pipelines.
+        /// </summary>
+        public IDifferentialEquationSolver? DifferentialEquationSolver => _differentialEquationSolver;
+
         public void Initialize(CompleteReconstructionConfiguration configuration)
         {
             _completeReconstructionConfiguration = configuration ?? throw new ArgumentNullException(nameof(configuration));
 
-            var runtimeContext = ReconstructionConfigurationMaterializer.Materialize(configuration);
+            RuntimeContext = ReconstructionConfigurationMaterializer.Materialize(configuration);
 
-            _mesh = runtimeContext.Mesh;
-            _differentialEquationSolver = runtimeContext.DifferentialEquationSolver;
-            _numericSolver = runtimeContext.NumericSolver;
-            _regularizers = runtimeContext.Regularizers;
-            _errorMetrics = runtimeContext.ErrorMetrics;
-            _numericOptimizers = runtimeContext.NumericOptimizers;
-            _initialDistributionType = runtimeContext.InitialDistributionType;
-            _originalDistribution = runtimeContext.OriginalDistribution;
-            _initialDistribution = runtimeContext.InitialDistribution;
-            _measurementSetup = runtimeContext.MeasurementSetup;
-            _usePotentialDifferences = runtimeContext.UsePotentialDifferences;
+            _mesh = RuntimeContext.Mesh;
+            _differentialEquationSolver = RuntimeContext.DifferentialEquationSolver;
+            _numericSolver = RuntimeContext.NumericSolver;
+            _regularizers = RuntimeContext.Regularizers;
+            _errorMetrics = RuntimeContext.ErrorMetrics;
+            _numericOptimizers = RuntimeContext.NumericOptimizers;
+            _initialDistributionType = RuntimeContext.InitialDistributionType;
+            _originalDistribution = RuntimeContext.OriginalDistribution;
+            _initialDistribution = RuntimeContext.InitialDistribution;
+            _measurementSetup = RuntimeContext.MeasurementSetup;
+            _usePotentialDifferences = RuntimeContext.UsePotentialDifferences;
         }
 
+        /// <summary>
+        /// Updates the internally tracked conductivity distribution to keep regularization
+        /// and gradient calculations aligned with the latest optimization step.
+        /// </summary>
+        /// <param name="updated">Most recent conductivity estimate.</param>
+        public void UpdateCurrentDistribution(ConductivityDistribution updated)
+        {
+            _initialDistribution = updated ?? throw new ArgumentNullException(nameof(updated));
+            _mesh?.SetConductivityDistribution(updated);
+        }
+
+        /// <summary>
+        /// Executes a block-based FEM reconstruction step across the provided measurement frames,
+        /// producing per-frame gradients, potentials and adjoint solutions.
+        /// </summary>
+        /// <param name="measurement">Measurement frames mapped to the solver ordering.</param>
+        /// <returns>Collection of reconstruction frames, one entry per measurement frame.</returns>
         public List<ReconstructionFrame> Step(EITMeasurement measurement)
         {
             // Basic error checking
@@ -337,12 +367,14 @@ namespace BusinessLayer
         /// <returns></returns>
         private ConductivityDistribution CalculateCombinedRegularization()
         {
+            var currentDistribution = _mesh?.GetConductivityDistribution() ?? _initialDistribution
+                                       ?? throw new InvalidOperationException("No conductivity distribution available for regularization evaluation.");
             List<ConductivityDistribution> regularizations = new List<ConductivityDistribution>();
 
             Parallel.ForEach(_regularizers, regulizerEntry =>
             {
                 var (weight, regulizer) = regulizerEntry;
-                var regularization = regulizer.EvaluateGradient(_mesh, _initialDistribution);
+                var regularization = regulizer.EvaluateGradient(_mesh, currentDistribution);
 
                 // Scale regularization with its weight
                 foreach (var elementId in regularization.IdValuePairs.Keys.ToList())

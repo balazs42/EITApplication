@@ -20,6 +20,7 @@ using Utility.Classes;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
+using Utility.Classes.Configurations.ReconstructionConfiguration;
 using Utility.Classes.Factories;
 using Utility.Classes.Measurement;
 using Utility.Classes.ReconstructionParameters;
@@ -36,10 +37,14 @@ namespace ElectricalImpedanceTomography.ViewModels
     public partial class ReconstructionPageViewModel : BaseReconstructionPageViewModel
     {
         private readonly IReconstructionService _reconstructionService;
+        private readonly IBlockFemReconstructionService _blockReconstructionService;
         private readonly IReconstructionExportService _exportService;
 
         private readonly Stopwatch _reconstructionStopwatch = new();
         private readonly Timer _elapsedTimer;
+
+        private bool _blockInitialized;
+        private CompleteReconstructionConfiguration? _lastBlockConfiguration;
 
         private IDiscretization? _discretization = Workspace.GetDiscretization();
         private IDiscretization? _initializedDiscretization;
@@ -57,6 +62,69 @@ namespace ElectricalImpedanceTomography.ViewModels
         public bool IsLinearCombinationMethod => VirtualElectrodeSettings.UseVirtualElectrodes && VirtualElectrodeSettings.Method == VirtualElectrodeMethod.LinearCombination;
         public bool IsHarrachMethod => VirtualElectrodeSettings.UseVirtualElectrodes && VirtualElectrodeSettings.Method == VirtualElectrodeMethod.HarrachSensitivityInterpolation;
         public bool IsNdMethod => VirtualElectrodeSettings.UseVirtualElectrodes && VirtualElectrodeSettings.Method == VirtualElectrodeMethod.NdMapSpectralInterpolation;
+
+        private const string MixedPickerLabel = "Mixed";
+
+        [ObservableProperty]
+        private bool useBlockConfiguration = Workspace.GetUseBlockConfiguration();
+
+        public ObservableCollection<string> ErrorMetricPickerOptions { get; } = new();
+        public ObservableCollection<string> RegularizationPickerOptions { get; } = new();
+        public ObservableCollection<string> OptimizerPickerOptions { get; } = new();
+
+        [ObservableProperty]
+        private string? selectedErrorMetricDisplay;
+
+        [ObservableProperty]
+        private string? selectedRegularizationDisplay;
+
+        [ObservableProperty]
+        private string? selectedOptimizerDisplay;
+
+        [ObservableProperty]
+        private bool isErrorMetricPickerEnabled = true;
+
+        [ObservableProperty]
+        private bool isRegularizationPickerEnabled = true;
+
+        [ObservableProperty]
+        private bool isOptimizerPickerEnabled = true;
+
+        private bool ShouldUseBlockConfiguration => UseBlockConfiguration && Workspace.GetCompleteReconstructionConfiguration() != null;
+
+        partial void OnUseBlockConfigurationChanged(bool value)
+        {
+            Workspace.SetUseBlockConfiguration(value);
+            _blockInitialized = false;
+            RefreshMethodPickerOptions();
+        }
+
+        partial void OnSelectedErrorMetricDisplayChanged(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value) || value == MixedPickerLabel)
+                return;
+
+            if (Enum.TryParse<ErrorMetric>(value, out var parsed))
+                ReconstructionParameters.ErrorMetric = parsed;
+        }
+
+        partial void OnSelectedRegularizationDisplayChanged(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value) || value == MixedPickerLabel)
+                return;
+
+            if (Enum.TryParse<RegularizationTechnique>(value, out var parsed))
+                ReconstructionParameters.RegularizationTechnique = parsed;
+        }
+
+        partial void OnSelectedOptimizerDisplayChanged(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value) || value == MixedPickerLabel)
+                return;
+
+            if (Enum.TryParse<NumericOptimizer>(value, out var parsed))
+                ReconstructionParameters.NumericOptimizer = parsed;
+        }
 
         [ObservableProperty]
         private int iterationCount = 0;
@@ -329,9 +397,11 @@ namespace ElectricalImpedanceTomography.ViewModels
         }
 
         public ReconstructionPageViewModel(IReconstructionService reconstructionService,
+                                           IBlockFemReconstructionService blockReconstructionService,
                                            IReconstructionExportService exportService)
         {
             _reconstructionService = reconstructionService;
+            _blockReconstructionService = blockReconstructionService;
             _exportService = exportService;
 
             _elapsedTimer = new Timer(200)
@@ -371,12 +441,26 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             _reconstructionService.ReconstructionUpdated += OnServiceReconstructionUpdated;
             _reconstructionService.ReconstructionFrameUpdated += OnServiceFrameUpdated;
+            _blockReconstructionService.ReconstructionUpdated += OnServiceReconstructionUpdated;
+            _blockReconstructionService.ReconstructionFrameUpdated += OnServiceFrameUpdated;
+            RefreshMethodPickerOptions();
         }
 
         public void PrepareForNewReconstruction()
         {
             UpdateMesh();
             UpdateReconstructionParameters();
+
+            if (ShouldUseBlockConfiguration)
+            {
+                _blockReconstructionService.Initialize();
+                _initializedDiscretization = Workspace.GetDiscretization();
+                IterationCount = 0;
+                _resetMetricsOnStart = true;
+                _lastBlockConfiguration = Workspace.GetCompleteReconstructionConfiguration();
+                _blockInitialized = true;
+                return;
+            }
 
             var mesh = _discretization ?? throw new NullReferenceException("Mesh was null during reconstruction initialization, check calling code!");
 
@@ -440,6 +524,76 @@ namespace ElectricalImpedanceTomography.ViewModels
                 : "Use OMP Parallelization";
 
             OnPropertyChanged(nameof(UseParallelizationToggle));
+        }
+
+        /// <summary>
+        /// Synchronizes the method picker options with the current reconstruction mode.
+        /// Displays a non-editable "Mixed" option when multiple blocks are configured
+        /// for a given category.
+        /// </summary>
+        public void RefreshMethodPickerOptions()
+        {
+            var parameters = ReconstructionParameters;
+            if (parameters == null)
+                return;
+
+            var configuration = Workspace.GetCompleteReconstructionConfiguration();
+            var workspaceFlag = Workspace.GetUseBlockConfiguration();
+            if (UseBlockConfiguration != workspaceFlag)
+                UseBlockConfiguration = workspaceFlag;
+            if (UseBlockConfiguration && configuration == null)
+                UseBlockConfiguration = false;
+            bool mixedErrorMetric = ShouldUseBlockConfiguration && configuration != null && configuration.Blocks.Count(b => b.Type == BlockType.ErrorMetric) > 1;
+            bool mixedRegularizer = ShouldUseBlockConfiguration && configuration != null && configuration.Blocks.Count(b => b.Type == BlockType.Regularizer) > 1;
+            bool mixedOptimizer = ShouldUseBlockConfiguration && configuration != null && configuration.Blocks.Count(b => b.Type == BlockType.Optimizer) > 1;
+
+            UpdateMethodPicker(ErrorMetricPickerOptions,
+                               ErrorMetricOptions.Select(option => option.ToString()),
+                               mixedErrorMetric,
+                               parameters.ErrorMetric.ToString(),
+                               value => SelectedErrorMetricDisplay = value,
+                               enabled => IsErrorMetricPickerEnabled = enabled);
+
+            UpdateMethodPicker(RegularizationPickerOptions,
+                               RegularizationTechniqueOptions.Select(option => option.ToString()),
+                               mixedRegularizer,
+                               parameters.RegularizationTechnique.ToString(),
+                               value => SelectedRegularizationDisplay = value,
+                               enabled => IsRegularizationPickerEnabled = enabled);
+
+            UpdateMethodPicker(OptimizerPickerOptions,
+                               NumericOptimizerOptions.Select(option => option.ToString()),
+                               mixedOptimizer,
+                               parameters.NumericOptimizer.ToString(),
+                               value => SelectedOptimizerDisplay = value,
+                               enabled => IsOptimizerPickerEnabled = enabled);
+        }
+
+        /// <summary>
+        /// Populates a method picker with either the available options or a locked "Mixed" placeholder.
+        /// </summary>
+        private void UpdateMethodPicker(ObservableCollection<string> target,
+                                        IEnumerable<string> options,
+                                        bool isMixed,
+                                        string currentValue,
+                                        Action<string?> setSelected,
+                                        Action<bool> setEnabled)
+        {
+            target.Clear();
+
+            if (isMixed)
+            {
+                target.Add(MixedPickerLabel);
+                setSelected(MixedPickerLabel);
+                setEnabled(false);
+                return;
+            }
+
+            foreach (var option in options)
+                target.Add(option);
+
+            setSelected(target.FirstOrDefault(o => o == currentValue) ?? target.FirstOrDefault());
+            setEnabled(true);
         }
 
         public void SetDrivePattern(DrivePattern pattern)
@@ -740,6 +894,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 TrackReconstructionParameters(ReconstructionParameters);
                 SyncDrivePatternSelection();
                 UpdateParallelizationToggleState();
+                RefreshMethodPickerOptions();
             }
         }
 
@@ -821,12 +976,36 @@ namespace ElectricalImpedanceTomography.ViewModels
             _discretization = Workspace.GetDiscretization();
             RefreshMeasurementSourceSelection();
         }
-        private void UpdateReconstructionParameters() => ReconstructionParameters = Workspace.GetReconstructionParameters();
+        private void UpdateReconstructionParameters()
+        {
+            ReconstructionParameters = Workspace.GetReconstructionParameters();
+            RefreshMethodPickerOptions();
+        }
 
         private void InitializeReconstruction(bool force = false)
         {
             UpdateMesh();
             UpdateReconstructionParameters();
+
+            if (ShouldUseBlockConfiguration)
+            {
+                var config = Workspace.GetCompleteReconstructionConfiguration();
+                if (_lastBlockConfiguration != config)
+                {
+                    _blockInitialized = false;
+                    _lastBlockConfiguration = config;
+                }
+
+                if (force || !_blockInitialized)
+                {
+                    _blockReconstructionService.Initialize();
+                    _blockInitialized = true;
+                    IterationCount = 0;
+                    _initializedDiscretization = Workspace.GetDiscretization();
+                }
+
+                return;
+            }
 
             var mesh = _discretization;
             var reconstructionParameters = ReconstructionParameters;
@@ -1499,23 +1678,53 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             PrepareForNewReconstruction();
             BeginReconstructionMetrics();
+
+            if (ShouldUseBlockConfiguration)
+            {
+                _ = _blockReconstructionService.RunFullReconstructionCycleAsync(StepSize,
+                                                                                 RegularizationWeight,
+                                                                                 ExcitationCurrentAmplitude);
+                return;
+            }
+
             _reconstructionService.StartBackgroundReconstruction(MaxIterationCount, StepSize, RegularizationWeight, ExcitationCurrentAmplitude);
         }
 
         public void PauseReconstruction()
         {
+            if (ShouldUseBlockConfiguration)
+            {
+                PauseReconstructionMetrics();
+                return;
+            }
+
             _reconstructionService.PauseBackgroundReconstruction();
             PauseReconstructionMetrics();
         }
 
         public void ResumeReconstruction()
         {
+            if (ShouldUseBlockConfiguration)
+            {
+                BeginReconstructionMetrics();
+                return;
+            }
+
             _reconstructionService.ResumeBackgroundReconstruction();
             BeginReconstructionMetrics();
         }
 
         public void StopReconstruction()
         {
+            if (ShouldUseBlockConfiguration)
+            {
+                StopReconstructionMetrics();
+                _blockInitialized = false;
+                _initializedDiscretization = null;
+                _lastRunSignature = null;
+                return;
+            }
+
             _reconstructionService.StopBackgroundReconstruction();
             StopReconstructionMetrics();
             _initializedDiscretization = null;
@@ -1532,6 +1741,8 @@ namespace ElectricalImpedanceTomography.ViewModels
             // Reset view model state and clear workspace frames/results
             Workspace.ClearReconstructionFrames();
             Workspace.SetReconstructionResults(new List<ReconstructionResult>());
+
+            _blockInitialized = false;
 
             IterationCount = 0;
             Residual = 1.0;
@@ -1557,9 +1768,19 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             InitializeReconstruction();
             BeginReconstructionMetrics();
+
+            if (ShouldUseBlockConfiguration)
+            {
+                var blockResult = _blockReconstructionService.RunFullReconstructionCycleAsync(StepSize,
+                                                                                               RegularizationWeight,
+                                                                                               ExcitationCurrentAmplitude);
+                StopElapsedTimer();
+                return blockResult;
+            }
+
             var result = _reconstructionService.RunFullReconstructionCycleAsync(StepSize,
-                                                                         RegularizationWeight,
-                                                                         ExcitationCurrentAmplitude);
+                                                                             RegularizationWeight,
+                                                                             ExcitationCurrentAmplitude);
             StopElapsedTimer();
 
             return result;
@@ -1569,6 +1790,17 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             InitializeReconstruction();
             BeginReconstructionMetrics();
+
+            if (ShouldUseBlockConfiguration)
+            {
+                await _blockReconstructionService.StepReconstructionAsync(StepSize,
+                                                                          RegularizationWeight,
+                                                                          ExcitationCurrentAmplitude);
+                StopElapsedTimer();
+                FlushPendingTrendUpdates();
+                return;
+            }
+
             await _reconstructionService.StepReconstructionAsync();
             StopElapsedTimer();
             FlushPendingTrendUpdates();

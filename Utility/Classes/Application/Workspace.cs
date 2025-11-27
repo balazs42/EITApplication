@@ -21,6 +21,8 @@ namespace Utility.Classes.Application
         private static IDiscretization? _originalDiscretization { get; set; } = null;
         private static IDiscretization? _initialDiscretization { get; set; } = null;
 
+        private static bool _useBlockConfiguration;
+
         private static int _maxIterationCount = 50;
         private static double _stepSize = 0.001;
         private static double _regularizationWeight = 1e-3;
@@ -91,6 +93,7 @@ namespace Utility.Classes.Application
             => _completeReconstructionConfiguration = configuration;
         public static void SetOriginalConductivityDistribution(ConductivityDistribution? sigma) => _originalConductivityDistribution = sigma;
         public static void SetInitialConductivityDistribution(ConductivityDistribution? sigma) => _initialConductivityDistribution = sigma;
+        public static void SetUseBlockConfiguration(bool enabled) => _useBlockConfiguration = enabled;
 
         public static User GetUser() => _user;
         public static EITReconstructionParameters GetReconstructionParameters() => _reconstructionParameters;
@@ -103,6 +106,7 @@ namespace Utility.Classes.Application
         public static CompleteReconstructionConfiguration? GetCompleteReconstructionConfiguration() => _completeReconstructionConfiguration;
         public static ConductivityDistribution? GetOriginalConductivityDistribution() => _originalConductivityDistribution;
         public static ConductivityDistribution? GetInitialConductivityDistribution() => _initialConductivityDistribution;
+        public static bool GetUseBlockConfiguration() => _useBlockConfiguration;
 
         public static void UpdateCurrentGlobalFemElements(FEMMesh mesh)
             => _currentGlobalFemElements = [.. mesh.GetElements().Cast<FEMElement>()];
