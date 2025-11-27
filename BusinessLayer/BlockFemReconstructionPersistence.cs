@@ -326,7 +326,7 @@ namespace BusinessLayer
                 // Get the current weigth for the gradient
                 double currentWeight = connectionWeights[i];
 
-                Dictionary<int, double> gradientValues = new Dictionary<int, double>();
+                Dictionary<int, double> gradientValues = new Dictionary<int, double>(adjointGradient.Data.Count());
 
                 // Compute dot product on each element:  −(∇μ·∇φ)·Area per element
                 Parallel.ForEach(elements, element =>
