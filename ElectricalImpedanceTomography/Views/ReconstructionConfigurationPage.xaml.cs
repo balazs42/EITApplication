@@ -364,6 +364,9 @@ namespace ElectricalImpedanceTomography.Views
         /// </summary>
         private async Task OnBlockDoubleTappedAsync(ReconstructionConfigurationBlock block, TappedEventArgs tapArgs, View? sourceView)
         {
+            if (_viewModel.IsConnectionMode)
+                return;
+
             var position = sourceView != null ? tapArgs.GetPosition(sourceView) : null;
             // Only Initialization blocks support this editor
             if (block.Type != BlockType.Initialization)
