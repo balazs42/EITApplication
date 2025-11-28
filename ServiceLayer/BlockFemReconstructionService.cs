@@ -52,7 +52,10 @@ namespace ServiceLayer
             _runtimeContext = _persistence.RuntimeContext
                               ?? throw new InvalidOperationException("Failed to materialize reconstruction runtime context.");
 
-            Workspace.SetDiscretization(_runtimeContext.Mesh);
+            var runtimeMesh = _runtimeContext.RuntimeMesh
+                              ?? throw new InvalidOperationException("Runtime mesh missing from reconstruction context.");
+
+            Workspace.SetDiscretization(runtimeMesh);
 
             // Store independent snapshots of the original and initial distributions so later updates
             // to the mesh conductivity do not mutate these references through shared dictionaries.
@@ -64,7 +67,7 @@ namespace ServiceLayer
             Workspace.SetElectrodeMeasurementSetup(_runtimeContext.MeasurementSetup);
 
             var parameters = Workspace.GetReconstructionParameters();
-            _measurementService.Initialize(_runtimeContext.Mesh,
+            _measurementService.Initialize(runtimeMesh,
                                            parameters,
                                            parameters.DrivePattern,
                                            () => _persistence.DifferentialEquationSolver,
@@ -108,7 +111,8 @@ namespace ServiceLayer
                     ReconstructionFrameUpdated?.Invoke(this, frame);
                 }
 
-                var mesh = _runtimeContext.Mesh;
+                var mesh = _runtimeContext.RuntimeMesh
+                          ?? throw new InvalidOperationException("Runtime mesh missing from reconstruction context.");
                 var previous = mesh.GetConductivityDistribution();
                 var updated = ApplyGradientUpdate(frames, previous, stepSize, regularizationWeight);
                 if (updated == null)
@@ -138,7 +142,10 @@ namespace ServiceLayer
 
             _measurementService.EnsureMeasurements(excitationAmplitude);
 
-            var electrodes = _runtimeContext.Mesh.GetElectrodes().Cast<Electrode>().ToList();
+            var mesh = _runtimeContext.RuntimeMesh
+                       ?? throw new InvalidOperationException("Runtime mesh missing from reconstruction context.");
+
+            var electrodes = mesh.GetElectrodes().Cast<Electrode>().ToList();
             var preparedFrames = new List<double[]>();
 
             foreach (var frame in _measurementService.GetAllMeasurements())

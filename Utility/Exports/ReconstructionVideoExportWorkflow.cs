@@ -51,7 +51,8 @@ namespace Utility.Exports
             var colorbarSize = ReconstructionVideoRenderer.NormalizeSize(colorbarCanvasSize, 250, 20);
             var residualSize = ReconstructionVideoRenderer.NormalizeSize(residualCanvasSize, 600, 170);
 
-            string directory = FileSystem.Current.AppDataDirectory;
+            string directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                                            "EITApplication");
             Directory.CreateDirectory(directory);
             string baseFileName = $"reconstruction_{DateTime.Now:yyyyMMdd_HHmmss}";
             string mp4FilePath = Path.Combine(directory, baseFileName + ".mp4");
@@ -72,7 +73,8 @@ namespace Utility.Exports
                     int videoWidth = 0;
                     int videoHeight = 0;
                     double totalSteps = frames.Count + 1.0;
-                    string tempFrameDirectory = Path.Combine(FileSystem.Current.CacheDirectory,
+                    string tempFrameDirectory = Path.Combine(Path.GetTempPath(),
+                                                             "EITApplication",
                                                              "VideoExportFrames",
                                                              Guid.NewGuid().ToString("N"));
 
