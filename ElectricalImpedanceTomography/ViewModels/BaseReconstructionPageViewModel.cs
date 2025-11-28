@@ -10,7 +10,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 {
     public partial class BaseReconstructionPageViewModel : BaseViewModel
     {
-        private EITReconstructionParameters _currentParameters;
+        private ReconstructionRuntimeContext _currentParameters;
 
         private static readonly DifferentialEquationSolver[] DifferentialEquationSolverValues = Enum.GetValues<DifferentialEquationSolver>();
         public IEnumerable<DifferentialEquationSolver> DifferentialEquationSolverOptions => DifferentialEquationSolverValues;
@@ -34,7 +34,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         public IEnumerable<MeasurementNoiseType> MeasurementNoiseTypeOptions => MeasurementNoiseTypeValues;
 
         [ObservableProperty]
-        private EITReconstructionParameters reconstructionParameters = Workspace.GetReconstructionParameters();
+        private ReconstructionRuntimeContext reconstructionParameters = Workspace.GetReconstructionParameters();
 
         public bool IsNoiseAmplitudeEnabled => ReconstructionParameters.MeasurementNoiseType != MeasurementNoiseType.None;
 
@@ -52,7 +52,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                                              _currentParameters.ConductivityMaximumBound);
         }
 
-        partial void OnReconstructionParametersChanged(EITReconstructionParameters value)
+        partial void OnReconstructionParametersChanged(ReconstructionRuntimeContext value)
         {
             if (_currentParameters != null)
                 _currentParameters.PropertyChanged -= OnReconstructionParametersPropertyChanged;
@@ -67,14 +67,14 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         private void OnReconstructionParametersPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(EITReconstructionParameters.MeasurementNoiseType))
+            if (e.PropertyName == nameof(ReconstructionRuntimeContext.MeasurementNoiseType))
                 OnPropertyChanged(nameof(IsNoiseAmplitudeEnabled));
 
-            if (e.PropertyName == nameof(EITReconstructionParameters.DifferentialEquationSolver))
+            if (e.PropertyName == nameof(ReconstructionRuntimeContext.DifferentialEquationSolver))
                 OnPropertyChanged(nameof(IsLbmSolverSelected));
 
-            if (e.PropertyName == nameof(EITReconstructionParameters.ConductivityMinimumBound)
-                || e.PropertyName == nameof(EITReconstructionParameters.ConductivityMaximumBound))
+            if (e.PropertyName == nameof(ReconstructionRuntimeContext.ConductivityMinimumBound)
+                || e.PropertyName == nameof(ReconstructionRuntimeContext.ConductivityMaximumBound))
             {
                 var parameters = ReconstructionParameters;
                 if (parameters != null)

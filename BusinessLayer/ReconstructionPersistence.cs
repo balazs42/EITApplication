@@ -108,7 +108,7 @@ namespace BusinessLayer
         /// <param name="discretization">The mesh/grid to reconstruct (FEMMesh or LBMGrid).</param>
         /// <param name="parameters">User configuration for solvers and reconstruction.</param>
         /// <param name="reinit">If true forces re-initialization.</param>
-        public void InitializeReconstruction(IDiscretization discretization, EITReconstructionParameters parameters, bool reinit)
+        public void InitializeReconstruction(IDiscretization discretization, ReconstructionRuntimeContext parameters, bool reinit)
         {
             if(!_initialized || reinit)
             {
@@ -1805,7 +1805,7 @@ namespace BusinessLayer
         /// <summary>
         /// Persists the reconstruction frames and metadata via the repository implementation.
         /// </summary>
-        public void SaveReconstruction(List<ReconstructionResult> frames, string name, EITReconstructionParameters parameters)
+        public void SaveReconstruction(List<ReconstructionResult> frames, string name, ReconstructionRuntimeContext parameters)
             => _reconstructionRepository.SaveReconstruction(frames, name, parameters);
 
         /// <summary>

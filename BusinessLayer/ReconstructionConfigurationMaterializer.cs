@@ -19,7 +19,7 @@ namespace BusinessLayer
             if (configuration == null)
                 throw new ArgumentNullException(nameof(configuration));
 
-            var parameters = new EITReconstructionParameters();
+            var parameters = new ReconstructionRuntimeContext();
 
             // Extract block parameters
             foreach (var block in configuration.Blocks)
@@ -106,22 +106,21 @@ namespace BusinessLayer
                 })
                 .ToList();
 
-            return new ReconstructionRuntimeContext(
-                mesh,
-                differentialEquationSolver,
-                numericSolver,
-                regularizers,
-                errorMetrics,
-                optimizers,
-                parameters.InitialDistributionType,
-                originalDistribution,
-                initialDistribution,
-                Workspace.GetElectrodeMeasurementSetup(),
-                parameters.UsePotentialDifferences,
-                configuration.AllConnections);
+            parameters.RuntimeMesh = mesh;
+            parameters.RuntimeDifferentialEquationSolver = differentialEquationSolver;
+            parameters.RuntimeNumericSolver = numericSolver;
+            parameters.Regularizers = regularizers;
+            parameters.ErrorMetrics = errorMetrics;
+            parameters.NumericOptimizers = optimizers;
+            parameters.OriginalDistribution = originalDistribution;
+            parameters.InitialDistribution = initialDistribution;
+            parameters.MeasurementSetup = Workspace.GetElectrodeMeasurementSetup();
+            parameters.AllConnections = configuration.AllConnections;
+
+            return parameters;
         }
 
-        private static void ApplyInitializationParameters(ConfiguredBlockSnapshot block, EITReconstructionParameters parameters)
+        private static void ApplyInitializationParameters(ConfiguredBlockSnapshot block, ReconstructionRuntimeContext parameters)
         {
             var parsed = ParseEnum<InitialDistributionTypes>(GetParameterValue(block, "init_method"));
 
@@ -129,7 +128,7 @@ namespace BusinessLayer
                 parameters.InitialDistributionType = parsed;
         }
 
-        private static void ApplyModelParameters(ConfiguredBlockSnapshot block, EITReconstructionParameters parameters)
+        private static void ApplyModelParameters(ConfiguredBlockSnapshot block, ReconstructionRuntimeContext parameters)
         {
             parameters.ConductivityMinimumBound = ParseDouble(GetParameterValue(block, "sigma_min"), parameters.ConductivityMinimumBound);
             parameters.ConductivityMaximumBound = ParseDouble(GetParameterValue(block, "sigma_max"), parameters.ConductivityMaximumBound);
@@ -137,34 +136,34 @@ namespace BusinessLayer
             parameters.ContactImpedanceVariation = ParseDouble(GetParameterValue(block, "contact_impedance_var"), parameters.ContactImpedanceVariation);
         }
 
-        private static void ApplyMeasurementParameters(ConfiguredBlockSnapshot block, EITReconstructionParameters parameters)
+        private static void ApplyMeasurementParameters(ConfiguredBlockSnapshot block, ReconstructionRuntimeContext parameters)
         {
             parameters.UsePotentialDifferences = ParseBool(GetParameterValue(block, "use_potential_differences"));
             Workspace.SetElectrodeMeasurementSetup(ParseEnum<ElectrodeMeasurementSetup>(GetParameterValue(block, "electrode_setup")));
         }
 
-        private static void ApplySolverParameters(ConfiguredBlockSnapshot block, EITReconstructionParameters parameters)
+        private static void ApplySolverParameters(ConfiguredBlockSnapshot block, ReconstructionRuntimeContext parameters)
         {
             parameters.DifferentialEquationSolver = ParseEnum<DifferentialEquationSolver>(GetParameterValue(block, "solver_type"));
             parameters.NumericSolver = ParseEnum<NumericSolver>(GetParameterValue(block, "numeric_solver"));
         }
 
-        private static void ApplyRegularizerParameters(ConfiguredBlockSnapshot block, EITReconstructionParameters parameters)
+        private static void ApplyRegularizerParameters(ConfiguredBlockSnapshot block, ReconstructionRuntimeContext parameters)
         {
             parameters.RegularizationTechnique = ParseEnum<RegularizationTechnique>(GetParameterValue(block, "reg_tech"));
         }
 
-        private static void ApplyErrorMetricParameters(ConfiguredBlockSnapshot block, EITReconstructionParameters parameters)
+        private static void ApplyErrorMetricParameters(ConfiguredBlockSnapshot block, ReconstructionRuntimeContext parameters)
         {
             parameters.ErrorMetric = ParseEnum<ErrorMetric>(GetParameterValue(block, "metric_type"));
         }
 
-        private static void ApplyOptimizerParameters(ConfiguredBlockSnapshot block, EITReconstructionParameters parameters)
+        private static void ApplyOptimizerParameters(ConfiguredBlockSnapshot block, ReconstructionRuntimeContext parameters)
         {
             parameters.NumericOptimizer = ParseEnum<NumericOptimizer>(GetParameterValue(block, "opt_algo"));
         }
 
-        private static ConductivityDistribution BuildInitialDistribution(FEMMesh mesh, EITReconstructionParameters parameters, IReadOnlyList<ConfiguredBlockSnapshot> blocks)
+        private static ConductivityDistribution BuildInitialDistribution(FEMMesh mesh, ReconstructionRuntimeContext parameters, IReadOnlyList<ConfiguredBlockSnapshot> blocks)
         {
             var initBlock = blocks.FirstOrDefault(b => b.Type == BlockType.Initialization);
 
@@ -215,20 +214,4 @@ namespace BusinessLayer
         }
     }
 
-    /// <summary>
-    /// Container describing the runtime objects derived from the canvas configuration.
-    /// </summary>
-    public record ReconstructionRuntimeContext(
-        FEMMesh Mesh,
-        IDifferentialEquationSolver DifferentialEquationSolver,
-        INumericSolver NumericSolver,
-        List<(string id, double connectionWeight, IRegularizer regulizer)> Regularizers,
-        List<(string id, double connectionWeight, IErrorMetric errorMetric)> ErrorMetrics,
-        List<(string id, double connectionWeight, INumericOptimizer numericOptimizer)> NumericOptimizers,
-        InitialDistributionTypes InitialDistributionType,
-        ConductivityDistribution OriginalDistribution,
-        ConductivityDistribution InitialDistribution,
-        ElectrodeMeasurementSetup MeasurementSetup,
-        bool UsePotentialDifferences,
-        IReadOnlyList<WeightedConnectionSnapshot> AllConnections);
 }

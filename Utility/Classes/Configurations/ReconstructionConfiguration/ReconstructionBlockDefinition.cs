@@ -15,7 +15,7 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
             string title,
             string iconColor,
             Func<IEnumerable<ConfigurationParameter>> parameterFactory,
-            Action<ReconstructionConfigurationBlock, EITReconstructionParameters>? applyParameters = null)
+            Action<ReconstructionConfigurationBlock, ReconstructionRuntimeContext>? applyParameters = null)
         {
             Type = type;
             Title = title;
@@ -28,6 +28,6 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
         public string Title { get; }
         public string IconColor { get; }
         public Func<IEnumerable<ConfigurationParameter>> ParameterFactory { get; }
-        public Action<ReconstructionConfigurationBlock, EITReconstructionParameters> ApplyParameters { get; }
+        public Action<ReconstructionConfigurationBlock, ReconstructionRuntimeContext> ApplyParameters { get; }
     }
 }

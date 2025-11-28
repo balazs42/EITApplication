@@ -187,11 +187,11 @@
       <FileName>Classes\Models\InverseModel.cs</FileName>
     </TypeIdentifier>
   </Class>
-  <Class Name="Utility.Classes.ReconstructionParameters.EITReconstructionParameters" Collapsed="true">
+  <Class Name="Utility.Classes.ReconstructionParameters.ReconstructionRuntimeContext" Collapsed="true">
     <Position X="9.5" Y="5.5" Width="2.5" />
     <TypeIdentifier>
       <HashCode>AAAAAQAEAAAAAAAACACBAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
-      <FileName>Classes\ReconstructionParameters\EITReconstructionParameters.cs</FileName>
+      <FileName>Classes\ReconstructionParameters\ReconstructionRuntimeContext.cs</FileName>
     </TypeIdentifier>
   </Class>
   <Class Name="Utility.Classes.ReconstructionParameters.FiniteElementDESolver" Collapsed="true" BaseTypeListCollapsed="true">

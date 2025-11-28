@@ -11,7 +11,7 @@ namespace BusinessLayer
     public interface IReconstructionPersistence
     {
         void SetConductivityDistributions(ConductivityDistribution original, ConductivityDistribution initial);
-        public void InitializeReconstruction(IDiscretization discretization, EITReconstructionParameters parameters, bool reinit);
+        public void InitializeReconstruction(IDiscretization discretization, ReconstructionRuntimeContext parameters, bool reinit);
 
         public ReconstructionFrame Step(double[] measurement, BoundaryCondition boundaryCondition, double gradientStepSize, double redularizationStepSize);
         public void Run(int maxIterationCount, double gradientStepSize, double redularizationStepSize);
@@ -55,7 +55,7 @@ namespace BusinessLayer
         public ReconstructionResult InverseSolveStepGraph(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double stepSize);
 
         // --- Persistence ---
-        void SaveReconstruction(List<ReconstructionResult> frames, string name, EITReconstructionParameters parameters);
+        void SaveReconstruction(List<ReconstructionResult> frames, string name, ReconstructionRuntimeContext parameters);
         IEnumerable<ReconstructionInfo> GetReconstructions();
         List<ReconstructionResult> LoadReconstruction(string filePath);
 

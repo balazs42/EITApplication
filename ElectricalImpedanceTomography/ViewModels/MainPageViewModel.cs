@@ -33,7 +33,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         private bool hardwareConnected;
 
         [ObservableProperty]
-        private EITReconstructionParameters reconstructionParameters = Workspace.GetReconstructionParameters();
+        private ReconstructionRuntimeContext reconstructionParameters = Workspace.GetReconstructionParameters();
 
         [ObservableProperty]
         private User user = Workspace.GetUser();
@@ -50,7 +50,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         [ObservableProperty]
         private string latestReleaseDate = ApplicationInformation.LatestReleaseDate;
 
-        partial void OnReconstructionParametersChanged(EITReconstructionParameters value) => Workspace.SetReconstructionParameters(value);
+        partial void OnReconstructionParametersChanged(ReconstructionRuntimeContext value) => Workspace.SetReconstructionParameters(value);
         partial void OnCurrentAmplitudeChanged(double value) => CurrentImpedanceModel.Intensity = (float)Math.Clamp(value, 0, 1);
         partial void OnExcitationFrequencyChanged(double value) => CurrentImpedanceModel.Color = value > 1 ? Colors.Red : Colors.CornflowerBlue;
 

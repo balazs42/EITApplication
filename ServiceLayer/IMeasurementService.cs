@@ -9,7 +9,7 @@ namespace ServiceLayer
     public interface IMeasurementService
     {
         void Initialize(IDiscretization discretization,
-                        EITReconstructionParameters parameters,
+                        ReconstructionRuntimeContext parameters,
                         DrivePattern drivePattern,
                         Func<IDifferentialEquationSolver?> solverAccessor,
                         ConductivityDistribution? measurementConductivity = null);

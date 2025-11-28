@@ -61,7 +61,7 @@ namespace ServiceLayer
         /// future <see cref="EnsureMeasurements"/> calls can generate or adopt frames.
         /// </summary>
         public void Initialize(IDiscretization discretization,
-                               EITReconstructionParameters parameters,
+                               ReconstructionRuntimeContext parameters,
                                DrivePattern drivePattern,
                                Func<IDifferentialEquationSolver?> solverAccessor,
                                ConductivityDistribution? measurementConductivity = null)
