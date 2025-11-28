@@ -6,6 +6,7 @@ using System.Text.Json;
 using Utility.Classes;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Measurement;
+using Utility.Classes.Reconstruction.Metrics;
 using Utility.Classes.Reconstruction.VirtualElectrodes;
 using Utility.Exports;
 using Utility.Rendering;
@@ -46,10 +47,10 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
                                      request.DisplayMode);
 
             var initialMetadata = CreateRangeMetadata(initialDistribution);
-            double initialResidual = CalculateResidual(initialResult);
+            double initialResidual = ReconstructionStatistics.CalculateResidual(initialResult, true);
             initialMetadata.Add(("Residual L2", FormatDouble(initialResidual)));
 
-            var initialMetrics = ComputeDistributionMetrics(initialResult, CancellationToken.None);
+            var initialMetrics = ReconstructionStatistics.ComputeDistributionMetrics(initialResult, CancellationToken.None, false);
             if (initialMetrics.HasValue)
             {
                 var metrics = initialMetrics.Value;
@@ -136,10 +137,11 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
         for (int i = 0; i < results.Count; i++)
         {
             var result = results[i];
-            var metrics = ComputeDistributionMetrics(result, CancellationToken.None);
-            double residualValue = CalculateResidual(result);
-            double correlationValue = CalculateCorrelation(result.ReconstructedConductivityDistribution,
-                                                           result.OriginalConductivityDistribution);
+            var metrics = ReconstructionStatistics.ComputeDistributionMetrics(result, CancellationToken.None, false);
+            double residualValue = ReconstructionStatistics.CalculateResidual(result, true);
+            double correlationValue = ReconstructionStatistics.CalculateCorrelation(result.ReconstructedConductivityDistribution,
+                                                                                   result.OriginalConductivityDistribution,
+                                                                                   true);
             snapshots.Add(new ReconstructionIterationSnapshot(i + 1, result, metrics, residualValue, correlationValue));
         }
 
@@ -373,7 +375,7 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
             double? angle = null;
             if (previous != null && previous.Count > 0 && gradient.Count > 0)
             {
-                angle = ComputeGradientAngle(previous, gradient);
+                angle = ReconstructionStatistics.ComputeGradientAngle(previous, gradient);
                 if (double.IsNaN(angle.Value))
                     angle = null;
             }
@@ -516,239 +518,6 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
         double mean = sum / count;
         return (min, max, mean);
     }
-
-    private static double CalculateResidual(ReconstructionResult result)
-    {
-        if (result.Frames.Count == 0)
-            return 0.0;
-
-        double sumSq = 0.0;
-        int sampleCount = 0;
-
-        foreach (var frame in result.Frames)
-        {
-            var measured = frame.MeasuredElectrodeValues;
-            var simulated = frame.SimulatedElectrodeValues;
-
-            if (measured == null || simulated == null)
-                continue;
-
-            int length = Math.Min(measured.Length, simulated.Length);
-            for (int i = 0; i < length; i++)
-            {
-                double measuredValue = measured[i];
-                double simulatedValue = simulated[i];
-
-                if (double.IsNaN(measuredValue) || double.IsInfinity(measuredValue))
-                    continue;
-                if (double.IsNaN(simulatedValue) || double.IsInfinity(simulatedValue))
-                    continue;
-
-                double diff = simulatedValue - measuredValue;
-                sumSq += diff * diff;
-                sampleCount++;
-            }
-        }
-
-        if (sampleCount == 0)
-            return 0.0;
-
-        return Math.Sqrt(sumSq / sampleCount) * 1000.0;
-    }
-
-    private static double CalculateCorrelation(ConductivityDistribution reconstructed, ConductivityDistribution original)
-    {
-        if (reconstructed.Conductivities.Count == 0)
-            return 0.0;
-
-        double sumReconstructed = 0.0;
-        double sumOriginal = 0.0;
-        foreach (var kv in reconstructed.Conductivities)
-        {
-            sumReconstructed += kv.Value;
-            original.Conductivities.TryGetValue(kv.Key, out double origVal);
-            sumOriginal += origVal;
-        }
-
-        int count = reconstructed.Conductivities.Count;
-        double meanReconstructed = sumReconstructed / count;
-        double meanOriginal = sumOriginal / count;
-
-        double numerator = 0.0;
-        double sumSqReconstructed = 0.0;
-        double sumSqOriginal = 0.0;
-        foreach (var kv in reconstructed.Conductivities)
-        {
-            original.Conductivities.TryGetValue(kv.Key, out double origVal);
-            double centeredReconstructed = kv.Value - meanReconstructed;
-            double centeredOriginal = origVal - meanOriginal;
-            numerator += centeredReconstructed * centeredOriginal;
-            sumSqReconstructed += centeredReconstructed * centeredReconstructed;
-            sumSqOriginal += centeredOriginal * centeredOriginal;
-        }
-
-        double denominator = Math.Sqrt(sumSqReconstructed) * Math.Sqrt(sumSqOriginal);
-        if (denominator <= 1e-12)
-            return double.NaN;
-
-        double correlation = numerator / denominator;
-        return double.IsNaN(correlation) ? double.NaN : correlation;
-    }
-
-    private static DistributionMetrics? ComputeDistributionMetrics(ReconstructionResult result, CancellationToken token)
-    {
-        var reconstructed = result.ReconstructedConductivityDistribution.Conductivities;
-        if (reconstructed.Count == 0)
-            return null;
-
-        var original = result.OriginalConductivityDistribution.Conductivities;
-        var initial = result.InitialConductivitiyDistribution.Conductivities;
-
-        int count = reconstructed.Count;
-        double[] recon = new double[count];
-        double[] orig = new double[count];
-        double[] init = new double[count];
-
-        double sumSq = 0.0;
-        double sumAbs = 0.0;
-        double sumPct = 0.0;
-        double maxAbs = 0.0;
-
-        int index = 0;
-        foreach (var kv in reconstructed)
-        {
-            token.ThrowIfCancellationRequested();
-
-            double r = kv.Value;
-            original.TryGetValue(kv.Key, out double o);
-            initial.TryGetValue(kv.Key, out double i);
-
-            recon[index] = r;
-            orig[index] = o;
-            init[index] = i;
-
-            double diff = r - o;
-            sumSq += diff * diff;
-            sumAbs += Math.Abs(diff);
-            sumPct += Math.Abs(diff) / Math.Max(Math.Abs(o), 1e-6);
-
-            maxAbs = Math.Max(maxAbs, Math.Abs(o));
-            maxAbs = Math.Max(maxAbs, Math.Abs(r));
-            index++;
-        }
-
-        double mse = sumSq / Math.Max(count, 1);
-        double rmse = Math.Sqrt(mse);
-        double mae = sumAbs / Math.Max(count, 1);
-        double mape = sumPct / Math.Max(count, 1);
-
-        double psnr;
-        if (mse <= 1e-12)
-        {
-            psnr = double.PositiveInfinity;
-        }
-        else
-        {
-            double peak = maxAbs <= 1e-12 ? 1.0 : maxAbs;
-            psnr = 20.0 * Math.Log10(peak / Math.Sqrt(mse));
-        }
-
-        double initialRmse = 0.0;
-        double initialMae = 0.0;
-        for (int i = 0; i < count; i++)
-        {
-            double diff = init[i] - orig[i];
-            initialRmse += diff * diff;
-            initialMae += Math.Abs(diff);
-        }
-
-        initialRmse = Math.Sqrt(initialRmse / Math.Max(count, 1));
-        initialMae /= Math.Max(count, 1);
-
-        double rmseImprovement = initialRmse - rmse;
-        double maeImprovement = initialMae - mae;
-
-        double ssim = CalculateSsim(recon, orig);
-
-        return new DistributionMetrics(rmse,
-                                       mae,
-                                       mape,
-                                       psnr,
-                                       ssim,
-                                       rmseImprovement,
-                                       maeImprovement);
-    }
-
-    private static double CalculateSsim(double[] recon, double[] orig)
-    {
-        if (recon.Length == 0 || orig.Length == 0)
-            return double.NaN;
-
-        double meanRecon = recon.Average();
-        double meanOrig = orig.Average();
-
-        double varianceRecon = 0.0;
-        double varianceOrig = 0.0;
-        double covariance = 0.0;
-
-        for (int i = 0; i < recon.Length; i++)
-        {
-            double centeredRecon = recon[i] - meanRecon;
-            double centeredOrig = orig[i] - meanOrig;
-            varianceRecon += centeredRecon * centeredRecon;
-            varianceOrig += centeredOrig * centeredOrig;
-            covariance += centeredRecon * centeredOrig;
-        }
-
-        varianceRecon /= recon.Length;
-        varianceOrig /= orig.Length;
-        covariance /= recon.Length;
-
-        const double c1 = 0.01 * 0.01;
-        const double c2 = 0.03 * 0.03;
-
-        double numerator = (2 * meanRecon * meanOrig + c1) * (2 * covariance + c2);
-        double denominator = (meanRecon * meanRecon + meanOrig * meanOrig + c1) * (varianceRecon + varianceOrig + c2);
-
-        return denominator <= 0.0 ? double.NaN : numerator / denominator;
-    }
-
-    private static double ComputeGradientAngle(Dictionary<int, double> previous, Dictionary<int, double> current)
-    {
-        double dot = 0.0;
-        double prevNorm = 0.0;
-        double currNorm = 0.0;
-
-        foreach (var kv in current)
-        {
-            double value = kv.Value;
-            currNorm += value * value;
-            if (previous.TryGetValue(kv.Key, out double prevValue))
-                dot += prevValue * value;
-        }
-
-        foreach (var kv in previous)
-        {
-            double value = kv.Value;
-            prevNorm += value * value;
-        }
-
-        double denom = Math.Sqrt(prevNorm) * Math.Sqrt(currNorm);
-        if (denom <= 1e-12)
-            return double.NaN;
-
-        double cosTheta = dot / denom;
-        cosTheta = Math.Clamp(cosTheta, -1.0, 1.0);
-        return Math.Acos(cosTheta) * (180.0 / Math.PI);
-    }
-
-    private readonly record struct DistributionMetrics(double Rmse,
-                                                        double Mae,
-                                                        double Mape,
-                                                        double Psnr,
-                                                        double Ssim,
-                                                        double RmseImprovement,
-                                                        double MaeImprovement);
 
     private readonly record struct ReconstructionIterationSnapshot(int Iteration,
                                                                     ReconstructionResult Result,

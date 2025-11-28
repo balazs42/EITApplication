@@ -31,6 +31,7 @@ using Workspace = Utility.Classes.Application.Workspace;
 using Timer = System.Timers.Timer;
 using ElectricalImpedanceTomography.Helpers;
 using Utility.Classes.Reconstruction.VirtualElectrodes;
+using Utility.Classes.Reconstruction.Metrics;
 
 namespace ElectricalImpedanceTomography.ViewModels
 {
@@ -1058,84 +1059,6 @@ namespace ElectricalImpedanceTomography.ViewModels
             return true;
         }
 
-        private static double CalculateResidual(ReconstructionResult result)
-        {
-            if (result.Frames.Count == 0)
-                return 0.0;
-
-            double sumSq = 0.0;
-            int sampleCount = 0;
-
-            foreach (var frame in result.Frames)
-            {
-                var measured = frame.MeasuredElectrodeValues;
-                var simulated = frame.SimulatedElectrodeValues;
-
-                if (measured == null || simulated == null)
-                    continue;
-
-                int length = Math.Min(measured.Length, simulated.Length);
-                for (int i = 0; i < length; i++)
-                {
-                    double measuredValue = measured[i];
-                    double simulatedValue = simulated[i];
-
-                    if (double.IsNaN(measuredValue) || double.IsInfinity(measuredValue))
-                        continue;
-                    if (double.IsNaN(simulatedValue) || double.IsInfinity(simulatedValue))
-                        continue;
-
-                    double diff = simulatedValue - measuredValue;
-                    sumSq += diff * diff;
-                    sampleCount++;
-                }
-            }
-
-            if (sampleCount == 0)
-                return 0.0;
-
-            // * 1000 for mV
-            return Math.Sqrt(sumSq / sampleCount) * 1000;
-        }
-
-        private double CalculateCorrelation(ConductivityDistribution reconstructed, ConductivityDistribution original)
-        {
-            if (reconstructed.Conductivities.Count == 0)
-                return 0.0;
-
-            double sumReconstructed = 0.0;
-            double sumOriginal = 0.0;
-            foreach (var kv in reconstructed.Conductivities)
-            {
-                sumReconstructed += kv.Value;
-                original.Conductivities.TryGetValue(kv.Key, out double origVal);
-                sumOriginal += origVal;
-            }
-
-            int count = reconstructed.Conductivities.Count;
-            double meanReconstructed = sumReconstructed / count;
-            double meanOriginal = sumOriginal / count;
-
-            double numerator = 0.0;
-            double sumSqReconstructed = 0.0;
-            double sumSqOriginal = 0.0;
-            foreach (var kv in reconstructed.Conductivities)
-            {
-                original.Conductivities.TryGetValue(kv.Key, out double origVal);
-                double centeredReconstructed = kv.Value - meanReconstructed;
-                double centeredOriginal = origVal - meanOriginal;
-                numerator += centeredReconstructed * centeredOriginal;
-                sumSqReconstructed += centeredReconstructed * centeredReconstructed;
-                sumSqOriginal += centeredOriginal * centeredOriginal;
-            }
-
-            double denominator = Math.Sqrt(sumSqReconstructed * sumSqOriginal);
-            if (denominator < 1e-12)
-                return 0.0;
-
-            return numerator / denominator;
-        }
-
         private void RequestMetricUpdate(ReconstructionResult? result, ReconstructionFrame? frame)
         {
             lock (_metricUpdateLock)
@@ -1165,7 +1088,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             {
                 DistributionMetrics? distributionMetrics = null;
                 if (result != null)
-                    distributionMetrics = ComputeDistributionMetrics(result, token);
+                    distributionMetrics = ReconstructionStatistics.ComputeDistributionMetrics(result, token, true);
                 
                 token.ThrowIfCancellationRequested();
 
@@ -1230,129 +1153,6 @@ namespace ElectricalImpedanceTomography.ViewModels
             {
                 Debug.WriteLine($"Metric computation failed: {ex}");
             }
-        }
-
-        private static DistributionMetrics? ComputeDistributionMetrics(ReconstructionResult result, CancellationToken token)
-        {
-            var reconstructed = result.ReconstructedConductivityDistribution.Conductivities;
-            if (reconstructed.Count == 0)
-                return null;
-
-            var original = result.OriginalConductivityDistribution.Conductivities;
-            var initial = result.InitialConductivitiyDistribution.Conductivities;
-
-            int count = reconstructed.Count;
-            double[] recon = new double[count];
-            double[] orig = new double[count];
-            double[] init = new double[count];
-
-            double sumSq = 0.0;
-            double sumAbs = 0.0;
-            double sumPct = 0.0;
-            double maxAbs = 0.0;
-
-            int index = 0;
-            foreach (var kv in reconstructed)
-            {
-                token.ThrowIfCancellationRequested();
-
-                double r = kv.Value;
-                original.TryGetValue(kv.Key, out double o);
-                initial.TryGetValue(kv.Key, out double i);
-
-                recon[index] = r;
-                orig[index] = o;
-                init[index] = i;
-
-                double diff = r - o;
-                sumSq += diff * diff;
-                sumAbs += Math.Abs(diff);
-                sumPct += Math.Abs(diff) / Math.Max(Math.Abs(o), 1e-6);
-
-                maxAbs = Math.Max(maxAbs, Math.Abs(o));
-                maxAbs = Math.Max(maxAbs, Math.Abs(r));
-                index++;
-            }
-
-            double mse = sumSq / Math.Max(count, 1);
-            double rmse = Math.Sqrt(mse);
-            double mae = sumAbs / Math.Max(count, 1);
-            double mape = sumPct / Math.Max(count, 1);
-
-            double psnr;
-            if (mse <= 1e-12)
-                psnr = double.PositiveInfinity;
-            else
-            {
-                double peak = maxAbs <= 1e-12 ? 1.0 : maxAbs;
-                psnr = 20.0 * Math.Log10(peak / Math.Sqrt(mse));
-            }
-
-            double initialRmse = 0.0;
-            double initialMae = 0.0;
-            for (int i = 0; i < count; i++)
-            {
-                token.ThrowIfCancellationRequested();
-                double diffInit = init[i] - orig[i];
-                initialRmse += diffInit * diffInit;
-                initialMae += Math.Abs(diffInit);
-            }
-
-            initialRmse = Math.Sqrt(initialRmse / Math.Max(count, 1));
-            initialMae /= Math.Max(count, 1);
-
-            double rmseImprovement = initialRmse > 1e-9 ? (initialRmse - rmse) / initialRmse : 0.0;
-            double maeImprovement = initialMae > 1e-9 ? (initialMae - mae) / initialMae : 0.0;
-
-            double ssim = ComputeSsim(orig, recon);
-
-            return new DistributionMetrics(rmse, mae, mape, psnr, ssim, rmseImprovement, maeImprovement);
-        }
-
-        private static double ComputeSsim(double[] reference, double[] test)
-        {
-            if (reference.Length == 0 || reference.Length != test.Length)
-                return double.NaN;
-
-            double meanRef = 0.0;
-            double meanTest = 0.0;
-            for (int i = 0; i < reference.Length; i++)
-            {
-                meanRef += reference[i];
-                meanTest += test[i];
-            }
-
-            int n = reference.Length;
-            meanRef /= n;
-            meanTest /= n;
-
-            double varianceRef = 0.0;
-            double varianceTest = 0.0;
-            double covariance = 0.0;
-
-            for (int i = 0; i < n; i++)
-            {
-                double refDelta = reference[i] - meanRef;
-                double testDelta = test[i] - meanTest;
-                varianceRef += refDelta * refDelta;
-                varianceTest += testDelta * testDelta;
-                covariance += refDelta * testDelta;
-            }
-
-            varianceRef /= n;
-            varianceTest /= n;
-            covariance /= n;
-
-            const double c1 = 0.01 * 0.01;
-            const double c2 = 0.03 * 0.03;
-
-            double numerator = (2 * meanRef * meanTest + c1) * (2 * covariance + c2);
-            double denominator = (meanRef * meanRef + meanTest * meanTest + c1) * (varianceRef + varianceTest + c2);
-
-            if (denominator <= 1e-12)
-                return double.NaN;
-
-            return numerator / denominator;
         }
 
         private MeasurementMetrics? ComputeElectrodeMetrics(CancellationToken token)
@@ -1421,7 +1221,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             if (previous != null && previous.Count > 0 && gradient.Count > 0)
             {
-                gradientAngle = ComputeGradientAngle(previous, gradient);
+                gradientAngle = ReconstructionStatistics.ComputeGradientAngle(previous, gradient);
             }
 
             var potentialRange = ComputeRange(frame.CalculatedPotentialDistribution?.Potentials);
@@ -1439,35 +1239,6 @@ namespace ElectricalImpedanceTomography.ViewModels
                                     regularizationRange,
                                     regularizationEnergy,
                                     gradientSnapshot);
-        }
-
-        private static double ComputeGradientAngle(Dictionary<int, double> previous, Dictionary<int, double> current)
-        {
-            double dot = 0.0;
-            double prevNorm = 0.0;
-            double currNorm = 0.0;
-
-            foreach (var kv in current)
-            {
-                double value = kv.Value;
-                currNorm += value * value;
-                if (previous.TryGetValue(kv.Key, out double prevValue))
-                    dot += prevValue * value;
-            }
-
-            foreach (var kv in previous)
-            {
-                double value = kv.Value;
-                prevNorm += value * value;
-            }
-
-            double denom = Math.Sqrt(prevNorm) * Math.Sqrt(currNorm);
-            if (denom <= 1e-12)
-                return double.NaN;
-
-            double cosTheta = dot / denom;
-            cosTheta = Math.Clamp(cosTheta, -1.0, 1.0);
-            return Math.Acos(cosTheta) * (180.0 / Math.PI);
         }
 
         private static RangeMetrics ComputeRange(IReadOnlyDictionary<int, double>? values)
@@ -1573,34 +1344,6 @@ namespace ElectricalImpedanceTomography.ViewModels
             public const string GradientAngleChange = "gradientAngle";
             public const string PotentialRange = "potentialRange";
             public const string AdjointRange = "adjointRange";
-        }
-
-        private readonly struct DistributionMetrics
-        {
-            public DistributionMetrics(double rmse,
-                                       double mae,
-                                       double mape,
-                                       double psnr,
-                                       double ssim,
-                                       double rmseImprovement,
-                                       double maeImprovement)
-            {
-                Rmse = rmse;
-                Mae = mae;
-                Mape = mape;
-                Psnr = psnr;
-                Ssim = ssim;
-                RmseImprovement = rmseImprovement;
-                MaeImprovement = maeImprovement;
-            }
-
-            public double Rmse { get; }
-            public double Mae { get; }
-            public double Mape { get; }
-            public double Psnr { get; }
-            public double Ssim { get; }
-            public double RmseImprovement { get; }
-            public double MaeImprovement { get; }
         }
 
 
@@ -1903,7 +1646,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 return VideoExportResult.CreateFailure("No Mesh", "Unable to determine the discretization for rendering.");
 
             var residualHistory = results
-                .Select(CalculateResidual)
+                .Select(r => ReconstructionStatistics.CalculateResidual(r, true))
                 .ToList();
 
             var distributionSize = ReconstructionVideoRenderer.NormalizeSize(distributionCanvasSize, 250, 250);
@@ -2134,7 +1877,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                                                          snapshot.InitialConductivitiyDistribution,
                                                          snapshot.InitialConductivitiyDistribution,
                                                          snapshot.Frames);
-            return ComputeDistributionMetrics(initialResult, CancellationToken.None);
+            return ReconstructionStatistics.ComputeDistributionMetrics(initialResult, CancellationToken.None, true);
         }
 
         private static ReconstructionFrame GetFrameForResult(ReconstructionResult result, ReconstructionFrame fallback)
@@ -2344,11 +2087,11 @@ namespace ElectricalImpedanceTomography.ViewModels
             try
             {
                 var token = cts.Token;
-                double residual = CalculateResidual(result);
+                double residual = ReconstructionStatistics.CalculateResidual(result, true);
                 token.ThrowIfCancellationRequested();
 
-                double correlation = CalculateCorrelation(result.ReconstructedConductivityDistribution,
-                                                          result.OriginalConductivityDistribution);
+                double correlation = ReconstructionStatistics.CalculateCorrelation(result.ReconstructedConductivityDistribution,
+                                                                                   result.OriginalConductivityDistribution);
                 token.ThrowIfCancellationRequested();
 
                 await MainThread.InvokeOnMainThreadAsync(() =>

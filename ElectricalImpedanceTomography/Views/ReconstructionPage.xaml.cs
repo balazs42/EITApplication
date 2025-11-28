@@ -14,6 +14,7 @@ using Utility.Classes.Measurement;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
+using Utility.Classes.Reconstruction.Metrics;
 using Utility.Rendering;
 
 using Workspace = Utility.Classes.Application.Workspace;
@@ -1564,45 +1565,6 @@ public partial class ReconstructionPage : ContentPage
         GradientColorbarCanvas.InvalidateSurface();
     }
 
-    private static double CalculateResidual(ReconstructionResult result)
-    {
-        if (result.Frames.Count == 0)
-            return 0.0;
-
-        double sumSq = 0.0;
-        int sampleCount = 0;
-
-        foreach (var frame in result.Frames)
-        {
-            var measured = frame.MeasuredElectrodeValues;
-            var simulated = frame.SimulatedElectrodeValues;
-
-            if (measured == null || simulated == null)
-                continue;
-
-            int length = Math.Min(measured.Length, simulated.Length);
-            for (int i = 0; i < length; i++)
-            {
-                double measuredValue = measured[i];
-                double simulatedValue = simulated[i];
-
-                if (double.IsNaN(measuredValue) || double.IsInfinity(measuredValue))
-                    continue;
-                if (double.IsNaN(simulatedValue) || double.IsInfinity(simulatedValue))
-                    continue;
-
-                double diff = simulatedValue - measuredValue;
-                sumSq += diff * diff;
-                sampleCount++;
-            }
-        }
-
-        if (sampleCount == 0)
-            return 0.0;
-
-        return Math.Sqrt(sumSq / sampleCount);
-    }
-
     private async void OnExportClicked(object sender, EventArgs e)
     {
         await AnimateButtonAsync(sender);
@@ -1700,7 +1662,7 @@ public partial class ReconstructionPage : ContentPage
             if (_currentResult != null)
             {
                 _viewModel.IterationCount = results.Count;
-                _viewModel.Residual = CalculateResidual(_currentResult);
+                _viewModel.Residual = ReconstructionStatistics.CalculateResidual(_currentResult);
             }
             Dispatcher.Dispatch(() =>
             {
@@ -1755,7 +1717,7 @@ public partial class ReconstructionPage : ContentPage
             {
                 _currentResult = res;
                 _viewModel.IterationCount = iter;
-                _viewModel.Residual = CalculateResidual(res);
+                _viewModel.Residual = ReconstructionStatistics.CalculateResidual(res);
             }
             Dispatcher.Dispatch(() => { InvalidateAll(); UpdatePlaybackLabel(); });
 
