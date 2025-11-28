@@ -29,7 +29,6 @@ using Utility.Rendering;
 
 using Workspace = Utility.Classes.Application.Workspace;
 using Timer = System.Timers.Timer;
-using ElectricalImpedanceTomography.Helpers;
 using Utility.Classes.Reconstruction.VirtualElectrodes;
 using Utility.Classes.Reconstruction.Metrics;
 

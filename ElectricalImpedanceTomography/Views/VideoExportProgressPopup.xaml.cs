@@ -2,6 +2,7 @@ using CommunityToolkit.Maui.Core;
 using CommunityToolkit.Maui.Views;
 using ElectricalImpedanceTomography.ViewModels;
 using SkiaSharp;
+using Utility.Exports;
 using Utility.Rendering;
 
 namespace ElectricalImpedanceTomography.Views;

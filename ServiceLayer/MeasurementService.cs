@@ -87,7 +87,7 @@ namespace ServiceLayer
             _measurementPattern = null;
             _measurements.Clear();
             _realMeasurementAmplitude = null;
-            _measurementSetup = ElectrodeMeasurementSetup.Active;
+            _measurementSetup = Workspace.GetElectrodeMeasurementSetup();
             Workspace.SetElectrodeMeasurementSetup(_measurementSetup);
             Workspace.SetMeasurementPattern(null);
 
@@ -110,7 +110,7 @@ namespace ServiceLayer
             _realMeasurementAmplitude = null;
             _measurementPattern = null;
             Workspace.SetMeasurementPattern(null);
-            _measurementSetup = ElectrodeMeasurementSetup.Active;
+            _measurementSetup = Workspace.GetElectrodeMeasurementSetup();
             Workspace.SetElectrodeMeasurementSetup(_measurementSetup);
             _framesPerCycle = Math.Max(1, DetermineCycleLength());
         }
