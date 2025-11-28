@@ -347,19 +347,6 @@ public partial class MeshingPage : ContentPage
             canvas.DrawCircle(p, 3f, _pointFill);
     }
 
-    private async void OnAddNoiseTapped(object sender, TappedEventArgs e)
-    {
-        if (sender is VisualElement v) await ShrinkViewAsync(v);
-        var mesh = _viewModel.GetCurrentMesh();
-        if (mesh == null)
-        {
-            await DisplayAlert("No mesh", "Generate a mesh before adding noise.", "OK");
-            return;
-        }
-
-        _viewModel.AddNoiseToMesh();
-    }
-
     private async void OnMeshCanvasTouch(object sender, SKTouchEventArgs e)
     {
         var mesh = _viewModel.GetCurrentMesh();

@@ -282,9 +282,9 @@ public partial class ReconstructionPage : ContentPage
             return;
         }
 
-        if(!_viewModel.CheckReconstructionMethodAgainstMesh())
+        if(!_viewModel.CheckReconstructionMethodAgainstDiscretization())
         {
-            await DisplayAlert("Bad Differential Equation Solver", "You should select the same type of DE solver what your mesh is made for!", "Ok");
+            await DisplayAlert("Bad Differential Equation Solver", "You should select the same type of DE solver that your discretization is made for!", "Ok");
             return;
         }
 
@@ -1821,7 +1821,7 @@ public partial class ReconstructionPage : ContentPage
             return;
         }
 
-        if (!_viewModel.CheckReconstructionMethodAgainstMesh())
+        if (!_viewModel.CheckReconstructionMethodAgainstDiscretization())
         {
             await DisplayAlert("Bad Differential Equation Solver", "You should select the same type of DE solver what your mesh is made for.", "Ok");
             return;
@@ -1839,9 +1839,9 @@ public partial class ReconstructionPage : ContentPage
             return;
         }
 
-        if (!_viewModel.CheckReconstructionMethodAgainstMesh())
+        if (!_viewModel.CheckReconstructionMethodAgainstDiscretization())
         {
-            await DisplayAlert("Bad Differential Equation Solver", "You should select the same type of DE solver what your mesh is made for.", "Ok");
+            await DisplayAlert("Bad Differential Equation Solver", "You should select the same type of DE solver what your discretization is made for.", "Ok");
             return;
         }
 

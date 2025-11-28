@@ -606,7 +606,7 @@ namespace ElectricalImpedanceTomography.Views
         /// Finds a target block whose input port lies near the provided location.
         /// Uses a proximity threshold around the input anchor.
         /// </summary>
-        private ReconstructionConfigurationBlock FindTargetBlock(Point location)
+        private ReconstructionConfigurationBlock? FindTargetBlock(Point location)
         {
             foreach (var block in _viewModel.Blocks)
             {

@@ -498,7 +498,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         private SKSizeI _videoExportResidualSize;
         private SKSizeI _videoExportFrameSize;
         private int _videoExportFrameCount;
-        private object _errorMetricLock;
+        private object _errorMetricLock = new object();
 
         /// <summary>Updates estimated size/time when the selected export format changes.</summary>
         partial void OnSelectedVideoExportFormatChanged(VideoExportFormatOption? value)
@@ -1544,6 +1544,9 @@ namespace ElectricalImpedanceTomography.ViewModels
         private static string FormatRange(RangeMetrics range)
         {
             if (!range.HasValue)
+                return "—";
+
+            if (range.Max is null || range.Min is null)
                 return "—";
 
             double delta = range.Max.Value - range.Min.Value;
