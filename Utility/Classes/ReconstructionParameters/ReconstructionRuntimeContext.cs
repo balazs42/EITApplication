@@ -1,15 +1,22 @@
 ﻿using Utility.Classes.Discretizer;
-using CommunityToolkit.Mvvm.ComponentModel;
+using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Factories;
 using Utility.Classes.Measurement;
+using Utility.Classes.Reconstruction;
 using Utility.Classes.Reconstruction.VirtualElectrodes;
+using Utility.Classes.Solvers;
+using Utility.Classes.Solvers.FiniteElementSolver;
+using Utility.Classes.Solvers.NumericOptimizers;
+using CommunityToolkit.Mvvm.ComponentModel;
+using System.Collections.Generic;
 
 namespace Utility.Classes.ReconstructionParameters
 {
     /// <summary>
-    /// Data transfer object that captures all user-configurable reconstruction options.
+    /// Data transfer object that captures all user-configurable reconstruction options and runtime
+    /// components materialized from either the classic parameters or the block configuration pipeline.
     /// </summary>
-    public partial class EITReconstructionParameters : ObservableObject
+    public partial class ReconstructionRuntimeContext : ObservableObject
     {
         [ObservableProperty]
         private DifferentialEquationSolver differentialEquationSolver = DifferentialEquationSolver.FEM;
@@ -88,9 +95,23 @@ namespace Utility.Classes.ReconstructionParameters
         private LatticeBoltzmannRelaxationModel lbmRelaxationModel = LatticeBoltzmannRelaxationModel.BGK;
 
         /// <summary>
+        /// Runtime references constructed from the block-based pipeline when available.
+        /// </summary>
+        public FEMMesh? RuntimeMesh { get; set; }
+        public IDifferentialEquationSolver? RuntimeDifferentialEquationSolver { get; set; }
+        public INumericSolver? RuntimeNumericSolver { get; set; }
+        public List<(string id, double connectionWeight, IRegularizer regulizer)> Regularizers { get; set; } = new();
+        public List<(string id, double connectionWeight, IErrorMetric errorMetric)> ErrorMetrics { get; set; } = new();
+        public List<(string id, double connectionWeight, INumericOptimizer numericOptimizer)> NumericOptimizers { get; set; } = new();
+        public ConductivityDistribution? OriginalDistribution { get; set; }
+        public ConductivityDistribution? InitialDistribution { get; set; }
+        public ElectrodeMeasurementSetup MeasurementSetup { get; set; } = ElectrodeMeasurementSetup.Active;
+        public IReadOnlyList<WeightedConnectionSnapshot>? AllConnections { get; set; }
+
+        /// <summary>
         /// Creates a parameter set using the default reconstruction configuration.
         /// </summary>
-        public EITReconstructionParameters()
+        public ReconstructionRuntimeContext()
         {
             DifferentialEquationSolver = DifferentialEquationSolver.FEM;
             RegularizationTechnique = RegularizationTechnique.None;
@@ -111,7 +132,7 @@ namespace Utility.Classes.ReconstructionParameters
         /// Creates a parameter set with the provided solver, regularisation,
         /// and noise configuration.
         /// </summary>
-        public EITReconstructionParameters(DifferentialEquationSolver differentialEquationSolver,
+        public ReconstructionRuntimeContext(DifferentialEquationSolver differentialEquationSolver,
                                            RegularizationTechnique regularizationTechnique,
                                            ErrorMetric errorMetric,
                                            NumericSolver numericSolver,

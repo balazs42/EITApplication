@@ -16,7 +16,7 @@ namespace Utility.Classes.Application
         private const int MaxMessageCount = 200;
 
         private static User _user { get; set; } = new DefaultUser(0, "No User");
-        private static EITReconstructionParameters _reconstructionParameters = new();
+        private static ReconstructionRuntimeContext _reconstructionParameters = new();
         private static IDiscretization? _discretization{ get; set; } = null;
         private static IDiscretization? _originalDiscretization { get; set; } = null;
         private static IDiscretization? _initialDiscretization { get; set; } = null;
@@ -58,7 +58,7 @@ namespace Utility.Classes.Application
 
         public static event Action<ElectrodeMeasurementSetup>? ElectrodeMeasurementSetupChanged;
 
-        public static void Initialize(User user, EITReconstructionParameters? eITReconstructionParameters, IDiscretization? discretization)
+        public static void Initialize(User user, ReconstructionRuntimeContext? eITReconstructionParameters, IDiscretization? discretization)
         {
             if(_initialized) return;
 
@@ -76,7 +76,7 @@ namespace Utility.Classes.Application
         }
 
         public static void SetUser(User user) => _user = user;
-        public static void SetReconstructionParameters(EITReconstructionParameters eITReconstructionParameters)
+        public static void SetReconstructionParameters(ReconstructionRuntimeContext eITReconstructionParameters)
         {
             _reconstructionParameters = eITReconstructionParameters;
             _conductivityMinimumBound = eITReconstructionParameters.ConductivityMinimumBound;
@@ -96,7 +96,7 @@ namespace Utility.Classes.Application
         public static void SetUseBlockConfiguration(bool enabled) => _useBlockConfiguration = enabled;
 
         public static User GetUser() => _user;
-        public static EITReconstructionParameters GetReconstructionParameters() => _reconstructionParameters;
+        public static ReconstructionRuntimeContext GetReconstructionParameters() => _reconstructionParameters;
         public static IDiscretization? GetDiscretization() => _discretization;
         public static IDiscretization? GetOriginalDiscretization() => _originalDiscretization;
         public static IDiscretization? GetInitialDiscretization() => _initialDiscretization;

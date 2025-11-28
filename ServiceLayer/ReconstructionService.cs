@@ -93,11 +93,11 @@ namespace ServiceLayer
         /// <param name="discretization">Target discretization (FEM/LBM) to reconstruct on.</param>
         /// <param name="parameters">Reconstruction parameters selected by the user.</param>
         /// <param name="reinit">Whether to reinitialize persistence internal caches/state.</param>
-        public void InitializeReconstruction(IDiscretization discretization, EITReconstructionParameters parameters, bool reinit)
+        public void InitializeReconstruction(IDiscretization discretization, ReconstructionRuntimeContext parameters, bool reinit)
         {
             try
             {
-                Workspace.AddLogMessage("Reconstruction Service", "Reconstruction initialization started with the specified EITReconstructionParameters object.");
+                Workspace.AddLogMessage("Reconstruction Service", "Reconstruction initialization started with the specified runtime context.");
 
                 // 1) Surface discretization (mesh/grid) globally and cache locally for quick access.
                 Workspace.SetDiscretization(discretization);
@@ -594,7 +594,7 @@ namespace ServiceLayer
         /// <summary>
         /// Persists a reconstruction to storage using the underlying persistence implementation.
         /// </summary>
-        public void SaveReconstruction(List<ReconstructionResult> frames, string name, EITReconstructionParameters parameters)
+        public void SaveReconstruction(List<ReconstructionResult> frames, string name, ReconstructionRuntimeContext parameters)
         {
             try
             {

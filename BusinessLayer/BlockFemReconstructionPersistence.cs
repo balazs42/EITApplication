@@ -59,15 +59,15 @@ namespace BusinessLayer
 
             RuntimeContext = ReconstructionConfigurationMaterializer.Materialize(configuration);
 
-            _mesh = RuntimeContext.Mesh;
-            _differentialEquationSolver = RuntimeContext.DifferentialEquationSolver;
-            _numericSolver = RuntimeContext.NumericSolver;
+            _mesh = RuntimeContext.RuntimeMesh;
+            _differentialEquationSolver = RuntimeContext.RuntimeDifferentialEquationSolver;
+            _numericSolver = RuntimeContext.RuntimeNumericSolver;
             _regularizers = RuntimeContext.Regularizers;
             _errorMetrics = RuntimeContext.ErrorMetrics;
             _numericOptimizers = RuntimeContext.NumericOptimizers;
             _initialDistributionType = RuntimeContext.InitialDistributionType;
-            _originalDistribution = RuntimeContext.OriginalDistribution;
-            _initialDistribution = RuntimeContext.InitialDistribution;
+            _originalDistribution = RuntimeContext.OriginalDistribution ?? throw new InvalidOperationException("Original distribution missing from runtime context.");
+            _initialDistribution = RuntimeContext.InitialDistribution ?? throw new InvalidOperationException("Initial distribution missing from runtime context.");
             _measurementSetup = RuntimeContext.MeasurementSetup;
             _usePotentialDifferences = RuntimeContext.UsePotentialDifferences;
             _connections = RuntimeContext.AllConnections;

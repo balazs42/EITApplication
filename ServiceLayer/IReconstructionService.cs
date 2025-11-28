@@ -7,7 +7,7 @@ namespace ServiceLayer
 {
     public interface IReconstructionService
     {
-        void InitializeReconstruction(IDiscretization discretization, EITReconstructionParameters parameters, bool reinit);
+        void InitializeReconstruction(IDiscretization discretization, ReconstructionRuntimeContext parameters, bool reinit);
 
         // --- Background reconstruction control ---
         event EventHandler<ReconstructionResult> ReconstructionUpdated;
@@ -23,7 +23,7 @@ namespace ServiceLayer
                                                                     double excitationAmplitude);
 
         // --- Persistence ---
-        void SaveReconstruction(List<ReconstructionResult> frames, string name, EITReconstructionParameters parameters);
+        void SaveReconstruction(List<ReconstructionResult> frames, string name, ReconstructionRuntimeContext parameters);
         IEnumerable<ReconstructionInfo> GetReconstructions();
         List<ReconstructionResult> LoadReconstruction(string filePath);
     }
