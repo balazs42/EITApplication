@@ -1,14 +1,10 @@
 using BusinessLayer;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Utility.Classes;
 using Utility.Classes.Application;
 using Utility.Classes.Discretizer;
-using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Measurement;
 using Utility.Classes.Reconstruction;
+using Utility.Classes.ReconstructionParameters;
 using Utility.Logger;
 
 namespace ServiceLayer
@@ -52,7 +48,12 @@ namespace ServiceLayer
             _runtimeContext = _persistence.RuntimeContext
                               ?? throw new InvalidOperationException("Failed to materialize reconstruction runtime context.");
 
-            Workspace.SetDiscretization(_runtimeContext.Mesh);
+            var discretization = Workspace.GetDiscretization().DeepCopy();
+
+            if (discretization is null)
+                throw new NullReferenceException("Discretization was null during initialization of block reconstruction service. Check code!");
+
+            //Workspace.SetDiscretization(_runtimeContext.Mesh);
 
             // Store independent snapshots of the original and initial distributions so later updates
             // to the mesh conductivity do not mutate these references through shared dictionaries.
@@ -64,7 +65,7 @@ namespace ServiceLayer
             Workspace.SetElectrodeMeasurementSetup(_runtimeContext.MeasurementSetup);
 
             var parameters = Workspace.GetReconstructionParameters();
-            _measurementService.Initialize(_runtimeContext.Mesh,
+            _measurementService.Initialize(discretization,
                                            parameters,
                                            parameters.DrivePattern,
                                            () => _persistence.DifferentialEquationSolver,
@@ -108,7 +109,7 @@ namespace ServiceLayer
                     ReconstructionFrameUpdated?.Invoke(this, frame);
                 }
 
-                var mesh = _runtimeContext.Mesh;
+                var mesh = Workspace.GetDiscretization();
                 var previous = mesh.GetConductivityDistribution();
                 var updated = ApplyGradientUpdate(frames, previous, stepSize, regularizationWeight);
                 if (updated == null)
@@ -138,7 +139,12 @@ namespace ServiceLayer
 
             _measurementService.EnsureMeasurements(excitationAmplitude);
 
-            var electrodes = _runtimeContext.Mesh.GetElectrodes().Cast<Electrode>().ToList();
+            var discretization = Workspace.GetDiscretization();
+
+            if (discretization == null)
+                throw new NullReferenceException("Discretization was null during measurement preparation, check code!");
+
+            var electrodes = discretization.GetElectrodes().Cast<Electrode>().ToList();
             var preparedFrames = new List<double[]>();
 
             foreach (var frame in _measurementService.GetAllMeasurements())

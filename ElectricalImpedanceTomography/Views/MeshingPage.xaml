@@ -305,7 +305,7 @@
                     <ScrollView Grid.Row="1" Padding="8,0">
                         <VerticalStackLayout BindableLayout.ItemsSource="{Binding FilteredMeshes}" Spacing="8">
                             <BindableLayout.ItemTemplate>
-                                <DataTemplate x:DataType="models:DiscretizationInfo">
+                                <DataTemplate <!--x:DataType="models:DiscretizationInfo"-->>
                                     <Border BackgroundColor="#13161C" Stroke="{StaticResource BorderColor}" StrokeShape="RoundRectangle 6" Padding="10">
                                         <Grid RowDefinitions="Auto, Auto">
                                             <Label Grid.Row="0" Text="{Binding Name}" TextColor="{StaticResource TextPrimary}" FontSize="Small" FontAttributes="Bold" FontFamily="SF Pro Text" LineBreakMode="TailTruncation"/>
