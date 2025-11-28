@@ -94,6 +94,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         private readonly Stack<IDiscretization> _redoStack = new();
         private IList<(double x, double y)>? _customPerimeter;
 
+        // Event invoked when the mesh has changed which indicates a UI redraw is needed
         public event Action? MeshChanged;
 
         public VirtualElectrodeSettings VirtualElectrodeSettings => Workspace.GetReconstructionParameters().VirtualElectrodeSettings;
@@ -170,6 +171,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 _redoStack.Push(_currentDiscretization.DeepCopy());
             _currentDiscretization = _undoStack.Pop();
 
+            // Revert to last state and store it as the original discretization
             Workspace.SetDiscretization(_currentDiscretization);
             Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
 
@@ -185,6 +187,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 _undoStack.Push(_currentDiscretization.DeepCopy());
             _currentDiscretization = _redoStack.Pop();
 
+            // Revert to last state and store it as the original discretization
             Workspace.SetDiscretization(_currentDiscretization);
             Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
 
@@ -197,6 +200,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 PushState();
             _currentDiscretization = SelectedMeshType == DiscretizationType.FEM ? GenerateFEMMesh() : GenerateLBMGrid();
 
+            // Store it as the current and original discretization
             Workspace.SetDiscretization(_currentDiscretization);
             Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
 
@@ -212,18 +216,6 @@ namespace ElectricalImpedanceTomography.ViewModels
                 if (_currentDiscretization is FEMMesh fem)
                     ApplyFemElectrodeLayout(fem);
             }
-        }
-
-        public void AddNoiseToMesh()
-        {
-            if (_currentDiscretization == null)
-                return;
-
-            PushState();
-            MeshFactory.AddGaussianNoise(_currentDiscretization);
-
-            Workspace.SetDiscretization(_currentDiscretization);
-            Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
         }
 
         public MatlabExportResult? ExportCurrentMeshForMatlab()
@@ -317,6 +309,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             var dict = _currentDiscretization.GetElements().ToDictionary(e => e.Id, e => e.Conductivity);
             _currentDiscretization.SetConductivityDistribution(new ConductivityDistribution(dict));
 
+            // Refresh workspace references
             Workspace.SetDiscretization(_currentDiscretization);
             Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
         }

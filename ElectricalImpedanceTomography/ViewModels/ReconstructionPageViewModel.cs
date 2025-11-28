@@ -35,64 +35,120 @@ using Utility.Classes.Reconstruction.Metrics;
 
 namespace ElectricalImpedanceTomography.ViewModels
 {
+    /// <summary>
+    /// Orchestrates EIT reconstruction workflows from the UI perspective.
+    /// 
+    /// The view model exposes commands and observable properties to drive forward and
+    /// inverse solves, coordinates both the classic and block-based reconstruction paths,
+    /// collects metrics, and pushes frame/result notifications back to the view.
+    /// </summary>
     public partial class ReconstructionPageViewModel : BaseReconstructionPageViewModel
     {
+        /// <summary>Facade for the classic (non‑block) reconstruction orchestration.</summary>
         private readonly IReconstructionService _reconstructionService;
+       
+        /// <summary>Facade for the experimental block‑based FEM reconstruction pipeline.</summary>
         private readonly IBlockFemReconstructionService _blockReconstructionService;
+        
+        /// <summary>Service for exporting videos/data derived from reconstruction frames.</summary>
         private readonly IReconstructionExportService _exportService;
 
+        /// <summary>Wall‑clock stopwatch for elapsed time and performance metrics.</summary>
         private readonly Stopwatch _reconstructionStopwatch = new();
+        
+        /// <summary>Periodic UI timer that refreshes the <see cref="ElapsedTime"/> binding.</summary>
         private readonly Timer _elapsedTimer;
 
+        /// <summary>Indicates if the block pipeline was initialized for the active configuration.</summary>
         private bool _blockInitialized;
+        
+        /// <summary>Caches the last block configuration to detect re‑initialization boundaries.</summary>
         private CompleteReconstructionConfiguration? _lastBlockConfiguration;
 
+        /// <summary>Active discretization reference from the <see cref="Workspace"/>.</summary>
         private IDiscretization? _discretization = Workspace.GetDiscretization();
+        
+        /// <summary>Tracks the discretization instance used when the persistence layer was last initialized.</summary>
         private IDiscretization? _initializedDiscretization;
+        
+        /// <summary>Captures the invariant run signature used to detect parameter changes between runs.</summary>
         private ReconstructionRunSignature? _lastRunSignature;
+        
+        /// <summary>When true, trend histories are cleared on the next Begin operation.</summary>
         private bool _resetMetricsOnStart = true;
+        
+        /// <summary>Prevents feedback loops while synchronizing drive pattern picker state.</summary>
         private bool _updatingDrivePatternSelection;
+        
+        /// <summary>Tracks reconstruction parameters for change detection and UI sync.</summary>
         private EITReconstructionParameters? _trackedParameters;
+        
+        /// <summary>Current measurement source selection mirrored from the workspace.</summary>
         private MeasurementSourceOption _selectedMeasurementSource = Workspace.GetMeasurementSource();
+        
+        /// <summary>Current potential render mode for video export.</summary>
         private PotentialDisplayMode _selectedDisplayMode = PotentialDisplayMode.Default;
 
+        /// <summary>Shortcut to virtual electrode settings from the global parameters.</summary>
         public VirtualElectrodeSettings VirtualElectrodeSettings => ReconstructionParameters.VirtualElectrodeSettings;
 
+        /// <summary>Enumeration source for the Virtual Electrode method picker.</summary>
         public IEnumerable<VirtualElectrodeMethod> VirtualElectrodeMethods { get; } = Enum.GetValues<VirtualElectrodeMethod>();
 
+        /// <summary>True when the Linear Combination virtual electrode method is active.</summary>
         public bool IsLinearCombinationMethod => VirtualElectrodeSettings.UseVirtualElectrodes && VirtualElectrodeSettings.Method == VirtualElectrodeMethod.LinearCombination;
+        /// <summary>True when the Harrach sensitivity interpolation method is active.</summary>
         public bool IsHarrachMethod => VirtualElectrodeSettings.UseVirtualElectrodes && VirtualElectrodeSettings.Method == VirtualElectrodeMethod.HarrachSensitivityInterpolation;
+        /// <summary>True when the NdMap spectral interpolation method is active.</summary>
         public bool IsNdMethod => VirtualElectrodeSettings.UseVirtualElectrodes && VirtualElectrodeSettings.Method == VirtualElectrodeMethod.NdMapSpectralInterpolation;
 
         private const string MixedPickerLabel = "Mixed";
 
+        /// <summary>
+        /// Whether the view should honour the block configuration canvas for method selection.
+        /// When enabled and a configuration is present, pickers are synced to the configured blocks.
+        /// </summary>
         [ObservableProperty]
         private bool useBlockConfiguration = Workspace.GetUseBlockConfiguration();
 
+        /// <summary>Options displayed in the Error Metric picker (or the special "Mixed" label).</summary>
         public ObservableCollection<string> ErrorMetricPickerOptions { get; } = new();
+        /// <summary>Options displayed in the Regularization picker (or the special "Mixed" label).</summary>
         public ObservableCollection<string> RegularizationPickerOptions { get; } = new();
+        /// <summary>Options displayed in the Optimizer picker (or the special "Mixed" label).</summary>
         public ObservableCollection<string> OptimizerPickerOptions { get; } = new();
 
+        /// <summary>Currently selected error metric option (or "Mixed").</summary>
         [ObservableProperty]
         private string? selectedErrorMetricDisplay;
 
+        /// <summary>Currently selected regularizer option (or "Mixed").</summary>
         [ObservableProperty]
         private string? selectedRegularizationDisplay;
 
+        /// <summary>Currently selected optimizer option (or "Mixed").</summary>
         [ObservableProperty]
         private string? selectedOptimizerDisplay;
 
+        /// <summary>Enables or disables the Error Metric picker; disabled when configuration is mixed.</summary>
         [ObservableProperty]
         private bool isErrorMetricPickerEnabled = true;
 
+        /// <summary>Enables or disables the Regularization picker; disabled when configuration is mixed.</summary>
         [ObservableProperty]
         private bool isRegularizationPickerEnabled = true;
 
+        /// <summary>Enables or disables the Optimizer picker; disabled when configuration is mixed.</summary>
         [ObservableProperty]
         private bool isOptimizerPickerEnabled = true;
 
+        /// <summary>True when a block configuration with multiple blocks per category is in effect.</summary>
         private bool ShouldUseBlockConfiguration => UseBlockConfiguration && Workspace.GetCompleteReconstructionConfiguration() != null;
 
+        /// <summary>
+        /// Propagates the "use block configuration" toggle to the workspace and resets picker state.
+        /// </summary>
+        /// <param name="value">New toggle value.</param>
         partial void OnUseBlockConfigurationChanged(bool value)
         {
             Workspace.SetUseBlockConfiguration(value);
@@ -100,6 +156,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             RefreshMethodPickerOptions();
         }
 
+        /// <summary>Updates the underlying parameters when the error metric picker changes.</summary>
         partial void OnSelectedErrorMetricDisplayChanged(string? value)
         {
             if (string.IsNullOrWhiteSpace(value) || value == MixedPickerLabel)
@@ -109,6 +166,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 ReconstructionParameters.ErrorMetric = parsed;
         }
 
+        /// <summary>Updates the underlying parameters when the regularization picker changes.</summary>
         partial void OnSelectedRegularizationDisplayChanged(string? value)
         {
             if (string.IsNullOrWhiteSpace(value) || value == MixedPickerLabel)
@@ -118,6 +176,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 ReconstructionParameters.RegularizationTechnique = parsed;
         }
 
+        /// <summary>Updates the underlying parameters when the optimizer picker changes.</summary>
         partial void OnSelectedOptimizerDisplayChanged(string? value)
         {
             if (string.IsNullOrWhiteSpace(value) || value == MixedPickerLabel)
@@ -127,33 +186,41 @@ namespace ElectricalImpedanceTomography.ViewModels
                 ReconstructionParameters.NumericOptimizer = parsed;
         }
 
+        /// <summary>Total number of completed iterations in the current session.</summary>
         [ObservableProperty]
         private int iterationCount = 0;
 
+        /// <summary>Allows editing the initial distribution only before the first iteration.</summary>
         public bool CanEditInitialDistribution => IterationCount == 0;
 
+        /// <summary>Latest residual value (L2 norm unless configured otherwise).</summary>
         [ObservableProperty]
         private double residual = 1.0;
-
+        /// <summary>Elapsed wall‑clock time since the current run started.</summary>
         [ObservableProperty]
         private TimeSpan elapsedTime = TimeSpan.Zero;
-
+        /// <summary>Latest Pearson correlation between reconstructed and original distributions.</summary>
         [ObservableProperty]
         private double correlation = 0.0;
 
+        /// <summary>Two‑state UI that mirrors the Adjacent drive pattern selection.</summary>
         [ObservableProperty]
         private bool adjecentDrivePattern = true;
-
+        /// <summary>Two‑state UI that mirrors the Opposite drive pattern selection.</summary>
         [ObservableProperty]
         private bool oppositeDrivePattern = false;
 
+        /// <summary>Text shown next to the parallelisation toggle, dynamically reflecting the solver.</summary>
         [ObservableProperty]
         private string parallelizationToggleLabel = "Use OMP Parallelization";
 
-        // Tracks whether a reconstruction is actively running to gate UI interactions (e.g., gradient popup)
+        /// <summary>Indicates that a background reconstruction loop is running to gate UI actions.</summary>
         [ObservableProperty]
         private bool isReconstructionRunning;
 
+        /// <summary>
+        /// Single toggle that maps to OMP (FEM) or CUDA (LBM) depending on the selected solver.
+        /// </summary>
         public bool UseParallelizationToggle
         {
             get
@@ -180,8 +247,10 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
         }
 
+        /// <summary>True when an imported (real) measurement is available as a selectable source.</summary>
         public bool HasMeasurementSourceOptions => Workspace.GetImportedMeasurement() != null;
 
+        /// <summary>Convenience binding for the source selection radio button (Simulated).</summary>
         public bool IsSimulatedMeasurementSelected
         {
             get => SelectedMeasurementSource == MeasurementSourceOption.Simulated;
@@ -192,6 +261,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
         }
 
+        /// <summary>Convenience binding for the source selection radio button (Real).</summary>
         public bool IsRealMeasurementSelected
         {
             get => SelectedMeasurementSource == MeasurementSourceOption.Real;
@@ -202,6 +272,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
         }
 
+        /// <summary>Label shown for the "Real" measurement option; includes the imported file name when available.</summary>
         public string RealMeasurementOptionLabel
         {
             get
@@ -215,23 +286,30 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         private string _electrodeMeasurementSetupLabel = FormatMeasurementSetupLabel(Workspace.GetElectrodeMeasurementSetup());
 
+        /// <summary>Textual description of the electrode measurement setup (Active vs Non‑active).</summary>
         public string ElectrodeMeasurementSetupLabel
         {
             get => _electrodeMeasurementSetupLabel;
             private set => SetProperty(ref _electrodeMeasurementSetupLabel, value);
         }
 
+        /// <summary>Formats the measurement setup label.</summary>
         private static string FormatMeasurementSetupLabel(ElectrodeMeasurementSetup setup) => setup == ElectrodeMeasurementSetup.Active
             ? "Electrode measurement setup: Active (excitation electrodes are sampled)"
             : "Electrode measurement setup: Non-active (excitation electrodes are ignored)";
 
+        /// <summary>Updates the measurement setup label when the workspace raises a change event.</summary>
         private void OnElectrodeMeasurementSetupChanged(ElectrodeMeasurementSetup setup)
         {
             ElectrodeMeasurementSetupLabel = FormatMeasurementSetupLabel(setup);
         }
 
+        /// <summary>Refreshes the radio selection state for measurement source.</summary>
         public void RefreshMeasurementSourceOptions() => RefreshMeasurementSourceSelection();
 
+        /// <summary>
+        /// Internal backing property for measurement source that enforces fallbacks when real data is absent.
+        /// </summary>
         private MeasurementSourceOption SelectedMeasurementSource
         {
             get => _selectedMeasurementSource;
@@ -259,12 +337,13 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
         }
 
+        /// <summary>
+        /// Synchronizes the binding state for the measurement source and the measurement setup label with workspace.
+        /// </summary>
         private void RefreshMeasurementSourceSelection()
         {
             if (!HasMeasurementSourceOptions && _selectedMeasurementSource == MeasurementSourceOption.Real)
-            {
                 Workspace.SetMeasurementSource(MeasurementSourceOption.Simulated);
-            }
 
             _selectedMeasurementSource = Workspace.GetMeasurementSource();
             OnPropertyChanged(nameof(HasMeasurementSourceOptions));
@@ -274,6 +353,9 @@ namespace ElectricalImpedanceTomography.ViewModels
             ElectrodeMeasurementSetupLabel = FormatMeasurementSetupLabel(Workspace.GetElectrodeMeasurementSetup());
         }
 
+        /// <summary>
+        /// Re‑computes UI toggles when virtual electrode settings change so controls can show/hide sections.
+        /// </summary>
         private void OnVirtualElectrodeSettingsChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(VirtualElectrodeSettings.Method) ||
@@ -286,73 +368,98 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
         }
 
+        /// <summary>User-specified friendly name for persisted reconstructions.</summary>
         [ObservableProperty]
         private string name = string.Empty;
-
+        /// <summary>Search term used to filter stored reconstructions by name.</summary>
         [ObservableProperty]
         private string reconstructionSearchText = string.Empty;
 
+        /// <summary>True while a video export job is being processed.</summary>
         [ObservableProperty]
         private bool videoExportIsRunning;
-
+        
+        /// <summary>True when the last export produced a result (success or failure).</summary>
         [ObservableProperty]
         private bool videoExportHasResult;
-
+        
+        /// <summary>True when the last export finished successfully.</summary>
         [ObservableProperty]
         private bool videoExportWasSuccessful;
-
+        
+        /// <summary>True when the video export UI is in configuration (pre‑run) phase.</summary>
         [ObservableProperty]
         private bool videoExportIsConfiguring;
-
+        
+        /// <summary>Heading line shown in the video export popup.</summary>
         [ObservableProperty]
         private string videoExportHeading = "Video Generation in Progress";
-
+        
+        /// <summary>Status line shown in the video export popup.</summary>
         [ObservableProperty]
         private string videoExportStatusMessage = string.Empty;
-
+        
+        /// <summary>Progress value in [0,1] for the video export operation.</summary>
         [ObservableProperty]
         private double videoExportProgress;
-
+        
+        /// <summary>Progress string (percent) shown in the export popup.</summary>
         [ObservableProperty]
         private string videoExportProgressPercentText = "0%";
-
+        
+        /// <summary>Absolute file path of the last generated video file, when successful.</summary>
         [ObservableProperty]
         private string? videoExportFilePath;
-
+        
+        /// <summary>Rich result object exposing error details or success metadata.</summary>
         [ObservableProperty]
         private VideoExportResult? videoExportResult;
-
+        
+        /// <summary>User-selected container/format for the export run.</summary>
         [ObservableProperty]
         private VideoExportFormatOption? selectedVideoExportFormat;
-
+        
+        /// <summary>Human‑readable estimate of file size for the selected export configuration.</summary>
         [ObservableProperty]
         private string videoExportEstimatedSizeText = string.Empty;
-
+        
+        /// <summary>Human‑readable estimate of processing time for the selected export configuration.</summary>
         [ObservableProperty]
         private string videoExportEstimatedTimeText = string.Empty;
-
+        
+        /// <summary>True when inputs are valid and an export can be started.</summary>
         [ObservableProperty]
         private bool videoExportCanStart;
 
+        /// <summary>List of available export formats (e.g., MP4/AVI) for the UI dropdown.</summary>
         public ObservableCollection<VideoExportFormatOption> VideoExportFormatOptions { get; } = [];
 
+        /// <summary>All previously saved reconstructions available to the user.</summary>
         public ObservableCollection<ReconstructionInfo> AvailableReconstructions { get; } = [];
+        /// <summary>Currently filtered view over <see cref="AvailableReconstructions"/>.</summary>
         public ObservableCollection<ReconstructionInfo> FilteredReconstructions { get; } = [];
 
+        /// <summary>
+        /// Names of trend histories to series of numeric values displayed in charts. Populated on demand.
+        /// </summary>
         private readonly Dictionary<string, ObservableCollection<double>> _metricTrendHistories = new();
         private const int TrendCanvasUpdateInterval = 10;
         private bool _hasPendingTrendUpdate;
 
+        /// <summary>Time‑series of residual values for the trend chart.</summary>
         public ObservableCollection<double> ResidualHistory => GetTrendHistory(MetricKeys.Residual);
 
+        /// <summary>Raised when a full result (i.e., at cycle end) is available.</summary>
         public event EventHandler<ReconstructionResult>? ReconstructionUpdated;
+        
+        /// <summary>Raised for each processed inverse step with the frame payload.</summary>
         public event EventHandler<ReconstructionFrame>? ReconstructionFrameUpdated;
 
+        /// <summary>Logical grouping of metrics for the UI "cards" on the Reconstruction page.</summary>
         public ObservableCollection<ReconstructionMetricGroupViewModel> MetricGroups { get; } = [];
 
         private readonly Dictionary<string, ReconstructionMetricViewModel> _metricsByKey = new();
         private readonly object _metricUpdateLock = new();
-        private readonly object _errorMetricLock = new();
         private CancellationTokenSource? _metricUpdateCts;
         private readonly object _statisticsUpdateLock = new();
         private CancellationTokenSource? _statisticsUpdateCts;
@@ -363,16 +470,26 @@ namespace ElectricalImpedanceTomography.ViewModels
         // A single list of norm/angle pairs with minimal metadata. No locking.
         private readonly List<GradientMetricSample> _gradientSamples = new();
         private int _selectedGradientIndex = -1;
+        
+        /// <summary>Raised when the gradient history collection changed (append/clear).</summary>
         public event EventHandler? GradientHistoryChanged;
+        
+        /// <summary>Raised when the selected gradient entry changed.</summary>
         public event EventHandler<int>? GradientSelectionChanged;
+        
+        /// <summary>Raised by the UI to request opening the gradient inspection popup.</summary>
         public event EventHandler? GradientInspectionRequested;
+        
+        /// <summary>Snapshot of the previous gradient used for angle calculation across steps.</summary>
         private Dictionary<int, double>? _previousGradientSnapshot; // used only to calculate angle
 
         private IErrorMetric? _cachedErrorMetric;
         private ErrorMetric _cachedErrorMetricChoice;
 
+        /// <summary>Raised when the selected trend metric history changed and charts need refresh.</summary>
         public event EventHandler? SelectedTrendMetricHistoryChanged;
 
+        /// <summary>Key identifying the currently selected trend history (e.g., residual).</summary>
         [ObservableProperty]
         private string selectedTrendMetricKey = MetricKeys.Residual;
 
@@ -381,22 +498,29 @@ namespace ElectricalImpedanceTomography.ViewModels
         private SKSizeI _videoExportResidualSize;
         private SKSizeI _videoExportFrameSize;
         private int _videoExportFrameCount;
+        private object _errorMetricLock;
 
+        /// <summary>Updates estimated size/time when the selected export format changes.</summary>
         partial void OnSelectedVideoExportFormatChanged(VideoExportFormatOption? value)
         {
             UpdateVideoExportEstimates();
         }
 
+        /// <summary>Keeps UI phase state in sync with the export flags.</summary>
         partial void OnVideoExportIsRunningChanged(bool value)
         {
             UpdateVideoExportPhase();
         }
 
+        /// <summary>Keeps UI phase state in sync when the export completes.</summary>
         partial void OnVideoExportHasResultChanged(bool value)
         {
             UpdateVideoExportPhase();
         }
 
+        /// <summary>
+        /// Constructs the view model, wires events, loads global parameters, and initialises metric cards.
+        /// </summary>
         public ReconstructionPageViewModel(IReconstructionService reconstructionService,
                                            IBlockFemReconstructionService blockReconstructionService,
                                            IReconstructionExportService exportService)
@@ -445,11 +569,20 @@ namespace ElectricalImpedanceTomography.ViewModels
             RefreshMethodPickerOptions();
         }
 
+        /// <summary>
+        /// Prepares the system for a new reconstruction run. Ensures the chosen discretization and
+        /// parameters are initialised in the persistence layer and resets iteration counters if needed.
+        /// If block configuration is active, initialises the dedicated block service instead.
+        /// </summary>
         public void PrepareForNewReconstruction()
         {
+            // Ensure we have the latest mesh and parameters from the workspace
             UpdateMesh();
+
+            // Ensure parameters are up to date, if changed a new reconstruction will be initiated
             UpdateReconstructionParameters();
 
+            // If block configuration was used, then this paths runs only
             if (ShouldUseBlockConfiguration)
             {
                 _blockReconstructionService.Initialize();
@@ -485,6 +618,9 @@ namespace ElectricalImpedanceTomography.ViewModels
             _lastRunSignature = signature;
         }
 
+        /// <summary>
+        /// Starts tracking changes on the given parameter object so the view model can reflect UI updates.
+        /// </summary>
         private void TrackReconstructionParameters(EITReconstructionParameters parameters)
         {
             if (_trackedParameters != null)
@@ -495,6 +631,9 @@ namespace ElectricalImpedanceTomography.ViewModels
                 _trackedParameters.PropertyChanged += OnTrackedParametersPropertyChanged;
         }
 
+        /// <summary>
+        /// Reacts to relevant parameter changes (drive pattern, parallelisation flags) by updating bound state.
+        /// </summary>
         private void OnTrackedParametersPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(EITReconstructionParameters.DrivePattern))
@@ -505,6 +644,9 @@ namespace ElectricalImpedanceTomography.ViewModels
                 UpdateParallelizationToggleState();
         }
 
+        /// <summary>
+        /// Synchronizes the two radio buttons for drive pattern based on current parameters.
+        /// </summary>
         private void SyncDrivePatternSelection()
         {
             if (ReconstructionParameters == null)
@@ -513,6 +655,9 @@ namespace ElectricalImpedanceTomography.ViewModels
             SetDrivePattern(ReconstructionParameters.DrivePattern);
         }
 
+        /// <summary>
+        /// Adjusts the parallelisation toggle label for the active solver and refreshes the bound property.
+        /// </summary>
         private void UpdateParallelizationToggleState()
         {
             if (ReconstructionParameters == null)
@@ -527,8 +672,9 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         /// <summary>
         /// Synchronizes the method picker options with the current reconstruction mode.
-        /// Displays a non-editable "Mixed" option when multiple blocks are configured
-        /// for a given category.
+        /// Displays a non‑editable "Mixed" option when multiple blocks are configured in a category.
+        /// When a single block is present per category, aligns parameters to the configuration so the
+        /// pickers reflect the canvas selections.
         /// </summary>
         public void RefreshMethodPickerOptions()
         {
@@ -546,9 +692,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             bool mixedRegularizer = ShouldUseBlockConfiguration && configuration != null && configuration.Blocks.Count(b => b.Type == BlockType.Regularizer) > 1;
             bool mixedOptimizer = ShouldUseBlockConfiguration && configuration != null && configuration.Blocks.Count(b => b.Type == BlockType.Optimizer) > 1;
 
-            // When a single block of each type is used we align the pickers to the configuration
-            // so the UI reflects the canvas selections. If multiple blocks exist we fall back
-            // to the read-only "Mixed" label handled below.
+            // Align single selections to the configuration (multiple => read‑only "Mixed").
             if (ShouldUseBlockConfiguration && configuration != null)
             {
                 if (!mixedErrorMetric && TryParseBlockEnum(configuration, BlockType.ErrorMetric, "metric_type", out ErrorMetric parsedError))
@@ -610,6 +754,10 @@ namespace ElectricalImpedanceTomography.ViewModels
             setEnabled(true);
         }
 
+        /// <summary>
+        /// Attempts to synchronise an enum parameter with the value encoded in a block parameter.
+        /// Case‑ and punctuation‑insensitive matching is used to be robust to UI strings.
+        /// </summary>
         private static bool TryParseBlockEnum<T>(CompleteReconstructionConfiguration configuration,
                                                  BlockType blockType,
                                                  string parameterKey,
@@ -637,6 +785,9 @@ namespace ElectricalImpedanceTomography.ViewModels
             return Enum.TryParse(rawValue, true, out parsed);
         }
 
+        /// <summary>
+        /// Updates UI radio state and propagates the selected drive pattern back to the parameters.
+        /// </summary>
         public void SetDrivePattern(DrivePattern pattern)
         {
             if (ReconstructionParameters == null)
@@ -657,7 +808,10 @@ namespace ElectricalImpedanceTomography.ViewModels
                 _updatingDrivePatternSelection = false;
             }
         }
-
+        #region Metrics and gradient history
+        /// <summary>
+        /// Creates the logical grouping of metric cards shown in the UI and registers trend‑selectable metrics.
+        /// </summary>
         private void InitializeMetricGroups()
         {
             MetricGroups.Clear();
@@ -689,6 +843,9 @@ namespace ElectricalImpedanceTomography.ViewModels
             UpdateTrendSelectionStates();
         }
 
+        /// <summary>
+        /// Registers a metric card and ensures its trend series (if any) is available.
+        /// </summary>
         private void RegisterMetric(string groupTitle, string key, string name, TrendMetricCategory trendCategory = TrendMetricCategory.None)
         {
             var group = MetricGroups.FirstOrDefault(g => g.Title == groupTitle);
@@ -706,25 +863,34 @@ namespace ElectricalImpedanceTomography.ViewModels
                 _ = GetTrendHistory(key);
         }
 
+        /// <summary>
+        /// Updates a single metric card text value by key.
+        /// </summary>
         private void UpdateMetric(string key, string value)
         {
             if (_metricsByKey.TryGetValue(key, out var metric))
                 metric.Value = value;
         }
 
+        /// <summary>Retrieves a metric ViewModel by key if present.</summary>
         public ReconstructionMetricViewModel? GetMetricByKey(string key)
             => _metricsByKey.TryGetValue(key, out var metric) ? metric : null;
 
+        /// <summary>Returns an immutable snapshot of a trend history by key.</summary>
         public IReadOnlyList<double> GetTrendHistorySnapshot(string key)
         {
             var history = GetTrendHistory(key);
             return history.ToArray();
         }
 
+        /// <summary>Returns an immutable snapshot of the currently selected trend history.</summary>
         public IReadOnlyList<double> GetSelectedTrendHistorySnapshot()
             => GetTrendHistorySnapshot(SelectedTrendMetricKey);
 
         // ------------------------ Simplified gradient API (backed by _gradientSamples) ------------------------
+        /// <summary>
+        /// Returns a snapshot of gradient history for UI charts. Stores only norm and angle to stay light‑weight.
+        /// </summary>
         public IReadOnlyList<GradientHistorySample> GetGradientHistorySnapshot()
         {
             // Convert lightweight samples to the existing view DTO to preserve UI compatibility.
@@ -742,6 +908,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             return list;
         }
 
+        /// <summary>Returns the gradient record at the given index, or null if out of range.</summary>
         public GradientHistorySample? GetGradientSample(int index)
         {
             if (index < 0 || index >= _gradientSamples.Count)
@@ -757,13 +924,16 @@ namespace ElectricalImpedanceTomography.ViewModels
                                              1);
         }
 
+        /// <summary>Index of the currently selected gradient record.</summary>
         public int SelectedGradientIndex
         {
             get => _selectedGradientIndex;
         }
 
+        /// <summary>Total number of gradient samples stored.</summary>
         public int GradientHistoryCount => _gradientSamples.Count;
 
+        /// <summary>Updates the selected gradient index and raises the corresponding event.</summary>
         public void SetSelectedGradientIndex(int index)
         {
             if (index < -1)
@@ -777,6 +947,10 @@ namespace ElectricalImpedanceTomography.ViewModels
             GradientSelectionChanged?.Invoke(this, index);
         }
 
+        /// <summary>
+        /// Moves the selection to the last gradient sample whose frame index is not greater than the provided one.
+        /// Useful when the user scrubs through frames.
+        /// </summary>
         public void SnapGradientSelectionToFrame(int frameIndex)
         {
             if (frameIndex < 0)
@@ -804,6 +978,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             GradientSelectionChanged?.Invoke(this, target);
         }
 
+        /// <summary>Clears the gradient history and resets selection to "none".</summary>
         private void ClearGradientHistory()
         {
             bool hadHistory = _gradientSamples.Count > 0;
@@ -820,6 +995,9 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
         }
 
+        /// <summary>
+        /// Returns a cached error metric instance for the given choice to avoid repeated factory allocations.
+        /// </summary>
         private IErrorMetric GetErrorMetric(ErrorMetric choice)
         {
             lock (_errorMetricLock)
@@ -834,12 +1012,17 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
         }
 
+        /// <summary>Resets dynamic metric values and clears trend series.</summary>
         public void ResetReconstructionMetrics()
         {
             ResetMetricsCore();
             _resetMetricsOnStart = false;
         }
 
+        /// <summary>
+        /// Marks the start of a reconstruction step or loop. Starts the stopwatch and enables the UI timer.
+        /// Clears trend histories on first use after Prepare.
+        /// </summary>
         public void BeginReconstructionMetrics()
         {
             if (_resetMetricsOnStart)
@@ -855,6 +1038,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             StartElapsedTimer();
         }
 
+        /// <summary>Stops the stopwatch and pauses UI updates without clearing history.</summary>
         public void PauseReconstructionMetrics()
         {
             if (_reconstructionStopwatch.IsRunning)
@@ -868,6 +1052,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             IsReconstructionRunning = false;
         }
 
+        /// <summary>Clears histories, resets counters and sets the page to idle state.</summary>
         public void StopReconstructionMetrics()
         {
             ResetMetricsCore();
@@ -875,6 +1060,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             IsReconstructionRunning = false;
         }
 
+        /// <summary>Core reset routine used by Begin/Stop paths; clears histories and cancels inflight metric tasks.</summary>
         private void ResetMetricsCore()
         {
             foreach (var history in _metricTrendHistories.Values)
@@ -903,6 +1089,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             ResetDynamicMetrics();
         }
 
+        /// <summary>Sets all metric card values to placeholder and initialises some key ones.</summary>
         private void ResetDynamicMetrics()
         {
             foreach (var metric in _metricsByKey.Values)
@@ -911,7 +1098,12 @@ namespace ElectricalImpedanceTomography.ViewModels
             UpdateMetric(MetricKeys.IterationCount, IterationCount.ToString(CultureInfo.InvariantCulture));
             UpdateMetric(MetricKeys.ElapsedTime, FormatElapsed(TimeSpan.Zero));
         }
-
+        #endregion
+       
+        /// <summary>
+        /// Central property change handler for this view model: reacts to parameter object replacement and
+        /// re-wires listeners/pickers accordingly.
+        /// </summary>
         private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(ReconstructionParameters))
@@ -923,6 +1115,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
         }
 
+        /// <summary>Updates elapsed time derived metrics on each tick/assignment.</summary>
         partial void OnElapsedTimeChanged(TimeSpan value)
         {
             UpdateMetric(MetricKeys.ElapsedTime, FormatElapsed(value));
@@ -930,6 +1123,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             UpdateTimePerIteration();
         }
 
+        /// <summary>Recomputes iteration‑dependent UX metrics when the iteration count changes.</summary>
         partial void OnIterationCountChanged(int value)
         {
             UpdateMetric(MetricKeys.IterationCount, value.ToString(CultureInfo.InvariantCulture));
@@ -938,12 +1132,15 @@ namespace ElectricalImpedanceTomography.ViewModels
             OnPropertyChanged(nameof(CanEditInitialDistribution));
         }
 
+        /// <summary>Propagates the latest residual value to the metric card.</summary>
         partial void OnResidualChanged(double value)
             => UpdateMetric(MetricKeys.Residual, FormatDouble(value));
 
+        /// <summary>Propagates the latest correlation value to the metric card.</summary>
         partial void OnCorrelationChanged(double value)
             => UpdateMetric(MetricKeys.Correlation, FormatDouble(value));
 
+        /// <summary>Computes iterations/second when enough data is available; otherwise shows placeholder.</summary>
         private void UpdateIterationsPerSecond()
         {
             if (IterationCount <= 0 || ElapsedTime.TotalSeconds <= 1e-6)
@@ -956,6 +1153,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             UpdateMetric(MetricKeys.IterationsPerSecond, FormatDouble(ips, "F2"));
         }
 
+        /// <summary>Computes the average time per iteration from elapsed time and iteration count.</summary>
         private void UpdateTimePerIteration()
         {
             if (IterationCount <= 0)
@@ -968,6 +1166,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             UpdateMetric(MetricKeys.TimePerIteration, $"{seconds.ToString("F2", CultureInfo.InvariantCulture)} s");
         }
 
+        /// <summary>Updates the residual drop/iteration metric once at least two samples exist.</summary>
         private void UpdateResidualTrendMetrics()
         {
             if (ResidualHistory.Count <= 1)
@@ -983,12 +1182,14 @@ namespace ElectricalImpedanceTomography.ViewModels
             UpdateMetric(MetricKeys.ResidualDropPerIteration, FormatDouble(drop));
         }
 
+        /// <summary>Starts the UI timer if not already running.</summary>
         private void StartElapsedTimer()
         {
             if (!_elapsedTimer.Enabled)
                 _elapsedTimer.Start();
         }
 
+        /// <summary>Stops the UI timer if running.</summary>
         private void StopElapsedTimer()
         {
             if (_elapsedTimer.Enabled)
@@ -996,17 +1197,25 @@ namespace ElectricalImpedanceTomography.ViewModels
         }
 
         partial void OnReconstructionSearchTextChanged(string value) => ApplyReconstructionFilter();
+
+        /// <summary>Refreshes the cached discretization reference from the workspace and source selection.</summary>
         private void UpdateMesh()
         {
             _discretization = Workspace.GetDiscretization();
             RefreshMeasurementSourceSelection();
         }
+
+        /// <summary>Refreshes the current reconstruction parameters from the workspace and pickers.</summary>
         private void UpdateReconstructionParameters()
         {
             ReconstructionParameters = Workspace.GetReconstructionParameters();
             RefreshMethodPickerOptions();
         }
 
+        /// <summary>
+        /// Ensures the persistence layer is initialised for the current discretization/parameters.
+        /// The block pipeline is initialised on demand when active.
+        /// </summary>
         private void InitializeReconstruction(bool force = false)
         {
             UpdateMesh();
@@ -1047,7 +1256,11 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
         }
 
-        public bool CheckReconstructionMethodAgainstMesh()
+        /// <summary>
+        /// Verifies that the currently selected solver matches the active discretization type
+        /// to prevent invalid combinations (e.g., LBM solver on a FEM mesh).
+        /// </summary>
+        public bool CheckReconstructionMethodAgainstDiscretization()
         {
             if(_discretization is FEMMesh)
                 if (ReconstructionParameters.DifferentialEquationSolver != Utility.Classes.ReconstructionParameters.DifferentialEquationSolver.FEM)
@@ -1059,6 +1272,10 @@ namespace ElectricalImpedanceTomography.ViewModels
             return true;
         }
 
+        /// <summary>
+        /// Debounces metric updates by cancelling in‑flight computations and starting a fresh task.
+        /// This prevents redundant work when frames/results arrive in quick succession.
+        /// </summary>
         private void RequestMetricUpdate(ReconstructionResult? result, ReconstructionFrame? frame)
         {
             lock (_metricUpdateLock)
@@ -1082,6 +1299,10 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
         }
 
+        /// <summary>
+        /// Computes distribution, electrode, and field metrics for the last frame/result on a background thread.
+        /// Results are marshalled to the UI thread before being written to bound properties.
+        /// </summary>
         private async Task ComputeMetricsAsync(ReconstructionResult? result, ReconstructionFrame? frame, CancellationToken token)
         {
             try
@@ -1155,6 +1376,9 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
         }
 
+        /// <summary>
+        /// Computes per‑electrode error statistics against the current original distribution (if available).
+        /// </summary>
         private MeasurementMetrics? ComputeElectrodeMetrics(CancellationToken token)
         {
             var discretization = Workspace.GetDiscretization();
@@ -1202,6 +1426,9 @@ namespace ElectricalImpedanceTomography.ViewModels
             return new MeasurementMetrics(rmse, mae, mape, misfit);
         }
 
+        /// <summary>
+        /// Computes field‑level diagnostics (gradient norm/angle, potential/adjoint ranges) for a frame.
+        /// </summary>
         private FieldMetrics ComputeFieldMetrics(ReconstructionFrame? frame, CancellationToken token)
         {
             if (frame == null)
@@ -1241,6 +1468,9 @@ namespace ElectricalImpedanceTomography.ViewModels
                                     gradientSnapshot);
         }
 
+        /// <summary>
+        /// Computes a numeric range (min,max) for the given dictionary of values, ignoring NaN/Inf.
+        /// </summary>
         private static RangeMetrics ComputeRange(IReadOnlyDictionary<int, double>? values)
         {
             if (values == null || values.Count == 0)
@@ -1266,6 +1496,9 @@ namespace ElectricalImpedanceTomography.ViewModels
             return new RangeMetrics(min, max);
         }
 
+        /// <summary>
+        /// Computes the L2 energy of the provided regularization vector.
+        /// </summary>
         private static double ComputeRegularizationEnergy(IReadOnlyDictionary<int, double>? values, CancellationToken token)
         {
             if (values == null || values.Count == 0)
@@ -1281,6 +1514,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             return Math.Sqrt(sum);
         }
 
+        /// <summary>Formats a number according to the default or provided format string.</summary>
         private static string FormatDouble(double value, string format = "F3")
         {
             if (double.IsNaN(value))
@@ -1292,6 +1526,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             return value.ToString(format, CultureInfo.InvariantCulture);
         }
 
+        /// <summary>Formats a value as a percentage with one decimal, guarding for invalid numbers.</summary>
         private static string FormatPercent(double value)
         {
             if (double.IsNaN(value) || double.IsInfinity(value))
@@ -1299,11 +1534,13 @@ namespace ElectricalImpedanceTomography.ViewModels
             return value.ToString("P1", CultureInfo.InvariantCulture);
         }
 
+        /// <summary>Formats a <see cref="TimeSpan"/> as mm:ss or hh:mm:ss depending on magnitude.</summary>
         private static string FormatElapsed(TimeSpan value)
             => value.TotalHours >= 1.0
                 ? value.ToString("hh\\:mm\\:ss")
                 : value.ToString("mm\\:ss");
 
+        /// <summary>Formats a numeric range into a human‑readable string with delta (Δ).</summary>
         private static string FormatRange(RangeMetrics range)
         {
             if (!range.HasValue)
@@ -1313,6 +1550,9 @@ namespace ElectricalImpedanceTomography.ViewModels
             return $"{range.Min.Value.ToString("F3", CultureInfo.InvariantCulture)} to {range.Max.Value.ToString("F3", CultureInfo.InvariantCulture)} (Δ {delta.ToString("F3", CultureInfo.InvariantCulture)})";
         }
 
+        /// <summary>
+        /// Converts raw trend values to display strings depending on the chosen metric.
+        /// </summary>
         public string FormatTrendValue(string metricKey, double value)
             => metricKey switch
             {
@@ -1324,6 +1564,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 _ => FormatDouble(value)
             };
 
+        /// <summary>Well‑known keys used to access metric cards and trend histories.</summary>
         private static class MetricKeys
         {
             public const string ElapsedTime = "elapsedTime";
@@ -1346,7 +1587,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             public const string AdjointRange = "adjointRange";
         }
 
-
+        /// <summary>Composite of RMSE/MAE/MAPE on electrode signals and optional metric value.</summary>
         private readonly struct MeasurementMetrics
         {
             public MeasurementMetrics(double rmse, double mae, double mape, double? misfit)
@@ -1363,6 +1604,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             public double? Misfit { get; }
         }
 
+        /// <summary>Container for frame‑level diagnostics used by the UI.</summary>
         private readonly struct FieldMetrics
         {
             public static FieldMetrics Empty { get; } = new(false,
@@ -1403,6 +1645,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             public Dictionary<int, double>? GradientSnapshot { get; }
         }
 
+        /// <summary>Simple min/max pair with presence flag used by range formatting.</summary>
         private readonly struct RangeMetrics
         {
             public static RangeMetrics Empty { get; } = new RangeMetrics(null, null);
@@ -1418,9 +1661,13 @@ namespace ElectricalImpedanceTomography.ViewModels
             public bool HasValue => Min.HasValue && Max.HasValue;
         }
 
-        // Lightweight storage for gradient metrics
+        /// <summary>Lightweight record used to display gradient history (norm &amp; angle only).</summary>
         private readonly record struct GradientMetricSample(int Iteration, int FrameIndex, double Norm, double Angle);
 
+        /// <summary>
+        /// Starts a background reconstruction run. Chooses the block or classic service based on current mode,
+        /// kicks off metrics, and returns immediately. The service raises events as frames/results are produced.
+        /// </summary>
         public void StartBackgroundReconstruction()
         {
             PrepareForNewReconstruction();
@@ -1437,6 +1684,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             _reconstructionService.StartBackgroundReconstruction(MaxIterationCount, StepSize, RegularizationWeight, ExcitationCurrentAmplitude);
         }
 
+        /// <summary>Pauses the background run (if any) and freezes metrics updates.</summary>
         public void PauseReconstruction()
         {
             if (ShouldUseBlockConfiguration)
@@ -1449,6 +1697,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             PauseReconstructionMetrics();
         }
 
+        /// <summary>Resumes the background run (if any) and re‑enables metrics updates.</summary>
         public void ResumeReconstruction()
         {
             if (ShouldUseBlockConfiguration)
@@ -1461,6 +1710,10 @@ namespace ElectricalImpedanceTomography.ViewModels
             BeginReconstructionMetrics();
         }
 
+        /// <summary>
+        /// Stops the background run (if any) and resets the view model state to idle.
+        /// Clears block initialisation flags so a future run starts cleanly.
+        /// </summary>
         public void StopReconstruction()
         {
             if (ShouldUseBlockConfiguration)
@@ -1479,8 +1732,8 @@ namespace ElectricalImpedanceTomography.ViewModels
         }
 
         /// <summary>
-        /// Completely resets all reconstruction-related data and deallocates resources.
-        /// This clears all reconstruction results, frames, and resets the reconstruction state.
+        /// Clears frames/results and view model state, returning the page to a fresh state.
+        /// Does not modify global workspace parameters.
         /// </summary>
         public void RestartReconstruction()
         {
@@ -1497,6 +1750,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             ElapsedTime = TimeSpan.Zero;
         }
 
+        /// <summary>Restores UI and parameter defaults useful for quick experimentation.</summary>
         public void ResetAllToDefaults()
         {
             var defaults = new EITReconstructionParameters();
@@ -1511,6 +1765,9 @@ namespace ElectricalImpedanceTomography.ViewModels
             SetDrivePattern(DrivePattern.Adjecent);
         }
 
+        /// <summary>
+        /// Runs a full reconstruction cycle on the calling thread pool task and returns the aggregated result.
+        /// </summary>
         public Task<ReconstructionResult?> RunFullReconstructionCycleAsync()
         {
             InitializeReconstruction();
@@ -1533,6 +1790,9 @@ namespace ElectricalImpedanceTomography.ViewModels
             return result;
         }
 
+        /// <summary>
+        /// Performs a single reconstruction step asynchronously and updates metrics/UI accordingly.
+        /// </summary>
         public async Task StepReconstructionAsync()
         {
             InitializeReconstruction();
@@ -1553,18 +1813,21 @@ namespace ElectricalImpedanceTomography.ViewModels
             FlushPendingTrendUpdates();
         }
 
-        // Event handlers wired to the service
+        // Event handlers wired to the service --------------------------------------------------------------
+        /// <summary>Schedules a recomputation of statistics whenever a full result is emitted by a service.</summary>
         private void OnServiceReconstructionUpdated(object? sender, ReconstructionResult result)
         {
             ScheduleReconstructionStatisticsUpdate(result);
         }
 
+        /// <summary>Notifies the view that a new frame is available and requests metric updates.</summary>
         private void OnServiceFrameUpdated(object? sender, ReconstructionFrame frame)
         {
             RequestMetricUpdate(null, frame);
             ReconstructionFrameUpdated?.Invoke(this, frame);
         }
 
+        /// <summary>Saves all reconstruction results under the current friendly name using the service layer.</summary>
         public void SaveReconstruction()
         {
             var results = Workspace.GetReconstructionResults();
@@ -1574,11 +1837,13 @@ namespace ElectricalImpedanceTomography.ViewModels
             LoadAvailableReconstructions();
         }
 
+        /// <summary>Loads a reconstruction from a file path and mirrors it to the workspace for UI access.</summary>
         public void LoadReconstruction(string filePath)
         {
             _reconstructionService.LoadReconstruction(filePath);
         }
 
+        /// <summary>Refreshes the list of saved reconstructions (metadata only) and applies the current filter.</summary>
         public void LoadAvailableReconstructions()
         {
             AvailableReconstructions.Clear();
@@ -1587,6 +1852,9 @@ namespace ElectricalImpedanceTomography.ViewModels
             ApplyReconstructionFilter();
         }
 
+        /// <summary>
+        /// Prepares UI state for the video export popup and computes preview dimensions/estimates.
+        /// </summary>
         public void PrepareVideoExportOptions(SKSize distributionCanvasSize,
                                               SKSize colorbarCanvasSize,
                                               SKSize residualCanvasSize,
@@ -1620,6 +1888,10 @@ namespace ElectricalImpedanceTomography.ViewModels
             UpdateVideoExportPhase();
         }
 
+        /// <summary>
+        /// Generates a reconstruction video by rendering per‑frame images and encoding them into the
+        /// requested container. Returns a rich result with success flag and file path or error details.
+        /// </summary>
         public async Task<VideoExportResult> ExportReconstructionVideoAsync(SKSize distributionCanvasSize,
                                                                             SKSize colorbarCanvasSize,
                                                                             SKSize residualCanvasSize,
@@ -1864,6 +2136,10 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
         }
 
+        /// <summary>
+        /// Exports reconstruction data (frames, metrics and ancillary information) to the app data directory
+        /// using the configured export service.
+        /// </summary>
         public Task<DataExportResult> ExportReconstructionDataAsync(PotentialDisplayMode mode)
         {
             string rootDirectory = FileSystem.Current.AppDataDirectory;
@@ -1871,6 +2147,9 @@ namespace ElectricalImpedanceTomography.ViewModels
             return _exportService.ExportAsync(rootDirectory, _selectedDisplayMode);
         }
 
+        /// <summary>
+        /// Computes distribution metrics for the initial state only (used by certain visualisations).
+        /// </summary>
         private static DistributionMetrics? ComputeInitialDistributionMetrics(ReconstructionResult snapshot)
         {
             var initialResult = new ReconstructionResult(snapshot.OriginalConductivityDistribution,
@@ -1880,9 +2159,11 @@ namespace ElectricalImpedanceTomography.ViewModels
             return ReconstructionStatistics.ComputeDistributionMetrics(initialResult, CancellationToken.None, true);
         }
 
+        /// <summary>Returns the last available frame for a result or falls back to the provided frame.</summary>
         private static ReconstructionFrame GetFrameForResult(ReconstructionResult result, ReconstructionFrame fallback)
             => result.Frames.LastOrDefault() ?? fallback;
 
+        /// <summary>Switches the export popup to the running state and resets progress.</summary>
         public void BeginVideoExportProgress()
         {
             VideoExportIsRunning = true;
@@ -1896,17 +2177,20 @@ namespace ElectricalImpedanceTomography.ViewModels
             UpdateVideoExportCanStart();
         }
 
+        /// <summary>Updates the progress bar and status text during export.</summary>
         public void UpdateVideoExportProgress(VideoExportProgressReport report)
         {
             UpdateVideoExportProgressCore(report.Progress);
             VideoExportStatusMessage = report.StatusMessage;
         }
 
+        /// <summary>Sets a status message indicating that the export cancellation was requested.</summary>
         public void NotifyVideoExportAborting()
         {
             VideoExportStatusMessage = "Aborting video generation...";
         }
 
+        /// <summary>Finalises the export popup state and shows success or error information.</summary>
         public void CompleteVideoExport(VideoExportResult result)
         {
             VideoExportIsRunning = false;
@@ -1931,6 +2215,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             UpdateVideoExportPhase();
         }
 
+        /// <summary>Resets all UI state for the video export popup back to defaults.</summary>
         public void ResetVideoExportState()
         {
             VideoExportIsRunning = false;
@@ -1950,6 +2235,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             UpdateVideoExportPhase();
         }
 
+        /// <summary>Sets progress properties with bounds checking and formatted percentage text.</summary>
         private void UpdateVideoExportProgressCore(double progress)
         {
             double clamped = Math.Clamp(progress, 0.0, 1.0);
@@ -1957,6 +2243,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             VideoExportProgressPercentText = $"{Math.Round(clamped * 100.0)}%";
         }
 
+        /// <summary>Updates best‑effort file size/time estimates for the current export settings.</summary>
         private void UpdateVideoExportEstimates()
         {
             if (SelectedVideoExportFormat is null ||
@@ -1996,12 +2283,14 @@ namespace ElectricalImpedanceTomography.ViewModels
             UpdateVideoExportCanStart();
         }
 
+        /// <summary>Updates UI booleans that drive the export popup's visual states.</summary>
         private void UpdateVideoExportPhase()
         {
             VideoExportIsConfiguring = !VideoExportIsRunning && !VideoExportHasResult;
             UpdateVideoExportCanStart();
         }
 
+        /// <summary>Evaluates whether the export job can be started given the current inputs.</summary>
         private void UpdateVideoExportCanStart()
         {
             bool canStart = !VideoExportIsRunning
@@ -2012,6 +2301,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             VideoExportCanStart = canStart;
         }
 
+        /// <summary>Applies the name filter to the available reconstructions list.</summary>
         private void ApplyReconstructionFilter()
         {
             FilteredReconstructions.Clear();
@@ -2023,6 +2313,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
         }
 
+        /// <summary>Creates a signature object that encodes relevant parameters for run equality checks.</summary>
         private ReconstructionRunSignature CreateCurrentRunSignature(IDiscretization mesh)
         {
             var parameters = ReconstructionParameters;
@@ -2047,6 +2338,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             return new ReconstructionRunSignature(mesh, snapshot);
         }
 
+        /// <summary>Retrieves or creates the trend history collection for the given key.</summary>
         private ObservableCollection<double> GetTrendHistory(string key)
         {
             if (!_metricTrendHistories.TryGetValue(key, out var history))
@@ -2058,6 +2350,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             return history;
         }
 
+        /// <summary>Adds a single sample to the specified trend history and notifies the chart layer.</summary>
         private void AddTrendSample(string key, double value)
         {
             if (double.IsNaN(value) || double.IsInfinity(value))
@@ -2068,6 +2361,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             NotifyTrendHistoryChanged(key);
         }
 
+        /// <summary>Queues a chart refresh when the selected series changes or enough samples accumulate.</summary>
         private void ScheduleReconstructionStatisticsUpdate(ReconstructionResult result)
         {
             CancellationTokenSource cts;
@@ -2082,6 +2376,10 @@ namespace ElectricalImpedanceTomography.ViewModels
             _ = Task.Run(() => ProcessReconstructionStatisticsAsync(result, cts), cts.Token);
         }
 
+        /// <summary>
+        /// Processes expensive statistics (residual, correlation) and updates the trend series on the UI thread.
+        /// Cancels superseded computations to prevent backlogs.
+        /// </summary>
         private async Task ProcessReconstructionStatisticsAsync(ReconstructionResult result, CancellationTokenSource cts)
         {
             try
@@ -2129,6 +2427,10 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
         }
 
+        /// <summary>
+        /// Triggers a chart refresh if the changed series is the one currently plotted. Throttles refresh
+        /// to every N samples during a run to reduce UI overhead.
+        /// </summary>
         private void NotifyTrendHistoryChanged(string key)
         {
             if (key != SelectedTrendMetricKey)
@@ -2145,11 +2447,13 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
         }
 
+        /// <summary>Raises the chart refresh event on the UI thread.</summary>
         private void RaiseSelectedTrendMetricHistoryChanged()
         {
             MainThread.BeginInvokeOnMainThread(() => SelectedTrendMetricHistoryChanged?.Invoke(this, EventArgs.Empty));
         }
 
+        /// <summary>Executes any pending deferred chart refresh at the end of a step/run.</summary>
         private void FlushPendingTrendUpdates()
         {
             if (!_hasPendingTrendUpdate)
@@ -2159,12 +2463,14 @@ namespace ElectricalImpedanceTomography.ViewModels
             RaiseSelectedTrendMetricHistoryChanged();
         }
 
+        /// <summary>Marks the selected metric as active so only one trend is plotted at a time.</summary>
         private void UpdateTrendSelectionStates()
         {
             foreach (var metric in _metricsByKey.Values)
                 metric.IsTrendSelected = metric.Key == SelectedTrendMetricKey;
         }
 
+        /// <summary>Updates trend selection and triggers an immediate chart refresh.</summary>
         partial void OnSelectedTrendMetricKeyChanged(string value)
         {
             UpdateTrendSelectionStates();
@@ -2172,6 +2478,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             RaiseSelectedTrendMetricHistoryChanged();
         }
 
+        /// <summary>Command handler to select a trend metric from the UI.</summary>
         [RelayCommand]
         private void SelectTrendMetric(string metricKey)
         {
@@ -2181,6 +2488,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             SelectedTrendMetricKey = metricKey;
         }
 
+        /// <summary>Command handler that requests opening the gradient inspection popup.</summary>
         [RelayCommand]
         private void RequestGradientInspection(string metricKey)
         {
@@ -2200,6 +2508,10 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
         }
 
+        /// <summary>
+        /// Holds the actual value displayed in the gradient history flyout. It stores the displayed value,
+        /// whether the sample is an aggregation, and exposes immutable vector accessors.
+        /// </summary>
         public sealed class GradientHistorySample
         {
             private readonly double[] _vector;
@@ -2230,13 +2542,21 @@ namespace ElectricalImpedanceTomography.ViewModels
                 Angle = angle;
             }
 
+            /// <summary>Iteration index associated with this sample.</summary>
             public int Iteration { get; }
+            /// <summary>First iteration covered by this sample when it represents an aggregation.</summary>
             public int FirstIteration { get; }
+            /// <summary>Number of original samples collapsed into this sample.</summary>
             public int CollapsedCount { get; }
+            /// <summary>L2 norm of the gradient vector.</summary>
             public double Norm { get; }
+            /// <summary>Index of the frame used to compute the metric.</summary>
             public int FrameIndex { get; }
+            /// <summary>Change in gradient direction compared to the previous sample, in degrees.</summary>
             public double? Angle { get; }
+            /// <summary>True when multiple original entries were collapsed into this sample.</summary>
             public bool IsAggregated => CollapsedCount > 1;
+            /// <summary>Read‑only view of the gradient vector used by the inspector UI.</summary>
             public IReadOnlyList<double> Vector => Array.AsReadOnly(_vector);
 
             internal double[] GetVectorCopy() => (double[])_vector.Clone();
@@ -2263,20 +2583,26 @@ namespace ElectricalImpedanceTomography.ViewModels
         private record ReconstructionRunSignature(IDiscretization Mesh, ReconstructionParametersSnapshot Parameters);
     }
 
+    /// <summary>Logical group of metric tiles shown on the Reconstruction page.</summary>
     public sealed partial class ReconstructionMetricGroupViewModel : ObservableObject
     {
+        /// <summary>Creates a new metric group with the given display title.</summary>
         public ReconstructionMetricGroupViewModel(string title)
         {
             Title = title;
         }
 
+        /// <summary>Display title for the group.</summary>
         public string Title { get; }
 
+        /// <summary>List of metric tiles in this group.</summary>
         public ObservableCollection<ReconstructionMetricViewModel> Metrics { get; } = [];
     }
 
+    /// <summary>View model for a single metric tile, optionally trend‑selectable.</summary>
     public sealed partial class ReconstructionMetricViewModel : ObservableObject
     {
+        /// <summary>Constructs a metric tile with identity and trend category.</summary>
         public ReconstructionMetricViewModel(string key, string name, TrendMetricCategory trendCategory)
         {
             Key = key;
@@ -2285,18 +2611,25 @@ namespace ElectricalImpedanceTomography.ViewModels
             IsTrendSelectable = trendCategory != TrendMetricCategory.None;
         }
 
+        /// <summary>Unique key used for lookups and trend series selection.</summary>
         public string Key { get; }
+        /// <summary>Display name shown to the user.</summary>
         public string Name { get; }
+        /// <summary>Category used to build the trend picker menu.</summary>
         public TrendMetricCategory TrendCategory { get; }
+        /// <summary>True when this metric can be plotted over time.</summary>
         public bool IsTrendSelectable { get; }
 
+        /// <summary>Formatted text value shown on the tile.</summary>
         [ObservableProperty]
         private string value = "—";
 
+        /// <summary>Marks whether the tile is currently the selected trend target.</summary>
         [ObservableProperty]
         private bool isTrendSelected;
     }
 
+    /// <summary>Categories for grouping trend metrics in the UI.</summary>
     public enum TrendMetricCategory
     {
         None,
