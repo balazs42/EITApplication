@@ -491,6 +491,13 @@
                                     <x:String>Classic</x:String>
                                     <x:String>Enhanced Diverging</x:String>
                                     <x:String>Rainbow</x:String>
+                                    <x:String>Matlab Jet</x:String>
+                                    <x:String>Parula</x:String>
+                                    <x:String>Viridis</x:String>
+                                    <x:String>Plasma</x:String>
+                                    <x:String>Magma</x:String>
+                                    <x:String>Cividis</x:String>
+                                    <x:String>Cool-Warm</x:String>
                                 </Picker.Items>
                             </Picker>
                             <Slider x:Name="PlaybackSlider"

@@ -69,6 +69,80 @@ public partial class ReconstructionPage : ContentPage
         (1.0, SKColor.Parse("#D53E4F"))
     };
 
+    private static readonly (double Position, SKColor Color)[] MatlabJetPalette =
+    {
+        (0.0, SKColor.Parse("#00007F")),
+        (0.125, SKColor.Parse("#0000FF")),
+        (0.375, SKColor.Parse("#00FFFF")),
+        (0.625, SKColor.Parse("#FFFF00")),
+        (0.875, SKColor.Parse("#FF0000")),
+        (1.0, SKColor.Parse("#7F0000"))
+    };
+
+    private static readonly (double Position, SKColor Color)[] ParulaPalette =
+    {
+        (0.0, SKColor.Parse("#352A87")),
+        (0.16, SKColor.Parse("#2462BE")),
+        (0.33, SKColor.Parse("#1F9AD6")),
+        (0.5, SKColor.Parse("#3BB6A5")),
+        (0.66, SKColor.Parse("#74C476")),
+        (0.83, SKColor.Parse("#B6D051")),
+        (1.0, SKColor.Parse("#FDE724"))
+    };
+
+    private static readonly (double Position, SKColor Color)[] ViridisPalette =
+    {
+        (0.0, SKColor.Parse("#440154")),
+        (0.2, SKColor.Parse("#414487")),
+        (0.4, SKColor.Parse("#2A788E")),
+        (0.6, SKColor.Parse("#22A884")),
+        (0.8, SKColor.Parse("#7AD151")),
+        (1.0, SKColor.Parse("#FDE725"))
+    };
+
+    private static readonly (double Position, SKColor Color)[] PlasmaPalette =
+    {
+        (0.0, SKColor.Parse("#0D0887")),
+        (0.16, SKColor.Parse("#5B02A3")),
+        (0.33, SKColor.Parse("#9A179B")),
+        (0.5, SKColor.Parse("#CB4679")),
+        (0.66, SKColor.Parse("#ED7953")),
+        (0.83, SKColor.Parse("#FDB42F")),
+        (1.0, SKColor.Parse("#F0F921"))
+    };
+
+    private static readonly (double Position, SKColor Color)[] MagmaPalette =
+    {
+        (0.0, SKColor.Parse("#000004")),
+        (0.16, SKColor.Parse("#1C1044")),
+        (0.33, SKColor.Parse("#4F0C6B")),
+        (0.5, SKColor.Parse("#822681")),
+        (0.66, SKColor.Parse("#B73779")),
+        (0.83, SKColor.Parse("#F1605D")),
+        (1.0, SKColor.Parse("#FCFDBF"))
+    };
+
+    private static readonly (double Position, SKColor Color)[] CividisPalette =
+    {
+        (0.0, SKColor.Parse("#00204C")),
+        (0.2, SKColor.Parse("#00366F")),
+        (0.4, SKColor.Parse("#39558C")),
+        (0.6, SKColor.Parse("#7B7B78")),
+        (0.8, SKColor.Parse("#B8B972")),
+        (1.0, SKColor.Parse("#FAF976"))
+    };
+
+    private static readonly (double Position, SKColor Color)[] CoolWarmPalette =
+    {
+        (0.0, SKColor.Parse("#3B4CC0")),
+        (0.16, SKColor.Parse("#5C86C5")),
+        (0.33, SKColor.Parse("#93B5D7")),
+        (0.5, SKColor.Parse("#E6E6E6")),
+        (0.66, SKColor.Parse("#E5B08A")),
+        (0.83, SKColor.Parse("#D25C4D")),
+        (1.0, SKColor.Parse("#8B1A1A"))
+    };
+
     // For FEM, which node do we use as "visual ground"?
     private const int VisualReferenceNodeId = 1;
 
@@ -520,6 +594,13 @@ public partial class ReconstructionPage : ContentPage
             ConductivityDisplayMode.Classic => ColorForValue(val, min, max),
             ConductivityDisplayMode.EnhancedDiverging => InterpolatePalette(EnhancedDivergingPalette, norm),
             ConductivityDisplayMode.Rainbow => SKColor.FromHsv((float)(240.0 * (1.0 - norm)), 90f, 100f),
+            ConductivityDisplayMode.MatlabJet => InterpolatePalette(MatlabJetPalette, norm),
+            ConductivityDisplayMode.Parula => InterpolatePalette(ParulaPalette, norm),
+            ConductivityDisplayMode.Viridis => InterpolatePalette(ViridisPalette, norm),
+            ConductivityDisplayMode.Plasma => InterpolatePalette(PlasmaPalette, norm),
+            ConductivityDisplayMode.Magma => InterpolatePalette(MagmaPalette, norm),
+            ConductivityDisplayMode.Cividis => InterpolatePalette(CividisPalette, norm),
+            ConductivityDisplayMode.CoolWarm => InterpolatePalette(CoolWarmPalette, norm),
             _ => ColorForValue(val, min, max)
         };
     }

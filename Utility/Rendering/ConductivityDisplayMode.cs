@@ -4,5 +4,12 @@ public enum ConductivityDisplayMode
 {
     Classic,
     EnhancedDiverging,
-    Rainbow
+    Rainbow,
+    MatlabJet,
+    Parula,
+    Viridis,
+    Plasma,
+    Magma,
+    Cividis,
+    CoolWarm
 }
