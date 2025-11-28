@@ -21,10 +21,10 @@ namespace ElectricalImpedanceTomography.ViewModels
         private ObservableCollection<WorkspaceMessage> debugLog = [];
 
         [ObservableProperty]
-        private double currentAmplitude = 1.0;
+        private double currentAmplitude = 10.0;
 
         [ObservableProperty]
-        private double excitationFrequency = 1.0;
+        private double excitationFrequency = 10.0;
 
         [ObservableProperty]
         private CurrentImpedanceModel currentImpedanceModel = new();

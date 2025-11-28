@@ -296,25 +296,20 @@ namespace ElectricalImpedanceTomography.ViewModels
         private void ReapplyVirtualElectrodeLayout()
         {
             if (_currentDiscretization is FEMMesh fem)
-            {
                 fem.ApplyVirtualElectrodes(VirtualElectrodeSettings, ElectrodeContactImpedance);
-            }
             else if (_currentDiscretization is LBMGrid lbm)
-            {
                 lbm.ApplyVirtualElectrodes(VirtualElectrodeSettings);
-            }
-
+        
             if (_currentDiscretization != null)
             {
-                Workspace.SetDiscretization(_currentDiscretization);
                 Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
+                Workspace.SetDiscretization(_currentDiscretization);
             }
 
             MeshChanged?.Invoke();
         }
 
-        // Removed old CustomPerimeter parsing workflow
-
+        
         public void RefreshConductivity()
         {
             if (_currentDiscretization == null)
