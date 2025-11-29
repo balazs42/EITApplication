@@ -236,6 +236,9 @@ public partial class ReconstructionPage : ContentPage
             _viewModel.RefreshMeasurementSourceOptions();
             _viewModel.LoadAvailableReconstructions();
             _viewModel.RefreshMethodPickerOptions();
+            _viewModel.SyncInitialDistribution();
+            InitialDistributionCanvas.InvalidateSurface();
+            InitialColorbarCanvas.InvalidateSurface();
         }
 
     protected override void OnDisappearing()
@@ -269,6 +272,15 @@ public partial class ReconstructionPage : ContentPage
 
     private void OnInitialDistributionEdited(object? sender, EventArgs e)
     {
+        _viewModel.AcknowledgeInitialDistributionUpdate();
+        InitialDistributionCanvas.InvalidateSurface();
+        InitialColorbarCanvas.InvalidateSurface();
+    }
+
+    private void OnInitialDistributionPickerChanged(object? sender, EventArgs e)
+    {
+        _viewModel.SyncInitialDistribution(true);
+        _viewModel.AcknowledgeInitialDistributionUpdate();
         InitialDistributionCanvas.InvalidateSurface();
         InitialColorbarCanvas.InvalidateSurface();
     }
