@@ -1903,14 +1903,14 @@ namespace ElectricalImpedanceTomography.ViewModels
                                                                        CancellationToken cancellationToken = default)
         {
             _selectedDisplayMode = mode;
-
-            return ReconstructionVideoExportWorkflow.ExportAsync(distributionCanvasSize,
-                                                                 colorbarCanvasSize,
-                                                                 residualCanvasSize,
-                                                                 _selectedDisplayMode,
-                                                                 container,
-                                                                 progress,
-                                                                 cancellationToken);
+            throw new NotImplementedException();
+            //return ReconstructionVideoExportWorkflow.ExportAsync(distributionCanvasSize,
+            //                                                     colorbarCanvasSize,
+            //                                                     residualCanvasSize,
+            //                                                     _selectedDisplayMode,
+            //                                                     container,
+            //                                                     progress,
+            //                                                     cancellationToken);
         }
 
         /// <summary>

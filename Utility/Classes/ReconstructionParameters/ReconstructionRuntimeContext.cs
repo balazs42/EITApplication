@@ -6,9 +6,9 @@ using Utility.Classes.Reconstruction;
 using Utility.Classes.Reconstruction.VirtualElectrodes;
 using Utility.Classes.Solvers;
 using Utility.Classes.Solvers.FiniteElementSolver;
-using Utility.Classes.Solvers.NumericOptimizers;
 using CommunityToolkit.Mvvm.ComponentModel;
 using System.Collections.Generic;
+using Utility.Classes.Configurations.ReconstructionConfiguration;
 
 namespace Utility.Classes.ReconstructionParameters
 {

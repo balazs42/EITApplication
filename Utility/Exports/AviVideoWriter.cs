@@ -285,16 +285,16 @@ namespace Utility.Exports
                 _writer.Write(_indexEntries.Count * 16);
 
                 uint maxBytesPerSecond = 0;
-                foreach (var (chunkId, flags, offset, size) in _indexEntries)
-                {
-                    _writer.Write(chunkId);
-                    _writer.Write(flags);
-                    _writer.Write(offset);
-                    _writer.Write(size);
+                //foreach (var (chunkId, flags, offset, size) in _indexEntries)
+                //{
+                //    _writer.Write(chunkId);
+                //    _writer.Write(flags);
+                //    _writer.Write(offset);
+                //    _writer.Write(size);
 
-                    if (size > maxBytesPerSecond)
-                        maxBytesPerSecond = size;
-                }
+                //   if (size > maxBytesPerSecond)
+                //        maxBytesPerSecond = size;
+                //}
 
                 long fileEnd = _writer.BaseStream.Position;
                 UpdateChunkSize(_writer, _riffSizePos, fileEnd);
