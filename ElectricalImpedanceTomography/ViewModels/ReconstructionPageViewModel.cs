@@ -29,7 +29,6 @@ using Utility.Rendering;
 
 using Workspace = Utility.Classes.Application.Workspace;
 using Timer = System.Timers.Timer;
-using ElectricalImpedanceTomography.Helpers;
 using Utility.Classes.Reconstruction.VirtualElectrodes;
 using Utility.Classes.Reconstruction.Metrics;
 
@@ -101,6 +100,9 @@ namespace ElectricalImpedanceTomography.ViewModels
         public bool IsHarrachMethod => VirtualElectrodeSettings.UseVirtualElectrodes && VirtualElectrodeSettings.Method == VirtualElectrodeMethod.HarrachSensitivityInterpolation;
         /// <summary>True when the NdMap spectral interpolation method is active.</summary>
         public bool IsNdMethod => VirtualElectrodeSettings.UseVirtualElectrodes && VirtualElectrodeSettings.Method == VirtualElectrodeMethod.NdMapSpectralInterpolation;
+
+        /// <summary>Tracks the last initial distribution type applied to the workspace.</summary>
+        private InitialDistributionTypes _lastAppliedInitialDistributionType;
 
         private const string MixedPickerLabel = "Mixed";
 
@@ -567,6 +569,8 @@ namespace ElectricalImpedanceTomography.ViewModels
             _blockReconstructionService.ReconstructionUpdated += OnServiceReconstructionUpdated;
             _blockReconstructionService.ReconstructionFrameUpdated += OnServiceFrameUpdated;
             RefreshMethodPickerOptions();
+
+            _lastAppliedInitialDistributionType = ReconstructionParameters.InitialDistributionType;
         }
 
         /// <summary>
@@ -1203,6 +1207,57 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             _discretization = Workspace.GetDiscretization();
             RefreshMeasurementSourceSelection();
+        }
+
+        /// <summary>
+        /// Applies the configured initial conductivity distribution to the active discretization
+        /// and updates workspace snapshots so canvases render the expected state when the page opens
+        /// or when the initial distribution method changes.
+        /// </summary>
+        /// <param name="force">When true, reapply even if a matching initial distribution already exists.</param>
+        public void SyncInitialDistribution(bool force = false)
+        {
+            var mesh = Workspace.GetDiscretization();
+            var parameters = ReconstructionParameters;
+
+            if (mesh == null || parameters == null)
+                return;
+
+            if (!force &&
+                Workspace.GetInitialConductivityDistribution() != null &&
+                _lastAppliedInitialDistributionType == parameters.InitialDistributionType)
+            {
+                return;
+            }
+
+            var originalSnapshot = Workspace.GetOriginalConductivityDistribution()
+                                   ?? Workspace.GetOriginalDiscretization()?.GetConductivityDistribution();
+            if (originalSnapshot != null)
+            {
+                Workspace.SetOriginalConductivityDistribution(new ConductivityDistribution(originalSnapshot.Conductivities));
+            }
+
+            var initial = ConductivityDistributionFactory.CreateInitialDistribution(mesh, parameters.InitialDistributionType);
+            var initialCopy = new ConductivityDistribution(initial.Conductivities);
+
+            mesh.SetConductivityDistribution(new ConductivityDistribution(initialCopy.Conductivities));
+            Workspace.SetInitialConductivityDistribution(initialCopy);
+            Workspace.SetInitialDiscretization(mesh.DeepCopy());
+
+            _lastAppliedInitialDistributionType = parameters.InitialDistributionType;
+        }
+
+        /// <summary>
+        /// Marks the current initial distribution selection as applied so the view model
+        /// does not regenerate it unnecessarily on the next sync.
+        /// </summary>
+        public void AcknowledgeInitialDistributionUpdate()
+        {
+            var parameters = ReconstructionParameters;
+            if (parameters != null)
+            {
+                _lastAppliedInitialDistributionType = parameters.InitialDistributionType;
+            }
         }
 
         /// <summary>Refreshes the current reconstruction parameters from the workspace and pickers.</summary>
@@ -1904,14 +1959,14 @@ namespace ElectricalImpedanceTomography.ViewModels
                                                                        CancellationToken cancellationToken = default)
         {
             _selectedDisplayMode = mode;
-
-            return ReconstructionVideoExportWorkflow.ExportAsync(distributionCanvasSize,
-                                                                 colorbarCanvasSize,
-                                                                 residualCanvasSize,
-                                                                 _selectedDisplayMode,
-                                                                 container,
-                                                                 progress,
-                                                                 cancellationToken);
+            throw new NotImplementedException();
+            //return ReconstructionVideoExportWorkflow.ExportAsync(distributionCanvasSize,
+            //                                                     colorbarCanvasSize,
+            //                                                     residualCanvasSize,
+            //                                                     _selectedDisplayMode,
+            //                                                     container,
+            //                                                     progress,
+            //                                                     cancellationToken);
         }
 
         /// <summary>

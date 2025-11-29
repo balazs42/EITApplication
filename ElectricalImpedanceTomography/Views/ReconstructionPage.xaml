@@ -166,7 +166,11 @@
                                             TextColor="#E5EEFF"
                                             CornerRadius="8"/>
                                 </Grid>
-                                <Picker Grid.Row="2" ItemsSource="{Binding InitialDistributionOptions}" SelectedItem="{Binding ReconstructionParameters.InitialDistributionType}" MaximumWidthRequest="150"/>
+                                <Picker Grid.Row="2"
+                                        ItemsSource="{Binding InitialDistributionOptions}"
+                                        SelectedItem="{Binding ReconstructionParameters.InitialDistributionType}"
+                                        SelectedIndexChanged="OnInitialDistributionPickerChanged"
+                                        MaximumWidthRequest="150"/>
                                 <Label Grid.Row="3" HorizontalOptions="Start" Text="DE Solver" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Picker Grid.Row="4" ItemsSource="{Binding DifferentialEquationSolverOptions}" SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}" WidthRequest="150"/>
                                 <Label Grid.Row="5" HorizontalOptions="Start" Text="Error Metric" FontFamily="SF Pro Text" FontAttributes="None"/>
