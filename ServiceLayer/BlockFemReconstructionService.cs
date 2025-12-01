@@ -168,22 +168,24 @@ namespace ServiceLayer
                        ?? throw new InvalidOperationException("Runtime mesh missing from reconstruction context.");
 
             var electrodes = mesh.GetElectrodes().Cast<Electrode>().ToList();
-            var preparedFrames = new List<double[]>();
 
             var allMeasurements = _measurementService.GetAllMeasurements();
             if (allMeasurements.Count == 0)
-                return new EITMeasurement(new List<double[]>(), _measurementService.CurrentPattern ?? new MeasurementPattern(0))
+            {
+                return new EITMeasurement(new List<double[]>(), _measurementService.CurrentPattern, _measurementService.CurrentPatternDescription)
                 {
                     CurrentAmplitude = excitationAmplitude
                 };
+            }
 
             int cycleLength = Math.Max(1, _measurementService.FramesPerCycle);
             int stepIndex = _frameIndex % cycleLength;
 
-            var prepared = _measurementService.PrepareMeasurementFrame(allMeasurements[stepIndex], electrodes);
-            preparedFrames.Add(prepared);
+            var context = _measurementService.BuildStepContext(electrodes, allMeasurements[stepIndex], stepIndex);
+            var preparedFrames = new List<double[]> { context.PreparedFrame };
+            var stepIndices = new List<int> { context.NormalizedStepIndex };
 
-            var measurement = new EITMeasurement(preparedFrames, _measurementService.CurrentPattern)
+            var measurement = new EITMeasurement(preparedFrames, context.Pattern, context.PatternDescription, stepIndices)
             {
                 CurrentAmplitude = _measurementService.RealMeasurementAmplitude ?? excitationAmplitude
             };

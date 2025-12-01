@@ -42,6 +42,7 @@ namespace ServiceLayer
         private VirtualElectrodeSettings _virtualSettings = new();
         private int _framesPerCycle = 1;
         private ConductivityDistribution? _measurementConductivity;
+        private DrivePatternDescription? _patternDescription;
 
         public MeasurementService(IMeasurementPersistence measurementPersistence, ILogger logger)
         {
@@ -53,6 +54,7 @@ namespace ServiceLayer
         public double? RealMeasurementAmplitude => _realMeasurementAmplitude;
         public ElectrodeMeasurementSetup MeasurementSetup => _measurementSetup;
         public MeasurementPattern? CurrentPattern => _measurementPattern;
+        public DrivePatternDescription? CurrentPatternDescription => _patternDescription;
         public bool UsePotentialDifferences => _usePotentialDifferences;
 
         /// <summary>
@@ -90,6 +92,7 @@ namespace ServiceLayer
             _measurementSetup = Workspace.GetElectrodeMeasurementSetup();
             Workspace.SetElectrodeMeasurementSetup(_measurementSetup);
             Workspace.SetMeasurementPattern(null);
+            _patternDescription = null;
 
             _framesPerCycle = Math.Max(1, DetermineCycleLength());
         }
@@ -112,6 +115,7 @@ namespace ServiceLayer
             Workspace.SetMeasurementPattern(null);
             _measurementSetup = Workspace.GetElectrodeMeasurementSetup();
             Workspace.SetElectrodeMeasurementSetup(_measurementSetup);
+            _patternDescription = null;
             _framesPerCycle = Math.Max(1, DetermineCycleLength());
         }
 
@@ -128,6 +132,7 @@ namespace ServiceLayer
                 throw new InvalidOperationException("Measurement service has not been initialised.");
 
             int electrodeCount = DetermineElectrodeCount();
+            RefreshPatternDescription(electrodeCount);
 
             if (_measurementSource == MeasurementSourceOption.Real)
             {
@@ -139,7 +144,7 @@ namespace ServiceLayer
                     _measurements.Clear();
                     _measurements.AddRange(measurement.Frames.Select(frame => (double[])frame.Clone()));
                     _realMeasurementAmplitude = measurement.CurrentAmplitude;
-                    AdoptMeasurementMetadata(measurement.Pattern, _measurements, electrodeCount, measurement.Pattern?.MeasurementSetup);
+                    AdoptMeasurementMetadata(measurement.Pattern, _measurements, electrodeCount, measurement.Pattern?.MeasurementSetup, measurement.PatternDescription);
                     _framesPerCycle = Math.Max(1, _measurements.Count);
                     return;
                 }
@@ -212,7 +217,7 @@ namespace ServiceLayer
             // Noise is injected only for simulated data so real measurements remain pristine.
             ApplyMeasurementNoise(_measurements, _noiseType, _noiseAmplitude);
             // Update measurement setup / pattern inference based on the freshly generated frames.
-            AdoptMeasurementMetadata(simulation.Pattern, _measurements, electrodeCount, simulation.MeasurementSetup);
+            AdoptMeasurementMetadata(simulation.Pattern, _measurements, electrodeCount, simulation.MeasurementSetup, simulation.PatternDescription);
             _framesPerCycle = Math.Max(1, _measurements.Count);
         }
 
@@ -237,32 +242,62 @@ namespace ServiceLayer
         /// Normalises a raw measurement snapshot to the solver ordering by applying optional
         /// virtual electrode completion and mapping it through the current measurement pattern.
         /// </summary>
-        public double[] PrepareMeasurementFrame(double[] measurement, IList<Electrode> electrodes)
+        public double[] PrepareMeasurementFrame(double[] measurement, IList<Electrode> electrodes, int stepIndex = 0)
         {
-            if (measurement == null)
-                throw new ArgumentNullException(nameof(measurement));
+            return BuildStepContext(electrodes, measurement, stepIndex).PreparedFrame;
+        }
+
+        /// <summary>
+        /// Builds a full context object for the requested drive-pattern step. The context
+        /// carries the raw frame, prepared frame, pattern and step description so downstream
+        /// services can consistently wire boundary conditions and misfit evaluation.
+        /// </summary>
+        public MeasurementStepContext BuildStepContext(IList<Electrode> electrodes, double[] frame, int stepIndex)
+        {
+            if (frame == null)
+                throw new ArgumentNullException(nameof(frame));
             if (electrodes == null)
                 throw new ArgumentNullException(nameof(electrodes));
 
             if (electrodes.Count == 0)
-                return measurement;
+            {
+                var emptyPattern = MeasurementPatternBuilder.Build(new List<Electrode>(), ElectrodeMeasurementSetup.Active, false);
+                return new MeasurementStepContext(stepIndex, 0, frame, frame, emptyPattern, null, null);
+            }
+
+            int driveElectrodeCount = GetDriveElectrodeCount(electrodes);
+            RefreshPatternDescription(driveElectrodeCount);
+
+            var description = _patternDescription;
+            int cycleLength = description?.CycleLength > 0
+                ? description!.CycleLength
+                : Math.Max(1, _measurements.Count);
+            int normalizedStep = NormalizeStepIndex(stepIndex, cycleLength);
 
             if (_virtualSettings.ShouldApplyVirtualElectrodes())
             {
                 var estimator = VirtualElectrodeEstimatorFactory.Create(_virtualSettings);
                 var context = BuildForwardContext(electrodes.ToList());
-                measurement = estimator.CompleteElectrodePotentials(electrodes.ToList(), measurement, _virtualSettings, context);
+                frame = estimator.CompleteElectrodePotentials(electrodes.ToList(), frame, _virtualSettings, context);
             }
 
+            MeasurementPattern pattern;
+            MeasurementPatternStep? step = null;
+            if (description != null)
+            {
+                step = description.GetStep(normalizedStep);
+                pattern = MeasurementPatternBuilder.BuildFromStep(electrodes, step);
+            }
+            else
+            {
+                pattern = MeasurementPatternBuilder.Build(electrodes, Workspace.GetElectrodeMeasurementSetup(), _usePotentialDifferences);
+            }
 
-            var electrodeProjection = electrodes.ToList();
-            var pattern = MeasurementPatternBuilder.Build(electrodeProjection,
-                                                          Workspace.GetElectrodeMeasurementSetup(),
-                                                          _usePotentialDifferences);
+            var prepared = pattern.MapMeasurement(frame);
             _measurementPattern = pattern;
             Workspace.SetMeasurementPattern(pattern);
 
-            return pattern.MapMeasurement(measurement);
+            return new MeasurementStepContext(stepIndex, normalizedStep, frame, prepared, pattern, description, step);
         }
 
         private int DetermineElectrodeCount()
@@ -280,7 +315,8 @@ namespace ServiceLayer
             int electrodeCount = DetermineElectrodeCount();
             if (electrodeCount <= 0)
                 return 1;
-            return Math.Max(1, _drivePatternStrategy.GetCycleLength(electrodeCount));
+            RefreshPatternDescription(electrodeCount);
+            return Math.Max(1, _patternDescription?.CycleLength ?? _drivePatternStrategy.GetCycleLength(electrodeCount));
         }
 
         private static ConductivityDistribution CloneConductivityDistribution(ConductivityDistribution source)
@@ -288,6 +324,48 @@ namespace ServiceLayer
 
         private static PotentialDistribution ClonePotentialDistribution(PotentialDistribution source)
             => new PotentialDistribution(source.Potentials);
+
+        private void RefreshPatternDescription(int electrodeCount)
+        {
+            if (electrodeCount <= 0)
+            {
+                _patternDescription = null;
+                return;
+            }
+
+            var representation = _usePotentialDifferences
+                ? MeasurementRepresentation.PotentialDifference
+                : MeasurementRepresentation.Amplitude;
+
+            _patternDescription = _drivePatternStrategy.BuildDescription(electrodeCount,
+                                                                          representation,
+                                                                          _measurementSetup);
+        }
+
+        private MeasurementPattern ResolvePatternForStep(IList<Electrode> electrodes, int stepIndex)
+        {
+            if (electrodes == null)
+                throw new ArgumentNullException(nameof(electrodes));
+
+            int driveElectrodeCount = GetDriveElectrodeCount(electrodes);
+            RefreshPatternDescription(driveElectrodeCount);
+
+            if (_patternDescription == null)
+            {
+                var fallback = MeasurementPatternBuilder.Build(electrodes,
+                                                               Workspace.GetElectrodeMeasurementSetup(),
+                                                               _usePotentialDifferences);
+                _measurementPattern = fallback;
+                Workspace.SetMeasurementPattern(fallback);
+                return fallback;
+            }
+
+            var step = _patternDescription.GetStep(stepIndex);
+            var pattern = MeasurementPatternBuilder.BuildFromStep(electrodes, step);
+            _measurementPattern = pattern;
+            Workspace.SetMeasurementPattern(pattern);
+            return pattern;
+        }
 
         private static int GetDriveElectrodeCount(IEnumerable<Electrode> electrodes)
         {
@@ -344,8 +422,12 @@ namespace ServiceLayer
         private void AdoptMeasurementMetadata(MeasurementPattern? pattern,
                                               IReadOnlyList<double[]> frames,
                                               int electrodeCount,
-                                              ElectrodeMeasurementSetup? enforcedSetup)
+                                              ElectrodeMeasurementSetup? enforcedSetup,
+                                              DrivePatternDescription? description = null)
         {
+            if (description != null)
+                _patternDescription = description;
+
             if (pattern != null)
             {
                 if (_measurementSetup != pattern.MeasurementSetup)
@@ -508,6 +590,15 @@ namespace ServiceLayer
             {
                 RealElectrodeCount = electrodes.Count(e => !e.IsVirtual)
             };
+        }
+
+        private static int NormalizeStepIndex(int stepIndex, int cycleLength)
+        {
+            if (cycleLength <= 0)
+                return 0;
+
+            int normalized = stepIndex % cycleLength;
+            return normalized < 0 ? normalized + cycleLength : normalized;
         }
     }
 }
