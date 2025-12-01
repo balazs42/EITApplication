@@ -589,12 +589,31 @@ namespace ElectricalImpedanceTomography.ViewModels
             // If block configuration was used, then this paths runs only
             if (ShouldUseBlockConfiguration)
             {
-                _blockReconstructionService.Initialize();
-                _initializedDiscretization = Workspace.GetDiscretization();
-                IterationCount = 0;
-                _resetMetricsOnStart = true;
-                _lastBlockConfiguration = Workspace.GetCompleteReconstructionConfiguration();
-                _blockInitialized = true;
+                var mesh = _discretization ?? throw new NullReferenceException("Mesh was null during reconstruction initialization, check calling code!");
+
+                var signature = CreateCurrentRunSignature(mesh);
+                bool isSameRun = _lastRunSignature?.Equals(signature) ?? false;
+
+                var config = Workspace.GetCompleteReconstructionConfiguration();
+                bool configurationChanged = _lastBlockConfiguration != config;
+                bool discretizationChanged = _initializedDiscretization != mesh;
+
+                if (configurationChanged || discretizationChanged)
+                    isSameRun = false;
+
+                if (!_blockInitialized || !isSameRun)
+                {
+                    _blockReconstructionService.Initialize();
+                    _blockInitialized = true;
+                    _initializedDiscretization = mesh;
+                    IterationCount = 0;
+                }
+
+                if (!isSameRun)
+                    _resetMetricsOnStart = true;
+
+                _lastRunSignature = signature;
+                _lastBlockConfiguration = config;
                 return;
             }
 
