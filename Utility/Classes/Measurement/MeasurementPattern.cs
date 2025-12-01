@@ -213,6 +213,29 @@ namespace Utility.Classes.Measurement
             return BuildDifferencePattern(electrodes, setup);
         }
 
+        public static MeasurementPattern BuildFromStep(IReadOnlyList<Electrode> electrodes,
+                                                       MeasurementPatternStep step)
+        {
+            if (electrodes == null)
+                throw new ArgumentNullException(nameof(electrodes));
+            if (step == null)
+                throw new ArgumentNullException(nameof(step));
+
+            int electrodeCount = electrodes.Count;
+            var channels = new List<MeasurementChannel>(step.MeasurementPairs.Count);
+
+            foreach (var pair in step.MeasurementPairs)
+            {
+                int targetIndex = pair.First;
+                channels.Add(new MeasurementChannel(targetIndex, pair.First, pair.Second));
+            }
+
+            return new MeasurementPattern(step.Representation,
+                                          step.MeasurementSetup,
+                                          electrodeCount,
+                                          channels);
+        }
+
         private static MeasurementPattern BuildAmplitudePattern(IReadOnlyList<Electrode> electrodes,
                                                                 ElectrodeMeasurementSetup setup)
         {

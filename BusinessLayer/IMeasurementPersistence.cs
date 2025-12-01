@@ -60,8 +60,10 @@ namespace BusinessLayer
     /// <param name="Amplitude">Optional amplitude associated with the frames.</param>
     /// <param name="Pattern">Measurement pattern describing channel ordering.</param>
     /// <param name="MeasurementSetup">Whether driven electrodes are included in the frames.</param>
+    /// <param name="PatternDescription">Full description of the drive/measurement pattern that generated the frames.</param>
     public sealed record MeasurementSimulationResult(List<double[]> Frames,
                                                       double? Amplitude,
                                                       MeasurementPattern? Pattern,
-                                                      ElectrodeMeasurementSetup MeasurementSetup);
+                                                      ElectrodeMeasurementSetup MeasurementSetup,
+                                                      DrivePatternDescription? PatternDescription);
 }
