@@ -18,7 +18,7 @@ namespace ServiceLayer
         void EnsureMeasurements(double excitationAmplitude);
         double[] GetMeasurementForStep(int stepIndex);
         IReadOnlyList<double[]> GetAllMeasurements();
-        double[] PrepareMeasurementFrame(double[] measurement, IList<Electrode> electrodes);
+        double[] PrepareMeasurementFrame(double[] measurement, IList<Electrode> electrodes, int stepIndex = 0);
 
         int FramesPerCycle { get; }
         double? RealMeasurementAmplitude { get; }

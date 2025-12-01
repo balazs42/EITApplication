@@ -157,12 +157,15 @@ namespace BusinessLayer
             double driveAmplitude = measurement.CurrentAmplitude.HasValue ? measurement.CurrentAmplitude.Value : 1.0;
 
             var electrodes = _mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
-            int electrodeCount = electrodes.Count;
+            var realElectrodes = electrodes.Where(e => !e.IsVirtual).ToList();
+            int electrodeCount = realElectrodes.Count;
             if (electrodeCount < 2)
                 throw new InvalidOperationException("At least two electrodes are required for FEM boundary conditions.");
 
             // Main iteration over all measurement frames
             var frames = new List<ReconstructionFrame>(measurement.Frames.Count);
+            var patternDescription = measurement.PatternDescription;
+            int cycleLength = patternDescription?.CycleLength ?? electrodeCount;
 
             for (int frameIndex = 0; frameIndex < measurement.Frames.Count; frameIndex++)
             {
@@ -179,17 +182,21 @@ namespace BusinessLayer
                     el.Potential = 0.0;
                 }
 
-                // Set excitation and ground electrodes for current frame
-                // TODO: generic adaptation for different patterns
-                int excitationIndex = globalFrameIndex % electrodeCount;
-                int groundIndex = (globalFrameIndex + 1) % electrodeCount;
+                int requestedStep = measurement.StepIndices.Count > frameIndex
+                    ? measurement.StepIndices[frameIndex]
+                    : globalFrameIndex;
+                int normalizedStep = NormalizeStepIndex(requestedStep, Math.Max(1, cycleLength));
+                var step = patternDescription?.GetStep(normalizedStep);
 
-                var excitation = electrodes[excitationIndex];
+                // Drive electrodes are selected from the real (non-virtual) list so virtual
+                // contacts can remain passive measurement completion helpers.
+                var excitationPair = step?.Excitation ?? new ElectrodePair(normalizedStep, NormalizeElectrodeIndex(normalizedStep + 1, electrodeCount));
+                var excitation = realElectrodes[excitationPair.First];
                 excitation.IsExcitation = true;
                 excitation.IsMeasuring = false;
                 excitation.Current = driveAmplitude;
 
-                var ground = electrodes[groundIndex];
+                var ground = realElectrodes[excitationPair.Second];
                 ground.IsGround = true;
                 ground.IsMeasuring = false;
                 ground.Current = -driveAmplitude;
@@ -544,6 +551,18 @@ namespace BusinessLayer
             }
 
             return new ConductivityDistribution(combined);
+        }
+
+        private static int NormalizeStepIndex(int stepIndex, int cycleLength)
+        {
+            int normalized = stepIndex % cycleLength;
+            return normalized < 0 ? normalized + cycleLength : normalized;
+        }
+
+        private static int NormalizeElectrodeIndex(int index, int electrodeCount)
+        {
+            int normalized = index % electrodeCount;
+            return normalized < 0 ? normalized + electrodeCount : normalized;
         }
     }
 }

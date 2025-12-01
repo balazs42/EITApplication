@@ -44,8 +44,13 @@ namespace BusinessLayer
             int electrodeCount = realElectrodes.Count;
 
             var strategy = DrivePatternStrategyProvider.GetStrategy(drivePattern);
+            var patternDescription = strategy.BuildDescription(electrodeCount,
+                                                               usePotentialDifferences
+                                                                   ? MeasurementRepresentation.PotentialDifference
+                                                                   : MeasurementRepresentation.Amplitude,
+                                                               measurementSetup);
             int cycleLength = electrodeCount > 0
-                ? Math.Max(1, strategy.GetCycleLength(electrodeCount))
+                ? Math.Max(1, patternDescription.CycleLength)
                 : 1;
 
             var frames = new List<double[]>(cycleLength);
@@ -64,13 +69,13 @@ namespace BusinessLayer
 
                 if (electrodeCount > 0)
                 {
-                    var (excitationIndex, groundIndex) = strategy.GetElectrodePair(electrodeCount, i);
-                    var excitation = realElectrodes[excitationIndex];
+                    var step = patternDescription.GetStep(i);
+                    var excitation = realElectrodes[step.Excitation.First];
                     excitation.IsExcitation = true;
                     excitation.IsMeasuring = false;
                     excitation.Current = excitationAmplitude;
 
-                    var ground = realElectrodes[groundIndex];
+                    var ground = realElectrodes[step.Excitation.Second];
                     ground.IsGround = true;
                     ground.IsMeasuring = false;
                     ground.Current = -excitationAmplitude;
@@ -82,9 +87,8 @@ namespace BusinessLayer
 
                 double[] potentials = PotentialClipper.Clip(result.GetElectrodePotentials());
                 var electrodeProjectionList = electrodes.Cast<Utility.Classes.Discretizer.Electrode>().ToList();
-                var pattern = MeasurementPatternBuilder.Build(electrodeProjectionList,
-                                                              measurementSetup,
-                                                              usePotentialDifferences);
+                var pattern = MeasurementPatternBuilder.BuildFromStep(electrodeProjectionList,
+                                                                      patternDescription.GetStep(i));
                 referencePattern ??= pattern;
                 var raw = pattern.ExtractRawMeasurement(potentials);
                 frames.Add(applyVirtuals
@@ -92,7 +96,7 @@ namespace BusinessLayer
                     : raw);
             }
 
-            return new MeasurementSimulationResult(frames, null, referencePattern, measurementSetup);
+            return new MeasurementSimulationResult(frames, null, referencePattern, measurementSetup, patternDescription);
         }
 
         /// <inheritdoc />
@@ -126,8 +130,13 @@ namespace BusinessLayer
             int electrodeCount = realElectrodes.Count;
 
             var strategy = DrivePatternStrategyProvider.GetStrategy(drivePattern);
+            var patternDescription = strategy.BuildDescription(electrodeCount,
+                                                               usePotentialDifferences
+                                                                   ? MeasurementRepresentation.PotentialDifference
+                                                                   : MeasurementRepresentation.Amplitude,
+                                                               measurementSetup);
             int cycleLength = electrodeCount > 0
-                ? Math.Max(1, strategy.GetCycleLength(electrodeCount))
+                ? Math.Max(1, patternDescription.CycleLength)
                 : 1;
 
             var frames = new List<double[]>(cycleLength);
@@ -146,14 +155,14 @@ namespace BusinessLayer
 
                 if (electrodeCount > 1)
                 {
-                    var (excitationIndex, groundIndex) = strategy.GetElectrodePair(electrodeCount, i);
+                    var step = patternDescription.GetStep(i);
 
-                    var excitation = realElectrodes[excitationIndex];
+                    var excitation = realElectrodes[step.Excitation.First];
                     excitation.IsExcitation = true;
                     excitation.IsMeasuring = false;
                     excitation.Current = excitationAmplitude;
 
-                    var ground = realElectrodes[groundIndex];
+                    var ground = realElectrodes[step.Excitation.Second];
                     ground.IsGround = true;
                     ground.IsMeasuring = false;
                     ground.Current = -excitationAmplitude;
@@ -182,9 +191,8 @@ namespace BusinessLayer
 
                 double[] electrodePotentials = PotentialClipper.Clip(grid.GetElectrodePotentials());
                 var electrodeProjectionList = electrodes.Cast<Utility.Classes.Discretizer.Electrode>().ToList();
-                var pattern = MeasurementPatternBuilder.Build(electrodeProjectionList,
-                                                              measurementSetup,
-                                                              usePotentialDifferences);
+                var pattern = MeasurementPatternBuilder.BuildFromStep(electrodeProjectionList,
+                                                                      patternDescription.GetStep(i));
                 referencePattern ??= pattern;
                 var raw = pattern.ExtractRawMeasurement(electrodePotentials);
                 frames.Add(applyVirtuals
@@ -192,7 +200,7 @@ namespace BusinessLayer
                     : raw);
             }
 
-            return new MeasurementSimulationResult(frames, excitationAmplitude, referencePattern, measurementSetup);
+            return new MeasurementSimulationResult(frames, excitationAmplitude, referencePattern, measurementSetup, patternDescription);
         }
 
         private static FEMMesh SolveFemForward(FEMMesh mesh, IDifferentialEquationSolver solver)

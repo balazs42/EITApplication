@@ -229,7 +229,7 @@ namespace ServiceLayer
         ///
         /// The solver expects exactly one source and one sink per step; this method enforces that contract.
         /// </summary>
-        private void ApplyDrivePatternToElectrodes<TElectrode>(IList<TElectrode> electrodes, double excitationAmplitude, int stepIndex)
+        private void ApplyDrivePatternToElectrodes<TElectrode>(IList<TElectrode> electrodes, double excitationAmplitude, int stepIndex, MeasurementPatternStep? patternStep)
             where TElectrode : Electrode
         {
             if (electrodes.Count == 0)
@@ -254,7 +254,9 @@ namespace ServiceLayer
             if (realElectrodes.Count == 0)
                 return; // Edge case: no real electrodes configured
 
-            var (excitationIndex, groundIndex) = GetDrivePatternPair(realElectrodes.Count, stepIndex);
+            var (excitationIndex, groundIndex) = patternStep != null
+                ? (patternStep.Excitation.First, patternStep.Excitation.Second)
+                : GetDrivePatternPair(realElectrodes.Count, stepIndex);
 
             // Assign excitation electrode and inject current.
             var excitation = realElectrodes[excitationIndex].Electrode;
@@ -300,14 +302,14 @@ namespace ServiceLayer
                 int cycleLength = Math.Max(1, _drivePatternStrategy.GetCycleLength(driveElectrodeCount));
                 int stepIndex = _simMeasurementIndex % cycleLength;
                 var measurement = _measurementService.GetMeasurementForStep(stepIndex);
+                var context = _measurementService.BuildStepContext(electrodes.Cast<Electrode>().ToList(), measurement, stepIndex);
 
-                // Recompute electrode roles for this step and build BC.
+                // Recompute electrode roles for this step and build BC using the explicit pattern step if available.
                 double effectiveAmplitude = _excitationAmplitude; // Use configured amplitude
-                ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, stepIndex);
+                ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, context.NormalizedStepIndex, context.Step);
 
                 var bc = new FEMBoundaryCondition(electrodes);
-                // Expand the raw measurement vector to match the solver ordering (injecting NaNs for excluded electrodes).
-                var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodes.Cast<Electrode>().ToList());
+                var preparedMeasurement = context.PreparedFrame;
 
                 // Delegate one optimization step to the persistence layer.
                 var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, _stepSize, _regularizationWeight);
@@ -349,11 +351,13 @@ namespace ServiceLayer
                 int cycleLength = Math.Max(1, _drivePatternStrategy.GetCycleLength(driveElectrodeCount));
                 int stepIndex = _simMeasurementIndex % cycleLength;
                 double effectiveAmplitude = _excitationAmplitude;
-                ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, stepIndex);
+                var measurement = _measurementService.GetMeasurementForStep(stepIndex);
+                var context = _measurementService.BuildStepContext(electrodes.Cast<Electrode>().ToList(), measurement, stepIndex);
+
+                ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, context.NormalizedStepIndex, context.Step);
 
                 var bc = new LBMBoundaryCondition(electrodes);
-                double[] measurement = _measurementService.GetMeasurementForStep(stepIndex);
-                var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodes.Cast<Electrode>().ToList());
+                var preparedMeasurement = context.PreparedFrame;
                 var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, _stepSize, _regularizationWeight);
 
                 _simMeasurementIndex++;
@@ -492,7 +496,7 @@ namespace ServiceLayer
                         var bc = new FEMBoundaryCondition(electrodes);
                         var measurement = measurements[i];
                         // Convert the measurement snapshot to the solver layout for the current electrode roles.
-                        var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodes.Cast<Electrode>().ToList());
+                        var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodes.Cast<Electrode>().ToList(), i);
 
                         var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, _stepSize, _regularizationWeight);
 
@@ -548,7 +552,7 @@ namespace ServiceLayer
                         var bc = new LBMBoundaryCondition(electrodes);
 
                         var measurement = measurements[i];
-                        var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodes.Cast<Electrode>().ToList());
+                        var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodes.Cast<Electrode>().ToList(), i);
                         var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, _stepSize, _regularizationWeight);
 
                         Workspace.AddReconstructionFrameToWorkspace(frame);
