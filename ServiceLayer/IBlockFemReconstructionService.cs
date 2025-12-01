@@ -42,8 +42,8 @@ namespace ServiceLayer
                                                                      double excitationAmplitude);
 
         /// <summary>
-        /// Performs a single reconstruction cycle, emitting intermediate frames as soon as
-        /// they are available.
+        /// Performs a single reconstruction step. Intermediate frames are emitted immediately
+        /// and a reconstruction result is only produced when the drive-pattern cycle completes.
         /// </summary>
         /// <param name="stepSize">Gradient descent step size.</param>
         /// <param name="regularizationWeight">Weighting applied to the regularization gradient.</param>

@@ -142,7 +142,7 @@ namespace BusinessLayer
         /// </summary>
         /// <param name="measurement">Measurement frames mapped to the solver ordering.</param>
         /// <returns>Collection of reconstruction frames, one entry per measurement frame.</returns>
-        public List<ReconstructionFrame> Step(EITMeasurement measurement)
+        public List<ReconstructionFrame> Step(EITMeasurement measurement, int frameOffset = 0)
         {
             // Basic error checking
             if (measurement == null)
@@ -167,6 +167,7 @@ namespace BusinessLayer
             for (int frameIndex = 0; frameIndex < measurement.Frames.Count; frameIndex++)
             {
                 var currentFrame = measurement.Frames[frameIndex];
+                int globalFrameIndex = frameOffset + frameIndex;
 
                 // Reset electrode states
                 foreach (var el in electrodes)
@@ -180,8 +181,8 @@ namespace BusinessLayer
 
                 // Set excitation and ground electrodes for current frame
                 // TODO: generic adaptation for different patterns
-                int excitationIndex = frameIndex % electrodeCount;
-                int groundIndex = (frameIndex + 1) % electrodeCount;
+                int excitationIndex = globalFrameIndex % electrodeCount;
+                int groundIndex = (globalFrameIndex + 1) % electrodeCount;
 
                 var excitation = electrodes[excitationIndex];
                 excitation.IsExcitation = true;
