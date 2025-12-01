@@ -56,10 +56,11 @@ namespace BusinessLayer
             var numericSolver = NumericSolverFactory.Create(parameters.NumericSolver, parameters.UseOmpParallelization, parameters.UseCudaAcceleration);
             var differentialEquationSolver = DifferentialEquationSolverFactory.Create(mesh, parameters.DifferentialEquationSolver, numericSolver);
 
-            // Capture the current mesh conductivities as the immutable "target"/original distribution
-            // and apply the user-selected initialization distribution to the mesh so reconstruction starts
-            // from that state instead of the target.
-            var originalDistribution = new ConductivityDistribution(mesh.GetConductivityDistribution().Conductivities);
+            // Capture the target/original distribution from the workspace snapshot when available
+            // so the initialization logic cannot overwrite the ground truth by reference.
+            var originalDistribution = Workspace.GetOriginalConductivityDistribution()
+                                      ?? Workspace.GetOriginalDiscretization()?.GetConductivityDistribution()
+                                      ?? new ConductivityDistribution(mesh.GetConductivityDistribution().Conductivities);
             var initialDistribution = BuildInitialDistribution(mesh, parameters, configuration.Blocks);
 
             // Ensure the reconstruction begins from the configured initial distribution instead of the

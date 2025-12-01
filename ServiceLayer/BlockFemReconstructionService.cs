@@ -27,6 +27,8 @@ namespace ServiceLayer
 
         private ReconstructionRuntimeContext? _runtimeContext;
         private bool _initialized;
+        private int _frameIndex;
+        private readonly List<ReconstructionFrame> _cycleFrames = new();
 
         /// <inheritdoc />
         public event EventHandler<ReconstructionResult>? ReconstructionUpdated;
@@ -77,6 +79,8 @@ namespace ServiceLayer
 
             Workspace.SetReconstructionFrames(new List<ReconstructionFrame>());
             Workspace.SetReconstructionResults(new List<ReconstructionResult>());
+            _cycleFrames.Clear();
+            _frameIndex = 0;
             _initialized = true;
         }
 
@@ -84,15 +88,25 @@ namespace ServiceLayer
         public Task<ReconstructionResult?> RunFullReconstructionCycleAsync(double stepSize,
                                                                            double regularizationWeight,
                                                                            double excitationAmplitude)
-            => Task.Run(() => ExecuteReconstructionCycle(stepSize, regularizationWeight, excitationAmplitude));
+            => Task.Run(() =>
+            {
+                ReconstructionResult? result = null;
+                int cycleLength = Math.Max(1, _measurementService.FramesPerCycle);
+                for (int i = 0; i < cycleLength; i++)
+                {
+                    result = ExecuteReconstructionStep(stepSize, regularizationWeight, excitationAmplitude);
+                }
+
+                return result;
+            });
 
         /// <inheritdoc />
         public Task<ReconstructionResult?> StepReconstructionAsync(double stepSize,
                                                                     double regularizationWeight,
                                                                     double excitationAmplitude)
-            => Task.Run(() => ExecuteReconstructionCycle(stepSize, regularizationWeight, excitationAmplitude));
+            => Task.Run(() => ExecuteReconstructionStep(stepSize, regularizationWeight, excitationAmplitude));
 
-        private ReconstructionResult? ExecuteReconstructionCycle(double stepSize,
+        private ReconstructionResult? ExecuteReconstructionStep(double stepSize,
                                                                   double regularizationWeight,
                                                                   double excitationAmplitude)
         {
@@ -104,18 +118,24 @@ namespace ServiceLayer
             try
             {
                 var measurement = PrepareMeasurement(excitationAmplitude);
-                var frames = _persistence.Step(measurement);
+                var frames = _persistence.Step(measurement, _frameIndex);
 
                 foreach (var frame in frames)
                 {
                     Workspace.AddReconstructionFrameToWorkspace(frame);
+                    _cycleFrames.Add(frame);
                     ReconstructionFrameUpdated?.Invoke(this, frame);
                 }
+
+                _frameIndex += frames.Count;
+
+                if (_frameIndex % Math.Max(1, _measurementService.FramesPerCycle) != 0)
+                    return null;
 
                 var mesh = _runtimeContext.RuntimeMesh
                           ?? throw new InvalidOperationException("Runtime mesh missing from reconstruction context.");
                 var previous = mesh.GetConductivityDistribution();
-                var updated = ApplyGradientUpdate(frames, previous, stepSize, regularizationWeight);
+                var updated = ApplyGradientUpdate(_cycleFrames, previous, stepSize, regularizationWeight);
                 if (updated == null)
                     return null;
 
@@ -123,9 +143,10 @@ namespace ServiceLayer
                                                       _runtimeContext.OriginalDistribution,
                                                       previous,
                                                       updated,
-                                                      frames);
+                                                      new List<ReconstructionFrame>(_cycleFrames));
 
                 Workspace.AddReconstructionResultToWorkspace(result);
+                _cycleFrames.Clear();
                 ReconstructionUpdated?.Invoke(this, result);
                 return result;
             }
@@ -149,11 +170,18 @@ namespace ServiceLayer
             var electrodes = mesh.GetElectrodes().Cast<Electrode>().ToList();
             var preparedFrames = new List<double[]>();
 
-            foreach (var frame in _measurementService.GetAllMeasurements())
-            {
-                var prepared = _measurementService.PrepareMeasurementFrame(frame, electrodes);
-                preparedFrames.Add(prepared);
-            }
+            var allMeasurements = _measurementService.GetAllMeasurements();
+            if (allMeasurements.Count == 0)
+                return new EITMeasurement(new List<double[]>(), _measurementService.CurrentPattern ?? new MeasurementPattern(0))
+                {
+                    CurrentAmplitude = excitationAmplitude
+                };
+
+            int cycleLength = Math.Max(1, _measurementService.FramesPerCycle);
+            int stepIndex = _frameIndex % cycleLength;
+
+            var prepared = _measurementService.PrepareMeasurementFrame(allMeasurements[stepIndex], electrodes);
+            preparedFrames.Add(prepared);
 
             var measurement = new EITMeasurement(preparedFrames, _measurementService.CurrentPattern)
             {
