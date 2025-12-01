@@ -193,7 +193,7 @@ namespace Utility.Classes.Measurement
 
     public static class MeasurementPatternBuilder
     {
-        public static MeasurementPattern Build(IReadOnlyList<Electrode> electrodes,
+        public static MeasurementPattern Build(IList<Electrode> electrodes,
                                                ElectrodeMeasurementSetup setup,
                                                bool usePotentialDifferences)
         {
@@ -213,7 +213,7 @@ namespace Utility.Classes.Measurement
             return BuildDifferencePattern(electrodes, setup);
         }
 
-        public static MeasurementPattern BuildFromStep(IReadOnlyList<Electrode> electrodes,
+        public static MeasurementPattern BuildFromStep(IList<Electrode> electrodes,
                                                        MeasurementPatternStep step)
         {
             if (electrodes == null)
@@ -236,7 +236,7 @@ namespace Utility.Classes.Measurement
                                           channels);
         }
 
-        private static MeasurementPattern BuildAmplitudePattern(IReadOnlyList<Electrode> electrodes,
+        private static MeasurementPattern BuildAmplitudePattern(IList<Electrode> electrodes,
                                                                 ElectrodeMeasurementSetup setup)
         {
             int electrodeCount = electrodes.Count;
@@ -260,7 +260,7 @@ namespace Utility.Classes.Measurement
                                           channels);
         }
 
-        private static MeasurementPattern BuildDifferencePattern(IReadOnlyList<Electrode> electrodes,
+        private static MeasurementPattern BuildDifferencePattern(IList<Electrode> electrodes,
                                                                  ElectrodeMeasurementSetup setup)
         {
             int electrodeCount = electrodes.Count;
@@ -375,7 +375,7 @@ namespace Utility.Classes.Measurement
     /// </summary>
     public static class MeasurementProjector
     {
-        public static MeasurementProjection Create(IReadOnlyList<Electrode> electrodes,
+        public static MeasurementProjection Create(IList<Electrode> electrodes,
                                                    ElectrodeMeasurementSetup setup,
                                                    bool usePotentialDifferences,
                                                    double[] measurement,

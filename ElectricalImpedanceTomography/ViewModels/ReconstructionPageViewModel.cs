@@ -589,30 +589,30 @@ namespace ElectricalImpedanceTomography.ViewModels
             // If block configuration was used, then this paths runs only
             if (ShouldUseBlockConfiguration)
             {
-                var mesh = _discretization ?? throw new NullReferenceException("Mesh was null during reconstruction initialization, check calling code!");
+                var femMesh = _discretization ?? throw new NullReferenceException("Mesh was null during reconstruction initialization, check calling code!");
 
-                var signature = CreateCurrentRunSignature(mesh);
-                bool isSameRun = _lastRunSignature?.Equals(signature) ?? false;
+                var blockSignature = CreateCurrentRunSignature(femMesh);
+                bool isSameBlockRun = _lastRunSignature?.Equals(blockSignature) ?? false;
 
                 var config = Workspace.GetCompleteReconstructionConfiguration();
                 bool configurationChanged = _lastBlockConfiguration != config;
-                bool discretizationChanged = _initializedDiscretization != mesh;
+                bool discretizationChanged = _initializedDiscretization != femMesh;
 
                 if (configurationChanged || discretizationChanged)
-                    isSameRun = false;
+                    isSameBlockRun = false;
 
-                if (!_blockInitialized || !isSameRun)
+                if (!_blockInitialized || !isSameBlockRun)
                 {
                     _blockReconstructionService.Initialize();
                     _blockInitialized = true;
-                    _initializedDiscretization = mesh;
+                    _initializedDiscretization = femMesh;
                     IterationCount = 0;
                 }
 
-                if (!isSameRun)
+                if (!isSameBlockRun)
                     _resetMetricsOnStart = true;
 
-                _lastRunSignature = signature;
+                _lastRunSignature = blockSignature;
                 _lastBlockConfiguration = config;
                 return;
             }

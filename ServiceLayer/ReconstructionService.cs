@@ -1,7 +1,5 @@
 ﻿using BusinessLayer;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using Utility.Classes;
 using Utility.Classes.Measurement;
 using Utility.Classes.Discretizer;
@@ -302,14 +300,14 @@ namespace ServiceLayer
                 int cycleLength = Math.Max(1, _drivePatternStrategy.GetCycleLength(driveElectrodeCount));
                 int stepIndex = _simMeasurementIndex % cycleLength;
                 var measurement = _measurementService.GetMeasurementForStep(stepIndex);
-                var context = _measurementService.BuildStepContext(electrodes.Cast<Electrode>().ToList(), measurement, stepIndex);
 
-                // Recompute electrode roles for this step and build BC using the explicit pattern step if available.
+                // Apply electrode roles for this step and build boundary condition
                 double effectiveAmplitude = _excitationAmplitude; // Use configured amplitude
-                ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, context.NormalizedStepIndex, context.Step);
-
+                ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, stepIndex, null);
                 var bc = new FEMBoundaryCondition(electrodes);
-                var preparedMeasurement = context.PreparedFrame;
+
+                // Map measurement into solver order
+                var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodes.Cast<Electrode>().ToList(), stepIndex);
 
                 // Delegate one optimization step to the persistence layer.
                 var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, _stepSize, _regularizationWeight);
@@ -352,12 +350,11 @@ namespace ServiceLayer
                 int stepIndex = _simMeasurementIndex % cycleLength;
                 double effectiveAmplitude = _excitationAmplitude;
                 var measurement = _measurementService.GetMeasurementForStep(stepIndex);
-                var context = _measurementService.BuildStepContext(electrodes.Cast<Electrode>().ToList(), measurement, stepIndex);
 
-                ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, context.NormalizedStepIndex, context.Step);
+                ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, stepIndex, null);
 
                 var bc = new LBMBoundaryCondition(electrodes);
-                var preparedMeasurement = context.PreparedFrame;
+                var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodes.Cast<Electrode>().ToList(), stepIndex);
                 var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, _stepSize, _regularizationWeight);
 
                 _simMeasurementIndex++;
@@ -491,7 +488,7 @@ namespace ServiceLayer
                     for (int i = 0; i < measurements.Count; i++)
                     {
                         double effectiveAmplitude = _excitationAmplitude;
-                        ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, i);
+                        ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, i, null);
 
                         var bc = new FEMBoundaryCondition(electrodes);
                         var measurement = measurements[i];
@@ -548,7 +545,7 @@ namespace ServiceLayer
                     {
                         var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
                         double effectiveAmplitude = _excitationAmplitude;
-                        ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, i);
+                        ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, i, null);
                         var bc = new LBMBoundaryCondition(electrodes);
 
                         var measurement = measurements[i];
