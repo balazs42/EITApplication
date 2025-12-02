@@ -238,7 +238,7 @@ namespace BusinessLayer
                                                          electrodePotentials);
 
             // Evaluate error metrics and adjoint solves (with caching when the same metric type is reused)
-            var adjointSolutionsByBlock = EvaluateAdjointSolutions(measurement, electrodePotentials);
+            var adjointSolutionsByBlock = EvaluateAdjointSolutions(projection);
 
             // Calculate gradients of all adjoint fields just once so they can be reused across optimizers
             var adjointGradientsByBlock = CalculateAdjointGradients(adjointSolutionsByBlock);
@@ -311,10 +311,9 @@ namespace BusinessLayer
         /// <summary>
         /// Evaluates the adjoint source for each error metric and constructs the corresponding boundary conditions.
         /// </summary>
-        /// <param name="measurement">The corresponding measurement to the problem.</param>
-        /// <param name="simulatedMeasurement">The simulated electrode potentials. Must align with the measurements excitation!</param>
+        /// <param name="projection">Projected/normalised measurement bundle that can re-expand adjoint sources.</param>
         /// <returns></returns>
-        private Dictionary<string, PotentialDistribution> EvaluateAdjointSolutions(double[] measurement, double[] simulatedMeasurement)
+        private Dictionary<string, PotentialDistribution> EvaluateAdjointSolutions(MeasurementProjection projection)
         {
             var electrodes = _mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
 
@@ -348,9 +347,10 @@ namespace BusinessLayer
                     }
                 }
 
-                var adjointSource = kvp.Value.errorMetric.EvaluateAdjointSource(_mesh, measurement, simulatedMeasurement);
+                var adjointSource = kvp.Value.errorMetric.EvaluateAdjointSource(_mesh, projection.Measured, projection.Simulated);
+                var expandedAdjoint = projection.ExpandAdjoint(adjointSource);
                 var adjointBoundaryCondition = new FEMBoundaryCondition(electrodes);
-                adjointBoundaryCondition.SetElectrodePotentials(adjointSource);
+                adjointBoundaryCondition.SetElectrodePotentials(expandedAdjoint);
                 adjointSolution = AdjointSolve(adjointBoundaryCondition, adjointBoundaryCondition.GetElectrodePotentials());
 
                 lock (adjointCache)
