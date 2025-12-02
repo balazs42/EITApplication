@@ -287,6 +287,13 @@ namespace ServiceLayer
             // Ensure measurement source (simulated/real) matches the workspace selection.
             _measurementService.SyncMeasurementSource();
 
+            // Prevent unbounded accumulation of reconstruction frames in the workspace. At the start
+            // of each drive-pattern cycle, clear the previous cycle's frames so long-running sessions
+            // (e.g., fine FEM meshes with W2 and no regularization) do not keep growing memory usage
+            // and slowing down over time.
+            if (_simMeasurementIndex % Math.Max(1, _measurementService.FramesPerCycle) == 0)
+                Workspace.ClearReconstructionFrames();
+
             if (_discretization is FEMMesh femMesh)
             {
                 _measurementService.EnsureMeasurements(_excitationAmplitude);
