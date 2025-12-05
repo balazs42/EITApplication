@@ -24,6 +24,9 @@
         <ShellContent Title="Reconstruction" Route="ReconstructionPage">
             <views:ReconstructionPage />
         </ShellContent>
+        <ShellContent Title="Post Processing" Route="PostProcessingPage">
+            <views:PostProcessingPage />
+        </ShellContent>
     </TabBar>
 
 </Shell>

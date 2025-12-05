@@ -1,0 +1,326 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:skia="clr-namespace:SkiaSharp.Views.Maui.Controls;assembly=SkiaSharp.Views.Maui.Controls"
+             xmlns:viewmodels="clr-namespace:ElectricalImpedanceTomography.ViewModels"
+             x:Class="ElectricalImpedanceTomography.Views.PostProcessingPage"
+             Title="Post Processing"
+             x:DataType="viewmodels:PostProcessingPageViewModel"
+             Shell.NavBarIsVisible="False"
+             BackgroundColor="#0b1120">
+
+    <ContentPage.Resources>
+        <ResourceDictionary>
+            <!-- Tailwind Colors -->
+            <Color x:Key="BgMain">#0b1120</Color>
+            <Color x:Key="BgSidebar">#1e293b</Color>
+            <Color x:Key="BgCard">#162032</Color>
+            <Color x:Key="BorderColor">#334155</Color>
+            <Color x:Key="BrandCyan">#22d3ee</Color>
+            <Color x:Key="BrandRed">#ef4444</Color>
+            <Color x:Key="TextMain">#e2e8f0</Color>
+            <Color x:Key="TextMuted">#94a3b8</Color>
+
+            <!-- Card Style -->
+            <Style x:Key="CardStyle" TargetType="Border">
+                <Setter Property="BackgroundColor" Value="{StaticResource BgCard}"/>
+                <Setter Property="Stroke" Value="{StaticResource BorderColor}"/>
+                <Setter Property="StrokeThickness" Value="1"/>
+                <Setter Property="StrokeShape" Value="RoundRectangle 8"/>
+                <Setter Property="Padding" Value="16"/>
+            </Style>
+
+            <!-- Small Header Label Style -->
+            <Style x:Key="GroupHeaderStyle" TargetType="Label">
+                <Setter Property="FontSize" Value="10"/>
+                <Setter Property="FontAttributes" Value="Bold"/>
+                <Setter Property="TextColor" Value="{StaticResource TextMuted}"/>
+                <Setter Property="CharacterSpacing" Value="1"/>
+                <Setter Property="Margin" Value="0,0,0,12"/>
+            </Style>
+
+            <!-- Action Button Style -->
+            <Style x:Key="ActionBtnStyle" TargetType="Button">
+                <Setter Property="BackgroundColor" Value="#334155"/>
+                <Setter Property="TextColor" Value="#e2e8f0"/>
+                <Setter Property="CornerRadius" Value="6"/>
+                <Setter Property="HeightRequest" Value="60"/>
+                <Setter Property="FontSize" Value="11"/>
+                <Setter Property="FontAttributes" Value="Bold"/>
+            </Style>
+        </ResourceDictionary>
+    </ContentPage.Resources>
+
+    <!-- Main Layout: 3 Columns -->
+    <Grid ColumnDefinitions="320, *, 280">
+
+        <!-- LEFT SIDEBAR: CONFIGURATION -->
+        <Border Grid.Column="0" BackgroundColor="{StaticResource BgSidebar}" StrokeThickness="0,0,1,0" Stroke="{StaticResource BorderColor}" Padding="0">
+            <Grid RowDefinitions="Auto, *">
+
+                <!-- Header -->
+                <VerticalStackLayout Padding="20,24,20,10" Spacing="4">
+                    <Label Text="CONFIGURATION" TextColor="White" FontSize="16" FontAttributes="Bold"/>
+                    <Label Text="Image processing &amp; visualization" TextColor="{StaticResource TextMuted}" FontSize="12"/>
+                </VerticalStackLayout>
+
+                <ScrollView Grid.Row="1" Padding="20">
+                    <VerticalStackLayout Spacing="20">
+
+                        <!-- 1. IMAGE ENHANCEMENT -->
+                        <Border Style="{StaticResource CardStyle}">
+                            <VerticalStackLayout>
+                                <Label Text="IMAGE ENHANCEMENT" Style="{StaticResource GroupHeaderStyle}"/>
+
+                                <!-- Slider -->
+                                <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,4" ColumnSpacing="10">
+                                    <Label Text="Strength" FontSize="12" TextColor="{StaticResource TextMuted}"/>
+                                    <Label Text="{Binding FilterStrength, StringFormat='{0:F0}%'}" TextColor="{StaticResource BrandCyan}" FontSize="12" FontAttributes="Bold"/>
+                                </Grid>
+                                <Slider Minimum="0" Maximum="100" Value="{Binding FilterStrength}" ThumbColor="{StaticResource BrandCyan}" MinimumTrackColor="{StaticResource BrandCyan}" MaximumTrackColor="#334155"/>
+
+                                <!-- Buttons -->
+                                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8" Margin="0,12,0,0">
+                                    <Button Text="Smooth" Command="{Binding ApplySmoothCommand}" Style="{StaticResource ActionBtnStyle}"/>
+                                    <Button Text="Sharpen" Grid.Column="1" Command="{Binding ApplySharpenCommand}" Style="{StaticResource ActionBtnStyle}"/>
+                                    <Button Text="Median" Grid.Column="2" Command="{Binding ApplyMedianCommand}" Style="{StaticResource ActionBtnStyle}"/>
+                                </Grid>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- 2. DISPLAY SETTINGS -->
+                        <Border Style="{StaticResource CardStyle}">
+                            <VerticalStackLayout Spacing="16">
+                                <Label Text="DISPLAY SETTINGS" Style="{StaticResource GroupHeaderStyle}"/>
+
+                                <Grid ColumnDefinitions="*, Auto">
+                                    <Label Text="Wireframe" TextColor="{StaticResource TextMain}" VerticalOptions="Center" FontSize="13"/>
+                                    <Switch IsToggled="{Binding ShowWireframe}" OnColor="{StaticResource BrandCyan}" ThumbColor="White" Grid.Column="1"/>
+                                </Grid>
+
+                                <BoxView HeightRequest="1" Color="{StaticResource BorderColor}"/>
+
+                                <Grid ColumnDefinitions="*, Auto">
+                                    <Label Text="Nodes" TextColor="{StaticResource TextMain}" VerticalOptions="Center" FontSize="13"/>
+                                    <Switch IsToggled="{Binding ShowNodes}" OnColor="{StaticResource BrandCyan}" ThumbColor="White" Grid.Column="1"/>
+                                </Grid>
+
+                                <BoxView HeightRequest="1" Color="{StaticResource BorderColor}"/>
+
+                                <Grid ColumnDefinitions="*, Auto">
+                                    <Label Text="Contours" TextColor="{StaticResource TextMain}" VerticalOptions="Center" FontSize="13"/>
+                                    <Switch IsToggled="{Binding ShowContours}" OnColor="{StaticResource BrandCyan}" ThumbColor="White" Grid.Column="1"/>
+                                </Grid>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- 3. DATA MAPPING -->
+                        <Border Style="{StaticResource CardStyle}">
+                            <VerticalStackLayout Spacing="12">
+                                <Label Text="DATA MAPPING" Style="{StaticResource GroupHeaderStyle}"/>
+
+                                <VerticalStackLayout Spacing="10">
+                                    <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,2">
+                                        <Label Text="Min Cutoff" FontSize="11" TextColor="{StaticResource TextMuted}"/>
+                                        <Label Text="{Binding MinCutoff, StringFormat='{0:F2}'}" TextColor="{StaticResource BrandCyan}" FontSize="11" FontAttributes="Bold"/>
+                                    </Grid>
+                                    <Slider Minimum="0" Maximum="1" Value="{Binding MinCutoff}" ThumbColor="{StaticResource BrandCyan}" MinimumTrackColor="{StaticResource BrandCyan}" MaximumTrackColor="#334155"/>
+                                </VerticalStackLayout>
+
+                                <VerticalStackLayout Spacing="10">
+                                    <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,2">
+                                        <Label Text="Max Cutoff" FontSize="11" TextColor="{StaticResource TextMuted}"/>
+                                        <Label Text="{Binding MaxCutoff, StringFormat='{0:F2}'}" TextColor="{StaticResource BrandCyan}" FontSize="11" FontAttributes="Bold"/>
+                                    </Grid>
+                                    <Slider Minimum="0" Maximum="1" Value="{Binding MaxCutoff}" ThumbColor="{StaticResource BrandCyan}" MinimumTrackColor="{StaticResource BrandCyan}" MaximumTrackColor="#334155"/>
+                                </VerticalStackLayout>
+
+                                <BoxView HeightRequest="1" Color="{StaticResource BorderColor}" Margin="0,4"/>
+
+                                <Grid ColumnDefinitions="*, Auto">
+                                    <Label Text="Logarithmic Scale" TextColor="{StaticResource TextMain}" VerticalOptions="Center" FontSize="13"/>
+                                    <Switch IsToggled="{Binding IsLogScale}" OnColor="{StaticResource BrandCyan}" ThumbColor="White" Grid.Column="1"/>
+                                </Grid>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Reset Button -->
+                        <Button Text="Reset All" Command="{Binding ResetAllCommand}" 
+                                BackgroundColor="#1e293b" TextColor="{StaticResource BrandRed}" 
+                                BorderColor="{StaticResource BrandRed}" BorderWidth="1"
+                                HeightRequest="40" CornerRadius="6" FontSize="12" FontAttributes="Bold" Margin="0,10"/>
+
+                    </VerticalStackLayout>
+                </ScrollView>
+            </Grid>
+        </Border>
+
+        <!-- CENTER: CANVAS & CONSOLE -->
+        <Grid Grid.Column="1" RowDefinitions="*, 200">
+
+            <!-- 1. FEM Canvas Area -->
+            <Grid Grid.Row="0" BackgroundColor="{StaticResource BgMain}">
+                <!-- Background Grid Pattern -->
+                <skia:SKCanvasView x:Name="BackgroundGrid" PaintSurface="OnBackgroundPaintSurface" IgnorePixelScaling="True" InputTransparent="True"/>
+
+                <!-- Main Mesh Canvas -->
+                <skia:SKCanvasView x:Name="FemCanvas" 
+                                   PaintSurface="OnFemPaintSurface" 
+                                   EnableTouchEvents="True" 
+                                   Touch="OnCanvasTouch"
+                                   IgnorePixelScaling="True"/>
+
+                <!-- Floating Toolbar (Top Center) -->
+                <Border VerticalOptions="Start" HorizontalOptions="Center" Margin="0,24,0,0" 
+                        Stroke="{StaticResource BorderColor}" BackgroundColor="#E61E293B" 
+                        StrokeShape="RoundRectangle 24" Padding="20,10" HeightRequest="56">
+                    <HorizontalStackLayout Spacing="16" VerticalOptions="Center">
+                        <Button Text="+" WidthRequest="32" HeightRequest="32" CornerRadius="16" Padding="0" BackgroundColor="Transparent" TextColor="#cbd5e1" FontSize="18" Clicked="OnZoomIn"/>
+                        <Button Text="-" WidthRequest="32" HeightRequest="32" CornerRadius="16" Padding="0" BackgroundColor="Transparent" TextColor="#cbd5e1" FontSize="18" Clicked="OnZoomOut"/>
+                        <BoxView WidthRequest="1" Color="{StaticResource BorderColor}" VerticalOptions="Fill" Margin="0,6"/>
+                        <Button Text="Fit" WidthRequest="40" HeightRequest="32" Padding="0" BackgroundColor="Transparent" TextColor="#cbd5e1" FontSize="12" FontAttributes="Bold" Clicked="OnFitView"/>
+                        <BoxView WidthRequest="1" Color="{StaticResource BorderColor}" VerticalOptions="Fill" Margin="0,6"/>
+                        <Button Text="Snap" WidthRequest="40" HeightRequest="32" Padding="0" BackgroundColor="Transparent" TextColor="#cbd5e1" FontSize="14">
+                            <Button.ImageSource>
+                                <FontImageSource Glyph="&#xf030;" FontFamily="FontAwesome" Color="#cbd5e1" Size="14"/>
+                            </Button.ImageSource>
+                        </Button>
+                        <BoxView WidthRequest="1" Color="{StaticResource BorderColor}" VerticalOptions="Fill" Margin="0,6"/>
+
+                        <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+                            <Label Text="Color" TextColor="{StaticResource TextMuted}" FontSize="11" VerticalOptions="Center"/>
+                            <Picker SelectedItem="{Binding SelectedColormap}" ItemsSource="{Binding Colormaps}" 
+                                    TextColor="White" TitleColor="{StaticResource TextMuted}" 
+                                    BackgroundColor="Transparent" FontSize="12" WidthRequest="80"/>
+                        </HorizontalStackLayout>
+                    </HorizontalStackLayout>
+                </Border>
+            </Grid>
+
+            <!-- 2. Bottom Console -->
+            <Border Grid.Row="1" BackgroundColor="{StaticResource BgMain}" Stroke="{StaticResource BorderColor}" StrokeThickness="0" Padding="0">
+                <Grid RowDefinitions="36, *, 44">
+                    <!-- Console Header -->
+                    <Border Grid.Row="0" BackgroundColor="{StaticResource BgSidebar}" Stroke="{StaticResource BorderColor}" StrokeThickness="0" Padding="12,0">
+                        <Grid ColumnDefinitions="Auto, *">
+                            <Label Text="SYSTEM CONSOLE" TextColor="{StaticResource TextMuted}" FontSize="11" FontAttributes="Bold" VerticalOptions="Center">
+                                <Label.FormattedText>
+                                    <FormattedString>
+                                        <Span Text="&#xf120;  " FontFamily="FontAwesome" FontSize="12"/>
+                                        <Span Text="SYSTEM CONSOLE"/>
+                                    </FormattedString>
+                                </Label.FormattedText>
+                            </Label>
+                            <HorizontalStackLayout Grid.Column="1" HorizontalOptions="End" Spacing="4" VerticalOptions="Center">
+                                <BoxView Color="#475569" WidthRequest="8" HeightRequest="8" CornerRadius="4"/>
+                                <BoxView Color="#475569" WidthRequest="8" HeightRequest="8" CornerRadius="4"/>
+                            </HorizontalStackLayout>
+                        </Grid>
+                    </Border>
+
+                    <!-- Console Output -->
+                    <CollectionView Grid.Row="1" ItemsSource="{Binding ConsoleLogs}" BackgroundColor="{StaticResource BgMain}" Margin="4">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate>
+                                <Label Text="{Binding .}" TextColor="#94a3b8" FontFamily="Consolas, Monospace" FontSize="12" Padding="12,2"/>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+
+                    <!-- Console Input -->
+                    <Border Grid.Row="2" Stroke="{StaticResource BorderColor}" StrokeThickness="0" BackgroundColor="{StaticResource BgMain}" Padding="12,0">
+                        <Grid ColumnDefinitions="Auto, *">
+                            <Label Text=">" TextColor="{StaticResource BrandCyan}" VerticalOptions="Center" Margin="0,0,10,0" FontAttributes="Bold"/>
+                            <Entry Placeholder="Enter command..." TextColor="White" PlaceholderColor="#475569" BackgroundColor="Transparent" Grid.Column="1" FontSize="13"/>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- RIGHT SIDEBAR: STATISTICS -->
+        <Border Grid.Column="2" BackgroundColor="{StaticResource BgSidebar}" StrokeThickness="1" Stroke="{StaticResource BorderColor}" Padding="0">
+            <Grid RowDefinitions="Auto, *">
+
+                <VerticalStackLayout Padding="20,24,20,10" Spacing="4">
+                    <Label Text="STATISTICS" TextColor="White" FontSize="16" FontAttributes="Bold"/>
+                    <Label Text="Real-time data analysis" TextColor="{StaticResource TextMuted}" FontSize="12"/>
+                </VerticalStackLayout>
+
+                <ScrollView Grid.Row="1" Padding="20">
+                    <VerticalStackLayout Spacing="20">
+
+                        <!-- Histogram Widget -->
+                        <Border Style="{StaticResource CardStyle}">
+                            <VerticalStackLayout Spacing="10">
+                                <Label Text="CONDUCTIVITY DISTRIBUTION" Style="{StaticResource GroupHeaderStyle}"/>
+                                <!-- Histogram Canvas -->
+                                <skia:SKCanvasView x:Name="HistogramCanvas" HeightRequest="100" PaintSurface="OnHistogramPaintSurface" IgnorePixelScaling="True"/>
+
+                                <Grid ColumnDefinitions="*,*">
+                                    <Label Text="{Binding StatMin}" FontSize="10" TextColor="{StaticResource TextMuted}" FontFamily="Consolas"/>
+                                    <Label Text="{Binding StatMax}" FontSize="10" TextColor="{StaticResource TextMuted}" HorizontalOptions="End" Grid.Column="1" FontFamily="Consolas"/>
+                                </Grid>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Stats Cards Grid -->
+                        <Grid RowDefinitions="Auto, Auto" ColumnDefinitions="*,*" RowSpacing="12" ColumnSpacing="12">
+                            <!-- Min Card -->
+                            <Border Style="{StaticResource CardStyle}" Padding="12">
+                                <VerticalStackLayout>
+                                    <Label Text="Min Value" FontSize="10" TextColor="{StaticResource TextMuted}"/>
+                                    <Label Text="{Binding StatMin}" FontSize="16" TextColor="{StaticResource BrandCyan}" FontAttributes="Bold" FontFamily="Consolas"/>
+                                </VerticalStackLayout>
+                            </Border>
+                            <!-- Max Card -->
+                            <Border Grid.Column="1" Style="{StaticResource CardStyle}" Padding="12">
+                                <VerticalStackLayout>
+                                    <Label Text="Max Value" FontSize="10" TextColor="{StaticResource TextMuted}"/>
+                                    <Label Text="{Binding StatMax}" FontSize="16" TextColor="{StaticResource BrandRed}" FontAttributes="Bold" FontFamily="Consolas"/>
+                                </VerticalStackLayout>
+                            </Border>
+                            <!-- Avg Card -->
+                            <Border Grid.Row="1" Grid.ColumnSpan="2" Style="{StaticResource CardStyle}" Padding="12">
+                                <Grid ColumnDefinitions="*, Auto">
+                                    <VerticalStackLayout>
+                                        <Label Text="Average Conductivity" FontSize="10" TextColor="{StaticResource TextMuted}"/>
+                                        <Label Text="{Binding StatAvg}" FontSize="18" TextColor="White" FontAttributes="Bold" FontFamily="Consolas"/>
+                                    </VerticalStackLayout>
+                                    <Label Grid.Column="1" Text="&#xf1ec;" FontFamily="FontAwesome" FontSize="18" TextColor="{StaticResource TextMuted}" VerticalOptions="Center"/>
+                                </Grid>
+                            </Border>
+                        </Grid>
+
+                        <!-- History Stack -->
+                        <VerticalStackLayout Spacing="10" Margin="0,10,0,0">
+                            <Label Text="HISTORY" Style="{StaticResource GroupHeaderStyle}" Margin="0"/>
+                            <Border BackgroundColor="{StaticResource BgMain}" StrokeThickness="0" StrokeShape="RoundRectangle 6" Padding="10">
+                                <CollectionView ItemsSource="{Binding HistoryLog}" HeightRequest="120">
+                                    <CollectionView.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid ColumnDefinitions="20, *">
+                                                <Label Text="&#xf058;" FontFamily="FontAwesome" TextColor="#10b981" FontSize="12" VerticalOptions="Center"/>
+                                                <Label Text="{Binding .}" Grid.Column="1" FontSize="12" TextColor="{StaticResource TextMuted}" VerticalOptions="Center"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </CollectionView.ItemTemplate>
+                                </CollectionView>
+                            </Border>
+                        </VerticalStackLayout>
+
+                        <!-- Export Button -->
+                        <Button Text="Export Data" Command="{Binding ExportDataCommand}" 
+                                BackgroundColor="{StaticResource BrandCyan}" TextColor="#0b1120" 
+                                FontAttributes="Bold" HeightRequest="44" CornerRadius="6" FontSize="13" Margin="0,10,0,0">
+                            <Button.ImageSource>
+                                <FontImageSource Glyph="&#xf56e;" FontFamily="FontAwesome" Color="#0b1120" Size="14"/>
+                            </Button.ImageSource>
+                        </Button>
+
+                    </VerticalStackLayout>
+                </ScrollView>
+            </Grid>
+        </Border>
+    </Grid>
+</ContentPage>
