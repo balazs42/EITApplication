@@ -43,11 +43,15 @@ namespace ElectricalImpedanceTomography.Views
         private Point _canvasPanStart;
         private Point _canvasScrollStart;
 
-        // LBM preview drawing brushes
-        private readonly SKPaint _lbmFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.Black };
-        private readonly SKPaint _lbmWall = new() { Style = SKPaintStyle.Fill, Color = SKColors.White };
+        // LBM preview drawing brushes (aligned with Meshing page visualisation)
+        private readonly SKPaint _lbmDefault = new() { Style = SKPaintStyle.Fill, Color = SKColors.White };
+        private readonly SKPaint _lbmWall = new() { Style = SKPaintStyle.Fill, Color = SKColors.Black };
+        private readonly SKPaint _lbmGhost = new() { Style = SKPaintStyle.Fill, Color = SKColor.Parse("#546E7A") };
+        private readonly SKPaint _lbmGhostOverlay = new() { Style = SKPaintStyle.Stroke, Color = SKColors.WhiteSmoke, StrokeWidth = 0.75f };
         private readonly SKPaint _lbmElectrode = new() { Style = SKPaintStyle.Fill, Color = SKColors.Orange };
+        private readonly SKPaint _lbmVirtualElectrode = new() { Style = SKPaintStyle.Fill, Color = SKColor.Parse("#AA00FF") };
         private readonly SKPaint _lbmStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.LightGray, StrokeWidth = 1 };
+        private readonly SKPaint _lbmGradientFill = new() { Style = SKPaintStyle.Fill };
 
         // FEM preview drawing brushes
         private readonly SKPaint _femStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1 };
@@ -1364,26 +1368,60 @@ namespace ElectricalImpedanceTomography.Views
         }
 
         /// <summary>
-        /// Simple LBM view: draw each cell with fill color by type and a light grid stroke.
+        /// LBM preview aligned with Meshing page visuals: supports walls, ghost cells, electrodes (real/virtual)
+        /// and conductivity gradients.
         /// </summary>
         private void DrawLbmPreview(SKCanvas canvas, SKImageInfo info, LBMGrid grid)
         {
             float cellW = (float)info.Width / grid.Nx;
             float cellH = (float)info.Height / grid.Ny;
+            const double defaultConductivity = 1.0;
+
+            var conductiveElements = grid.ElementsTyped
+                .Where(el => !el.IsWall && !el.IsElectrode)
+                .ToList();
+            double maxConductivity = defaultConductivity;
+            double minConductivity = defaultConductivity;
+            if (conductiveElements.Count > 0)
+            {
+                maxConductivity = Math.Max(defaultConductivity, conductiveElements.Max(el => el.Conductivity));
+                minConductivity = Math.Min(defaultConductivity, conductiveElements.Min(el => el.Conductivity));
+            }
+
+            var electrodeLookup = grid.ElectrodesTyped.Cast<LBMElectrode>()
+                .ToDictionary(e => e.Id, e => e.IsVirtual);
 
             for (int y = 0; y < grid.Ny; y++)
             {
                 for (int x = 0; x < grid.Nx; x++)
                 {
                     var el = grid.GetElementAt(x, y);
-                    SKPaint fill = el.IsElectrode
-                        ? _lbmElectrode
-                        : el.IsWall
-                            ? _lbmWall
-                            : _lbmFill;
+                    SKPaint fill;
+                    if (el.IsElectrode)
+                    {
+                        bool isVirtual = el.ElectrodeId >= 0 && electrodeLookup.TryGetValue(el.ElectrodeId, out bool value) && value;
+                        fill = isVirtual ? _lbmVirtualElectrode : _lbmElectrode;
+                    }
+                    else if (el.GhostElement)
+                        fill = _lbmGhost;
+                    else if (el.IsWall)
+                        fill = _lbmWall;
+                    else if (Math.Abs(el.Conductivity - defaultConductivity) > 1e-6)
+                    {
+                        _lbmGradientFill.Color = ColorForValue(el.Conductivity, minConductivity, maxConductivity);
+                        fill = _lbmGradientFill;
+                    }
+                    else
+                        fill = _lbmDefault;
+
                     var r = SKRect.Create(x * cellW, y * cellH, cellW, cellH);
                     canvas.DrawRect(r, fill);
                     canvas.DrawRect(r, _lbmStroke);
+                    if (el.GhostElement)
+                    {
+                        canvas.DrawLine(r.Left, r.Top, r.Right, r.Bottom, _lbmGhostOverlay);
+                        canvas.DrawLine(r.Left, r.Bottom, r.Right, r.Top, _lbmGhostOverlay);
+                    }
                 }
             }
         }
