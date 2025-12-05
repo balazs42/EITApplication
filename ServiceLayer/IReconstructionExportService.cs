@@ -6,6 +6,7 @@ namespace ServiceLayer;
 public interface IReconstructionExportService
 {
     Task<DataExportResult> ExportAsync(string rootDirectory,
-                                       PotentialDisplayMode displayMode,
+                                       PotentialDisplayMode potentialDisplayMode,
+                                       ConductivityDisplayMode conductivityDisplayMode,
                                        CancellationToken cancellationToken = default);
 }

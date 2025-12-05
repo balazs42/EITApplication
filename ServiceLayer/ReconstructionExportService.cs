@@ -24,7 +24,8 @@ public sealed class ReconstructionExportService : IReconstructionExportService
     }
 
     public Task<DataExportResult> ExportAsync(string rootDirectory,
-                                              PotentialDisplayMode displayMode,
+                                              PotentialDisplayMode potentialDisplayMode,
+                                              ConductivityDisplayMode conductivityDisplayMode,
                                               CancellationToken cancellationToken = default)
     {
         var results = Workspace.GetReconstructionResults().ToList();
@@ -60,7 +61,8 @@ public sealed class ReconstructionExportService : IReconstructionExportService
                                                       frames,
                                                       results,
                                                       renderFrame,
-                                                      displayMode,
+                                                      potentialDisplayMode,
+                                                      conductivityDisplayMode,
                                                       directory,
                                                       initialDistribution,
                                                       measurementPattern,

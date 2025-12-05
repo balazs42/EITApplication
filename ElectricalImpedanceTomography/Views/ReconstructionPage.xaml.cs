@@ -1711,7 +1711,7 @@ public partial class ReconstructionPage : ContentPage
     {
         try
         {
-            var exportResult = await _viewModel.ExportReconstructionDataAsync(_potMode);
+            var exportResult = await _viewModel.ExportReconstructionDataAsync(_potMode, _conductivityMode);
 
             UpdateExportButtonState();
 
