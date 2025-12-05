@@ -21,6 +21,13 @@ namespace ElectricalImpedanceTomography.Views
         private readonly SKPaint _fillPaint = new() { Style = SKPaintStyle.Fill, IsAntialias = true };
         private readonly SKPaint _borderPaint = new() { Style = SKPaintStyle.Stroke, Color = SKColor.Parse("#475569"), StrokeWidth = 2, IsAntialias = true };
         private readonly SKPaint _histogramBarPaint = new() { Color = SKColor.Parse("#22d3ee"), Style = SKPaintStyle.Fill, IsAntialias = true };
+        private readonly SKPaint _messagePaint = new()
+        {
+            Color = SKColors.LightGray,
+            TextSize = 18,
+            IsAntialias = true,
+            TextAlign = SKTextAlign.Center
+        };
 
         public PostProcessingPage()
         {
@@ -31,6 +38,13 @@ namespace ElectricalImpedanceTomography.Views
             // Redraw triggers
             _viewModel.PropertyChanged += (s, e) => RequestRedraw();
             _viewModel.MeshUpdated += (s, e) => RequestRedraw();
+        }
+
+        protected override void OnAppearing()
+        {
+            base.OnAppearing();
+            if (!_viewModel.HasMesh)
+                _viewModel.LoadLatestWorkspaceResult();
         }
 
         private void RequestRedraw()
@@ -94,6 +108,17 @@ namespace ElectricalImpedanceTomography.Views
             var canvas = e.Surface.Canvas;
             canvas.Clear(SKColors.Transparent);
             var info = e.Info;
+
+            if (!_viewModel.HasMesh || _viewModel.Elements.Count == 0)
+            {
+                canvas.Clear(SKColor.Parse("#0b1120"));
+                var message = string.IsNullOrWhiteSpace(_viewModel.CanvasMessage)
+                    ? "No reconstruction loaded."
+                    : _viewModel.CanvasMessage;
+                var center = new SKPoint(info.Width / 2f, info.Height / 2f);
+                canvas.DrawText(message, center.X, center.Y, _messagePaint);
+                return;
+            }
 
             // Transform View
             canvas.Translate(info.Width / 2 + _translateX, info.Height / 2 + _translateY);
