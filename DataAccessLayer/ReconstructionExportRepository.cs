@@ -44,7 +44,8 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
                                      ReconstructionVideoRenderer.DistributionSnapshotType.Original,
                                      "Original Conductivity Distribution",
                                      originalMetadata,
-                                     request.DisplayMode);
+                                     request.PotentialDisplayMode,
+                                     request.ConductivityDisplayMode);
 
             var initialMetadata = CreateRangeMetadata(initialDistribution);
             double initialResidual = ReconstructionStatistics.CalculateResidual(initialResult, true);
@@ -69,7 +70,8 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
                                      ReconstructionVideoRenderer.DistributionSnapshotType.Initial,
                                      "Initial Conductivity Distribution",
                                      initialMetadata,
-                                     request.DisplayMode);
+                                     request.PotentialDisplayMode,
+                                     request.ConductivityDisplayMode);
 
             var finalMetadata = CreateRangeMetadata(latestSnapshot.Result.ReconstructedConductivityDistribution);
             finalMetadata.Insert(0, ("Iteration", latestSnapshot.Iteration.ToString(CultureInfo.InvariantCulture)));
@@ -94,19 +96,23 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
                                      ReconstructionVideoRenderer.DistributionSnapshotType.Reconstructed,
                                      "Latest Reconstructed Conductivity",
                                      finalMetadata,
-                                     request.DisplayMode);
+                                     request.PotentialDisplayMode,
+                                     request.ConductivityDisplayMode);
 
             SaveBestMetricSnapshots(request.TargetDirectory,
                                      request.Discretization,
                                      request.RenderFrame,
                                      snapshots,
-                                     request.DisplayMode,
+                                     request.PotentialDisplayMode,
+                                     request.ConductivityDisplayMode,
                                      request.MeasurementPattern,
                                      request.Configuration);
 
             WriteIterationMetricsCsv(request.TargetDirectory, snapshots);
             WriteGradientMetricsCsv(request.TargetDirectory, request.Frames);
             WriteConfigurationSnapshot(request.TargetDirectory, request.Configuration);
+
+            ExportMeshArtifacts(request.TargetDirectory, request.Discretization, latestSnapshot.Result);
 
             return DataExportResult.CreateSuccess(request.TargetDirectory);
         }
@@ -152,7 +158,8 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
                                                 IDiscretization fallbackDiscretization,
                                                 ReconstructionFrame fallbackFrame,
                                                 IReadOnlyList<ReconstructionIterationSnapshot> snapshots,
-                                                PotentialDisplayMode mode,
+                                                PotentialDisplayMode potentialMode,
+                                                ConductivityDisplayMode conductivityMode,
                                                 MeasurementPattern? measurementPattern,
                                                 ReconstructionConfigurationSnapshot configuration)
     {
@@ -190,7 +197,8 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
                                          ReconstructionVideoRenderer.DistributionSnapshotType.Reconstructed,
                                          "Reconstruction – Min MAE",
                                          metadata,
-                                         mode);
+                                         potentialMode,
+                                         conductivityMode);
             }
 
             var ssimSnapshot = metricSnapshots
@@ -223,7 +231,8 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
                                          ReconstructionVideoRenderer.DistributionSnapshotType.Reconstructed,
                                          "Reconstruction – Max SSIM",
                                          metadata,
-                                         mode);
+                                         potentialMode,
+                                         conductivityMode);
             }
         }
 
@@ -253,14 +262,15 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
             AppendSetupMetadata(metadata, measurementPattern, configuration);
 
             ReconstructionVideoRenderer.SaveDistributionSnapshot(directory,
-                                     "best_residual_distribution.png",
-                                     snapshotDiscretization,
-                                     GetFrameForResult(residualSnapshot.Result, fallbackFrame),
-                                     residualSnapshot.Result,
-                                     ReconstructionVideoRenderer.DistributionSnapshotType.Reconstructed,
-                                     "Reconstruction – Min Residual",
-                                     metadata,
-                                     mode);
+                                         "best_residual_distribution.png",
+                                         snapshotDiscretization,
+                                         GetFrameForResult(residualSnapshot.Result, fallbackFrame),
+                                         residualSnapshot.Result,
+                                         ReconstructionVideoRenderer.DistributionSnapshotType.Reconstructed,
+                                         "Reconstruction – Min Residual",
+                                         metadata,
+                                         potentialMode,
+                                         conductivityMode);
         }
 
         var correlationSnapshot = snapshots
@@ -290,14 +300,15 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
             AppendSetupMetadata(metadata, measurementPattern, configuration);
 
             ReconstructionVideoRenderer.SaveDistributionSnapshot(directory,
-                                     "best_correlation_distribution.png",
-                                     snapshotDiscretization,
-                                     GetFrameForResult(correlationSnapshot.Result, fallbackFrame),
-                                     correlationSnapshot.Result,
-                                     ReconstructionVideoRenderer.DistributionSnapshotType.Reconstructed,
-                                     "Reconstruction – Max Correlation",
-                                     metadata,
-                                     mode);
+                                         "best_correlation_distribution.png",
+                                         snapshotDiscretization,
+                                         GetFrameForResult(correlationSnapshot.Result, fallbackFrame),
+                                         correlationSnapshot.Result,
+                                         ReconstructionVideoRenderer.DistributionSnapshotType.Reconstructed,
+                                         "Reconstruction – Max Correlation",
+                                         metadata,
+                                         potentialMode,
+                                         conductivityMode);
         }
     }
 
@@ -413,6 +424,120 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
     {
         metadata.Add(("Virtual Electrodes", DescribeVirtualElectrodeSettings(configuration?.VirtualElectrodes)));
         metadata.Add(("Measurement Mode", DescribeMeasurementPattern(pattern)));
+    }
+
+    private static void ExportMeshArtifacts(string directory, IDiscretization discretization, ReconstructionResult latestResult)
+    {
+        try
+        {
+            if (discretization is FEMMesh fem)
+            {
+                var timestamp = DateTime.UtcNow;
+                string baseName = discretization.Metadata?.Generator ?? "reconstruction_mesh";
+                baseName = string.IsNullOrWhiteSpace(baseName)
+                    ? "reconstruction_mesh"
+                    : string.Join("_", baseName.Split(Path.GetInvalidFileNameChars()));
+
+                var vertexOrder = new List<int>(fem.Vertices.Count);
+                string stlPath = Path.Combine(directory, $"{baseName}_{timestamp:yyyyMMdd_HHmmss}.stl");
+                SaveFemMeshAsStl(fem, stlPath, vertexOrder);
+
+                var conductivitySource = latestResult.ReconstructedConductivityDistribution
+                                         ?? discretization.GetConductivityDistribution();
+
+                var export = new
+                {
+                    stlPath = Path.GetFileName(stlPath),
+                    vertexOrder,
+                    elementConductivities = conductivitySource.Conductivities
+                };
+
+                var options = new JsonSerializerOptions { WriteIndented = true };
+                string jsonPath = Path.ChangeExtension(stlPath, ".json")
+                                   ?? Path.Combine(directory, $"{baseName}_{timestamp:yyyyMMdd_HHmmss}.json");
+                File.WriteAllText(jsonPath, JsonSerializer.Serialize(export, options));
+            }
+            else if (discretization is LBMGrid lbm)
+            {
+                var conductivitySource = latestResult.ReconstructedConductivityDistribution
+                                         ?? discretization.GetConductivityDistribution();
+
+                var export = new
+                {
+                    grid = new { lbm.Nx, lbm.Ny },
+                    elementConductivities = conductivitySource.Conductivities
+                };
+
+                var options = new JsonSerializerOptions { WriteIndented = true };
+                string jsonPath = Path.Combine(directory, "lbm_mesh.json");
+                File.WriteAllText(jsonPath, JsonSerializer.Serialize(export, options));
+            }
+        }
+        catch
+        {
+            // Mesh export should not block the primary reconstruction export flow.
+        }
+    }
+
+    private static void SaveFemMeshAsStl(FEMMesh mesh, string file, IList<int> stlVertexOrder)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(file) ?? string.Empty);
+
+        HashSet<int> seenVertices = new();
+        using var writer = new StreamWriter(file, false, new System.Text.UTF8Encoding(false));
+
+        string safeName = Path.GetFileNameWithoutExtension(file);
+        writer.WriteLine($"solid {safeName}");
+
+        var elements = mesh.ElementsTyped
+            .OrderBy(e => e.Id)
+            .ToList();
+
+        foreach (var element in elements)
+        {
+            var a = element.Vertices[0];
+            var b = element.Vertices[1];
+            var c = element.Vertices[2];
+
+            var normal = CalculateFacetNormal(a, b, c);
+            writer.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "  facet normal {0:G17} {1:G17} {2:G17}", normal.X, normal.Y, normal.Z));
+            writer.WriteLine("    outer loop");
+            WriteVertex(writer, a);
+            WriteVertex(writer, b);
+            WriteVertex(writer, c);
+            writer.WriteLine("    endloop");
+            writer.WriteLine("  endfacet");
+        }
+
+        writer.WriteLine("endsolid");
+
+        (double X, double Y, double Z) CalculateFacetNormal(FEMVertex a, FEMVertex b, FEMVertex c)
+        {
+            double ux = b.X - a.X;
+            double uy = b.Y - a.Y;
+            double vx = c.X - a.X;
+            double vy = c.Y - a.Y;
+
+            double nx = 0.0;
+            double ny = 0.0;
+            double nz = ux * vy - uy * vx;
+
+            double length = Math.Sqrt(nx * nx + ny * ny + nz * nz);
+            if (length < 1e-12)
+                return (0.0, 0.0, 1.0);
+
+            return (nx / length, ny / length, nz / length);
+        }
+
+        void WriteVertex(StreamWriter writer, FEMVertex vertex)
+        {
+            if (seenVertices.Add(vertex.GlobalId))
+                stlVertexOrder.Add(vertex.GlobalId);
+
+            writer.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                "      vertex {0:G17} {1:G17} 0", vertex.X, vertex.Y));
+        }
     }
 
     private static string DescribeMeasurementPattern(MeasurementPattern? pattern)

@@ -90,7 +90,8 @@ namespace ElectricalImpedanceTomography.ViewModels
         private bool visualizeIterations = true;
 
         /// <summary>Current potential render mode for video export.</summary>
-        private PotentialDisplayMode _selectedDisplayMode = PotentialDisplayMode.Default;
+    private PotentialDisplayMode _selectedPotentialDisplayMode = PotentialDisplayMode.Default;
+    private ConductivityDisplayMode _selectedConductivityDisplayMode = ConductivityDisplayMode.Classic;
 
         /// <summary>Shortcut to virtual electrode settings from the global parameters.</summary>
         public VirtualElectrodeSettings VirtualElectrodeSettings => ReconstructionParameters.VirtualElectrodeSettings;
@@ -1953,7 +1954,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             ResetVideoExportState();
 
-            _selectedDisplayMode = mode;
+            _selectedPotentialDisplayMode = mode;
 
             _videoExportDistributionSize = ReconstructionVideoRenderer.NormalizeSize(distributionCanvasSize, 250, 250);
             _videoExportColorbarSize = ReconstructionVideoRenderer.NormalizeSize(colorbarCanvasSize, 250, 20);
@@ -1991,12 +1992,12 @@ namespace ElectricalImpedanceTomography.ViewModels
                                                                        IProgress<VideoExportProgressReport>? progress = null,
                                                                        CancellationToken cancellationToken = default)
         {
-            _selectedDisplayMode = mode;
+            _selectedPotentialDisplayMode = mode;
             throw new NotImplementedException();
             //return ReconstructionVideoExportWorkflow.ExportAsync(distributionCanvasSize,
             //                                                     colorbarCanvasSize,
             //                                                     residualCanvasSize,
-            //                                                     _selectedDisplayMode,
+            //                                                     _selectedPotentialDisplayMode,
             //                                                     container,
             //                                                     progress,
             //                                                     cancellationToken);
@@ -2006,11 +2007,13 @@ namespace ElectricalImpedanceTomography.ViewModels
         /// Exports reconstruction data (frames, metrics and ancillary information) to the app data directory
         /// using the configured export service.
         /// </summary>
-        public Task<DataExportResult> ExportReconstructionDataAsync(PotentialDisplayMode mode)
+        public Task<DataExportResult> ExportReconstructionDataAsync(PotentialDisplayMode potentialMode,
+                                                                     ConductivityDisplayMode conductivityMode)
         {
             string rootDirectory = FileSystem.Current.AppDataDirectory;
-            _selectedDisplayMode = mode;
-            return _exportService.ExportAsync(rootDirectory, _selectedDisplayMode);
+            _selectedPotentialDisplayMode = potentialMode;
+            _selectedConductivityDisplayMode = conductivityMode;
+            return _exportService.ExportAsync(rootDirectory, _selectedPotentialDisplayMode, _selectedConductivityDisplayMode);
         }
 
         /// <summary>
