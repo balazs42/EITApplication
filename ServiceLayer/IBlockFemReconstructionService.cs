@@ -25,6 +25,11 @@ namespace ServiceLayer
         event EventHandler<ReconstructionFrame> ReconstructionFrameUpdated;
 
         /// <summary>
+        /// Controls whether intermediate frames are propagated to listeners during a run.
+        /// </summary>
+        bool VisualizeIterations { get; set; }
+
+        /// <summary>
         /// Initializes the service based on the current <see cref="Utility.Classes.Application.Workspace"/>
         /// block configuration and discretization.
         /// </summary>

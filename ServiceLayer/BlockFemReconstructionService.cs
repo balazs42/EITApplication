@@ -43,6 +43,9 @@ namespace ServiceLayer
         /// <inheritdoc />
         public event EventHandler<ReconstructionFrame>? ReconstructionFrameUpdated;
 
+        /// <inheritdoc />
+        public bool VisualizeIterations { get; set; } = true;
+
         public BlockFemReconstructionService(BlockFemReconstructionPersistence persistence,
                                              IMeasurementService measurementService,
                                              ILogger logger)
@@ -154,9 +157,8 @@ namespace ServiceLayer
                 // 3) Surface each frame to the workspace and UI, and buffer them for the current cycle.
                 foreach (var frame in frames)
                 {
-                    Workspace.AddReconstructionFrameToWorkspace(frame);
                     _cycleFrames.Add(frame);
-                    ReconstructionFrameUpdated?.Invoke(this, frame);
+                    PublishFrame(frame);
                 }
 
                 // 4) Advance the global frame counter by the number of frames produced.
@@ -199,6 +201,18 @@ namespace ServiceLayer
                 _logger.LogError(ex.Message);
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Adds a reconstruction frame to the workspace and optionally notifies listeners for live visualisation.
+        /// </summary>
+        /// <param name="frame">Frame to surface.</param>
+        private void PublishFrame(ReconstructionFrame frame)
+        {
+            Workspace.AddReconstructionFrameToWorkspace(frame);
+
+            if (VisualizeIterations)
+                ReconstructionFrameUpdated?.Invoke(this, frame);
         }
 
         // Creates an EITMeasurement representing the next frame to process, aligned with electrodes and

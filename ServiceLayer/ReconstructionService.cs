@@ -66,6 +66,9 @@ namespace ServiceLayer
         /// </summary>
         public event EventHandler<ReconstructionFrame>? ReconstructionFrameUpdated;
 
+        /// <inheritdoc />
+        public bool VisualizeIterations { get; set; } = true;
+
         /// <summary>
         /// Construct service with a persistence backend and logger.
         /// </summary>
@@ -321,9 +324,8 @@ namespace ServiceLayer
 
                 // Advance frame counters and notify observers.
                 _simMeasurementIndex++;
-                Workspace.AddReconstructionFrameToWorkspace(frame);
                 _currentCycleFrames.Add(frame);
-                ReconstructionFrameUpdated?.Invoke(this, frame);
+                PublishFrame(frame);
 
                 // When the drive-pattern cycle ends, publish a reconstruction result and advance the iteration.
                 if (_simMeasurementIndex % Math.Max(1, _measurementService.FramesPerCycle) == 0)
@@ -365,9 +367,8 @@ namespace ServiceLayer
                 var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, _stepSize, _regularizationWeight);
 
                 _simMeasurementIndex++;
-                Workspace.AddReconstructionFrameToWorkspace(frame);
                 _currentCycleFrames.Add(frame);
-                ReconstructionFrameUpdated?.Invoke(this, frame);
+                PublishFrame(frame);
 
                 if (_simMeasurementIndex % Math.Max(1, _measurementService.FramesPerCycle) == 0)
                 {
@@ -505,9 +506,8 @@ namespace ServiceLayer
                         var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, _stepSize, _regularizationWeight);
 
                         // Persist frame for UI and later aggregation/inspection.
-                        Workspace.AddReconstructionFrameToWorkspace(frame);
                         _currentCycleFrames.Add(frame);
-                        ReconstructionFrameUpdated?.Invoke(this, frame);
+                        PublishFrame(frame);
                     }
 
                     // Accumulate gradients across the cycle and apply a single update step to conductivities.
@@ -559,9 +559,8 @@ namespace ServiceLayer
                         var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodes.Cast<Electrode>().ToList(), i);
                         var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, _stepSize, _regularizationWeight);
 
-                        Workspace.AddReconstructionFrameToWorkspace(frame);
                         _currentCycleFrames.Add(frame);
-                        ReconstructionFrameUpdated?.Invoke(this, frame);
+                        PublishFrame(frame);
 
                         // Some LBM workflows advance excitation markers on the grid for visualization.
                         lbmGrid.ShiftExcitationElectrodes(_drivePattern);
@@ -595,6 +594,18 @@ namespace ServiceLayer
 
                 return null;
             });
+        }
+
+        /// <summary>
+        /// Adds a reconstruction frame to the workspace and optionally notifies listeners for live visualisation.
+        /// </summary>
+        /// <param name="frame">Frame to surface.</param>
+        private void PublishFrame(ReconstructionFrame frame)
+        {
+            Workspace.AddReconstructionFrameToWorkspace(frame);
+
+            if (VisualizeIterations)
+                ReconstructionFrameUpdated?.Invoke(this, frame);
         }
 
 

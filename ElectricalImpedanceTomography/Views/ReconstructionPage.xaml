@@ -190,7 +190,7 @@
                                 MaximumWidthRequest="180"
                                 Style="{StaticResource PanelSectionBorderStyle}"
                                 BackgroundColor="{AppThemeBinding Light=#25324A, Dark=#25324A}">
-                            <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
+                            <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
                                 <Label Grid.Row="0" Text="Parameters" FontSize="Medium" FontAttributes="Bold" Margin="0,0,0,12"/>
                                 <Label Grid.Row="3" HorizontalOptions="Start" Text="Max Iteration Count" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Entry Grid.Row="4" Text="{Binding MaxIterationCount}" MaximumWidthRequest="130" HorizontalOptions="Start"/>
@@ -207,12 +207,21 @@
                                        HorizontalOptions="Start"
                                        IsEnabled="{Binding IsNoiseAmplitudeEnabled}"/>
 
-                                <Label Grid.Row="13"
+                                <HorizontalStackLayout Grid.Row="13" Spacing="10">
+                                    <Label HorizontalOptions="Start"
+                                           VerticalOptions="Center"
+                                           Text="Visualize Iterations"
+                                           FontFamily="SF Pro Text"
+                                           FontAttributes="None"/>
+                                    <CheckBox IsChecked="{Binding VisualizeIterations}" HorizontalOptions="Start"/>
+                                </HorizontalStackLayout>
+
+                                <Label Grid.Row="14"
                                        HorizontalOptions="Start"
                                        Text="Conductivity Bounds [S]"
                                        FontFamily="SF Pro Text"
                                        FontAttributes="None"/>
-                                <Grid Grid.Row="14" ColumnDefinitions="*, *" ColumnSpacing="8">
+                                <Grid Grid.Row="15" ColumnDefinitions="*, *" ColumnSpacing="8">
                                     <Entry Grid.Column="0"
                                            Placeholder="Min"
                                            HorizontalOptions="Start"
@@ -227,13 +236,13 @@
                                            Text="{Binding ReconstructionParameters.ConductivityMaximumBound}"/>
                                 </Grid>
 
-                                <Label Grid.Row="15"
+                                <Label Grid.Row="16"
                                        HorizontalOptions="Start"
                                        Text="Potential Smoothing"
                                        FontFamily="SF Pro Text"
                                        FontAttributes="None"
                                        IsVisible="{Binding IsLbmSolverSelected}"/>
-                                <Grid Grid.Row="16" ColumnDefinitions="*,Auto" ColumnSpacing="8"
+                                <Grid Grid.Row="17" ColumnDefinitions="*,Auto" ColumnSpacing="8"
                                       IsVisible="{Binding IsLbmSolverSelected}">
                                     <Label Text="Filter"
                                            VerticalOptions="Center"
@@ -243,32 +252,32 @@
                                             HorizontalOptions="End"/>
                                 </Grid>
 
-                                <Label Grid.Row="17"
+                                <Label Grid.Row="18"
                                        HorizontalOptions="Start"
                                        Text="Conductivity Smoothing"
                                        FontFamily="SF Pro Text"
                                        FontAttributes="None"
                                        IsVisible="{Binding IsLbmSolverSelected}"/>
-                                <Grid Grid.Row="18" ColumnDefinitions="Auto" ColumnSpacing="8"
+                                <Grid Grid.Row="19" ColumnDefinitions="Auto" ColumnSpacing="8"
                                       IsVisible="{Binding IsLbmSolverSelected}">
                                     <Switch Grid.Column="1"
                                             IsToggled="{Binding ReconstructionParameters.UseLbmConductivityFilter}"
                                             HorizontalOptions="End"/>
                                 </Grid>
 
-                                <Label Grid.Row="19"
+                                <Label Grid.Row="20"
                                        HorizontalOptions="Start"
                                        Text="Virtual Electrode Method"
                                        FontFamily="SF Pro Text"
                                        FontAttributes="None"
                                        IsVisible="{Binding VirtualElectrodeSettings.UseVirtualElectrodes}"/>
-                                <Picker Grid.Row="20"
+                                <Picker Grid.Row="21"
                                         ItemsSource="{Binding VirtualElectrodeMethods}"
                                         SelectedItem="{Binding VirtualElectrodeSettings.Method}"
                                         IsVisible="{Binding VirtualElectrodeSettings.UseVirtualElectrodes}"
                                         MaximumWidthRequest="150"/>
 
-                                <Grid Grid.Row="21" ColumnDefinitions="Auto,*" ColumnSpacing="8"
+                                <Grid Grid.Row="22" ColumnDefinitions="Auto,*" ColumnSpacing="8"
                                       IsVisible="{Binding IsLinearCombinationMethod}">
                                     <Label Text="Alpha (0..1)"
                                            VerticalOptions="Center"
@@ -279,7 +288,7 @@
                                            HorizontalTextAlignment="End"/>
                                 </Grid>
 
-                                <Grid Grid.Row="22" ColumnDefinitions="Auto,*" ColumnSpacing="8"
+                                <Grid Grid.Row="23" ColumnDefinitions="Auto,*" ColumnSpacing="8"
                                       IsVisible="{Binding IsHarrachMethod}">
                                     <Label Text="Harrach λ"
                                            VerticalOptions="Center"
@@ -290,7 +299,7 @@
                                            HorizontalTextAlignment="End"/>
                                 </Grid>
 
-                                <Grid Grid.Row="23" ColumnDefinitions="Auto,*" ColumnSpacing="8"
+                                <Grid Grid.Row="24" ColumnDefinitions="Auto,*" ColumnSpacing="8"
                                       IsVisible="{Binding IsNdMethod}">
                                     <Label Text="ND Max Mode"
                                            VerticalOptions="Center"
