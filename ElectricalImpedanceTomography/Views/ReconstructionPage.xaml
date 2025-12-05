@@ -192,22 +192,7 @@
                                 BackgroundColor="{AppThemeBinding Light=#25324A, Dark=#25324A}">
                             <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
                                 <Label Grid.Row="0" Text="Parameters" FontSize="Medium" FontAttributes="Bold" Margin="0,0,0,12"/>
-                                <Label Grid.Row="3" HorizontalOptions="Start" Text="Max Iteration Count" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Entry Grid.Row="4" Text="{Binding MaxIterationCount}" MaximumWidthRequest="130" HorizontalOptions="Start"/>
-                                <Label Grid.Row="5" HorizontalOptions="Start" Text="Regularization Weight (θ)" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Entry Grid.Row="6" Text="{Binding RegularizationWeight}" MaximumWidthRequest="130" HorizontalOptions="Start"/>
-                                <Label Grid.Row="7" HorizontalOptions="Start" Text="Gradient Step Size (β)" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Entry Grid.Row="8" Text="{Binding StepSize}" MaximumWidthRequest="130" HorizontalOptions="Start"/>
-                                <Label Grid.Row="9" HorizontalOptions="Start" Text="Measurement Noise" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="10" ItemsSource="{Binding MeasurementNoiseTypeOptions}" SelectedItem="{Binding ReconstructionParameters.MeasurementNoiseType}" MaximumWidthRequest="130" HorizontalOptions="Start"/>
-                                <Label Grid.Row="11" HorizontalOptions="Start" Text="Noise Amplitude / dB" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Entry Grid.Row="12"
-                                       Text="{Binding ReconstructionParameters.MeasurementNoiseAmplitude}"
-                                       Keyboard="Numeric"
-                                       HorizontalOptions="Start"
-                                       IsEnabled="{Binding IsNoiseAmplitudeEnabled}"/>
-
-                                <HorizontalStackLayout Grid.Row="13" Spacing="10">
+                                <HorizontalStackLayout Grid.Row="1" Spacing="10">
                                     <Label HorizontalOptions="Start"
                                            VerticalOptions="Center"
                                            Text="Visualize Iterations"
@@ -215,13 +200,27 @@
                                            FontAttributes="None"/>
                                     <CheckBox IsChecked="{Binding VisualizeIterations}" HorizontalOptions="Start"/>
                                 </HorizontalStackLayout>
+                                <Label Grid.Row="2" HorizontalOptions="Start" Text="Max Iteration Count" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Entry Grid.Row="3" Text="{Binding MaxIterationCount}" MaximumWidthRequest="130" HorizontalOptions="Start"/>
+                                <Label Grid.Row="4" HorizontalOptions="Start" Text="Regularization Weight (θ)" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Entry Grid.Row="5" Text="{Binding RegularizationWeight}" MaximumWidthRequest="130" HorizontalOptions="Start"/>
+                                <Label Grid.Row="6" HorizontalOptions="Start" Text="Gradient Step Size (β)" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Entry Grid.Row="7" Text="{Binding StepSize}" MaximumWidthRequest="130" HorizontalOptions="Start"/>
+                                <Label Grid.Row="8" HorizontalOptions="Start" Text="Measurement Noise" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Picker Grid.Row="9" ItemsSource="{Binding MeasurementNoiseTypeOptions}" SelectedItem="{Binding ReconstructionParameters.MeasurementNoiseType}" MaximumWidthRequest="130" HorizontalOptions="Start"/>
+                                <Label Grid.Row="10" HorizontalOptions="Start" Text="Noise Amplitude / dB" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Entry Grid.Row="11"
+                                       Text="{Binding ReconstructionParameters.MeasurementNoiseAmplitude}"
+                                       Keyboard="Numeric"
+                                       HorizontalOptions="Start"
+                                       IsEnabled="{Binding IsNoiseAmplitudeEnabled}"/>
 
-                                <Label Grid.Row="14"
+                                <Label Grid.Row="12"
                                        HorizontalOptions="Start"
                                        Text="Conductivity Bounds [S]"
                                        FontFamily="SF Pro Text"
                                        FontAttributes="None"/>
-                                <Grid Grid.Row="15" ColumnDefinitions="*, *" ColumnSpacing="8">
+                                <Grid Grid.Row="13" ColumnDefinitions="*, *" ColumnSpacing="8">
                                     <Entry Grid.Column="0"
                                            Placeholder="Min"
                                            HorizontalOptions="Start"
@@ -236,13 +235,13 @@
                                            Text="{Binding ReconstructionParameters.ConductivityMaximumBound}"/>
                                 </Grid>
 
-                                <Label Grid.Row="16"
+                                <Label Grid.Row="14"
                                        HorizontalOptions="Start"
                                        Text="Potential Smoothing"
                                        FontFamily="SF Pro Text"
                                        FontAttributes="None"
                                        IsVisible="{Binding IsLbmSolverSelected}"/>
-                                <Grid Grid.Row="17" ColumnDefinitions="*,Auto" ColumnSpacing="8"
+                                <Grid Grid.Row="15" ColumnDefinitions="*,Auto" ColumnSpacing="8"
                                       IsVisible="{Binding IsLbmSolverSelected}">
                                     <Label Text="Filter"
                                            VerticalOptions="Center"
@@ -252,32 +251,32 @@
                                             HorizontalOptions="End"/>
                                 </Grid>
 
-                                <Label Grid.Row="18"
+                                <Label Grid.Row="16"
                                        HorizontalOptions="Start"
                                        Text="Conductivity Smoothing"
                                        FontFamily="SF Pro Text"
                                        FontAttributes="None"
                                        IsVisible="{Binding IsLbmSolverSelected}"/>
-                                <Grid Grid.Row="19" ColumnDefinitions="Auto" ColumnSpacing="8"
+                                <Grid Grid.Row="17" ColumnDefinitions="Auto" ColumnSpacing="8"
                                       IsVisible="{Binding IsLbmSolverSelected}">
                                     <Switch Grid.Column="1"
                                             IsToggled="{Binding ReconstructionParameters.UseLbmConductivityFilter}"
                                             HorizontalOptions="End"/>
                                 </Grid>
 
-                                <Label Grid.Row="20"
+                                <Label Grid.Row="18"
                                        HorizontalOptions="Start"
                                        Text="Virtual Electrode Method"
                                        FontFamily="SF Pro Text"
                                        FontAttributes="None"
                                        IsVisible="{Binding VirtualElectrodeSettings.UseVirtualElectrodes}"/>
-                                <Picker Grid.Row="21"
+                                <Picker Grid.Row="19"
                                         ItemsSource="{Binding VirtualElectrodeMethods}"
                                         SelectedItem="{Binding VirtualElectrodeSettings.Method}"
                                         IsVisible="{Binding VirtualElectrodeSettings.UseVirtualElectrodes}"
                                         MaximumWidthRequest="150"/>
 
-                                <Grid Grid.Row="22" ColumnDefinitions="Auto,*" ColumnSpacing="8"
+                                <Grid Grid.Row="20" ColumnDefinitions="Auto,*" ColumnSpacing="8"
                                       IsVisible="{Binding IsLinearCombinationMethod}">
                                     <Label Text="Alpha (0..1)"
                                            VerticalOptions="Center"
@@ -288,7 +287,7 @@
                                            HorizontalTextAlignment="End"/>
                                 </Grid>
 
-                                <Grid Grid.Row="23" ColumnDefinitions="Auto,*" ColumnSpacing="8"
+                                <Grid Grid.Row="21" ColumnDefinitions="Auto,*" ColumnSpacing="8"
                                       IsVisible="{Binding IsHarrachMethod}">
                                     <Label Text="Harrach λ"
                                            VerticalOptions="Center"
@@ -299,7 +298,7 @@
                                            HorizontalTextAlignment="End"/>
                                 </Grid>
 
-                                <Grid Grid.Row="24" ColumnDefinitions="Auto,*" ColumnSpacing="8"
+                                <Grid Grid.Row="22" ColumnDefinitions="Auto,*" ColumnSpacing="8"
                                       IsVisible="{Binding IsNdMethod}">
                                     <Label Text="ND Max Mode"
                                            VerticalOptions="Center"
