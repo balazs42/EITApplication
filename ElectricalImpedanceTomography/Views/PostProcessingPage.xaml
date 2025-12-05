@@ -55,7 +55,7 @@
     <Grid ColumnDefinitions="320, *, 280">
 
         <!-- LEFT SIDEBAR: CONFIGURATION -->
-        <Border Grid.Column="0" BackgroundColor="{StaticResource BgSidebar}" StrokeThickness="0,0,1,0" Stroke="{StaticResource BorderColor}" Padding="0">
+        <Border Grid.Column="0" BackgroundColor="{StaticResource BgSidebar}" StrokeThickness="0" Stroke="{StaticResource BorderColor}" Padding="0">
             <Grid RowDefinitions="Auto, *">
 
                 <!-- Header -->

@@ -1,3 +1,4 @@
+using BH.Engine.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DataAccessLayer;
@@ -127,7 +128,6 @@ namespace ElectricalImpedanceTomography.ViewModels
         }
 
         // --- Loading logic ---
-        [RelayCommand]
         public bool LoadLatestWorkspaceResult()
         {
             var lastResult = Workspace.GetReconstructionResults().LastOrDefault();
@@ -141,6 +141,12 @@ namespace ElectricalImpedanceTomography.ViewModels
             var distribution = lastResult.GetReconstructedConductivityDistribution();
             LoadDiscretization(mesh.DeepCopy(), new ConductivityDistribution(distribution.Conductivities), "Workspace result");
             return true;
+        }
+
+        [RelayCommand]
+        public void LoadLatestWorkspaceResultCommand()
+        {
+            LoadLatestWorkspaceResult();
         }
 
         [RelayCommand]
@@ -304,7 +310,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                     double angle = (j / (double)segments) * Math.PI * 2;
                     double x = Math.Cos(angle) * radius * 0.5 + 0.5;
                     double y = Math.Sin(angle) * radius * 0.5 + 0.5;
-                    vertices.Add(new FEMVertex(x, y, vertices.Count));
+                    vertices.Add(new FEMVertex(vertices.Count, x, y));
                 }
 
                 int prevSegments = i == 1 ? 1 : 6 * (i - 1);
