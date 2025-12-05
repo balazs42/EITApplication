@@ -70,6 +70,9 @@ namespace ElectricalImpedanceTomography.ViewModels
         [ObservableProperty]
         private bool _hasMesh;
 
+        [ObservableProperty]
+        private string _canvasMessage = "No reconstruction available. Load a workspace result or import a file.";
+
         // Statistics Display
         [ObservableProperty]
         private string _statMin = "0.000";
@@ -106,10 +109,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         public PostProcessingPageViewModel()
         {
             InitializePostProcessors();
-            if (!LoadLatestWorkspaceResult())
-            {
-                BuildDemoMesh();
-            }
+            LoadLatestWorkspaceResult();
 
             Log("System initialized.", "info");
             AddToHistory("Init");
@@ -124,6 +124,12 @@ namespace ElectricalImpedanceTomography.ViewModels
             PostProcessingOptions.Add(new ThresholdFilterPostProcessing());
             PostProcessingOptions.Add(new SigmaClippingPostProcessing());
             PostProcessingOptions.Add(new NormalizationPostProcessing());
+            PostProcessingOptions.Add(new GaussianBlurPostProcessing());
+            PostProcessingOptions.Add(new BilateralFilterPostProcessing());
+            PostProcessingOptions.Add(new ContrastStretchPostProcessing());
+            PostProcessingOptions.Add(new GammaCorrectionPostProcessing());
+            PostProcessingOptions.Add(new HighPassEnhancementPostProcessing());
+            PostProcessingOptions.Add(new WinsorizedClippingPostProcessing());
             SelectedPostProcessor = PostProcessingOptions.FirstOrDefault();
         }
 
@@ -131,16 +137,29 @@ namespace ElectricalImpedanceTomography.ViewModels
         public bool LoadLatestWorkspaceResult()
         {
             var lastResult = Workspace.GetReconstructionResults().LastOrDefault();
-            if (lastResult?.GetDiscretization() is not Discretization mesh)
+
+            if (lastResult?.GetDiscretization() is Discretization mesh)
             {
-                Log("No reconstruction results available in workspace.", "warn");
-                _hasMesh = false;
-                return false;
+                var distribution = lastResult.GetReconstructedConductivityDistribution();
+                LoadDiscretization(mesh.DeepCopy(), new ConductivityDistribution(distribution.Conductivities), "Workspace result");
+                CanvasMessage = string.Empty;
+                return true;
             }
 
-            var distribution = lastResult.GetReconstructedConductivityDistribution();
-            LoadDiscretization(mesh.DeepCopy(), new ConductivityDistribution(distribution.Conductivities), "Workspace result");
-            return true;
+            var fallbackMesh = Workspace.GetDiscretization();
+            var fallbackSigma = Workspace.GetOriginalConductivityDistribution() ?? fallbackMesh?.GetConductivityDistribution();
+            if (fallbackMesh != null && fallbackSigma != null)
+            {
+                LoadDiscretization(fallbackMesh.DeepCopy(), new ConductivityDistribution(fallbackSigma.Conductivities), "Active workspace discretization");
+                CanvasMessage = string.Empty;
+                return true;
+            }
+
+            Log("No reconstruction results available in workspace.", "warn");
+            ActiveSource = "No dataset loaded";
+            CanvasMessage = "No reconstruction available in the workspace.";
+            HasMesh = false;
+            return false;
         }
 
         [RelayCommand]
@@ -199,8 +218,11 @@ namespace ElectricalImpedanceTomography.ViewModels
                     }
                 }
 
-                LastSavedPath = csvPath;
-                Log($"Saved post processed mesh as '{name}'.", "success");
+                var meshFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EITApplication", "Meshes");
+                Directory.CreateDirectory(meshFolder);
+
+                LastSavedPath = $"Mesh: {meshFolder}, CSV: {csvPath}";
+                Log($"Saved post processed mesh as '{name}'. CSV exported to {csvPath}.", "success");
                 AddToHistory($"Saved {name}");
             }
             catch (Exception ex)
@@ -221,6 +243,16 @@ namespace ElectricalImpedanceTomography.ViewModels
                     discretization = repo.LoadFEMMesh(path);
                 }
 
+                if (discretization == null && path.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+                {
+                    discretization = Workspace.GetDiscretization()?.DeepCopy();
+                    if (discretization == null)
+                    {
+                        Log("A conductivity CSV requires an active workspace discretization.", "warn");
+                        return;
+                    }
+                }
+
                 if (discretization == null)
                 {
                     Log("Unsupported file type for post processing.", "warn");
@@ -229,10 +261,14 @@ namespace ElectricalImpedanceTomography.ViewModels
 
                 var distribution = ApplySidecarConductivities(path, discretization.GetConductivityDistribution());
                 LoadDiscretization(discretization, distribution, Path.GetFileName(path));
+                CanvasMessage = string.Empty;
             }
             catch (Exception ex)
             {
                 Log($"Failed to load result: {ex.Message}", "error");
+                ActiveSource = "No dataset loaded";
+                HasMesh = false;
+                CanvasMessage = "Unable to load the selected file.";
             }
         }
 
@@ -273,6 +309,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             _originalDistribution = new ConductivityDistribution(distribution.Conductivities);
             ActiveSource = label;
             _cutoffsInitialized = false;
+            CanvasMessage = string.Empty;
 
             if (discretization is FEMMesh femMesh)
             {
@@ -283,9 +320,12 @@ namespace ElectricalImpedanceTomography.ViewModels
                 Nodes.Clear();
                 Elements.Clear();
                 Log("Loaded discretization cannot be displayed in this view.", "warn");
+                HasMesh = false;
+                CanvasMessage = "The loaded discretization cannot be rendered on the canvas.";
+                return;
             }
 
-            _hasMesh = true;
+            HasMesh = true;
             UpdateStatistics(resetCutoffs: true);
             MeshUpdated?.Invoke(this, EventArgs.Empty);
         }

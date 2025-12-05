@@ -51,8 +51,28 @@
         </ResourceDictionary>
     </ContentPage.Resources>
 
-    <!-- Main Layout: 3 Columns -->
-    <Grid ColumnDefinitions="320, *, 280">
+    <!-- Page Layout -->
+    <Grid RowDefinitions="Auto,*" RowSpacing="12" Padding="16,12,16,20">
+
+        <!-- Page Header -->
+        <Border Grid.Row="0" Style="{StaticResource CardStyle}" Padding="16" BackgroundColor="#111827">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalOptions="Center">
+                <VerticalStackLayout Spacing="4">
+                    <Label Text="Post Processing" FontSize="20" FontAttributes="Bold" TextColor="White"/>
+                    <Label Text="Refine and analyze the latest reconstruction results." TextColor="{StaticResource TextMuted}" FontSize="12"/>
+                    <Label Text="{Binding ActiveSource, StringFormat='Active dataset: {0}'}" TextColor="{StaticResource BrandCyan}" FontSize="12"/>
+                    <Label Text="{Binding LastSavedPath, StringFormat='Last saved: {0}'}" TextColor="{StaticResource TextMuted}" FontSize="11" LineBreakMode="WordWrap"/>
+                </VerticalStackLayout>
+
+                <HorizontalStackLayout Grid.Column="1" Spacing="8" VerticalOptions="Center">
+                    <Button Text="Load Workspace" Command="{Binding LoadLatestWorkspaceResultCommand}" Style="{StaticResource ActionBtnStyle}" HeightRequest="44"/>
+                    <Button Text="Import File" Command="{Binding ImportSavedResultAsyncCommand}" Style="{StaticResource ActionBtnStyle}" HeightRequest="44"/>
+                </HorizontalStackLayout>
+            </Grid>
+        </Border>
+
+        <!-- Main Layout: 3 Columns -->
+        <Grid Grid.Row="1" ColumnDefinitions="320, *, 280" ColumnSpacing="12">
 
         <!-- LEFT SIDEBAR: CONFIGURATION -->
         <Border Grid.Column="0" BackgroundColor="{StaticResource BgSidebar}" StrokeThickness="0" Stroke="{StaticResource BorderColor}" Padding="0">
@@ -96,7 +116,7 @@
                                 </Grid>
                                 <Slider Minimum="0" Maximum="100" Value="{Binding FilterStrength}" ThumbColor="{StaticResource BrandCyan}" MinimumTrackColor="{StaticResource BrandCyan}" MaximumTrackColor="#334155"/>
 
-                                <CollectionView ItemsSource="{Binding PostProcessingOptions}" SelectionMode="Single" SelectedItem="{Binding SelectedPostProcessor}" HeightRequest="180">
+                                <CollectionView ItemsSource="{Binding PostProcessingOptions}" SelectionMode="Single" SelectedItem="{Binding SelectedPostProcessor}" HeightRequest="260">
                                     <CollectionView.ItemTemplate>
                                         <DataTemplate>
                                             <Border Stroke="{StaticResource BorderColor}" StrokeShape="RoundRectangle 8" Padding="10" BackgroundColor="#111827">
@@ -175,7 +195,7 @@
         </Border>
 
         <!-- CENTER: CANVAS & CONSOLE -->
-        <Grid Grid.Column="1" RowDefinitions="*, 200">
+        <Grid Grid.Column="1" RowDefinitions="*, 220" RowSpacing="8">
 
             <!-- 1. FEM Canvas Area -->
             <Grid Grid.Row="0" BackgroundColor="{StaticResource BgMain}">
@@ -210,9 +230,25 @@
                             <Label Text="Color" TextColor="{StaticResource TextMuted}" FontSize="11" VerticalOptions="Center"/>
                             <Picker SelectedItem="{Binding SelectedColormap}" ItemsSource="{Binding Colormaps}" 
                                     TextColor="White" TitleColor="{StaticResource TextMuted}" 
-                                    BackgroundColor="Transparent" FontSize="12" WidthRequest="80"/>
+                                   BackgroundColor="Transparent" FontSize="12" WidthRequest="80"/>
                         </HorizontalStackLayout>
                     </HorizontalStackLayout>
+                </Border>
+
+                <!-- Empty state overlay -->
+                <Border BackgroundColor="#D90b1120" Stroke="{StaticResource BorderColor}" StrokeShape="RoundRectangle 16" Padding="20" VerticalOptions="Center" HorizontalOptions="Center">
+                    <Border.Triggers>
+                        <DataTrigger TargetType="Border" Binding="{Binding HasMesh}" Value="True">
+                            <Setter Property="IsVisible" Value="False" />
+                        </DataTrigger>
+                    </Border.Triggers>
+                    <VerticalStackLayout Spacing="12" WidthRequest="320" HorizontalOptions="Center" VerticalOptions="Center">
+                        <Label Text="{Binding CanvasMessage}" TextColor="{StaticResource TextMain}" FontSize="14" HorizontalTextAlignment="Center" LineBreakMode="WordWrap"/>
+                        <HorizontalStackLayout Spacing="8" HorizontalOptions="Center">
+                            <Button Text="Load Workspace" Command="{Binding LoadLatestWorkspaceResultCommand}" Style="{StaticResource ActionBtnStyle}" HeightRequest="36" WidthRequest="140"/>
+                            <Button Text="Import File" Command="{Binding ImportSavedResultAsyncCommand}" Style="{StaticResource ActionBtnStyle}" HeightRequest="36" WidthRequest="120"/>
+                        </HorizontalStackLayout>
+                    </VerticalStackLayout>
                 </Border>
             </Grid>
 
@@ -341,5 +377,6 @@
                 </ScrollView>
             </Grid>
         </Border>
+    </Grid>
     </Grid>
 </ContentPage>
