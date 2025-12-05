@@ -5,6 +5,8 @@ using System.Text;
 using System.Text.Json;
 using Utility.Classes;
 using Utility.Classes.Discretizer;
+using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Measurement;
 using Utility.Classes.Reconstruction.Metrics;
 using Utility.Classes.Reconstruction.VirtualElectrodes;
