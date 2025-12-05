@@ -1,7 +1,19 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using SkiaSharp;
+using DataAccessLayer;
+using Microsoft.Maui.Storage;
+using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using Utility.Classes;
+using Utility.Classes.Application;
+using Utility.Classes.Discretizer;
+using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.PostProcessing;
 
 namespace ElectricalImpedanceTomography.ViewModels
 {
@@ -18,9 +30,8 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public class FemElement
         {
-            public int N1 { get; set; }
-            public int N2 { get; set; }
-            public int N3 { get; set; }
+            public int[] NodeIndices { get; set; } = new int[3];
+            public double Value { get; set; }
         }
 
         // --- Observable Properties (Bound to UI) ---
@@ -49,6 +60,15 @@ namespace ElectricalImpedanceTomography.ViewModels
         [ObservableProperty]
         private string _selectedColormap = "Jet";
 
+        [ObservableProperty]
+        private string _activeSource = "No dataset loaded";
+
+        [ObservableProperty]
+        private string _lastSavedPath = "Not saved yet";
+
+        [ObservableProperty]
+        private bool _hasMesh;
+
         // Statistics Display
         [ObservableProperty]
         private string _statMin = "0.000";
@@ -66,27 +86,212 @@ namespace ElectricalImpedanceTomography.ViewModels
         public ObservableCollection<string> HistoryLog { get; } = new();
         public List<string> Colormaps { get; } = new() { "Jet", "Hot", "Gray", "Parula" };
 
+        public ObservableCollection<IPostProcessing> PostProcessingOptions { get; } = new();
+
+        [ObservableProperty]
+        private IPostProcessing? _selectedPostProcessor;
+
         // Events
         public event EventHandler? MeshUpdated;
 
+        // Internal state
+        private IDiscretization? _discretization;
+        private ConductivityDistribution? _currentDistribution;
+        private ConductivityDistribution? _originalDistribution;
+        private double _dataMin;
+        private double _dataMax = 1.0;
+        private bool _cutoffsInitialized;
+
         public PostProcessingPageViewModel()
         {
-            InitializeDemoMesh();
+            InitializePostProcessors();
+            if (!LoadLatestWorkspaceResult())
+            {
+                BuildDemoMesh();
+            }
+
             Log("System initialized.", "info");
             AddToHistory("Init");
         }
 
-        // --- Mesh Logic ---
-
-        private void InitializeDemoMesh()
+        private void InitializePostProcessors()
         {
-            Nodes.Clear();
-            Elements.Clear();
+            PostProcessingOptions.Clear();
+            PostProcessingOptions.Add(new LaplacianSmoothingPostProcessing());
+            PostProcessingOptions.Add(new MedianFilterPostProcessing());
+            PostProcessingOptions.Add(new EdgeEnhancementPostProcessing());
+            PostProcessingOptions.Add(new ThresholdFilterPostProcessing());
+            PostProcessingOptions.Add(new SigmaClippingPostProcessing());
+            PostProcessingOptions.Add(new NormalizationPostProcessing());
+            SelectedPostProcessor = PostProcessingOptions.FirstOrDefault();
+        }
 
-            // Generate circular mesh (Matches HTML logic)
-            int rings = 18;
-            Nodes.Add(new FemNode { X = 0, Y = 0, Value = 0.2, OriginalValue = 0.2 });
+        // --- Loading logic ---
+        [RelayCommand]
+        public bool LoadLatestWorkspaceResult()
+        {
+            var lastResult = Workspace.GetReconstructionResults().LastOrDefault();
+            if (lastResult?.GetDiscretization() is not Discretization mesh)
+            {
+                Log("No reconstruction results available in workspace.", "warn");
+                _hasMesh = false;
+                return false;
+            }
 
+            var distribution = lastResult.GetReconstructedConductivityDistribution();
+            LoadDiscretization(mesh.DeepCopy(), new ConductivityDistribution(distribution.Conductivities), "Workspace result");
+            return true;
+        }
+
+        [RelayCommand]
+        public async Task ImportSavedResultAsync()
+        {
+            try
+            {
+                var file = await FilePicker.Default.PickAsync(new PickOptions
+                {
+                    PickerTitle = "Select a reconstruction (STL or mesh)"
+                });
+
+                if (file == null)
+                    return;
+
+                LoadFromFile(file.FullPath);
+            }
+            catch (Exception ex)
+            {
+                Log($"Failed to pick reconstruction: {ex.Message}", "error");
+            }
+        }
+
+        [RelayCommand]
+        public async Task SaveProcessedAsync()
+        {
+            if (_discretization is not FEMMesh femMesh || _currentDistribution == null)
+            {
+                Log("No processed mesh to save.", "warn");
+                return;
+            }
+
+            var repo = new MeshRepository();
+            string name = $"postprocessed_{DateTime.Now:yyyyMMdd_HHmmss}";
+            try
+            {
+                // Persist geometry + conductivities
+                femMesh.SetConductivityDistribution(_currentDistribution);
+                repo.SaveFEMMesh(femMesh, name);
+
+                // Sidecar CSV with conductivity values
+                var exportDir = FileSystem.AppDataDirectory;
+                var csvPath = Path.Combine(exportDir, $"{name}.csv");
+                using (var writer = new StreamWriter(csvPath))
+                {
+                    writer.WriteLine("elementId,conductivity");
+                    foreach (var kv in _currentDistribution.Conductivities.OrderBy(kv => kv.Key))
+                    {
+                        writer.WriteLine($"{kv.Key},{kv.Value.ToString(CultureInfo.InvariantCulture)}");
+                    }
+                }
+
+                LastSavedPath = csvPath;
+                Log($"Saved post processed mesh as '{name}'.", "success");
+                AddToHistory($"Saved {name}");
+            }
+            catch (Exception ex)
+            {
+                Log($"Failed to save: {ex.Message}", "error");
+            }
+        }
+
+        public void LoadFromFile(string path)
+        {
+            try
+            {
+                var repo = new MeshRepository();
+                IDiscretization? discretization = null;
+                if (path.EndsWith(".stl", StringComparison.OrdinalIgnoreCase) ||
+                    path.EndsWith(".eitmesh", StringComparison.OrdinalIgnoreCase))
+                {
+                    discretization = repo.LoadFEMMesh(path);
+                }
+
+                if (discretization == null)
+                {
+                    Log("Unsupported file type for post processing.", "warn");
+                    return;
+                }
+
+                var distribution = ApplySidecarConductivities(path, discretization.GetConductivityDistribution());
+                LoadDiscretization(discretization, distribution, Path.GetFileName(path));
+            }
+            catch (Exception ex)
+            {
+                Log($"Failed to load result: {ex.Message}", "error");
+            }
+        }
+
+        private ConductivityDistribution ApplySidecarConductivities(string path, ConductivityDistribution fallback)
+        {
+            try
+            {
+                var csvPath = Path.ChangeExtension(path, ".csv");
+                if (csvPath == null || !File.Exists(csvPath))
+                    return fallback;
+
+                var updated = new Dictionary<int, double>(fallback.Conductivities);
+                foreach (var line in File.ReadLines(csvPath).Skip(1))
+                {
+                    var parts = line.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    if (parts.Length < 2)
+                        continue;
+                    if (int.TryParse(parts[0], out var id) &&
+                        double.TryParse(parts[1], NumberStyles.Any, CultureInfo.InvariantCulture, out var sigma))
+                    {
+                        updated[id] = sigma;
+                    }
+                }
+
+                return new ConductivityDistribution(updated);
+            }
+            catch (Exception ex)
+            {
+                Log($"Failed to read conductivity CSV: {ex.Message}", "warn");
+                return fallback;
+            }
+        }
+
+        private void LoadDiscretization(IDiscretization discretization, ConductivityDistribution distribution, string label)
+        {
+            _discretization = discretization;
+            _currentDistribution = new ConductivityDistribution(distribution.Conductivities);
+            _originalDistribution = new ConductivityDistribution(distribution.Conductivities);
+            ActiveSource = label;
+            _cutoffsInitialized = false;
+
+            if (discretization is FEMMesh femMesh)
+            {
+                UpdateDisplayMesh(femMesh);
+            }
+            else
+            {
+                Nodes.Clear();
+                Elements.Clear();
+                Log("Loaded discretization cannot be displayed in this view.", "warn");
+            }
+
+            _hasMesh = true;
+            UpdateStatistics(resetCutoffs: true);
+            MeshUpdated?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void BuildDemoMesh()
+        {
+            var random = new Random(0);
+            var vertices = new List<FEMVertex>();
+            var elements = new List<FEMElement>();
+
+            int rings = 10;
+            vertices.Add(new FEMVertex(0, 0, 0));
             int startOfRing = 1;
             int startOfPrevRing = 0;
 
@@ -94,32 +299,14 @@ namespace ElectricalImpedanceTomography.ViewModels
             {
                 double radius = (double)i / rings;
                 int segments = 6 * i;
-
                 for (int j = 0; j < segments; j++)
                 {
                     double angle = (j / (double)segments) * Math.PI * 2;
-                    double x = Math.Cos(angle) * radius;
-                    double y = Math.Sin(angle) * radius;
-
-                    // Synthetic Phantom Data
-                    double rawVal = 0.1;
-
-                    // Red anomaly
-                    double d1 = Math.Sqrt(Math.Pow(x - 0.5, 2) + Math.Pow(y - 0.2, 2));
-                    if (d1 < 0.3) rawVal += 0.8 * (1 - d1 / 0.3);
-
-                    // Blue anomaly
-                    double d2 = Math.Sqrt(Math.Pow(x + 0.4, 2) + Math.Pow(y + 0.3, 2));
-                    if (d2 < 0.25) rawVal -= 0.5 * (1 - d2 / 0.25);
-
-                    // Noise
-                    rawVal += (new Random().NextDouble() - 0.5) * 0.05;
-                    rawVal = Math.Clamp(rawVal, 0.01, 1.0);
-
-                    Nodes.Add(new FemNode { X = x, Y = y, Value = rawVal, OriginalValue = rawVal });
+                    double x = Math.Cos(angle) * radius * 0.5 + 0.5;
+                    double y = Math.Sin(angle) * radius * 0.5 + 0.5;
+                    vertices.Add(new FEMVertex(x, y, vertices.Count));
                 }
 
-                // Triangulation
                 int prevSegments = i == 1 ? 1 : 6 * (i - 1);
                 for (int j = 0; j < segments; j++)
                 {
@@ -128,78 +315,179 @@ namespace ElectricalImpedanceTomography.ViewModels
                     int prev = startOfPrevRing + (int)Math.Floor((j / (double)segments) * prevSegments);
                     int prevNext = startOfPrevRing + ((int)Math.Floor(((j + 1) / (double)segments) * prevSegments) % prevSegments);
 
-                    Elements.Add(new FemElement { N1 = current, N2 = next, N3 = prev });
+                    elements.Add(new FEMElement(elements.Count, vertices[current], vertices[next], vertices[prev]));
                     if (i > 1 && prev != prevNext)
                     {
-                        Elements.Add(new FemElement { N1 = next, N2 = prev, N3 = prevNext });
+                        elements.Add(new FEMElement(elements.Count, vertices[next], vertices[prev], vertices[prevNext]));
                     }
                 }
+
                 startOfPrevRing = startOfRing;
-                startOfRing = Nodes.Count;
+                startOfRing = vertices.Count;
             }
-            UpdateStatistics();
+
+            foreach (var vertex in vertices)
+            {
+                vertex.X -= 0.5;
+                vertex.Y -= 0.5;
+            }
+
+            var mesh = new FEMMesh(vertices, elements);
+
+            var conductivities = new Dictionary<int, double>();
+            foreach (var element in elements)
+            {
+                double cx = element.Vertices.Average(v => v.X);
+                double cy = element.Vertices.Average(v => v.Y);
+
+                double rawVal = 0.2 + (random.NextDouble() - 0.5) * 0.05;
+                double d1 = Math.Sqrt(Math.Pow(cx - 0.2, 2) + Math.Pow(cy - 0.2, 2));
+                if (d1 < 0.25) rawVal += 0.8 * (1 - d1 / 0.25);
+
+                double d2 = Math.Sqrt(Math.Pow(cx + 0.25, 2) + Math.Pow(cy + 0.1, 2));
+                if (d2 < 0.2) rawVal -= 0.5 * (1 - d2 / 0.2);
+
+                rawVal = Math.Clamp(rawVal, 0.05, 1.2);
+                conductivities[element.Id] = rawVal;
+                element.Conductivity = rawVal;
+            }
+
+            mesh.SetConductivityDistribution(new ConductivityDistribution(conductivities));
+            LoadDiscretization(mesh, mesh.GetConductivityDistribution(), "Demo mesh");
+        }
+
+        private void UpdateDisplayMesh(FEMMesh mesh)
+        {
+            Nodes.Clear();
+            Elements.Clear();
+            var vertexIndex = new Dictionary<int, int>();
+            for (int i = 0; i < mesh.Vertices.Count; i++)
+            {
+                var v = mesh.Vertices[i];
+                vertexIndex[v.GlobalId] = i;
+                Nodes.Add(new FemNode
+                {
+                    X = v.X - 0.5,
+                    Y = v.Y - 0.5,
+                });
+            }
+
+            foreach (var element in mesh.ElementsTyped)
+            {
+                if (!vertexIndex.TryGetValue(element.Vertices[0].GlobalId, out var n1) ||
+                    !vertexIndex.TryGetValue(element.Vertices[1].GlobalId, out var n2) ||
+                    !vertexIndex.TryGetValue(element.Vertices[2].GlobalId, out var n3))
+                {
+                    continue;
+                }
+
+                double val = _currentDistribution?.GetValue(element.Id) ?? element.Conductivity;
+                Elements.Add(new FemElement
+                {
+                    NodeIndices = new[] { n1, n2, n3 },
+                    Value = val
+                });
+            }
+
+            UpdateNodeValuesFromElements();
+        }
+
+        private void UpdateNodeValuesFromElements()
+        {
+            var sum = new double[Nodes.Count];
+            var count = new int[Nodes.Count];
+
+            foreach (var el in Elements)
+            {
+                foreach (var idx in el.NodeIndices)
+                {
+                    sum[idx] += el.Value;
+                    count[idx]++;
+                }
+            }
+
+            for (int i = 0; i < Nodes.Count; i++)
+            {
+                if (count[i] == 0)
+                {
+                    Nodes[i].Value = 0;
+                    Nodes[i].OriginalValue = 0;
+                }
+                else
+                {
+                    var avg = sum[i] / count[i];
+                    Nodes[i].Value = avg;
+                    Nodes[i].OriginalValue = avg;
+                }
+            }
         }
 
         // --- Commands ---
+        [RelayCommand]
+        public void ApplySmooth() => RunPostProcessor(new LaplacianSmoothingPostProcessing { Weight = FilterStrength / 100.0 });
 
         [RelayCommand]
-        public void ApplySmooth()
-        {
-            double strength = FilterStrength / 100.0;
-            Log($"Applying Gaussian Smooth (Strength: {strength:P0})");
-            var newValues = Nodes.Select(n => n.Value).ToArray();
+        public void ApplySharpen() => RunPostProcessor(new EdgeEnhancementPostProcessing { Weight = FilterStrength / 100.0 });
 
-            foreach (var el in Elements)
+        [RelayCommand]
+        public void ApplyMedian() => RunPostProcessor(new MedianFilterPostProcessing());
+
+        [RelayCommand]
+        public void ApplySelectedPostProcessing()
+        {
+            if (SelectedPostProcessor is null)
             {
-                double avg = (Nodes[el.N1].Value + Nodes[el.N2].Value + Nodes[el.N3].Value) / 3.0;
-                newValues[el.N1] = Nodes[el.N1].Value * (1 - strength) + avg * strength;
-                newValues[el.N2] = Nodes[el.N2].Value * (1 - strength) + avg * strength;
-                newValues[el.N3] = Nodes[el.N3].Value * (1 - strength) + avg * strength;
+                Log("Select a post-processing operation.", "warn");
+                return;
             }
-            ApplyValues(newValues);
-            AddToHistory("Smooth");
+
+            if (SelectedPostProcessor is IWeightedPostProcessing weighted)
+                weighted.Weight = FilterStrength / 100.0;
+
+            RunPostProcessor(SelectedPostProcessor);
         }
 
-        [RelayCommand]
-        public void ApplySharpen()
+        private void RunPostProcessor(IPostProcessing processor)
         {
-            double strength = FilterStrength / 100.0;
-            Log($"Applying Sharpen (Strength: {strength:P0})");
-            var newValues = Nodes.Select(n => n.Value).ToArray();
-
-            foreach (var el in Elements)
+            if (_discretization == null || _currentDistribution == null)
             {
-                double avg = (Nodes[el.N1].Value + Nodes[el.N2].Value + Nodes[el.N3].Value) / 3.0;
-                newValues[el.N1] += (Nodes[el.N1].Value - avg) * strength;
-                newValues[el.N2] += (Nodes[el.N2].Value - avg) * strength;
-                newValues[el.N3] += (Nodes[el.N3].Value - avg) * strength;
+                Log("No dataset loaded for post processing.", "warn");
+                return;
             }
-            ApplyValues(newValues);
-            AddToHistory("Sharpen");
-        }
 
-        [RelayCommand]
-        public void ApplyMedian()
-        {
-            Log("Applying Median Filter...");
-            ApplySmooth(); // Proxy for demo
-            AddToHistory("Median");
+            var updated = processor.Process(_discretization, _currentDistribution);
+            _currentDistribution = updated;
+            _discretization.SetConductivityDistribution(updated);
+
+            if (_discretization is FEMMesh femMesh)
+            {
+                UpdateDisplayMesh(femMesh);
+            }
+
+            UpdateStatistics();
+            MeshUpdated?.Invoke(this, EventArgs.Empty);
+            AddToHistory(processor.Name);
+            Log($"Applied {processor.Name}.", "success");
         }
 
         [RelayCommand]
         public void ResetAll()
         {
             Log("Resetting all parameters.");
-            foreach (var n in Nodes) n.Value = n.OriginalValue;
+            if (_originalDistribution != null && _discretization != null)
+            {
+                _currentDistribution = new ConductivityDistribution(_originalDistribution.Conductivities);
+                _discretization.SetConductivityDistribution(_currentDistribution);
+                if (_discretization is FEMMesh femMesh)
+                    UpdateDisplayMesh(femMesh);
+            }
 
             FilterStrength = 50;
-            MinCutoff = 0.0;
-            MaxCutoff = 1.0;
             IsLogScale = false;
-
+            _cutoffsInitialized = false;
+            UpdateStatistics(resetCutoffs: true);
             HistoryLog.Clear();
             AddToHistory("Init");
-            UpdateStatistics();
             MeshUpdated?.Invoke(this, EventArgs.Empty);
         }
 
@@ -210,38 +498,38 @@ namespace ElectricalImpedanceTomography.ViewModels
         public void ClearConsole() => ConsoleLogs.Clear();
 
         // --- Helpers ---
-
-        private void ApplyValues(double[] vals)
+        public void UpdateStatistics(bool resetCutoffs = false)
         {
-            for (int i = 0; i < Nodes.Count; i++) Nodes[i].Value = Math.Clamp(vals[i], 0, 1);
-            UpdateStatistics();
-            MeshUpdated?.Invoke(this, EventArgs.Empty);
-        }
+            if (_currentDistribution == null || _currentDistribution.Conductivities.Count == 0)
+                return;
 
-        public void UpdateStatistics()
-        {
-            if (Nodes.Count == 0) return;
-            double sum = 0, min = 1, max = 0;
-            foreach (var n in Nodes)
+            _dataMin = _currentDistribution.Conductivities.Values.Min();
+            _dataMax = _currentDistribution.Conductivities.Values.Max();
+            StatMin = _dataMin.ToString("F3");
+            StatMax = _dataMax.ToString("F3");
+            StatAvg = _currentDistribution.Conductivities.Values.Average().ToString("F3");
+
+            if (resetCutoffs || !_cutoffsInitialized)
             {
-                double v = ProcessValue(n.Value);
-                if (v < min) min = v;
-                if (v > max) max = v;
-                sum += v;
+                MinCutoff = _dataMin;
+                MaxCutoff = _dataMax;
+                _cutoffsInitialized = true;
             }
-            StatMin = min.ToString("F3");
-            StatMax = max.ToString("F3");
-            StatAvg = (sum / Nodes.Count).ToString("F3");
         }
 
         public double ProcessValue(double val)
         {
-            if (IsLogScale) val = (Math.Log10(Math.Max(0.01, val)) + 2) / 2;
-            val = Math.Clamp(val, MinCutoff, MaxCutoff);
-            // Normalize to 0-1 range based on cutoffs for display
-            double range = MaxCutoff - MinCutoff;
-            if (range < 0.001) range = 0.001;
-            return (val - MinCutoff) / range;
+            double working = val;
+            if (IsLogScale)
+                working = Math.Log10(Math.Max(1e-6, working) + 1);
+
+            double min = MinCutoff;
+            double max = MaxCutoff;
+            if (max <= min)
+                max = min + 1e-6;
+
+            working = Math.Clamp(working, min, max);
+            return (working - min) / (max - min);
         }
 
         private void Log(string msg, string type = "normal")
