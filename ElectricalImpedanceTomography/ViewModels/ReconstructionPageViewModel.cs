@@ -84,7 +84,11 @@ namespace ElectricalImpedanceTomography.ViewModels
         
         /// <summary>Current measurement source selection mirrored from the workspace.</summary>
         private MeasurementSourceOption _selectedMeasurementSource = Workspace.GetMeasurementSource();
-        
+
+        /// <summary>Whether intermediate reconstruction frames should be visualised.</summary>
+        [ObservableProperty]
+        private bool visualizeIterations = true;
+
         /// <summary>Current potential render mode for video export.</summary>
         private PotentialDisplayMode _selectedDisplayMode = PotentialDisplayMode.Default;
 
@@ -186,6 +190,13 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             if (Enum.TryParse<NumericOptimizer>(value, out var parsed))
                 ReconstructionParameters.NumericOptimizer = parsed;
+        }
+
+        /// <summary>Propagates the visualization toggle to the services so they can throttle frame events.</summary>
+        partial void OnVisualizeIterationsChanged(bool value)
+        {
+            _reconstructionService.VisualizeIterations = value;
+            _blockReconstructionService.VisualizeIterations = value;
         }
 
         /// <summary>Total number of completed iterations in the current session.</summary>
@@ -530,6 +541,9 @@ namespace ElectricalImpedanceTomography.ViewModels
             _reconstructionService = reconstructionService;
             _blockReconstructionService = blockReconstructionService;
             _exportService = exportService;
+
+            _reconstructionService.VisualizeIterations = VisualizeIterations;
+            _blockReconstructionService.VisualizeIterations = VisualizeIterations;
 
             _elapsedTimer = new Timer(200)
             {

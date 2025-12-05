@@ -12,6 +12,12 @@ namespace ServiceLayer
         // --- Background reconstruction control ---
         event EventHandler<ReconstructionResult> ReconstructionUpdated;
         event EventHandler<ReconstructionFrame> ReconstructionFrameUpdated;
+
+        /// <summary>
+        /// Determines whether intermediate reconstruction frames should be surfaced to listeners
+        /// during iterative runs.
+        /// </summary>
+        bool VisualizeIterations { get; set; }
         void StartBackgroundReconstruction(int maxIterationCount, double stepSize, double regularizationWeight, double excitationAmplitude);
         void PauseBackgroundReconstruction();
         void ResumeBackgroundReconstruction();
