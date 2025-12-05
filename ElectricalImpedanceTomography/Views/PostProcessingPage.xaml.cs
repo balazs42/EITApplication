@@ -103,16 +103,17 @@ namespace ElectricalImpedanceTomography.Views
             // Draw Elements
             foreach (var el in _viewModel.Elements)
             {
-                var n1 = _viewModel.Nodes[el.N1];
-                var n2 = _viewModel.Nodes[el.N2];
-                var n3 = _viewModel.Nodes[el.N3];
+                if (el.NodeIndices.Length < 3)
+                    continue;
 
-                // Calculate Color
-                double val = (n1.Value + n2.Value + n3.Value) / 3.0;
-                val = _viewModel.ProcessValue(val); // Mapping logic
+                var n1 = _viewModel.Nodes[el.NodeIndices[0]];
+                var n2 = _viewModel.Nodes[el.NodeIndices[1]];
+                var n3 = _viewModel.Nodes[el.NodeIndices[2]];
+
+                // Calculate Color based on element value
+                double val = _viewModel.ProcessValue(el.Value);
                 _fillPaint.Color = GetHeatColor(val, _viewModel.SelectedColormap);
 
-                // Draw Triangle
                 using var path = new SKPath();
                 path.MoveTo((float)n1.X, (float)n1.Y);
                 path.LineTo((float)n2.X, (float)n2.Y);
@@ -144,14 +145,14 @@ namespace ElectricalImpedanceTomography.Views
             var canvas = e.Surface.Canvas;
             canvas.Clear(SKColors.Transparent);
 
-            if (_viewModel.Nodes.Count == 0) return;
+            if (_viewModel.Elements.Count == 0) return;
 
             // Calc Bins
             int bins = 24;
             int[] counts = new int[bins];
-            foreach (var n in _viewModel.Nodes)
+            foreach (var el in _viewModel.Elements)
             {
-                double v = _viewModel.ProcessValue(n.Value); // 0-1 normalized
+                double v = _viewModel.ProcessValue(el.Value); // 0-1 normalized
                 int bin = (int)(v * bins);
                 if (bin >= bins) bin = bins - 1;
                 if (bin < 0) bin = 0;
