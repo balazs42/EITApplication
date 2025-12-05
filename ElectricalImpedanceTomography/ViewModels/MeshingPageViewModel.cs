@@ -19,6 +19,7 @@ namespace ElectricalImpedanceTomography.ViewModels
     public partial class MeshingPageViewModel : BaseViewModel
     {
         private readonly IDAQService _daqService;
+        private const int MinLbmGridSize = 10;
 
         [ObservableProperty]
         private string name = string.Empty;
@@ -432,9 +433,29 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
         }
 
-        partial void OnNxChanged(int value) => AutoGenerateMesh();
+        partial void OnNxChanged(int value)
+        {
+            int clampedValue = Math.Max(MinLbmGridSize, value);
+            if (clampedValue != value)
+            {
+                Nx = clampedValue;
+                return;
+            }
 
-        partial void OnNyChanged(int value) => AutoGenerateMesh();
+            AutoGenerateMesh();
+        }
+
+        partial void OnNyChanged(int value)
+        {
+            int clampedValue = Math.Max(MinLbmGridSize, value);
+            if (clampedValue != value)
+            {
+                Ny = clampedValue;
+                return;
+            }
+
+            AutoGenerateMesh();
+        }
 
         partial void OnLayersChanged(int value) => AutoGenerateMesh();
 
