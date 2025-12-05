@@ -285,7 +285,7 @@ namespace ServiceLayer
         ///
         /// Returns null when no active discretization is available.
         /// </summary>
-        private ReconstructionFrame? PerformInverseStep()
+        private ReconstructionFrame? PerformInverseStep(bool surfaceResults = true, Action<ReconstructionResult>? onResultProduced = null)
         {
             // Ensure measurement source (simulated/real) matches the workspace selection.
             _measurementService.SyncMeasurementSource();
@@ -295,7 +295,8 @@ namespace ServiceLayer
             // (e.g., fine FEM meshes with W2 and no regularization) do not keep growing memory usage
             // and slowing down over time.
             if (_simMeasurementIndex % Math.Max(1, _measurementService.FramesPerCycle) == 0)
-                Workspace.ClearReconstructionFrames();
+                if (VisualizeIterations)
+                    Workspace.ClearReconstructionFrames();
 
             if (_discretization is FEMMesh femMesh)
             {
@@ -335,8 +336,14 @@ namespace ServiceLayer
                                                           _initialSigma!,
                                                           _discretization!.GetConductivityDistribution(),
                                                           [.. _currentCycleFrames]);
-                    Workspace.AddReconstructionResultToWorkspace(result);
-                    ReconstructionUpdated?.Invoke(this, result);
+                    if (surfaceResults)
+                    {
+                        PublishResult(result);
+                    }
+                    else
+                    {
+                        onResultProduced?.Invoke(result);
+                    }
 
                     // Use the freshly reconstructed field as the next cycle's initial state.
                     _initialSigma = result.ReconstructedConductivityDistribution;
@@ -377,8 +384,14 @@ namespace ServiceLayer
                                                           _initialSigma!, 
                                                           _discretization!.GetConductivityDistribution(),
                                                           [.. _currentCycleFrames]);
-                    Workspace.AddReconstructionResultToWorkspace(result);
-                    ReconstructionUpdated?.Invoke(this, result);
+                    if (surfaceResults)
+                    {
+                        PublishResult(result);
+                    }
+                    else
+                    {
+                        onResultProduced?.Invoke(result);
+                    }
                     _currentCycleFrames.Clear();
                     _currentIteration++;
                 }
@@ -395,6 +408,8 @@ namespace ServiceLayer
         /// </summary>
         private async Task RunLoop(CancellationToken token)
         {
+            ReconstructionResult? lastBufferedResult = null;
+
             while (!token.IsCancellationRequested && _currentIteration < _maxIterationCount)
             {
                 if (_isPaused)
@@ -403,9 +418,12 @@ namespace ServiceLayer
                     continue;
                 }
 
-                PerformInverseStep();
+                PerformInverseStep(VisualizeIterations, result => lastBufferedResult = result);
                 await Task.Yield(); // Allow UI message pumping between steps
             }
+
+            if (!VisualizeIterations && lastBufferedResult != null)
+                PublishResult(lastBufferedResult);
         }
 
         /// <summary>
@@ -454,7 +472,7 @@ namespace ServiceLayer
         /// </summary>
         public async Task<ReconstructionFrame?> StepReconstructionAsync()
         {
-            var frame = await Task.Run(PerformInverseStep);
+            var frame = await Task.Run(() => PerformInverseStep(VisualizeIterations));
             return frame;
         }
 
@@ -586,8 +604,7 @@ namespace ServiceLayer
                                                           prevSigma, 
                                                           newSigma, 
                                                           [.. _currentCycleFrames]);
-                    Workspace.AddReconstructionResultToWorkspace(result);
-                    ReconstructionUpdated?.Invoke(this, result);
+                    PublishResult(result);
                     _currentCycleFrames.Clear();
                     return result;
                 }
@@ -602,10 +619,21 @@ namespace ServiceLayer
         /// <param name="frame">Frame to surface.</param>
         private void PublishFrame(ReconstructionFrame frame)
         {
-            Workspace.AddReconstructionFrameToWorkspace(frame);
+            if (!VisualizeIterations)
+                return;
 
-            if (VisualizeIterations)
-                ReconstructionFrameUpdated?.Invoke(this, frame);
+            Workspace.AddReconstructionFrameToWorkspace(frame);
+            ReconstructionFrameUpdated?.Invoke(this, frame);
+        }
+
+        /// <summary>
+        /// Adds a completed reconstruction result to the workspace and notifies subscribers.
+        /// </summary>
+        /// <param name="result">Result to surface.</param>
+        private void PublishResult(ReconstructionResult result)
+        {
+            Workspace.AddReconstructionResultToWorkspace(result);
+            ReconstructionUpdated?.Invoke(this, result);
         }
 
 
