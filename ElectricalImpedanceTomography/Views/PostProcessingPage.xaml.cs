@@ -18,7 +18,7 @@ namespace ElectricalImpedanceTomography.Views
 
         // Cached Paints
         private readonly SKPaint _gridPaint = new() { Color = SKColor.Parse("#334155"), StrokeWidth = 1, IsAntialias = false };
-        private readonly SKPaint _wireframePaint = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Black.WithAlpha(40), StrokeWidth = 0.5f, IsAntialias = true };
+        private readonly SKPaint _wireframePaint = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1f, IsAntialias = true };
         private readonly SKPaint _nodePaint = new() { Style = SKPaintStyle.Fill, Color = SKColors.White, IsAntialias = true };
         private readonly SKPaint _fillPaint = new() { Style = SKPaintStyle.Fill, IsAntialias = true };
         private readonly SKPaint _borderPaint = new() { Style = SKPaintStyle.Stroke, Color = SKColor.Parse("#475569"), StrokeWidth = 2, IsAntialias = true };
@@ -79,10 +79,12 @@ namespace ElectricalImpedanceTomography.Views
 
         // --- Rendering: Background Grid ---
 
+        private static readonly SKColor CanvasBackground = SKColor.Parse("#1A2436");
+
         private void OnBackgroundPaintSurface(object sender, SKPaintSurfaceEventArgs e)
         {
             var canvas = e.Surface.Canvas;
-            canvas.Clear(SKColor.Parse("#0b1120")); // Matches BgMain
+            canvas.Clear(CanvasBackground);
 
             // Draw dotted grid
             int spacing = 24;
@@ -100,7 +102,7 @@ namespace ElectricalImpedanceTomography.Views
         private void OnDiscretizationPaintSurface(object sender, SKPaintSurfaceEventArgs e)
         {
             var canvas = e.Surface.Canvas;
-            canvas.Clear(SKColors.Transparent);
+            canvas.Clear(CanvasBackground);
             var info = e.Info;
 
             var femMesh = _viewModel.FemMesh;
@@ -108,7 +110,7 @@ namespace ElectricalImpedanceTomography.Views
 
             if (!_viewModel.HasMesh || (femMesh == null && lbmGrid == null))
             {
-                canvas.Clear(SKColors.Transparent);
+                canvas.Clear(CanvasBackground);
                 var message = string.IsNullOrWhiteSpace(_viewModel.CanvasMessage)
                     ? "No reconstruction loaded."
                     : _viewModel.CanvasMessage;
