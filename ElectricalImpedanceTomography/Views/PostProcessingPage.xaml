@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:viewmodels="clr-namespace:ElectricalImpedanceTomography.ViewModels"
              xmlns:post="clr-namespace:Utility.Classes.PostProcessing;assembly=Utility"
+             xmlns:skia="clr-namespace:SkiaSharp.Views.Maui.Controls;assembly=SkiaSharp.Views.Maui.Controls"
              x:Class="ElectricalImpedanceTomography.Views.PostProcessingPage"
              Title="Post Processing"
              x:DataType="viewmodels:PostProcessingPageViewModel"
@@ -154,18 +155,30 @@
                         <Grid Padding="24" RowDefinitions="Auto,*" RowSpacing="12">
                             <VerticalStackLayout Spacing="4">
                                 <Label Text="Mesh visualization" TextColor="{StaticResource TextPrimary}" FontAttributes="Bold" FontSize="16"/>
-                                <Label Text="This view matches the meshing and reconstruction pages. Load a workspace or processed dataset to continue." TextColor="{StaticResource TextSecondary}" FontSize="12" LineBreakMode="WordWrap"/>
+                                <Label Text="{Binding CanvasMessage}" TextColor="{StaticResource TextSecondary}" FontSize="12" LineBreakMode="WordWrap"/>
                             </VerticalStackLayout>
 
                             <Border Grid.Row="1" BackgroundColor="#0b0e12" Stroke="{StaticResource BorderColor}" StrokeShape="RoundRectangle 10" Padding="20" HorizontalOptions="Fill" VerticalOptions="Fill">
-                                <VerticalStackLayout Spacing="12" HorizontalOptions="Center" VerticalOptions="Center">
-                                    <Label Text="Visualization unavailable" TextColor="{StaticResource TextPrimary}" FontSize="18" FontAttributes="Bold" HorizontalTextAlignment="Center"/>
-                                    <Label Text="Mesh rendering now follows the same viewer used on the meshing and reconstruction pages. Reload your dataset to inspect results there." TextColor="{StaticResource TextSecondary}" FontSize="13" HorizontalTextAlignment="Center" LineBreakMode="WordWrap" WidthRequest="520"/>
-                                    <HorizontalStackLayout Spacing="8" HorizontalOptions="Center">
-                                        <Button Text="Load Workspace" Command="{Binding LoadLatestWorkspaceResultCommand}" Style="{StaticResource ToolbarBtn}"/>
-                                        <Button Text="Import File" Command="{Binding ImportSavedResultAsyncCommand}" Style="{StaticResource ToolbarBtn}"/>
-                                    </HorizontalStackLayout>
-                                </VerticalStackLayout>
+                                <Grid>
+                                    <skia:SKCanvasView x:Name="PostProcessingCanvas"
+                                                       PaintSurface="OnCanvasViewPaintSurface"
+                                                       IgnorePixelScaling="True"
+                                                       HorizontalOptions="Fill"
+                                                       VerticalOptions="Fill" />
+
+                                    <VerticalStackLayout Spacing="8" HorizontalOptions="Center" VerticalOptions="Center" IsVisible="True">
+                                        <VerticalStackLayout.Triggers>
+                                            <DataTrigger TargetType="VerticalStackLayout" Binding="{Binding HasMesh}" Value="True">
+                                                <Setter Property="IsVisible" Value="False" />
+                                            </DataTrigger>
+                                        </VerticalStackLayout.Triggers>
+                                        <Label Text="Visualization unavailable" TextColor="{StaticResource TextPrimary}" FontSize="18" FontAttributes="Bold" HorizontalTextAlignment="Center"/>
+                                        <HorizontalStackLayout Spacing="8" HorizontalOptions="Center">
+                                            <Button Text="Load Workspace" Command="{Binding LoadLatestWorkspaceResultCommand}" Style="{StaticResource ToolbarBtn}"/>
+                                            <Button Text="Import File" Command="{Binding ImportSavedResultAsyncCommand}" Style="{StaticResource ToolbarBtn}"/>
+                                        </HorizontalStackLayout>
+                                    </VerticalStackLayout>
+                                </Grid>
                             </Border>
                         </Grid>
                     </Border>
