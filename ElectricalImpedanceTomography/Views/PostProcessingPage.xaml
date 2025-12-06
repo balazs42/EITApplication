@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:skia="clr-namespace:SkiaSharp.Views.Maui.Controls;assembly=SkiaSharp.Views.Maui.Controls"
              xmlns:viewmodels="clr-namespace:ElectricalImpedanceTomography.ViewModels"
+             xmlns:post="clr-namespace:Utility.Classes.PostProcessing;assembly=Utility"
              x:Class="ElectricalImpedanceTomography.Views.PostProcessingPage"
              Title="Post Processing"
              x:DataType="viewmodels:PostProcessingPageViewModel"
@@ -84,7 +85,7 @@
                     <Label Text="Image processing &amp; visualization" TextColor="{StaticResource TextMuted}" FontSize="12"/>
                 </VerticalStackLayout>
 
-                                <ScrollView Grid.Row="1" Padding="20">
+                <ScrollView Grid.Row="1" Padding="20">
                     <VerticalStackLayout Spacing="20">
 
                         <!-- DATA SOURCE -->
@@ -118,8 +119,8 @@
 
                                 <CollectionView ItemsSource="{Binding PostProcessingOptions}" SelectionMode="Single" SelectedItem="{Binding SelectedPostProcessor}" HeightRequest="260">
                                     <CollectionView.ItemTemplate>
-                                        <DataTemplate>
-                                            <Border Stroke="{StaticResource BorderColor}" StrokeShape="RoundRectangle 8" Padding="10" BackgroundColor="#111827">
+                                        <DataTemplate x:DataType="post:IPostProcessing">
+                                            <Border Stroke="{StaticResource BorderColor}" StrokeShape="RoundRectangle 8" Padding="10" BackgroundColor="#111827" Margin="0,0,0,8">
                                                 <VerticalStackLayout Spacing="2">
                                                     <Label Text="{Binding Name}" TextColor="White" FontAttributes="Bold" FontSize="13"/>
                                                     <Label Text="{Binding Description}" TextColor="{StaticResource TextMuted}" FontSize="11" LineBreakMode="WordWrap"/>
@@ -203,9 +204,9 @@
                 <skia:SKCanvasView x:Name="BackgroundGrid" PaintSurface="OnBackgroundPaintSurface" IgnorePixelScaling="True" InputTransparent="True"/>
 
                 <!-- Main Mesh Canvas -->
-                <skia:SKCanvasView x:Name="FemCanvas" 
-                                   PaintSurface="OnFemPaintSurface" 
-                                   EnableTouchEvents="True" 
+                <skia:SKCanvasView x:Name="DiscretizationCanvas"
+                                   PaintSurface="OnDiscretizationPaintSurface"
+                                   EnableTouchEvents="True"
                                    Touch="OnCanvasTouch"
                                    IgnorePixelScaling="True"/>
 

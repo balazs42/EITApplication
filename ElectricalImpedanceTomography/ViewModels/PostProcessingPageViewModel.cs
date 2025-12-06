@@ -2,6 +2,7 @@ using BH.Engine.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DataAccessLayer;
+using Microsoft.Maui.Devices;
 using Microsoft.Maui.Storage;
 using System;
 using System.Collections.Generic;
@@ -9,32 +10,19 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Utility.Classes;
 using Utility.Classes.Application;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.PostProcessing;
 
 namespace ElectricalImpedanceTomography.ViewModels
 {
     public partial class PostProcessingPageViewModel : ObservableObject
     {
-        // --- Data Structures ---
-        public class FemNode
-        {
-            public double X { get; set; }
-            public double Y { get; set; }
-            public double Value { get; set; }
-            public double OriginalValue { get; set; }
-        }
-
-        public class FemElement
-        {
-            public int[] NodeIndices { get; set; } = new int[3];
-            public double Value { get; set; }
-        }
-
         // --- Observable Properties (Bound to UI) ---
 
         [ObservableProperty]
@@ -84,8 +72,6 @@ namespace ElectricalImpedanceTomography.ViewModels
         private string _statAvg = "0.000";
 
         // Collections
-        public List<FemNode> Nodes { get; private set; } = new();
-        public List<FemElement> Elements { get; private set; } = new();
         public ObservableCollection<string> ConsoleLogs { get; } = new();
         public ObservableCollection<string> HistoryLog { get; } = new();
         public List<string> Colormaps { get; } = new() { "Jet", "Hot", "Gray", "Parula" };
@@ -105,6 +91,49 @@ namespace ElectricalImpedanceTomography.ViewModels
         private double _dataMin;
         private double _dataMax = 1.0;
         private bool _cutoffsInitialized;
+
+        public FEMMesh? FemMesh => _discretization as FEMMesh;
+        public LBMGrid? LbmGrid => _discretization as LBMGrid;
+
+        public IEnumerable<double> ElementConductivities()
+        {
+            if (_discretization == null || _currentDistribution == null)
+                return Enumerable.Empty<double>();
+
+            if (_discretization is LBMGrid lbm)
+            {
+                return lbm.GetElements()
+                          .Cast<LBMElement>()
+                          .Where(e => !e.IsWall)
+                          .Select(e => _currentDistribution.Conductivities.TryGetValue(e.Id, out var v)
+                                                ? v
+                                                : e.Conductivity);
+            }
+
+            return _discretization.GetElements()
+                                   .Select(e => _currentDistribution.Conductivities.TryGetValue(e.Id, out var v)
+                                                        ? v
+                                                        : e.Conductivity);
+        }
+
+        public double GetConductivityValue(int elementId, double fallback)
+        {
+            if (_currentDistribution != null && _currentDistribution.Conductivities.TryGetValue(elementId, out var value))
+                return value;
+
+            return fallback;
+        }
+
+        private record SavedFemMesh(List<SavedVertex> Vertices, List<SavedFemElement> Elements);
+        private record SavedVertex(int Id, double X, double Y, bool IsBoundary, bool IsElectrode);
+        private record SavedFemElement(int Id, int V1, int V2, int V3);
+        private record SavedLbmCell(int Id, int X, int Y, bool IsWall, bool IsElectrode, bool IsGhost);
+        private record SavedLbmGrid(int Nx, int Ny, List<SavedLbmCell> Cells);
+        private record SavedPostProcessingSnapshot(string Type,
+                                                   Dictionary<int, double> Conductivities,
+                                                   SavedFemMesh? Fem,
+                                                   SavedLbmGrid? Lbm,
+                                                   string? Label);
 
         public PostProcessingPageViewModel()
         {
@@ -173,9 +202,18 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             try
             {
+                var jsonFileType = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
+                {
+                    { DevicePlatform.WinUI, new[] { "*.json", "*.eitmesh", "*.stl", "*.csv" } },
+                    { DevicePlatform.Android, new[] { "application/json", "application/octet-stream" } },
+                    { DevicePlatform.iOS, new[] { "public.json", "public.composite-content" } },
+                    { DevicePlatform.MacCatalyst, new[] { "public.json", "public.composite-content" } },
+                });
+
                 var file = await FilePicker.Default.PickAsync(new PickOptions
                 {
-                    PickerTitle = "Select a reconstruction (STL or mesh)"
+                    PickerTitle = "Select a saved post-processing snapshot",
+                    FileTypes = jsonFileType
                 });
 
                 if (file == null)
@@ -192,9 +230,9 @@ namespace ElectricalImpedanceTomography.ViewModels
         [RelayCommand]
         public async Task SaveProcessedAsync()
         {
-            if (_discretization is not FEMMesh femMesh || _currentDistribution == null)
+            if (_discretization == null || _currentDistribution == null)
             {
-                Log("No processed mesh to save.", "warn");
+                Log("No processed dataset to save.", "warn");
                 return;
             }
 
@@ -202,12 +240,25 @@ namespace ElectricalImpedanceTomography.ViewModels
             string name = $"postprocessed_{DateTime.Now:yyyyMMdd_HHmmss}";
             try
             {
-                // Persist geometry + conductivities
-                femMesh.SetConductivityDistribution(_currentDistribution);
-                repo.SaveFEMMesh(femMesh, name);
+                if (_discretization is FEMMesh femMesh)
+                {
+                    femMesh.SetConductivityDistribution(_currentDistribution);
+                    repo.SaveFEMMesh(femMesh, name);
+                }
+                else if (_discretization is LBMGrid lbmGrid)
+                {
+                    lbmGrid.SetConductivityDistribution(_currentDistribution);
+                    repo.SaveLBMGrid(lbmGrid, name);
+                }
 
-                // Sidecar CSV with conductivity values
+                var snapshot = CreateSnapshot(name);
                 var exportDir = FileSystem.AppDataDirectory;
+                Directory.CreateDirectory(exportDir);
+                var jsonPath = Path.Combine(exportDir, $"{name}.json");
+                var options = new JsonSerializerOptions { WriteIndented = true };
+                var json = JsonSerializer.Serialize(snapshot, options);
+                File.WriteAllText(jsonPath, json);
+
                 var csvPath = Path.Combine(exportDir, $"{name}.csv");
                 using (var writer = new StreamWriter(csvPath))
                 {
@@ -218,11 +269,8 @@ namespace ElectricalImpedanceTomography.ViewModels
                     }
                 }
 
-                var meshFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EITApplication", "Meshes");
-                Directory.CreateDirectory(meshFolder);
-
-                LastSavedPath = $"Mesh: {meshFolder}, CSV: {csvPath}";
-                Log($"Saved post processed mesh as '{name}'. CSV exported to {csvPath}.", "success");
+                LastSavedPath = jsonPath;
+                Log($"Saved snapshot to {jsonPath} and CSV to {csvPath}.", "success");
                 AddToHistory($"Saved {name}");
             }
             catch (Exception ex)
@@ -231,16 +279,66 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
         }
 
+        private SavedPostProcessingSnapshot CreateSnapshot(string label)
+        {
+            if (_currentDistribution == null)
+                return new SavedPostProcessingSnapshot("None", new Dictionary<int, double>(), null, null, label);
+
+            SavedFemMesh? fem = null;
+            SavedLbmGrid? lbm = null;
+
+            if (FemMesh is FEMMesh femMesh)
+            {
+                fem = new SavedFemMesh(
+                    femMesh.Vertices.Select(v => new SavedVertex(v.GlobalId, v.X, v.Y, v.IsBoundary, v.IsElectrode)).ToList(),
+                    femMesh.ElementsTyped.Select(e => new SavedFemElement(e.Id,
+                                                                           e.Vertices[0].GlobalId,
+                                                                           e.Vertices[1].GlobalId,
+                                                                           e.Vertices[2].GlobalId)).ToList());
+            }
+
+            if (LbmGrid is LBMGrid lbmGrid)
+            {
+                var cells = lbmGrid.GetElements()
+                                   .Cast<LBMElement>()
+                                   .Select(e =>
+                                   {
+                                       var (x, y) = lbmGrid.ToLattice(e.Id);
+                                       return new SavedLbmCell(e.Id, x, y, e.IsWall, e.IsElectrode, e.GhostElement);
+                                   })
+                                   .ToList();
+                lbm = new SavedLbmGrid(lbmGrid.Nx, lbmGrid.Ny, cells);
+            }
+
+            var conductivities = new Dictionary<int, double>(_currentDistribution.Conductivities);
+            var type = FemMesh != null ? "FEM" : (LbmGrid != null ? "LBM" : "Unknown");
+            return new SavedPostProcessingSnapshot(type, conductivities, fem, lbm, label);
+        }
+
         public void LoadFromFile(string path)
         {
             try
             {
+                if (path.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+                {
+                    var snapshot = JsonSerializer.Deserialize<SavedPostProcessingSnapshot>(File.ReadAllText(path));
+                    if (snapshot == null)
+                    {
+                        Log("Selected JSON file is not a valid snapshot.", "warn");
+                        return;
+                    }
+
+                    LoadSnapshot(snapshot, Path.GetFileName(path));
+                    CanvasMessage = string.Empty;
+                    return;
+                }
+
                 var repo = new MeshRepository();
                 IDiscretization? discretization = null;
                 if (path.EndsWith(".stl", StringComparison.OrdinalIgnoreCase) ||
                     path.EndsWith(".eitmesh", StringComparison.OrdinalIgnoreCase))
                 {
-                    discretization = repo.LoadFEMMesh(path);
+                    discretization = TryLoadMesh(repo, path);
                 }
 
                 if (discretization == null && path.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
@@ -302,6 +400,99 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
         }
 
+        private static IDiscretization? TryLoadMesh(MeshRepository repo, string path)
+        {
+            try
+            {
+                return repo.LoadFEMMesh(path);
+            }
+            catch
+            {
+                // ignore and try loading as LBM
+            }
+
+            try
+            {
+                return repo.LoadLBMGrid(path);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private ConductivityDistribution BuildDistribution(IDiscretization discretization, Dictionary<int, double> source)
+        {
+            var dict = new Dictionary<int, double>();
+            foreach (var element in discretization.GetElements())
+            {
+                dict[element.Id] = source.TryGetValue(element.Id, out var value)
+                    ? value
+                    : element.Conductivity;
+            }
+
+            return new ConductivityDistribution(dict);
+        }
+
+        private void LoadSnapshot(SavedPostProcessingSnapshot snapshot, string fallbackLabel)
+        {
+            if (snapshot.Type.Equals("FEM", StringComparison.OrdinalIgnoreCase) && snapshot.Fem != null)
+            {
+                var vertices = snapshot.Fem.Vertices
+                                          .ToDictionary(v => v.Id,
+                                                        v => new FEMVertex(v.Id, v.X, v.Y)
+                                                        {
+                                                            IsBoundary = v.IsBoundary,
+                                                            IsElectrode = v.IsElectrode
+                                                        });
+
+                var elements = new List<FEMElement>();
+                foreach (var el in snapshot.Fem.Elements)
+                {
+                    if (!vertices.TryGetValue(el.V1, out var v1) ||
+                        !vertices.TryGetValue(el.V2, out var v2) ||
+                        !vertices.TryGetValue(el.V3, out var v3))
+                    {
+                        continue;
+                    }
+
+                    var element = new FEMElement(el.Id, v1, v2, v3);
+                    if (snapshot.Conductivities.TryGetValue(el.Id, out var sigma))
+                        element.Conductivity = sigma;
+                    elements.Add(element);
+                }
+
+                var mesh = new FEMMesh(vertices.Values, elements);
+                var distribution = BuildDistribution(mesh, snapshot.Conductivities);
+                mesh.SetConductivityDistribution(distribution);
+                LoadDiscretization(mesh, distribution, snapshot.Label ?? fallbackLabel);
+                return;
+            }
+
+            if (snapshot.Type.Equals("LBM", StringComparison.OrdinalIgnoreCase) && snapshot.Lbm != null)
+            {
+                var grid = new LBMGrid(snapshot.Lbm.Nx, snapshot.Lbm.Ny);
+                var cells = snapshot.Lbm.Cells.ToDictionary(c => c.Id);
+
+                foreach (var element in grid.GetElements().Cast<LBMElement>())
+                {
+                    if (cells.TryGetValue(element.Id, out var saved))
+                    {
+                        element.IsWall = saved.IsWall;
+                        element.IsElectrode = saved.IsElectrode;
+                        element.GhostElement = saved.IsGhost;
+                    }
+                }
+
+                var distribution = BuildDistribution(grid, snapshot.Conductivities);
+                grid.SetConductivityDistribution(distribution);
+                LoadDiscretization(grid, distribution, snapshot.Label ?? fallbackLabel);
+                return;
+            }
+
+            Log("Snapshot type could not be loaded.", "warn");
+        }
+
         private void LoadDiscretization(IDiscretization discretization, ConductivityDistribution distribution, string label)
         {
             _discretization = discretization;
@@ -311,161 +502,9 @@ namespace ElectricalImpedanceTomography.ViewModels
             _cutoffsInitialized = false;
             CanvasMessage = string.Empty;
 
-            if (discretization is FEMMesh femMesh)
-            {
-                UpdateDisplayMesh(femMesh);
-            }
-            else
-            {
-                Nodes.Clear();
-                Elements.Clear();
-                Log("Loaded discretization cannot be displayed in this view.", "warn");
-                HasMesh = false;
-                CanvasMessage = "The loaded discretization cannot be rendered on the canvas.";
-                return;
-            }
-
             HasMesh = true;
             UpdateStatistics(resetCutoffs: true);
             MeshUpdated?.Invoke(this, EventArgs.Empty);
-        }
-
-        private void BuildDemoMesh()
-        {
-            var random = new Random(0);
-            var vertices = new List<FEMVertex>();
-            var elements = new List<FEMElement>();
-
-            int rings = 10;
-            vertices.Add(new FEMVertex(0, 0, 0));
-            int startOfRing = 1;
-            int startOfPrevRing = 0;
-
-            for (int i = 1; i <= rings; i++)
-            {
-                double radius = (double)i / rings;
-                int segments = 6 * i;
-                for (int j = 0; j < segments; j++)
-                {
-                    double angle = (j / (double)segments) * Math.PI * 2;
-                    double x = Math.Cos(angle) * radius * 0.5 + 0.5;
-                    double y = Math.Sin(angle) * radius * 0.5 + 0.5;
-                    vertices.Add(new FEMVertex(vertices.Count, x, y));
-                }
-
-                int prevSegments = i == 1 ? 1 : 6 * (i - 1);
-                for (int j = 0; j < segments; j++)
-                {
-                    int current = startOfRing + j;
-                    int next = startOfRing + ((j + 1) % segments);
-                    int prev = startOfPrevRing + (int)Math.Floor((j / (double)segments) * prevSegments);
-                    int prevNext = startOfPrevRing + ((int)Math.Floor(((j + 1) / (double)segments) * prevSegments) % prevSegments);
-
-                    elements.Add(new FEMElement(elements.Count, vertices[current], vertices[next], vertices[prev]));
-                    if (i > 1 && prev != prevNext)
-                    {
-                        elements.Add(new FEMElement(elements.Count, vertices[next], vertices[prev], vertices[prevNext]));
-                    }
-                }
-
-                startOfPrevRing = startOfRing;
-                startOfRing = vertices.Count;
-            }
-
-            foreach (var vertex in vertices)
-            {
-                vertex.X -= 0.5;
-                vertex.Y -= 0.5;
-            }
-
-            var mesh = new FEMMesh(vertices, elements);
-
-            var conductivities = new Dictionary<int, double>();
-            foreach (var element in elements)
-            {
-                double cx = element.Vertices.Average(v => v.X);
-                double cy = element.Vertices.Average(v => v.Y);
-
-                double rawVal = 0.2 + (random.NextDouble() - 0.5) * 0.05;
-                double d1 = Math.Sqrt(Math.Pow(cx - 0.2, 2) + Math.Pow(cy - 0.2, 2));
-                if (d1 < 0.25) rawVal += 0.8 * (1 - d1 / 0.25);
-
-                double d2 = Math.Sqrt(Math.Pow(cx + 0.25, 2) + Math.Pow(cy + 0.1, 2));
-                if (d2 < 0.2) rawVal -= 0.5 * (1 - d2 / 0.2);
-
-                rawVal = Math.Clamp(rawVal, 0.05, 1.2);
-                conductivities[element.Id] = rawVal;
-                element.Conductivity = rawVal;
-            }
-
-            mesh.SetConductivityDistribution(new ConductivityDistribution(conductivities));
-            LoadDiscretization(mesh, mesh.GetConductivityDistribution(), "Demo mesh");
-        }
-
-        private void UpdateDisplayMesh(FEMMesh mesh)
-        {
-            Nodes.Clear();
-            Elements.Clear();
-            var vertexIndex = new Dictionary<int, int>();
-            for (int i = 0; i < mesh.Vertices.Count; i++)
-            {
-                var v = mesh.Vertices[i];
-                vertexIndex[v.GlobalId] = i;
-                Nodes.Add(new FemNode
-                {
-                    X = v.X - 0.5,
-                    Y = v.Y - 0.5,
-                });
-            }
-
-            foreach (var element in mesh.ElementsTyped)
-            {
-                if (!vertexIndex.TryGetValue(element.Vertices[0].GlobalId, out var n1) ||
-                    !vertexIndex.TryGetValue(element.Vertices[1].GlobalId, out var n2) ||
-                    !vertexIndex.TryGetValue(element.Vertices[2].GlobalId, out var n3))
-                {
-                    continue;
-                }
-
-                double val = _currentDistribution?.GetValue(element.Id) ?? element.Conductivity;
-                Elements.Add(new FemElement
-                {
-                    NodeIndices = new[] { n1, n2, n3 },
-                    Value = val
-                });
-            }
-
-            UpdateNodeValuesFromElements();
-        }
-
-        private void UpdateNodeValuesFromElements()
-        {
-            var sum = new double[Nodes.Count];
-            var count = new int[Nodes.Count];
-
-            foreach (var el in Elements)
-            {
-                foreach (var idx in el.NodeIndices)
-                {
-                    sum[idx] += el.Value;
-                    count[idx]++;
-                }
-            }
-
-            for (int i = 0; i < Nodes.Count; i++)
-            {
-                if (count[i] == 0)
-                {
-                    Nodes[i].Value = 0;
-                    Nodes[i].OriginalValue = 0;
-                }
-                else
-                {
-                    var avg = sum[i] / count[i];
-                    Nodes[i].Value = avg;
-                    Nodes[i].OriginalValue = avg;
-                }
-            }
         }
 
         // --- Commands ---
@@ -505,11 +544,6 @@ namespace ElectricalImpedanceTomography.ViewModels
             _currentDistribution = updated;
             _discretization.SetConductivityDistribution(updated);
 
-            if (_discretization is FEMMesh femMesh)
-            {
-                UpdateDisplayMesh(femMesh);
-            }
-
             UpdateStatistics();
             MeshUpdated?.Invoke(this, EventArgs.Empty);
             AddToHistory(processor.Name);
@@ -524,8 +558,6 @@ namespace ElectricalImpedanceTomography.ViewModels
             {
                 _currentDistribution = new ConductivityDistribution(_originalDistribution.Conductivities);
                 _discretization.SetConductivityDistribution(_currentDistribution);
-                if (_discretization is FEMMesh femMesh)
-                    UpdateDisplayMesh(femMesh);
             }
 
             FilterStrength = 50;
