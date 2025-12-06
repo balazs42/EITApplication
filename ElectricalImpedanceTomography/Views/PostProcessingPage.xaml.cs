@@ -1,6 +1,9 @@
 using ElectricalImpedanceTomography.ViewModels;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
+using System.Linq;
+using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 
 namespace ElectricalImpedanceTomography.Views
 {
@@ -49,21 +52,21 @@ namespace ElectricalImpedanceTomography.Views
 
         private void RequestRedraw()
         {
-            FemCanvas.InvalidateSurface();
+            DiscretizationCanvas.InvalidateSurface();
             HistogramCanvas.InvalidateSurface();
         }
 
         // --- Interaction Handlers ---
 
-        private void OnZoomIn(object sender, EventArgs e) { _scale *= 1.1f; FemCanvas.InvalidateSurface(); }
-        private void OnZoomOut(object sender, EventArgs e) { _scale *= 0.9f; FemCanvas.InvalidateSurface(); }
+        private void OnZoomIn(object sender, EventArgs e) { _scale *= 1.1f; DiscretizationCanvas.InvalidateSurface(); }
+        private void OnZoomOut(object sender, EventArgs e) { _scale *= 0.9f; DiscretizationCanvas.InvalidateSurface(); }
 
         private void OnFitView(object sender, EventArgs e)
         {
             _scale = 1.0f;
             _translateX = 0;
             _translateY = 0;
-            FemCanvas.InvalidateSurface();
+            DiscretizationCanvas.InvalidateSurface();
         }
 
         private void OnCanvasTouch(object sender, SKTouchEventArgs e)
@@ -77,7 +80,7 @@ namespace ElectricalImpedanceTomography.Views
                     _translateX += e.Location.X - _lastTouchPoint.X;
                     _translateY += e.Location.Y - _lastTouchPoint.Y;
                     _lastTouchPoint = e.Location;
-                    FemCanvas.InvalidateSurface();
+                    DiscretizationCanvas.InvalidateSurface();
                     break;
             }
             e.Handled = true;
@@ -101,15 +104,18 @@ namespace ElectricalImpedanceTomography.Views
             }
         }
 
-        // --- Rendering: FEM Mesh ---
+        // --- Rendering: Mesh / Grid ---
 
-        private void OnFemPaintSurface(object sender, SKPaintSurfaceEventArgs e)
+        private void OnDiscretizationPaintSurface(object sender, SKPaintSurfaceEventArgs e)
         {
             var canvas = e.Surface.Canvas;
             canvas.Clear(SKColors.Transparent);
             var info = e.Info;
 
-            if (!_viewModel.HasMesh || _viewModel.Elements.Count == 0)
+            var femMesh = _viewModel.FemMesh;
+            var lbmGrid = _viewModel.LbmGrid;
+
+            if (!_viewModel.HasMesh || (femMesh == null && lbmGrid == null))
             {
                 canvas.Clear(SKColor.Parse("#0b1120"));
                 var message = string.IsNullOrWhiteSpace(_viewModel.CanvasMessage)
@@ -120,45 +126,87 @@ namespace ElectricalImpedanceTomography.Views
                 return;
             }
 
-            // Transform View
-            canvas.Translate(info.Width / 2 + _translateX, info.Height / 2 + _translateY);
-            float baseScale = Math.Min(info.Width, info.Height) / 2.5f;
-            canvas.Scale(_scale * baseScale);
-
-            // Draw Elements
-            foreach (var el in _viewModel.Elements)
+            if (femMesh != null)
             {
-                if (el.NodeIndices.Length < 3)
-                    continue;
+                DrawFemMesh(canvas, info, femMesh);
+            }
+            else if (lbmGrid != null)
+            {
+                DrawLbmGrid(canvas, info, lbmGrid);
+            }
+        }
 
-                var n1 = _viewModel.Nodes[el.NodeIndices[0]];
-                var n2 = _viewModel.Nodes[el.NodeIndices[1]];
-                var n3 = _viewModel.Nodes[el.NodeIndices[2]];
+        private void DrawFemMesh(SKCanvas canvas, SKImageInfo info, FEMMesh mesh)
+        {
+            double minX = mesh.Vertices.Min(v => v.X);
+            double maxX = mesh.Vertices.Max(v => v.X);
+            double minY = mesh.Vertices.Min(v => v.Y);
+            double maxY = mesh.Vertices.Max(v => v.Y);
 
-                // Calculate Color based on element value
-                double val = _viewModel.ProcessValue(el.Value);
-                _fillPaint.Color = GetHeatColor(val, _viewModel.SelectedColormap);
+            float extent = (float)Math.Max(maxX - minX, maxY - minY);
+            if (extent < 1e-6f)
+                extent = 1f;
+
+            canvas.Translate(info.Width / 2f + _translateX, info.Height / 2f + _translateY);
+            float baseScale = 0.85f * Math.Min(info.Width, info.Height) / extent;
+            canvas.Scale(_scale * baseScale);
+            canvas.Translate(-(float)((minX + maxX) / 2.0), -(float)((minY + maxY) / 2.0));
+
+            foreach (var element in mesh.ElementsTyped)
+            {
+                var vertices = element.Vertices;
+                double value = _viewModel.ProcessValue(_viewModel.GetConductivityValue(element.Id, element.Conductivity));
+                _fillPaint.Color = GetHeatColor(value, _viewModel.SelectedColormap);
 
                 using var path = new SKPath();
-                path.MoveTo((float)n1.X, (float)n1.Y);
-                path.LineTo((float)n2.X, (float)n2.Y);
-                path.LineTo((float)n3.X, (float)n3.Y);
+                path.MoveTo((float)vertices[0].X, (float)vertices[0].Y);
+                path.LineTo((float)vertices[1].X, (float)vertices[1].Y);
+                path.LineTo((float)vertices[2].X, (float)vertices[2].Y);
                 path.Close();
 
                 canvas.DrawPath(path, _fillPaint);
-                if (_viewModel.ShowWireframe) canvas.DrawPath(path, _wireframePaint);
+                if (_viewModel.ShowWireframe)
+                    canvas.DrawPath(path, _wireframePaint);
             }
 
-            // Draw Boundary
-            canvas.DrawCircle(0, 0, 1.0f, _borderPaint);
-
-            // Draw Nodes
             if (_viewModel.ShowNodes)
             {
                 float radius = 3f / (_scale * baseScale);
-                foreach (var n in _viewModel.Nodes)
+                foreach (var vertex in mesh.Vertices)
                 {
-                    canvas.DrawCircle((float)n.X, (float)n.Y, radius, _nodePaint);
+                    canvas.DrawCircle((float)vertex.X, (float)vertex.Y, radius, _nodePaint);
+                }
+            }
+        }
+
+        private void DrawLbmGrid(SKCanvas canvas, SKImageInfo info, LBMGrid grid)
+        {
+            float width = grid.Nx;
+            float height = grid.Ny;
+
+            canvas.Translate(info.Width / 2f + _translateX, info.Height / 2f + _translateY);
+            float baseScale = 0.85f * Math.Min(info.Width, info.Height) / Math.Max(width, height);
+            canvas.Scale(_scale * baseScale);
+            canvas.Translate(-width / 2f, -height / 2f);
+
+            foreach (var element in grid.GetElements().Cast<LBMElement>())
+            {
+                if (element.IsWall)
+                    continue;
+
+                var (x, y) = grid.ToLattice(element.Id);
+                double value = _viewModel.ProcessValue(_viewModel.GetConductivityValue(element.Id, element.Conductivity));
+                _fillPaint.Color = GetHeatColor(value, _viewModel.SelectedColormap);
+
+                var rect = SKRect.Create((float)x, (float)y, 1f, 1f);
+                canvas.DrawRect(rect, _fillPaint);
+                if (_viewModel.ShowWireframe)
+                    canvas.DrawRect(rect, _wireframePaint);
+
+                if (_viewModel.ShowNodes)
+                {
+                    float radius = 0.12f;
+                    canvas.DrawCircle((float)(x + 0.5f), (float)(y + 0.5f), radius, _nodePaint);
                 }
             }
         }
@@ -170,14 +218,15 @@ namespace ElectricalImpedanceTomography.Views
             var canvas = e.Surface.Canvas;
             canvas.Clear(SKColors.Transparent);
 
-            if (_viewModel.Elements.Count == 0) return;
+            var values = _viewModel.ElementConductivities().ToList();
+            if (values.Count == 0) return;
 
             // Calc Bins
             int bins = 24;
             int[] counts = new int[bins];
-            foreach (var el in _viewModel.Elements)
+            foreach (var val in values)
             {
-                double v = _viewModel.ProcessValue(el.Value); // 0-1 normalized
+                double v = _viewModel.ProcessValue(val); // 0-1 normalized
                 int bin = (int)(v * bins);
                 if (bin >= bins) bin = bins - 1;
                 if (bin < 0) bin = 0;
@@ -185,6 +234,8 @@ namespace ElectricalImpedanceTomography.Views
             }
 
             int maxCount = counts.Max();
+            if (maxCount == 0)
+                return;
             float barW = e.Info.Width / (float)bins;
 
             for (int i = 0; i < bins; i++)
