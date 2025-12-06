@@ -2,16 +2,9 @@ using BH.Engine.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DataAccessLayer;
-using Microsoft.Maui.Devices;
-using Microsoft.Maui.Storage;
-using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
-using System.IO;
-using System.Linq;
 using System.Text.Json;
-using System.Threading.Tasks;
 using Utility.Classes;
 using Utility.Classes.Application;
 using Utility.Classes.Discretizer;
@@ -19,6 +12,9 @@ using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.PostProcessing;
 using Utility.Rendering;
+using Microsoft.Maui.Storage; // added for FilePicker/FileSystem
+using Microsoft.Maui.Devices; // added for DevicePlatform
+using System.IO; // added for File/Directory/Path
 
 namespace ElectricalImpedanceTomography.ViewModels
 {
@@ -164,7 +160,8 @@ namespace ElectricalImpedanceTomography.ViewModels
         }
 
         // --- Loading logic ---
-        public bool LoadLatestWorkspaceResult()
+        [RelayCommand]
+        public void LoadLatestWorkspaceResult()
         {
             var lastResult = Workspace.GetReconstructionResults().LastOrDefault();
             var fallbackMesh = Workspace.GetDiscretization();
@@ -178,7 +175,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 {
                     LoadDiscretization(mesh.DeepCopy(), new ConductivityDistribution(distribution.Conductivities), "Workspace result");
                     CanvasMessage = string.Empty;
-                    return true;
+                    return;
                 }
             }
 
@@ -187,20 +184,13 @@ namespace ElectricalImpedanceTomography.ViewModels
             {
                 LoadDiscretization(fallbackMesh.DeepCopy(), new ConductivityDistribution(fallbackSigma.Conductivities), "Active workspace discretization");
                 CanvasMessage = string.Empty;
-                return true;
+                return;
             }
 
             Log("No reconstruction results available in workspace.", "warn");
             ActiveSource = "No dataset loaded";
             CanvasMessage = "No reconstruction available in the workspace.";
             HasMesh = false;
-            return false;
-        }
-
-        [RelayCommand]
-        public void LoadLatestWorkspaceResultCommand()
-        {
-            LoadLatestWorkspaceResult();
         }
 
         [RelayCommand]
@@ -537,6 +527,9 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             RunPostProcessor(SelectedPostProcessor);
         }
+
+        [RelayCommand]
+        public void ClearHistory() => HistoryLog.Clear();
 
         private void RunPostProcessor(IPostProcessing processor)
         {
