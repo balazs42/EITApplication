@@ -74,6 +74,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         public IReadOnlyList<ConductivityDisplayMode> ConductivityDisplayModes { get; } = Enum.GetValues<ConductivityDisplayMode>();
 
         public ObservableCollection<IPostProcessing> PostProcessingOptions { get; } = new();
+        public ObservableCollection<PostProcessingGroup> PostProcessingGroups { get; } = new();
 
         [ObservableProperty]
         private IPostProcessing? _selectedPostProcessor;
@@ -144,18 +145,51 @@ namespace ElectricalImpedanceTomography.ViewModels
         private void InitializePostProcessors()
         {
             PostProcessingOptions.Clear();
-            PostProcessingOptions.Add(new LaplacianSmoothingPostProcessing());
-            PostProcessingOptions.Add(new MedianFilterPostProcessing());
-            PostProcessingOptions.Add(new EdgeEnhancementPostProcessing());
-            PostProcessingOptions.Add(new ThresholdFilterPostProcessing());
-            PostProcessingOptions.Add(new SigmaClippingPostProcessing());
-            PostProcessingOptions.Add(new NormalizationPostProcessing());
-            PostProcessingOptions.Add(new GaussianBlurPostProcessing());
-            PostProcessingOptions.Add(new BilateralFilterPostProcessing());
-            PostProcessingOptions.Add(new ContrastStretchPostProcessing());
-            PostProcessingOptions.Add(new GammaCorrectionPostProcessing());
-            PostProcessingOptions.Add(new HighPassEnhancementPostProcessing());
-            PostProcessingOptions.Add(new WinsorizedClippingPostProcessing());
+            PostProcessingGroups.Clear();
+
+            var smoothing = new PostProcessingGroup(
+                "Smoothing & Denoising",
+                "Reduce noise while retaining overall structure.",
+                new IPostProcessing[]
+                {
+                    new LaplacianSmoothingPostProcessing(),
+                    new MedianFilterPostProcessing(),
+                    new GaussianBlurPostProcessing(),
+                    new BilateralFilterPostProcessing(),
+                    new MeanFilterPostProcessing(),
+                    new AnisotropicDiffusionPostProcessing()
+                });
+
+            var enhancement = new PostProcessingGroup(
+                "Enhancement & Refinement",
+                "Sharpen or emphasize edges and gradients.",
+                new IPostProcessing[]
+                {
+                    new EdgeEnhancementPostProcessing(),
+                    new HighPassEnhancementPostProcessing(),
+                    new AdaptiveSharpenPostProcessing(),
+                    new ContrastStretchPostProcessing(),
+                    new GammaCorrectionPostProcessing()
+                });
+
+            var normalization = new PostProcessingGroup(
+                "Normalization & Clipping",
+                "Constrain or normalize ranges for stability.",
+                new IPostProcessing[]
+                {
+                    new ThresholdFilterPostProcessing(),
+                    new SigmaClippingPostProcessing(),
+                    new WinsorizedClippingPostProcessing(),
+                    new NormalizationPostProcessing()
+                });
+
+            foreach (var group in new[] { smoothing, enhancement, normalization })
+            {
+                PostProcessingGroups.Add(group);
+                foreach (var option in group)
+                    PostProcessingOptions.Add(option);
+            }
+
             SelectedPostProcessor = PostProcessingOptions.FirstOrDefault();
         }
 
