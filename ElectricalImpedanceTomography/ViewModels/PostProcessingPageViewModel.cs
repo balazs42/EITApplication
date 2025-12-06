@@ -2,8 +2,12 @@ using BH.Engine.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DataAccessLayer;
+using Microsoft.Maui.Devices; // added for DevicePlatform
+using Microsoft.Maui.Storage; // added for FilePicker/FileSystem
+using System;
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.IO; // added for File/Directory/Path
 using System.Text.Json;
 using Utility.Classes;
 using Utility.Classes.Application;
@@ -12,9 +16,6 @@ using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.PostProcessing;
 using Utility.Rendering;
-using Microsoft.Maui.Storage; // added for FilePicker/FileSystem
-using Microsoft.Maui.Devices; // added for DevicePlatform
-using System.IO; // added for File/Directory/Path
 
 namespace ElectricalImpedanceTomography.ViewModels
 {
@@ -75,9 +76,13 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public ObservableCollection<IPostProcessing> PostProcessingOptions { get; } = new();
         public ObservableCollection<PostProcessingGroup> PostProcessingGroups { get; } = new();
+        public ObservableCollection<PostProcessingParameterOption> ParameterOptions { get; } = new();
 
         [ObservableProperty]
         private IPostProcessing? _selectedPostProcessor;
+
+        [ObservableProperty]
+        private bool _hasParameterOptions;
 
         // Events
         public event EventHandler? MeshUpdated;
@@ -191,6 +196,11 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
 
             SelectedPostProcessor = PostProcessingOptions.FirstOrDefault();
+        }
+
+        partial void OnSelectedPostProcessorChanged(IPostProcessing? value)
+        {
+            UpdateParameterOptions(value);
         }
 
         // --- Loading logic ---
@@ -556,9 +566,6 @@ namespace ElectricalImpedanceTomography.ViewModels
                 return;
             }
 
-            if (SelectedPostProcessor is IWeightedPostProcessing weighted)
-                weighted.Weight = FilterStrength / 100.0;
-
             RunPostProcessor(SelectedPostProcessor);
         }
 
@@ -579,7 +586,11 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             UpdateStatistics();
             MeshUpdated?.Invoke(this, EventArgs.Empty);
-            AddToHistory($"Applied {processor.Name} ({FilterStrength:F0}% intensity)");
+
+            var summary = BuildParameterSummary();
+            AddToHistory(string.IsNullOrEmpty(summary)
+                ? $"Applied {processor.Name}"
+                : $"Applied {processor.Name} ({summary})");
             Log($"Applied {processor.Name}.", "success");
         }
 
@@ -629,6 +640,9 @@ namespace ElectricalImpedanceTomography.ViewModels
         }
 
         public double ProcessValue(double val)
+            => NormalizeValue(val).Normalized;
+
+        public ValueNormalization NormalizeValue(double val)
         {
             double working = val;
             if (IsLogScale)
@@ -640,7 +654,8 @@ namespace ElectricalImpedanceTomography.ViewModels
                 max = min + 1e-6;
 
             working = Math.Clamp(working, min, max);
-            return (working - min) / (max - min);
+            double normalized = (working - min) / (max - min);
+            return new ValueNormalization(working, normalized, min, max);
         }
 
         private void Log(string msg, string type = "normal")
@@ -650,5 +665,114 @@ namespace ElectricalImpedanceTomography.ViewModels
         }
 
         private void AddToHistory(string action) => HistoryLog.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {action}");
+
+        private void UpdateParameterOptions(IPostProcessing? processor)
+        {
+            ParameterOptions.Clear();
+
+            if (processor is IWeightedPostProcessing weighted)
+            {
+                ParameterOptions.Add(PostProcessingParameterOption.CreatePercentage(
+                    "Weight",
+                    "Adjusts the influence of the filter (0-100%).",
+                    weighted.Weight * 100.0,
+                    v => weighted.Weight = v / 100.0,
+                    0.5));
+            }
+
+            if (processor is SigmaClippingPostProcessing sigma)
+            {
+                ParameterOptions.Add(new PostProcessingParameterOption(
+                    "Sigma (σ)",
+                    "Standard deviation envelope for clipping.",
+                    0.5,
+                    5.0,
+                    0.1,
+                    sigma.Sigma,
+                    v => sigma.Sigma = v,
+                    unit: "σ"));
+            }
+
+            HasParameterOptions = ParameterOptions.Count > 0;
+        }
+
+        private string BuildParameterSummary()
+        {
+            if (!HasParameterOptions)
+                return string.Empty;
+
+            return string.Join(", ", ParameterOptions.Select(p => $"{p.Name}={p.FormattedValue}"));
+        }
+    }
+
+    public readonly record struct ValueNormalization(double Working, double Normalized, double Min, double Max);
+
+    public class PostProcessingParameterOption : ObservableObject
+    {
+        private readonly Action<double> _apply;
+        private double _value;
+
+        public PostProcessingParameterOption(
+            string name,
+            string description,
+            double minimum,
+            double maximum,
+            double step,
+            double initialValue,
+            Action<double> apply,
+            bool isPercentage = false,
+            string unit = "")
+        {
+            Name = name;
+            Description = description;
+            Minimum = minimum;
+            Maximum = maximum;
+            Step = step;
+            _value = initialValue;
+            _apply = apply;
+            IsPercentage = isPercentage;
+            Unit = unit;
+        }
+
+        public string Name { get; }
+        public string Description { get; }
+        public double Minimum { get; }
+        public double Maximum { get; }
+        public double Step { get; }
+        public bool IsPercentage { get; }
+        public string Unit { get; }
+
+        public double Value
+        {
+            get => _value;
+            set
+            {
+                if (SetProperty(ref _value, value))
+                {
+                    _apply(IsPercentage ? value / 100.0 : value);
+                    OnPropertyChanged(nameof(FormattedValue));
+                }
+            }
+        }
+
+        public string FormattedValue
+        {
+            get
+            {
+                if (IsPercentage)
+                    return $"{Value:0.#}%";
+
+                string suffix = string.IsNullOrWhiteSpace(Unit) ? string.Empty : Unit;
+                return $"{Value:0.###}{suffix}";
+            }
+        }
+
+        public static PostProcessingParameterOption CreatePercentage(
+            string name,
+            string description,
+            double initialPercent,
+            Action<double> apply,
+            double step = 1.0)
+            => new(name, description, 0, 100, step, initialPercent, apply, isPercentage: true);
     }
 }

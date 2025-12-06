@@ -236,6 +236,45 @@
                                 </Border>
                             </Grid>
 
+                            <Border BackgroundColor="#0b0e12" Stroke="{StaticResource BorderColor}" StrokeShape="RoundRectangle 8" Padding="12">
+                                <VerticalStackLayout Spacing="8">
+                                    <Label Text="Method Parameters" Style="{StaticResource HeaderLabel}" Margin="0,0,0,6"/>
+                                    <Label Text="{Binding SelectedPostProcessor.Name}" TextColor="{StaticResource TextPrimary}" FontAttributes="Bold" FontSize="14"/>
+                                    <CollectionView ItemsSource="{Binding ParameterOptions}" IsVisible="{Binding HasParameterOptions}" SelectionMode="None" ItemsLayout="VerticalList" HeightRequest="190">
+                                        <CollectionView.ItemTemplate>
+                                            <DataTemplate>
+                                                <VerticalStackLayout Spacing="6">
+                                                    <Label Text="{Binding Name}" TextColor="{StaticResource TextSecondary}" FontAttributes="Bold" FontSize="12"/>
+                                                    <Label Text="{Binding Description}" TextColor="{StaticResource TextMuted}" FontSize="11" LineBreakMode="WordWrap"/>
+                                                    <Grid ColumnDefinitions="*, Auto" ColumnSpacing="8" VerticalOptions="Center">
+                                                        <Slider Grid.Column="0"
+                                                                Minimum="{Binding Minimum}"
+                                                                Maximum="{Binding Maximum}"
+                                                                Value="{Binding Value, Mode=TwoWay}"
+                                                                StepFrequency="{Binding Step}"
+                                                                ThumbColor="#06b6d4"
+                                                                MinimumTrackColor="#06b6d4"
+                                                                MaximumTrackColor="#1f2937" />
+                                                        <Label Grid.Column="1" Text="{Binding FormattedValue}" TextColor="{StaticResource TextPrimary}" FontAttributes="Bold" FontSize="12" />
+                                                    </Grid>
+                                                    <BoxView HeightRequest="1" Color="{StaticResource BorderColor}" />
+                                                </VerticalStackLayout>
+                                            </DataTemplate>
+                                        </CollectionView.ItemTemplate>
+                                        <CollectionView.EmptyView>
+                                            <Label Text="No adjustable parameters for this method." TextColor="{StaticResource TextMuted}" FontSize="12"/>
+                                        </CollectionView.EmptyView>
+                                    </CollectionView>
+                                    <Label Text="Select a method on the left to tune its parameters." TextColor="{StaticResource TextMuted}" FontSize="11">
+                                        <Label.Triggers>
+                                            <DataTrigger TargetType="Label" Binding="{Binding HasParameterOptions}" Value="True">
+                                                <Setter Property="IsVisible" Value="False" />
+                                            </DataTrigger>
+                                        </Label.Triggers>
+                                    </Label>
+                                </VerticalStackLayout>
+                            </Border>
+
 
                             <Border BackgroundColor="#0b0e12" Stroke="{StaticResource BorderColor}" StrokeShape="RoundRectangle 8" Padding="12">
                                 <VerticalStackLayout Spacing="8">
