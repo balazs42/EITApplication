@@ -18,6 +18,7 @@ using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.PostProcessing;
+using Utility.Rendering;
 
 namespace ElectricalImpedanceTomography.ViewModels
 {
@@ -47,7 +48,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         private bool _showContours = false;
 
         [ObservableProperty]
-        private string _selectedColormap = "Jet";
+        private ConductivityDisplayMode _selectedConductivityDisplayMode = ConductivityDisplayMode.Classic;
 
         [ObservableProperty]
         private string _activeSource = "No dataset loaded";
@@ -74,7 +75,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         // Collections
         public ObservableCollection<string> ConsoleLogs { get; } = new();
         public ObservableCollection<string> HistoryLog { get; } = new();
-        public List<string> Colormaps { get; } = new() { "Jet", "Hot", "Gray", "Parula" };
+        public IReadOnlyList<ConductivityDisplayMode> ConductivityDisplayModes { get; } = Enum.GetValues<ConductivityDisplayMode>();
 
         public ObservableCollection<IPostProcessing> PostProcessingOptions { get; } = new();
 
@@ -546,7 +547,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             UpdateStatistics();
             MeshUpdated?.Invoke(this, EventArgs.Empty);
-            AddToHistory(processor.Name);
+            AddToHistory($"Applied {processor.Name} ({FilterStrength:F0}% intensity)");
             Log($"Applied {processor.Name}.", "success");
         }
 
@@ -616,6 +617,6 @@ namespace ElectricalImpedanceTomography.ViewModels
             ConsoleLogs.Add($"[{time}] {msg}");
         }
 
-        private void AddToHistory(string action) => HistoryLog.Insert(0, action);
+        private void AddToHistory(string action) => HistoryLog.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {action}");
     }
 }

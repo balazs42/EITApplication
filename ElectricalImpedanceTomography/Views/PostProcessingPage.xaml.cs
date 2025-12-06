@@ -5,6 +5,7 @@ using SkiaSharp.Views.Maui;
 using System.Linq;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
+using Utility.Rendering;
 
 namespace ElectricalImpedanceTomography.Views
 {
@@ -146,7 +147,7 @@ namespace ElectricalImpedanceTomography.Views
             {
                 var vertices = element.Vertices;
                 double value = _viewModel.ProcessValue(_viewModel.GetConductivityValue(element.Id, element.Conductivity));
-                _fillPaint.Color = GetHeatColor(value, _viewModel.SelectedColormap);
+                _fillPaint.Color = GetHeatColor(value, _viewModel.SelectedConductivityDisplayMode);
 
                 using var path = new SKPath();
                 path.MoveTo((float)vertices[0].X, (float)vertices[0].Y);
@@ -186,7 +187,7 @@ namespace ElectricalImpedanceTomography.Views
 
                 var (x, y) = grid.ToLattice(element.Id);
                 double value = _viewModel.ProcessValue(_viewModel.GetConductivityValue(element.Id, element.Conductivity));
-                _fillPaint.Color = GetHeatColor(value, _viewModel.SelectedColormap);
+                _fillPaint.Color = GetHeatColor(value, _viewModel.SelectedConductivityDisplayMode);
 
                 var rect = SKRect.Create((float)x, (float)y, 1f, 1f);
                 canvas.DrawRect(rect, _fillPaint);
@@ -240,30 +241,143 @@ namespace ElectricalImpedanceTomography.Views
         }
 
         // --- Colormap Helper ---
-        private SKColor GetHeatColor(double norm, string colormap)
+        private static readonly (double Position, SKColor Color)[] EnhancedDivergingPalette =
+        {
+            (0.0, SKColor.Parse("#2B83BA")),
+            (0.17, SKColor.Parse("#74ADD1")),
+            (0.33, SKColor.Parse("#E0F3F8")),
+            (0.5, SKColor.Parse("#FFFFBF")),
+            (0.67, SKColor.Parse("#FEE08B")),
+            (0.83, SKColor.Parse("#FC8D59")),
+            (1.0, SKColor.Parse("#D53E4F"))
+        };
+
+        private static readonly (double Position, SKColor Color)[] MatlabJetPalette =
+        {
+            (0.0, SKColor.Parse("#00007F")),
+            (0.125, SKColor.Parse("#0000FF")),
+            (0.375, SKColor.Parse("#00FFFF")),
+            (0.625, SKColor.Parse("#FFFF00")),
+            (0.875, SKColor.Parse("#FF0000")),
+            (1.0, SKColor.Parse("#7F0000"))
+        };
+
+        private static readonly (double Position, SKColor Color)[] ParulaPalette =
+        {
+            (0.0, SKColor.Parse("#352A87")),
+            (0.16, SKColor.Parse("#2462BE")),
+            (0.33, SKColor.Parse("#1F9AD6")),
+            (0.5, SKColor.Parse("#3BB6A5")),
+            (0.66, SKColor.Parse("#74C476")),
+            (0.83, SKColor.Parse("#B6D051")),
+            (1.0, SKColor.Parse("#FDE724"))
+        };
+
+        private static readonly (double Position, SKColor Color)[] ViridisPalette =
+        {
+            (0.0, SKColor.Parse("#440154")),
+            (0.2, SKColor.Parse("#414487")),
+            (0.4, SKColor.Parse("#2A788E")),
+            (0.6, SKColor.Parse("#22A884")),
+            (0.8, SKColor.Parse("#7AD151")),
+            (1.0, SKColor.Parse("#FDE725"))
+        };
+
+        private static readonly (double Position, SKColor Color)[] PlasmaPalette =
+        {
+            (0.0, SKColor.Parse("#0D0887")),
+            (0.16, SKColor.Parse("#5B02A3")),
+            (0.33, SKColor.Parse("#9A179B")),
+            (0.5, SKColor.Parse("#CB4679")),
+            (0.66, SKColor.Parse("#ED7953")),
+            (0.83, SKColor.Parse("#FDB42F")),
+            (1.0, SKColor.Parse("#F0F921"))
+        };
+
+        private static readonly (double Position, SKColor Color)[] MagmaPalette =
+        {
+            (0.0, SKColor.Parse("#000004")),
+            (0.16, SKColor.Parse("#1C1044")),
+            (0.33, SKColor.Parse("#4F0C6B")),
+            (0.5, SKColor.Parse("#822681")),
+            (0.66, SKColor.Parse("#B73779")),
+            (0.83, SKColor.Parse("#F1605D")),
+            (1.0, SKColor.Parse("#FCFDBF"))
+        };
+
+        private static readonly (double Position, SKColor Color)[] CividisPalette =
+        {
+            (0.0, SKColor.Parse("#00204C")),
+            (0.2, SKColor.Parse("#00366F")),
+            (0.4, SKColor.Parse("#39558C")),
+            (0.6, SKColor.Parse("#7B7B78")),
+            (0.8, SKColor.Parse("#B8B972")),
+            (1.0, SKColor.Parse("#FAF976"))
+        };
+
+        private static readonly (double Position, SKColor Color)[] CoolWarmPalette =
+        {
+            (0.0, SKColor.Parse("#3B4CC0")),
+            (0.16, SKColor.Parse("#5C86C5")),
+            (0.33, SKColor.Parse("#93B5D7")),
+            (0.5, SKColor.Parse("#E6E6E6")),
+            (0.66, SKColor.Parse("#E5B08A")),
+            (0.83, SKColor.Parse("#D25C4D")),
+            (1.0, SKColor.Parse("#8B1A1A"))
+        };
+
+        private SKColor GetHeatColor(double norm, ConductivityDisplayMode mode)
         {
             norm = Math.Clamp(norm, 0, 1);
-            byte r = 0, g = 0, b = 0;
+            return mode switch
+            {
+                ConductivityDisplayMode.Classic => ColorForValue(norm),
+                ConductivityDisplayMode.EnhancedDiverging => InterpolatePalette(EnhancedDivergingPalette, norm),
+                ConductivityDisplayMode.Rainbow => SKColor.FromHsv((float)(norm * 360f), 100f, 100f),
+                ConductivityDisplayMode.MatlabJet => InterpolatePalette(MatlabJetPalette, norm),
+                ConductivityDisplayMode.Parula => InterpolatePalette(ParulaPalette, norm),
+                ConductivityDisplayMode.Viridis => InterpolatePalette(ViridisPalette, norm),
+                ConductivityDisplayMode.Plasma => InterpolatePalette(PlasmaPalette, norm),
+                ConductivityDisplayMode.Magma => InterpolatePalette(MagmaPalette, norm),
+                ConductivityDisplayMode.Cividis => InterpolatePalette(CividisPalette, norm),
+                ConductivityDisplayMode.CoolWarm => InterpolatePalette(CoolWarmPalette, norm),
+                _ => ColorForValue(norm)
+            };
+        }
 
-            if (colormap == "Gray")
+        private static SKColor ColorForValue(double norm)
+        {
+            byte r = (byte)(255 * norm);
+            byte b = (byte)(255 * (1 - norm));
+            return new SKColor(r, 0, b);
+        }
+
+        private static SKColor InterpolatePalette((double Position, SKColor Color)[] palette, double t)
+        {
+            if (t <= palette[0].Position)
+                return palette[0].Color;
+            for (int i = 0; i < palette.Length - 1; i++)
             {
-                byte c = (byte)(norm * 255);
-                return new SKColor(c, c, c);
+                var (posA, colorA) = palette[i];
+                var (posB, colorB) = palette[i + 1];
+                if (t >= posA && t <= posB)
+                {
+                    double range = posB - posA;
+                    double localT = range <= 0 ? 0 : (t - posA) / range;
+                    return Lerp(colorA, colorB, localT);
+                }
             }
-            else if (colormap == "Hot")
-            {
-                r = (byte)(norm < 0.33 ? norm * 3 * 255 : 255);
-                g = (byte)(norm < 0.33 ? 0 : (norm < 0.66 ? (norm - 0.33) * 3 * 255 : 255));
-                b = (byte)(norm < 0.66 ? 0 : (norm - 0.66) * 3 * 255);
-            }
-            else // Jet
-            {
-                if (norm < 0.25) { r = 0; g = (byte)(4 * norm * 255); b = 255; }
-                else if (norm < 0.5) { r = 0; g = 255; b = (byte)(255 - 4 * (norm - 0.25) * 255); }
-                else if (norm < 0.75) { r = (byte)(4 * (norm - 0.5) * 255); g = 255; b = 0; }
-                else { r = 255; g = (byte)(255 - 4 * (norm - 0.75) * 255); b = 0; }
-            }
-            return new SKColor(r, g, b);
+
+            return palette[^1].Color;
+        }
+
+        private static SKColor Lerp(SKColor a, SKColor b, double t)
+        {
+            byte r = (byte)(a.Red + (b.Red - a.Red) * t);
+            byte g = (byte)(a.Green + (b.Green - a.Green) * t);
+            byte bl = (byte)(a.Blue + (b.Blue - a.Blue) * t);
+            byte al = (byte)(a.Alpha + (b.Alpha - a.Alpha) * t);
+            return new SKColor(r, g, bl, al);
         }
     }
 }
