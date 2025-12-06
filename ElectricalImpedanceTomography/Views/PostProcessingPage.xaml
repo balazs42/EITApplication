@@ -90,12 +90,12 @@
                             <Border BackgroundColor="#0b0e12" Stroke="{StaticResource BorderColor}" StrokeShape="RoundRectangle 8" Padding="12">
                                 <VerticalStackLayout Spacing="10">
                                     <Label Text="Post Processing Options" Style="{StaticResource HeaderLabel}" Margin="0,0,0,6"/>
-                                    <CollectionView ItemsSource="{Binding PostProcessingGroups}" SelectionMode="Single" SelectedItem="{Binding SelectedPostProcessor}" HeightRequest="280" IsGrouped="True" ItemsLayout="VerticalList">
+                                    <CollectionView ItemsSource="{Binding PostProcessingGroups}" SelectionMode="Single" SelectedItem="{Binding SelectedPostProcessor}" HeightRequest="590" IsGrouped="True" ItemsLayout="VerticalList">
                                         <CollectionView.GroupHeaderTemplate>
                                             <DataTemplate x:DataType="post:PostProcessingGroup">
-                                                <VerticalStackLayout Spacing="2" Padding="4,8,0,4">
-                                                    <Label Text="{Binding Title}" TextColor="{StaticResource TextSecondary}" FontAttributes="Bold" FontSize="13"/>
-                                                    <Label Text="{Binding Description}" TextColor="{StaticResource TextMuted}" FontSize="11" LineBreakMode="WordWrap"/>
+                                                <VerticalStackLayout Spacing="2" Padding="0,10,0,10">
+                                                    <Label Text="{Binding Title}" TextColor="{StaticResource TextSecondary}" FontAttributes="Bold" FontSize="Small" HorizontalOptions="Center" VerticalOptions="Center"/>
+                                                    <Label Text="{Binding Description}" TextColor="{StaticResource TextMuted}" FontSize="11" LineBreakMode="WordWrap" HorizontalOptions="Center"/>
                                                 </VerticalStackLayout>
                                             </DataTemplate>
                                         </CollectionView.GroupHeaderTemplate>
@@ -121,7 +121,7 @@
                                                         </VisualStateGroup>
                                                     </VisualStateManager.VisualStateGroups>
                                                     <VerticalStackLayout>
-                                                        <Label Text="{Binding Name}" TextColor="{StaticResource TextPrimary}" FontAttributes="Bold"/>
+                                                        <Label Text="{Binding Name}" TextColor="{StaticResource TextPrimary}" FontAttributes="Bold" FontSize="Micro"/>
                                                         <Label Text="{Binding Description}" TextColor="{StaticResource TextMuted}" FontSize="12" LineBreakMode="WordWrap"/>
                                                     </VerticalStackLayout>
                                                 </Border>
@@ -135,25 +135,6 @@
                                     <Button Text="Save Processed" Command="{Binding SaveProcessedAsyncCommand}" BackgroundColor="#1A06b6d4" TextColor="{StaticResource PrimaryAccent}" BorderColor="#3306b6d4" BorderWidth="1" FontAttributes="Bold" HeightRequest="40" CornerRadius="6" FontSize="11"/>
                                 </VerticalStackLayout>
                             </Border>
-
-                              <Border BackgroundColor="#0b0e12" Stroke="{StaticResource BorderColor}" StrokeShape="RoundRectangle 8" Padding="12">
-                                  <VerticalStackLayout Spacing="8">
-                                      <Label Text="History" Style="{StaticResource HeaderLabel}" Margin="0,0,0,6"/>
-                                      <CollectionView ItemsSource="{Binding HistoryLog}" HeightRequest="140" ItemsLayout="VerticalList" SelectionMode="None" BackgroundColor="#0b121d" Margin="0,4,0,0">
-                                          <CollectionView.ItemTemplate>
-                                              <DataTemplate>
-                                                  <Border Stroke="{StaticResource BorderColor}" StrokeThickness="0" Padding="6,4" BackgroundColor="#0f172a">
-                                                      <Label Text="{Binding .}" TextColor="{StaticResource TextPrimary}" FontSize="12" LineBreakMode="WordWrap"/>
-                                                  </Border>
-                                              </DataTemplate>
-                                          </CollectionView.ItemTemplate>
-                                          <CollectionView.EmptyView>
-                                              <Label Text="No actions yet." TextColor="{StaticResource TextMuted}" FontSize="12"/> 
-                                          </CollectionView.EmptyView>
-                                      </CollectionView>
-                                      <Button Text="Export" Command="{Binding ExportDataCommand}" Style="{StaticResource ToolbarBtn}"/>
-                                  </VerticalStackLayout>
-                              </Border>
                         </VerticalStackLayout>
                     </ScrollView>
                 </Grid>
@@ -255,10 +236,11 @@
                                 </Border>
                             </Grid>
 
-                            <Border BackgroundColor="#0f172a" Stroke="{StaticResource BorderColor}" StrokeShape="RoundRectangle 8" Padding="12">
+
+                            <Border BackgroundColor="#0b0e12" Stroke="{StaticResource BorderColor}" StrokeShape="RoundRectangle 8" Padding="12">
                                 <VerticalStackLayout Spacing="8">
-                                    <Label Text="History" TextColor="{StaticResource TextSecondary}" FontSize="12"/>
-                                    <CollectionView ItemsSource="{Binding HistoryLog}" HeightRequest="160" ItemsLayout="VerticalList" SelectionMode="None" BackgroundColor="#0b121d" Margin="0,4,0,0">
+                                    <Label Text="History" Style="{StaticResource HeaderLabel}" Margin="0,0,0,6"/>
+                                    <CollectionView ItemsSource="{Binding HistoryLog}" HeightRequest="140" ItemsLayout="VerticalList" SelectionMode="None" BackgroundColor="#0b121d" Margin="0,4,0,0">
                                         <CollectionView.ItemTemplate>
                                             <DataTemplate>
                                                 <Border Stroke="{StaticResource BorderColor}" StrokeThickness="0" Padding="6,4" BackgroundColor="#0f172a">
@@ -267,9 +249,10 @@
                                             </DataTemplate>
                                         </CollectionView.ItemTemplate>
                                         <CollectionView.EmptyView>
-                                            <Label Text="No actions yet." TextColor="{StaticResource TextMuted}" FontSize="12"/> 
+                                            <Label Text="No actions yet." TextColor="{StaticResource TextMuted}" FontSize="12"/>
                                         </CollectionView.EmptyView>
                                     </CollectionView>
+                                    <Button Text="Export" Command="{Binding ExportDataCommand}" Style="{StaticResource ToolbarBtn}"/>
                                 </VerticalStackLayout>
                             </Border>
                         </VerticalStackLayout>
