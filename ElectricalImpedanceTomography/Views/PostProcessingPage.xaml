@@ -20,6 +20,13 @@
             <Color x:Key="TextSecondary">#94a3b8</Color>
             <Color x:Key="TextMuted">#64748b</Color>
 
+            <Style TargetType="Border" x:Key="StatCard">
+                <Setter Property="StrokeThickness" Value="0"/>
+                <Setter Property="BackgroundColor" Value="#0f172a"/>
+                <Setter Property="Padding" Value="12"/>
+                <Setter Property="StrokeShape" Value="RoundRectangle 8"/>
+            </Style>
+
             <Style TargetType="Label" x:Key="HeaderLabel">
                 <Setter Property="FontSize" Value="Small"/>
                 <Setter Property="FontAttributes" Value="Bold"/>
@@ -176,19 +183,19 @@
                     <ScrollView Grid.Row="1" Padding="0,10,0,0">
                         <VerticalStackLayout Spacing="12">
                             <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="8">
-                                <Border Style="{StaticResource ToolbarBtn}" StrokeThickness="0" BackgroundColor="#0f172a" Padding="12">
+                                <Border Style="{StaticResource StatCard}">
                                     <VerticalStackLayout>
                                         <Label Text="Min" TextColor="{StaticResource TextSecondary}" FontSize="10"/>
                                         <Label Text="{Binding StatMin}" TextColor="{StaticResource PrimaryAccent}" FontAttributes="Bold" FontSize="16"/>
                                     </VerticalStackLayout>
                                 </Border>
-                                <Border Grid.Column="1" Style="{StaticResource ToolbarBtn}" StrokeThickness="0" BackgroundColor="#0f172a" Padding="12">
+                                <Border Grid.Column="1" Style="{StaticResource StatCard}">
                                     <VerticalStackLayout>
                                         <Label Text="Max" TextColor="{StaticResource TextSecondary}" FontSize="10"/>
                                         <Label Text="{Binding StatMax}" TextColor="#f87171" FontAttributes="Bold" FontSize="16"/>
                                     </VerticalStackLayout>
                                 </Border>
-                                <Border Grid.Row="1" Grid.ColumnSpan="2" Style="{StaticResource ToolbarBtn}" StrokeThickness="0" BackgroundColor="#0f172a" Padding="12">
+                                <Border Grid.Row="1" Grid.ColumnSpan="2" Style="{StaticResource StatCard}">
                                     <VerticalStackLayout>
                                         <Label Text="Average" TextColor="{StaticResource TextSecondary}" FontSize="10"/>
                                         <Label Text="{Binding StatAvg}" TextColor="{StaticResource TextPrimary}" FontAttributes="Bold" FontSize="18"/>
