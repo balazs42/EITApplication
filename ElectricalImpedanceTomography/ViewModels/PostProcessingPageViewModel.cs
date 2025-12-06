@@ -167,16 +167,21 @@ namespace ElectricalImpedanceTomography.ViewModels
         public bool LoadLatestWorkspaceResult()
         {
             var lastResult = Workspace.GetReconstructionResults().LastOrDefault();
+            var fallbackMesh = Workspace.GetDiscretization();
 
-            if (lastResult?.GetDiscretization() is Discretization mesh)
+            if (lastResult != null)
             {
                 var distribution = lastResult.GetReconstructedConductivityDistribution();
-                LoadDiscretization(mesh.DeepCopy(), new ConductivityDistribution(distribution.Conductivities), "Workspace result");
-                CanvasMessage = string.Empty;
-                return true;
+                var mesh = lastResult.GetDiscretization() ?? fallbackMesh?.GetDiscretization();
+
+                if (mesh != null)
+                {
+                    LoadDiscretization(mesh.DeepCopy(), new ConductivityDistribution(distribution.Conductivities), "Workspace result");
+                    CanvasMessage = string.Empty;
+                    return true;
+                }
             }
 
-            var fallbackMesh = Workspace.GetDiscretization();
             var fallbackSigma = Workspace.GetOriginalConductivityDistribution() ?? fallbackMesh?.GetConductivityDistribution();
             if (fallbackMesh != null && fallbackSigma != null)
             {
