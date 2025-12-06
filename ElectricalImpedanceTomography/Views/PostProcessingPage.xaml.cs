@@ -1,4 +1,5 @@
 using ElectricalImpedanceTomography.ViewModels;
+using Microsoft.Maui.ApplicationModel;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
 using System.Linq;
@@ -13,9 +14,6 @@ namespace ElectricalImpedanceTomography.Views
 
         // Visual state
         private float _scale = 1.0f;
-        private float _translateX = 0f;
-        private float _translateY = 0f;
-        private SKPoint _lastTouchPoint;
 
         // Cached Paints
         private readonly SKPaint _gridPaint = new() { Color = SKColor.Parse("#334155"), StrokeWidth = 1, IsAntialias = false };
@@ -40,7 +38,13 @@ namespace ElectricalImpedanceTomography.Views
 
             // Redraw triggers
             _viewModel.PropertyChanged += (s, e) => RequestRedraw();
-            _viewModel.MeshUpdated += (s, e) => RequestRedraw();
+            _viewModel.MeshUpdated += OnMeshUpdated;
+        }
+
+        private void OnMeshUpdated(object sender, EventArgs e)
+        {
+            _scale = 1.0f;
+            MainThread.BeginInvokeOnMainThread(RequestRedraw);
         }
 
         protected override void OnAppearing()
@@ -64,25 +68,11 @@ namespace ElectricalImpedanceTomography.Views
         private void OnFitView(object sender, EventArgs e)
         {
             _scale = 1.0f;
-            _translateX = 0;
-            _translateY = 0;
             DiscretizationCanvas.InvalidateSurface();
         }
 
         private void OnCanvasTouch(object sender, SKTouchEventArgs e)
         {
-            switch (e.ActionType)
-            {
-                case SKTouchAction.Pressed:
-                    _lastTouchPoint = e.Location;
-                    break;
-                case SKTouchAction.Moved:
-                    _translateX += e.Location.X - _lastTouchPoint.X;
-                    _translateY += e.Location.Y - _lastTouchPoint.Y;
-                    _lastTouchPoint = e.Location;
-                    DiscretizationCanvas.InvalidateSurface();
-                    break;
-            }
             e.Handled = true;
         }
 
@@ -117,7 +107,7 @@ namespace ElectricalImpedanceTomography.Views
 
             if (!_viewModel.HasMesh || (femMesh == null && lbmGrid == null))
             {
-                canvas.Clear(SKColor.Parse("#0b1120"));
+                canvas.Clear(SKColors.Transparent);
                 var message = string.IsNullOrWhiteSpace(_viewModel.CanvasMessage)
                     ? "No reconstruction loaded."
                     : _viewModel.CanvasMessage;
@@ -147,7 +137,7 @@ namespace ElectricalImpedanceTomography.Views
             if (extent < 1e-6f)
                 extent = 1f;
 
-            canvas.Translate(info.Width / 2f + _translateX, info.Height / 2f + _translateY);
+            canvas.Translate(info.Width / 2f, info.Height / 2f);
             float baseScale = 0.85f * Math.Min(info.Width, info.Height) / extent;
             canvas.Scale(_scale * baseScale);
             canvas.Translate(-(float)((minX + maxX) / 2.0), -(float)((minY + maxY) / 2.0));
@@ -184,7 +174,7 @@ namespace ElectricalImpedanceTomography.Views
             float width = grid.Nx;
             float height = grid.Ny;
 
-            canvas.Translate(info.Width / 2f + _translateX, info.Height / 2f + _translateY);
+            canvas.Translate(info.Width / 2f, info.Height / 2f);
             float baseScale = 0.85f * Math.Min(info.Width, info.Height) / Math.Max(width, height);
             canvas.Scale(_scale * baseScale);
             canvas.Translate(-width / 2f, -height / 2f);
