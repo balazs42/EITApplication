@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 
 namespace Utility.Classes.PostProcessing
 {
@@ -10,6 +11,9 @@ namespace Utility.Classes.PostProcessing
         {
             if (discretization is FEMMesh femMesh)
                 return BuildFemNeighbors(femMesh);
+
+            if (discretization is LBMGrid lbmGrid)
+                return BuildLbmNeighbors(lbmGrid);
 
             // Fallback: no topology information available
             return [];
@@ -54,6 +58,41 @@ namespace Utility.Classes.PostProcessing
                             adjacency.Add(otherId);
                     }
                 }
+            }
+
+            return neighbors;
+        }
+
+        private static Dictionary<int, List<int>> BuildLbmNeighbors(LBMGrid grid)
+        {
+            var neighbors = new Dictionary<int, List<int>>(grid.Nx * grid.Ny);
+
+            foreach (var element in grid.GetElements())
+            {
+                if (element is not LBMElement cell)
+                    continue;
+
+                var list = new List<int>();
+                var (x, y) = grid.ToLattice(cell.Id);
+
+                void TryAdd(int nx, int ny)
+                {
+                    if (nx < 0 || ny < 0 || nx >= grid.Nx || ny >= grid.Ny)
+                        return;
+
+                    var neighbor = grid.GetElementAt(nx, ny);
+                    if (neighbor.IsWall)
+                        return;
+
+                    list.Add(neighbor.Id);
+                }
+
+                TryAdd(x - 1, y);
+                TryAdd(x + 1, y);
+                TryAdd(x, y - 1);
+                TryAdd(x, y + 1);
+
+                neighbors[cell.Id] = list;
             }
 
             return neighbors;

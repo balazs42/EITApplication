@@ -12,6 +12,8 @@ namespace ElectricalImpedanceTomography.Views
         private readonly SKPaint _femStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.White.WithAlpha(80), StrokeWidth = 0.75f, IsAntialias = true };
         private readonly SKPaint _femFill = new() { Style = SKPaintStyle.Fill, IsAntialias = true };
         private readonly SKPaint _lbmStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Gray.WithAlpha(120), StrokeWidth = 1f, IsAntialias = true };
+        private readonly SKPaint _legendStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.White.WithAlpha(80), StrokeWidth = 1f, IsAntialias = true };
+        private readonly SKPaint _legendText = new() { Color = SKColors.LightGray, TextSize = 12, IsAntialias = true };
         private readonly SKPaint _placeholderText = new()
         {
             Color = SKColors.LightGray,
@@ -29,6 +31,16 @@ namespace ElectricalImpedanceTomography.Views
             BindingContext = _viewModel;
 
             _viewModel.MeshUpdated += (_, _) => PostProcessingCanvas?.InvalidateSurface();
+            _viewModel.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName == nameof(PostProcessingPageViewModel.MinCutoff)
+                    || args.PropertyName == nameof(PostProcessingPageViewModel.MaxCutoff)
+                    || args.PropertyName == nameof(PostProcessingPageViewModel.IsLogScale)
+                    || args.PropertyName == nameof(PostProcessingPageViewModel.HasMesh))
+                {
+                    ColorBarCanvas?.InvalidateSurface();
+                }
+            };
         }
 
         protected override void OnAppearing()
@@ -40,6 +52,7 @@ namespace ElectricalImpedanceTomography.Views
             }
 
             PostProcessingCanvas?.InvalidateSurface();
+            ColorBarCanvas?.InvalidateSurface();
         }
 
         private void OnCanvasViewPaintSurface(object? sender, SkiaSharp.Views.Maui.SKPaintSurfaceEventArgs e)
@@ -64,12 +77,14 @@ namespace ElectricalImpedanceTomography.Views
             if (_viewModel.LbmGrid is LBMGrid lbm)
             {
                 DrawLbmGrid(canvas, info, lbm);
+                ColorBarCanvas?.InvalidateSurface();
                 return;
             }
 
             if (_viewModel.FemMesh is FEMMesh fem)
             {
                 DrawFemMesh(canvas, info, fem);
+                ColorBarCanvas?.InvalidateSurface();
                 return;
             }
 
@@ -149,6 +164,37 @@ namespace ElectricalImpedanceTomography.Views
                             info.Width / 2f,
                             info.Height / 2f,
                             _placeholderText);
+        }
+
+        private void OnColorBarPaintSurface(object? sender, SkiaSharp.Views.Maui.SKPaintSurfaceEventArgs e)
+        {
+            var canvas = e.Surface.Canvas;
+            var info = e.Info;
+            canvas.Clear(SKColors.Transparent);
+
+            if (!_viewModel.HasMesh)
+                return;
+
+            var barRect = SKRect.Create(info.Width * 0.25f, 10, info.Width * 0.35f, info.Height - 30);
+            using var shader = SKShader.CreateLinearGradient(
+                new SKPoint(barRect.Left, barRect.Bottom),
+                new SKPoint(barRect.Left, barRect.Top),
+                new[] { ColorForValue(0), ColorForValue(1) },
+                null,
+                SKShaderTileMode.Clamp);
+
+            using var fill = new SKPaint { Shader = shader, Style = SKPaintStyle.Fill, IsAntialias = true };
+            canvas.DrawRect(barRect, fill);
+            canvas.DrawRect(barRect, _legendStroke);
+
+            float labelX = barRect.Right + 6f;
+            string minText = _viewModel.MinCutoff.ToString("0.###");
+            string maxText = _viewModel.MaxCutoff.ToString("0.###");
+            string midText = ((_viewModel.MinCutoff + _viewModel.MaxCutoff) / 2.0).ToString("0.###");
+
+            canvas.DrawText(maxText, labelX, barRect.Top + _legendText.TextSize, _legendText);
+            canvas.DrawText(midText, labelX, barRect.MidY + _legendText.TextSize * 0.35f, _legendText);
+            canvas.DrawText(minText, labelX, barRect.Bottom, _legendText);
         }
     }
 }

@@ -90,10 +90,36 @@
                             <Border BackgroundColor="#0b0e12" Stroke="{StaticResource BorderColor}" StrokeShape="RoundRectangle 8" Padding="12">
                                 <VerticalStackLayout Spacing="10">
                                     <Label Text="Post Processing Options" Style="{StaticResource HeaderLabel}" Margin="0,0,0,6"/>
-                                    <CollectionView ItemsSource="{Binding PostProcessingOptions}" SelectionMode="Single" SelectedItem="{Binding SelectedPostProcessor}" HeightRequest="260">
+                                    <CollectionView ItemsSource="{Binding PostProcessingGroups}" SelectionMode="Single" SelectedItem="{Binding SelectedPostProcessor}" HeightRequest="280" IsGrouped="True" ItemsLayout="VerticalList">
+                                        <CollectionView.GroupHeaderTemplate>
+                                            <DataTemplate x:DataType="post:PostProcessingGroup">
+                                                <VerticalStackLayout Spacing="2" Padding="4,8,0,4">
+                                                    <Label Text="{Binding Title}" TextColor="{StaticResource TextSecondary}" FontAttributes="Bold" FontSize="13"/>
+                                                    <Label Text="{Binding Description}" TextColor="{StaticResource TextMuted}" FontSize="11" LineBreakMode="WordWrap"/>
+                                                </VerticalStackLayout>
+                                            </DataTemplate>
+                                        </CollectionView.GroupHeaderTemplate>
                                         <CollectionView.ItemTemplate>
                                             <DataTemplate x:DataType="post:IPostProcessing">
-                                                <Border BackgroundColor="#13161C" Stroke="{StaticResource BorderColor}" StrokeShape="RoundRectangle 6" Padding="10">
+                                                <Border x:Name="OptionCard" BackgroundColor="#13161C" Stroke="{StaticResource BorderColor}" StrokeShape="RoundRectangle 6" Padding="10" StrokeThickness="1">
+                                                    <VisualStateManager.VisualStateGroups>
+                                                        <VisualStateGroup x:Name="CommonStates">
+                                                            <VisualState x:Name="Normal">
+                                                                <VisualState.Setters>
+                                                                    <Setter Property="BackgroundColor" Value="#13161C" />
+                                                                    <Setter Property="Stroke" Value="{StaticResource BorderColor}" />
+                                                                    <Setter Property="StrokeThickness" Value="1" />
+                                                                </VisualState.Setters>
+                                                            </VisualState>
+                                                            <VisualState x:Name="Selected">
+                                                                <VisualState.Setters>
+                                                                    <Setter Property="BackgroundColor" Value="#0c1b23" />
+                                                                    <Setter Property="Stroke" Value="{StaticResource PrimaryAccent}" />
+                                                                    <Setter Property="StrokeThickness" Value="2" />
+                                                                </VisualState.Setters>
+                                                            </VisualState>
+                                                        </VisualStateGroup>
+                                                    </VisualStateManager.VisualStateGroups>
                                                     <VerticalStackLayout>
                                                         <Label Text="{Binding Name}" TextColor="{StaticResource TextPrimary}" FontAttributes="Bold"/>
                                                         <Label Text="{Binding Description}" TextColor="{StaticResource TextMuted}" FontSize="12" LineBreakMode="WordWrap"/>
@@ -110,19 +136,24 @@
                                 </VerticalStackLayout>
                             </Border>
 
-                            <Border BackgroundColor="#0b0e12" Stroke="{StaticResource BorderColor}" StrokeShape="RoundRectangle 8" Padding="12">
-                                <VerticalStackLayout Spacing="8">
-                                    <Label Text="History" Style="{StaticResource HeaderLabel}" Margin="0,0,0,6"/>
-                                    <CollectionView ItemsSource="{Binding HistoryLog}" HeightRequest="120">
-                                        <CollectionView.ItemTemplate>
-                                            <DataTemplate>
-                                                <Label Text="{Binding .}" TextColor="{StaticResource TextSecondary}" FontSize="12" LineBreakMode="WordWrap"/>
-                                            </DataTemplate>
-                                        </CollectionView.ItemTemplate>
-                                    </CollectionView>
-                                    <Button Text="Export" Command="{Binding ExportDataCommand}" Style="{StaticResource ToolbarBtn}"/>
-                                </VerticalStackLayout>
-                            </Border>
+                              <Border BackgroundColor="#0b0e12" Stroke="{StaticResource BorderColor}" StrokeShape="RoundRectangle 8" Padding="12">
+                                  <VerticalStackLayout Spacing="8">
+                                      <Label Text="History" Style="{StaticResource HeaderLabel}" Margin="0,0,0,6"/>
+                                      <CollectionView ItemsSource="{Binding HistoryLog}" HeightRequest="140" ItemsLayout="VerticalList" SelectionMode="None" BackgroundColor="#0b121d" Margin="0,4,0,0">
+                                          <CollectionView.ItemTemplate>
+                                              <DataTemplate>
+                                                  <Border Stroke="{StaticResource BorderColor}" StrokeThickness="0" Padding="6,4" BackgroundColor="#0f172a">
+                                                      <Label Text="{Binding .}" TextColor="{StaticResource TextPrimary}" FontSize="12" LineBreakMode="WordWrap"/>
+                                                  </Border>
+                                              </DataTemplate>
+                                          </CollectionView.ItemTemplate>
+                                          <CollectionView.EmptyView>
+                                              <Label Text="No actions yet." TextColor="{StaticResource TextMuted}" FontSize="12"/> 
+                                          </CollectionView.EmptyView>
+                                      </CollectionView>
+                                      <Button Text="Export" Command="{Binding ExportDataCommand}" Style="{StaticResource ToolbarBtn}"/>
+                                  </VerticalStackLayout>
+                              </Border>
                         </VerticalStackLayout>
                     </ScrollView>
                 </Grid>
@@ -159,14 +190,22 @@
                             </VerticalStackLayout>
 
                             <Border Grid.Row="1" BackgroundColor="#0b0e12" Stroke="{StaticResource BorderColor}" StrokeShape="RoundRectangle 10" Padding="20" HorizontalOptions="Fill" VerticalOptions="Fill">
-                                <Grid>
-                                    <skia:SKCanvasView x:Name="PostProcessingCanvas"
+                                <Grid ColumnDefinitions="*,90" ColumnSpacing="12">
+                                    <skia:SKCanvasView Grid.Column="0" x:Name="PostProcessingCanvas"
                                                        PaintSurface="OnCanvasViewPaintSurface"
                                                        IgnorePixelScaling="True"
                                                        HorizontalOptions="Fill"
                                                        VerticalOptions="Fill" />
 
-                                    <VerticalStackLayout Spacing="8" HorizontalOptions="Center" VerticalOptions="Center" IsVisible="True">
+                                    <skia:SKCanvasView Grid.Column="1" x:Name="ColorBarCanvas"
+                                                       IsVisible="{Binding HasMesh}"
+                                                       PaintSurface="OnColorBarPaintSurface"
+                                                       IgnorePixelScaling="True"
+                                                       WidthRequest="70"
+                                                       HorizontalOptions="Center"
+                                                       VerticalOptions="Fill" />
+
+                                    <VerticalStackLayout Spacing="8" Grid.ColumnSpan="2" HorizontalOptions="Center" VerticalOptions="Center" IsVisible="True">
                                         <VerticalStackLayout.Triggers>
                                             <DataTrigger TargetType="VerticalStackLayout" Binding="{Binding HasMesh}" Value="True">
                                                 <Setter Property="IsVisible" Value="False" />
@@ -219,12 +258,17 @@
                             <Border BackgroundColor="#0f172a" Stroke="{StaticResource BorderColor}" StrokeShape="RoundRectangle 8" Padding="12">
                                 <VerticalStackLayout Spacing="8">
                                     <Label Text="History" TextColor="{StaticResource TextSecondary}" FontSize="12"/>
-                                    <CollectionView ItemsSource="{Binding HistoryLog}" HeightRequest="140">
+                                    <CollectionView ItemsSource="{Binding HistoryLog}" HeightRequest="160" ItemsLayout="VerticalList" SelectionMode="None" BackgroundColor="#0b121d" Margin="0,4,0,0">
                                         <CollectionView.ItemTemplate>
                                             <DataTemplate>
-                                                <Label Text="{Binding .}" TextColor="{StaticResource TextPrimary}" FontSize="12" LineBreakMode="WordWrap"/>
+                                                <Border Stroke="{StaticResource BorderColor}" StrokeThickness="0" Padding="6,4" BackgroundColor="#0f172a">
+                                                    <Label Text="{Binding .}" TextColor="{StaticResource TextPrimary}" FontSize="12" LineBreakMode="WordWrap"/>
+                                                </Border>
                                             </DataTemplate>
                                         </CollectionView.ItemTemplate>
+                                        <CollectionView.EmptyView>
+                                            <Label Text="No actions yet." TextColor="{StaticResource TextMuted}" FontSize="12"/> 
+                                        </CollectionView.EmptyView>
                                     </CollectionView>
                                 </VerticalStackLayout>
                             </Border>
