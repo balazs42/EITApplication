@@ -242,7 +242,7 @@
                                     <Label Text="{Binding SelectedPostProcessor.Name}" TextColor="{StaticResource TextPrimary}" FontAttributes="Bold" FontSize="14"/>
                                     <CollectionView ItemsSource="{Binding ParameterOptions}" IsVisible="{Binding HasParameterOptions}" SelectionMode="None" ItemsLayout="VerticalList" HeightRequest="190">
                                         <CollectionView.ItemTemplate>
-                                            <DataTemplate>
+                                            <DataTemplate x:DataType="post:IPostProcessing">
                                                 <VerticalStackLayout Spacing="6">
                                                     <Label Text="{Binding Name}" TextColor="{StaticResource TextSecondary}" FontAttributes="Bold" FontSize="12"/>
                                                     <Label Text="{Binding Description}" TextColor="{StaticResource TextMuted}" FontSize="11" LineBreakMode="WordWrap"/>
@@ -251,7 +251,6 @@
                                                                 Minimum="{Binding Minimum}"
                                                                 Maximum="{Binding Maximum}"
                                                                 Value="{Binding Value, Mode=TwoWay}"
-                                                                StepFrequency="{Binding Step}"
                                                                 ThumbColor="#06b6d4"
                                                                 MinimumTrackColor="#06b6d4"
                                                                 MaximumTrackColor="#1f2937" />
