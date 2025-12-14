@@ -144,7 +144,7 @@ namespace Utility.Classes.Configurations.ReconstructionConfiguration
                                                             c.TargetId,
                                                             c.SourceType,
                                                             c.TargetType,
-                                                            1.0))
+                                                            c.Weight))
                 .ToList();
 
             var optimizerToModelWeights = connectionSnapshots
