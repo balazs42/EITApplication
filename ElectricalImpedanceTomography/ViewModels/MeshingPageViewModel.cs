@@ -87,6 +87,9 @@ namespace ElectricalImpedanceTomography.ViewModels
         [ObservableProperty]
         private string meshSearchText = string.Empty;
 
+        [ObservableProperty]
+        private bool generate3D = false;
+
         public ObservableCollection<DiscretizationInfo> AvailableMeshes { get; } = [];
         public ObservableCollection<DiscretizationInfo> FilteredMeshes { get; } = [];
 
