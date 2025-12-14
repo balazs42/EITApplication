@@ -15,6 +15,8 @@ namespace Utility.Classes.Factories
             ErrorMetric.L2 => CreateL2Metric(),
             ErrorMetric.Wasserstein2 => CreateWasserstein2Metirc(),
             ErrorMetric.ConductivityAwareW2 => CreateConductivityAwareW2Metric(),
+            ErrorMetric.EnergyBasedWasserstein2 => CreateEnergyBasedWasserstein2Metric(),
+            ErrorMetric.UnbalancedWasserstein2 => CreateUnbalancedWasserstein2Metric(),
             _ => throw new NotSupportedException()
         };
 
@@ -42,6 +44,24 @@ namespace Utility.Classes.Factories
             var metric = new ConductivityAwareW2Metric();
 
             Workspace.AddLogMessage("ErrorMetricFactory", "Created ConductivityAwareW2Metric object.");
+
+            return metric;
+        }
+
+        private static EnergyBasedWasserstein2Metric CreateEnergyBasedWasserstein2Metric()
+        {
+            var metric = new EnergyBasedWasserstein2Metric();
+
+            Workspace.AddLogMessage("ErrorMetricFactory", "Created EnergyBasedWasserstein2Metric object.");
+
+            return metric;
+        }
+
+        private static UnbalancedWasserstein2Metric CreateUnbalancedWasserstein2Metric()
+        {
+            var metric = new UnbalancedWasserstein2Metric();
+
+            Workspace.AddLogMessage("ErrorMetricFactory", "Created UnbalancedWasserstein2Metric object.");
 
             return metric;
         }

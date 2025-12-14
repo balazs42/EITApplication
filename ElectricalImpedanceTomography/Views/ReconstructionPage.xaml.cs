@@ -1,23 +1,26 @@
 using CommunityToolkit.Maui.Views;
 using ElectricalImpedanceTomography.Extensions;
-using ElectricalImpedanceTomography.Helpers;
 using ElectricalImpedanceTomography.ViewModels;
-using Microsoft.Maui.ApplicationModel;
-using Microsoft.Maui.Storage;
-using System.Linq;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
 using SkiaSharp.Views.Maui.Controls;
-using System.Collections.Specialized;
-using System.IO;
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Threading.Tasks;
 using Utility.Classes;
 using Utility.Classes.Measurement;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
-using Microsoft.Maui.Graphics;
+using Utility.Classes.Reconstruction.Metrics;
+using Utility.Rendering;
 
 using Workspace = Utility.Classes.Application.Workspace;
+using Utility.Exports;
+using CommunityToolkit.Maui.Core;
+using Utility.Classes.Factories;
 
 namespace ElectricalImpedanceTomography.Views;
 
@@ -28,6 +31,7 @@ public partial class ReconstructionPage : ContentPage
 
     private ReconstructionResult? _currentResult;
     private ReconstructionFrame? _currentFrame;
+    private GradientInspectionPopup? _gradientPopup;
 
     // FEM transform helpers
     private float _scale, _marginX, _marginY, _meshWidth, _meshHeight, _minX, _minY, _canvasHeight;
@@ -39,9 +43,9 @@ public partial class ReconstructionPage : ContentPage
     private string[]? _hoverAdjointLines; private SKPoint? _hoverAdjointPt;
     private string[]? _hoverInitialLines; private SKPoint? _hoverInitialPt;
     private string[]? _hoverGradientLines; private SKPoint? _hoverGradientPt;
-    private int _lastResidualRenderCount;
 
     private PotentialDisplayMode _potMode = PotentialDisplayMode.Default;
+    private ConductivityDisplayMode _conductivityMode = ConductivityDisplayMode.Classic;
 
     private bool _isPaused = false;
     private bool _sliderChanging = false;
@@ -49,14 +53,141 @@ public partial class ReconstructionPage : ContentPage
     private static readonly SKColor DistributionCanvasBackgroundColor = SKColor.Parse("#1A2436");
     private static readonly SKColor ChartGradientTopColor = SKColor.Parse("#23354D");
     private static readonly SKColor ChartGradientBottomColor = SKColor.Parse("#151E2D");
-    private static readonly SKColor ChartLineColor = SKColor.Parse("#3A9CED");
-    private static readonly SKColor ChartAreaFillColor = new SKColor(58, 156, 237, 90);
     private static readonly SKColor ChartAxisColor = SKColor.Parse("#5B6F94");
     private static readonly SKColor ChartGridColor = new SKColor(255, 255, 255, 50);
-    private static readonly SKColor ChartPointColor = SKColor.Parse("#A7D2FF");
-    private static readonly SKColor ChartPointOutlineColor = SKColor.Parse("#0B1C2F");
     private static readonly SKColor ChartPrimaryTextColor = new SKColor(198, 212, 245);
     private static readonly SKColor ChartSecondaryTextColor = new SKColor(157, 170, 211);
+
+    private static readonly (double Position, SKColor Color)[] EnhancedDivergingPalette =
+    {
+        (0.0, SKColor.Parse("#2B83BA")),
+        (0.17, SKColor.Parse("#74ADD1")),
+        (0.33, SKColor.Parse("#E0F3F8")),
+        (0.5, SKColor.Parse("#FFFFBF")),
+        (0.67, SKColor.Parse("#FEE08B")),
+        (0.83, SKColor.Parse("#FC8D59")),
+        (1.0, SKColor.Parse("#D53E4F"))
+    };
+
+    private static readonly (double Position, SKColor Color)[] MatlabJetPalette =
+    {
+        (0.0, SKColor.Parse("#00007F")),
+        (0.125, SKColor.Parse("#0000FF")),
+        (0.375, SKColor.Parse("#00FFFF")),
+        (0.625, SKColor.Parse("#FFFF00")),
+        (0.875, SKColor.Parse("#FF0000")),
+        (1.0, SKColor.Parse("#7F0000"))
+    };
+
+    private static readonly (double Position, SKColor Color)[] ParulaPalette =
+    {
+        (0.0, SKColor.Parse("#352A87")),
+        (0.16, SKColor.Parse("#2462BE")),
+        (0.33, SKColor.Parse("#1F9AD6")),
+        (0.5, SKColor.Parse("#3BB6A5")),
+        (0.66, SKColor.Parse("#74C476")),
+        (0.83, SKColor.Parse("#B6D051")),
+        (1.0, SKColor.Parse("#FDE724"))
+    };
+
+    private static readonly (double Position, SKColor Color)[] ViridisPalette =
+    {
+        (0.0, SKColor.Parse("#440154")),
+        (0.2, SKColor.Parse("#414487")),
+        (0.4, SKColor.Parse("#2A788E")),
+        (0.6, SKColor.Parse("#22A884")),
+        (0.8, SKColor.Parse("#7AD151")),
+        (1.0, SKColor.Parse("#FDE725"))
+    };
+
+    private static readonly (double Position, SKColor Color)[] PlasmaPalette =
+    {
+        (0.0, SKColor.Parse("#0D0887")),
+        (0.16, SKColor.Parse("#5B02A3")),
+        (0.33, SKColor.Parse("#9A179B")),
+        (0.5, SKColor.Parse("#CB4679")),
+        (0.66, SKColor.Parse("#ED7953")),
+        (0.83, SKColor.Parse("#FDB42F")),
+        (1.0, SKColor.Parse("#F0F921"))
+    };
+
+    private static readonly (double Position, SKColor Color)[] MagmaPalette =
+    {
+        (0.0, SKColor.Parse("#000004")),
+        (0.16, SKColor.Parse("#1C1044")),
+        (0.33, SKColor.Parse("#4F0C6B")),
+        (0.5, SKColor.Parse("#822681")),
+        (0.66, SKColor.Parse("#B73779")),
+        (0.83, SKColor.Parse("#F1605D")),
+        (1.0, SKColor.Parse("#FCFDBF"))
+    };
+
+    private static readonly (double Position, SKColor Color)[] CividisPalette =
+    {
+        (0.0, SKColor.Parse("#00204C")),
+        (0.2, SKColor.Parse("#00366F")),
+        (0.4, SKColor.Parse("#39558C")),
+        (0.6, SKColor.Parse("#7B7B78")),
+        (0.8, SKColor.Parse("#B8B972")),
+        (1.0, SKColor.Parse("#FAF976"))
+    };
+
+    private static readonly (double Position, SKColor Color)[] CoolWarmPalette =
+    {
+        (0.0, SKColor.Parse("#3B4CC0")),
+        (0.16, SKColor.Parse("#5C86C5")),
+        (0.33, SKColor.Parse("#93B5D7")),
+        (0.5, SKColor.Parse("#E6E6E6")),
+        (0.66, SKColor.Parse("#E5B08A")),
+        (0.83, SKColor.Parse("#D25C4D")),
+        (1.0, SKColor.Parse("#8B1A1A"))
+    };
+
+    // For FEM, which node do we use as "visual ground"?
+    private const int VisualReferenceNodeId = 1;
+
+    private static readonly TrendVisualizationStyle ResidualTrendStyle = new(
+        SKColor.Parse("#3A9CED"),
+        new SKColor(58, 156, 237, 90),
+        SKColor.Parse("#A7D2FF"),
+        SKColor.Parse("#0B1C2F"));
+
+    private static readonly TrendVisualizationStyle ErrorTrendStyle = new(
+        SKColor.Parse("#F4A261"),
+        new SKColor(244, 162, 97, 90),
+        SKColor.Parse("#FFD8B5"),
+        SKColor.Parse("#3B2A1A"));
+
+    private static readonly TrendVisualizationStyle SimilarityTrendStyle = new(
+        SKColor.Parse("#2A9D8F"),
+        new SKColor(42, 157, 143, 90),
+        SKColor.Parse("#9ADBD2"),
+        SKColor.Parse("#103A35"));
+
+    private readonly struct TrendVisualizationStyle
+    {
+        public TrendVisualizationStyle(SKColor lineColor, SKColor areaColor, SKColor pointColor, SKColor pointOutlineColor)
+        {
+            LineColor = lineColor;
+            AreaColor = areaColor;
+            PointColor = pointColor;
+            PointOutlineColor = pointOutlineColor;
+        }
+
+        public SKColor LineColor { get; }
+        public SKColor AreaColor { get; }
+        public SKColor PointColor { get; }
+        public SKColor PointOutlineColor { get; }
+    }
+
+    private static TrendVisualizationStyle ResolveTrendStyle(TrendMetricCategory category)
+        => category switch
+        {
+            TrendMetricCategory.ErrorNorm => ErrorTrendStyle,
+            TrendMetricCategory.Similarity => SimilarityTrendStyle,
+            TrendMetricCategory.Residual => ResidualTrendStyle,
+            _ => ResidualTrendStyle
+        };
 
     public ReconstructionPage()
     {
@@ -73,9 +204,16 @@ public partial class ReconstructionPage : ContentPage
 
         PotentialModeChanged += OnPotentialModeChanged;
 
+        ConductivityModePicker.SelectedIndexChanged += (s, e) =>
+        {
+            OnConductivityModeChanged(this, ConductivityModePicker.SelectedIndex);
+        };
+
         _viewModel.ReconstructionUpdated += OnReconstructionUpdated;
         _viewModel.ReconstructionFrameUpdated += OnReconstructionFrameUpdated;
-        _viewModel.ResidualHistory.CollectionChanged += OnResidualHistoryChanged;
+        _viewModel.SelectedTrendMetricHistoryChanged += OnSelectedTrendMetricHistoryChanged;
+        _viewModel.GradientInspectionRequested += OnGradientInspectionRequested;
+        _viewModel.GradientSelectionChanged += OnGradientSelectionChanged;
 
         StepButton.IsEnabled = false;
         PlayButton.IsVisible = true;
@@ -83,16 +221,25 @@ public partial class ReconstructionPage : ContentPage
         PlayerBackButton.IsEnabled = false;
         PlayerForwardButton.IsEnabled = false;
 
+        ConductivityModePicker.SelectedIndex = (int)_conductivityMode;
+
         UpdateExportButtonState();
+
+        MetricTrendCanvas.InvalidateSurface();
     }
 
-    protected override void OnAppearing()
-    {
-        base.OnAppearing();
-        var (startColor, endColor) = GetBackgroundPulseColors();
-        this.StartBackgroundPulse(startColor, endColor);
-        _viewModel.LoadAvailableReconstructions();
-    }
+        protected override void OnAppearing()
+        {
+            base.OnAppearing();
+            var (startColor, endColor) = GetBackgroundPulseColors();
+            this.StartBackgroundPulse(startColor, endColor);
+            _viewModel.RefreshMeasurementSourceOptions();
+            _viewModel.LoadAvailableReconstructions();
+            _viewModel.RefreshMethodPickerOptions();
+            _viewModel.SyncInitialDistribution();
+            InitialDistributionCanvas.InvalidateSurface();
+            InitialColorbarCanvas.InvalidateSurface();
+        }
 
     protected override void OnDisappearing()
     {
@@ -104,7 +251,7 @@ public partial class ReconstructionPage : ContentPage
     {
         var theme = Application.Current?.RequestedTheme ?? AppTheme.Light;
         return theme == AppTheme.Dark
-            ? (Color.FromArgb("#1B1A13"), Color.FromArgb("#2A281E"))
+            ? (Color.FromArgb("#101B2B"), Color.FromArgb("#1A2F45"))
             : (Color.FromArgb("#F2E7D8"), Color.FromArgb("#E6DAC9"));
     }
 
@@ -123,6 +270,21 @@ public partial class ReconstructionPage : ContentPage
     private void UpdateExportButtonState()
         => ExportVideoButton.IsEnabled = Workspace.GetReconstructionFrames().Count > 0;
 
+    private void OnInitialDistributionEdited(object? sender, EventArgs e)
+    {
+        _viewModel.AcknowledgeInitialDistributionUpdate();
+        InitialDistributionCanvas.InvalidateSurface();
+        InitialColorbarCanvas.InvalidateSurface();
+    }
+
+    private void OnInitialDistributionPickerChanged(object? sender, EventArgs e)
+    {
+        _viewModel.SyncInitialDistribution(true);
+        _viewModel.AcknowledgeInitialDistributionUpdate();
+        InitialDistributionCanvas.InvalidateSurface();
+        InitialColorbarCanvas.InvalidateSurface();
+    }
+
     #region Simulation control
     private async void OnPlayButtonClicked(object sender, EventArgs e)
     {
@@ -132,9 +294,9 @@ public partial class ReconstructionPage : ContentPage
             return;
         }
 
-        if(!_viewModel.CheckReconstructionMethodAgainstMesh())
+        if(!_viewModel.CheckReconstructionMethodAgainstDiscretization())
         {
-            await DisplayAlert("Bad Differential Equation Solver", "You should select the same type of DE solver what your mesh is made for!", "Ok");
+            await DisplayAlert("Bad Differential Equation Solver", "You should select the same type of DE solver that your discretization is made for!", "Ok");
             return;
         }
 
@@ -171,6 +333,32 @@ public partial class ReconstructionPage : ContentPage
             PlayButton.IsVisible = true;
             PauseButton.IsVisible = false;
         }
+    }
+
+    private async void OnEditInitialDistributionClicked(object sender, EventArgs e)
+    {
+        if (!_viewModel.CanEditInitialDistribution)
+            return;
+
+        var discretization = GetDiscretization();
+        if (discretization == null)
+        {
+            await DisplayAlert("No Mesh", "You should create or load a mesh before editing the initial distribution!", "Ok");
+            return;
+        }
+
+        var initial = Workspace.GetInitialConductivityDistribution() ?? discretization.GetConductivityDistribution();
+        var original = Workspace.GetOriginalConductivityDistribution();
+        var popup = new InitialDistributionEditorPopup(discretization,
+                                                       initial,
+                                                       original,
+                                                       _viewModel.ReconstructionParameters.InitialDistributionType);
+        popup.DistributionChanged += OnInitialDistributionEdited;
+        await this.ShowPopupAsync(popup);
+        popup.DistributionChanged -= OnInitialDistributionEdited;
+
+        InitialDistributionCanvas.InvalidateSurface();
+        InitialColorbarCanvas.InvalidateSurface();
     }
 
     private async void OnPauseButtonClicked(object sender, EventArgs e)
@@ -280,43 +468,49 @@ public partial class ReconstructionPage : ContentPage
         });
     }
 
-    private void OnResidualHistoryChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    private void OnSelectedTrendMetricHistoryChanged(object? sender, EventArgs e)
+        => MainThread.BeginInvokeOnMainThread(() => MetricTrendCanvas.InvalidateSurface());
+
+    private async void OnGradientInspectionRequested(object? sender, EventArgs e)
     {
-        bool shouldInvalidate = false;
+        if (_gradientPopup != null)
+            return;
 
-        switch (e.Action)
+        var popup = new GradientInspectionPopup(_viewModel);
+        _gradientPopup = popup;
+        popup.Closed += OnGradientPopupClosed;
+        await this.ShowPopupAsync(popup);
+    }
+
+    private void OnGradientPopupClosed(object? sender, PopupClosedEventArgs e)
+    {
+        if (_gradientPopup is GradientInspectionPopup popup)
         {
-            case NotifyCollectionChangedAction.Reset:
-                _lastResidualRenderCount = 0;
-                shouldInvalidate = true;
-                break;
-
-            case NotifyCollectionChangedAction.Add:
-                int count = _viewModel.ResidualHistory.Count;
-                if (count == 0)
-                {
-                    _lastResidualRenderCount = 0;
-                    shouldInvalidate = true;
-                }
-                else if (count % 10 == 0 && count != _lastResidualRenderCount)
-                {
-                    _lastResidualRenderCount = count;
-                    shouldInvalidate = true;
-                }
-                break;
-
-            case NotifyCollectionChangedAction.Remove:
-            case NotifyCollectionChangedAction.Replace:
-            case NotifyCollectionChangedAction.Move:
-                _lastResidualRenderCount = _viewModel.ResidualHistory.Count;
-                shouldInvalidate = true;
-                break;
+            popup.Closed -= OnGradientPopupClosed;
+            _gradientPopup = null;
         }
+    }
 
-        if (shouldInvalidate)
+    private void OnGradientSelectionChanged(object? sender, int index)
+    {
+        if (index < 0)
+            return;
+
+        var sample = _viewModel.GetGradientSample(index);
+        if (sample is null)
+            return;
+
+        Dispatcher.Dispatch(() =>
         {
-            MainThread.BeginInvokeOnMainThread(() => ResidualTrendCanvas.InvalidateSurface());
-        }
+            double target = sample.FrameIndex;
+            if (Math.Abs(PlaybackSlider.Value - target) < 0.01)
+                return;
+
+            _sliderChanging = true;
+            PlaybackSlider.Value = Math.Clamp(target, PlaybackSlider.Minimum, PlaybackSlider.Maximum);
+            _sliderChanging = false;
+            UpdatePlaybackLabel();
+        });
     }
 
     #region Drawing helpers
@@ -377,6 +571,52 @@ public partial class ReconstructionPage : ContentPage
         }
     }
 
+    private static SKColor Lerp(SKColor a, SKColor b, double t)
+    {
+        byte r = (byte)Math.Round(a.Red + (b.Red - a.Red) * t);
+        byte g = (byte)Math.Round(a.Green + (b.Green - a.Green) * t);
+        byte bl = (byte)Math.Round(a.Blue + (b.Blue - a.Blue) * t);
+        byte al = (byte)Math.Round(a.Alpha + (b.Alpha - a.Alpha) * t);
+        return new SKColor(r, g, bl, al);
+    }
+
+    private static SKColor InterpolatePalette((double Position, SKColor Color)[] palette, double t)
+    {
+        t = Math.Clamp(t, 0.0, 1.0);
+        for (int i = 0; i < palette.Length - 1; i++)
+        {
+            var (p0, c0) = palette[i];
+            var (p1, c1) = palette[i + 1];
+            if (t >= p0 && t <= p1)
+            {
+                double localT = (t - p0) / (p1 - p0);
+                return Lerp(c0, c1, localT);
+            }
+        }
+        return palette[^1].Color;
+    }
+
+    private SKColor GetConductivityColor(double val, double min, double max)
+    {
+        double norm = (val - min) / (max - min);
+        norm = double.IsNaN(norm) ? 0.0 : Math.Clamp(norm, 0.0, 1.0);
+
+        return _conductivityMode switch
+        {
+            ConductivityDisplayMode.Classic => ColorForValue(val, min, max),
+            ConductivityDisplayMode.EnhancedDiverging => InterpolatePalette(EnhancedDivergingPalette, norm),
+            ConductivityDisplayMode.Rainbow => SKColor.FromHsv((float)(240.0 * (1.0 - norm)), 90f, 100f),
+            ConductivityDisplayMode.MatlabJet => InterpolatePalette(MatlabJetPalette, norm),
+            ConductivityDisplayMode.Parula => InterpolatePalette(ParulaPalette, norm),
+            ConductivityDisplayMode.Viridis => InterpolatePalette(ViridisPalette, norm),
+            ConductivityDisplayMode.Plasma => InterpolatePalette(PlasmaPalette, norm),
+            ConductivityDisplayMode.Magma => InterpolatePalette(MagmaPalette, norm),
+            ConductivityDisplayMode.Cividis => InterpolatePalette(CividisPalette, norm),
+            ConductivityDisplayMode.CoolWarm => InterpolatePalette(CoolWarmPalette, norm),
+            _ => ColorForValue(val, min, max)
+        };
+    }
+
     private SKColor GetPotentialColor(double val, double min, double max, PotentialDisplayMode? modeOverride = null)
     {
         var mode = modeOverride ?? _potMode;
@@ -435,7 +675,7 @@ public partial class ReconstructionPage : ContentPage
         foreach (var elem in mesh.GetElements().Cast<FEMElement>())
         {
             double val = cd.GetConductivity(elem.Id);
-            fill.Color = ColorForValue(val, minVal, maxVal);
+            fill.Color = GetConductivityColor(val, minVal, maxVal);
             using var path = new SKPath();
             path.MoveTo(ToCanvas(elem.Vertices[0]));
             path.LineTo(ToCanvas(elem.Vertices[1]));
@@ -447,25 +687,53 @@ public partial class ReconstructionPage : ContentPage
         DrawHoverInfo(canvas, info, lines, pt);
     }
 
+
     private void DrawFemPotential(SKCanvas canvas,
-                                  SKImageInfo info,
-                                  FEMMesh mesh,
-                                  PotentialDistribution pd,
-                                  string[]? lines,
-                                  SKPoint? pt,
-                                  PotentialDisplayMode? modeOverride = null)
+                              SKImageInfo info,
+                              FEMMesh mesh,
+                              PotentialDistribution pd,
+                              string[]? lines,
+                              SKPoint? pt,
+                              PotentialDisplayMode? modeOverride = null)
     {
         canvas.Clear(DistributionCanvasBackgroundColor);
         ComputeFemTransform(mesh, info);
         using var fill = new SKPaint { Style = SKPaintStyle.Fill, IsAntialias = true };
         using var stroke = new SKPaint { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1, IsAntialias = true };
-        double minVal = pd.Potentials.Values.Min();
-        double maxVal = pd.Potentials.Values.Max();
-        if (Math.Abs(maxVal - minVal) < 1e-12) maxVal = minVal + 1e-12;
+
+        // --- 1) determine visual reference potential (EIDORS-style ground) ---
+        double refPotential = 0.0;
+        if (pd.Potentials.TryGetValue(VisualReferenceNodeId, out double rawRef))
+        {
+            refPotential = rawRef;
+        }
+        // If the key doesn't exist (e.g. different numbering), refPotential stays 0 and no shift is applied.
+
+        // --- 2) compute shifted min/max for color scaling ---
+        // We don't mutate pd; we compute shifted values on the fly.
+        double minVal = double.PositiveInfinity;
+        double maxVal = double.NegativeInfinity;
+        foreach (var val in pd.Potentials.Values)
+        {
+            double shifted = val - refPotential;
+            if (shifted < minVal) minVal = shifted;
+            if (shifted > maxVal) maxVal = shifted;
+        }
+        if (double.IsInfinity(minVal) || double.IsInfinity(maxVal))
+        {
+            minVal = 0.0;
+            maxVal = 1e-12;
+        }
+        if (Math.Abs(maxVal - minVal) < 1e-12)
+            maxVal = minVal + 1e-12;
+
+        // --- 3) draw each element using shifted average potential ---
         foreach (var elem in mesh.GetElements().Cast<FEMElement>())
         {
-            double avg = elem.Vertices.Average(v => pd.GetPotential(v.GlobalId));
-            fill.Color = GetPotentialColor(avg, minVal, maxVal, modeOverride);
+            double avgRaw = elem.Vertices.Average(v => pd.GetPotential(v.GlobalId));
+            double avgShifted = avgRaw - refPotential;
+            fill.Color = GetPotentialColor(avgShifted, minVal, maxVal, modeOverride);
+
             using var path = new SKPath();
             path.MoveTo(ToCanvas(elem.Vertices[0]));
             path.LineTo(ToCanvas(elem.Vertices[1]));
@@ -474,8 +742,10 @@ public partial class ReconstructionPage : ContentPage
             canvas.DrawPath(path, fill);
             canvas.DrawPath(path, stroke);
         }
+
         DrawHoverInfo(canvas, info, lines, pt);
     }
+
 
     private void DrawLbmField(SKCanvas canvas,
                               SKImageInfo info,
@@ -489,27 +759,72 @@ public partial class ReconstructionPage : ContentPage
         canvas.Clear(DistributionCanvasBackgroundColor);
         float cw = info.Width / mesh.Nx;
         float ch = info.Height / mesh.Ny;
-        double minVal = values.Values.Min();
-        double maxVal = values.Values.Max();
-        if (Math.Abs(maxVal - minVal) < 1e-12) maxVal = minVal + 1e-12;
+        var (minVal, maxVal) = GetLbmValueRange(mesh, values);
+        using var ghostOverlay = new SKPaint { Style = SKPaintStyle.Stroke, Color = SKColors.WhiteSmoke, StrokeWidth = 0.75f };
+
         for (int y = 0; y < mesh.Ny; y++)
         {
             for (int x = 0; x < mesh.Nx; x++)
             {
                 var el = mesh.GetElementAt(x, y);
-                double val = values[el.Id];
-                SKColor col = el.IsWall
-                    ? SKColors.Black
-                    : isPotential
-                        ? GetPotentialColor(val, minVal, maxVal, modeOverride)
-                        : ColorForValue(val, minVal, maxVal);
+                double val = values.TryGetValue(el.Id, out double v) ? v : minVal;
+                SKColor col = el.GhostElement
+                    ? SKColor.Parse("#546E7A")
+                    : el.IsWall
+                        ? SKColors.Black
+                        : isPotential
+                            ? GetPotentialColor(val, minVal, maxVal, modeOverride)
+                            : GetConductivityColor(val, minVal, maxVal);
                 using var paint = new SKPaint { Style = SKPaintStyle.Fill, Color = col };
                 var r = SKRect.Create(x * cw, y * ch, cw, ch);
                 canvas.DrawRect(r, paint);
                 canvas.DrawRect(r, new SKPaint { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1 });
+                if (el.GhostElement)
+                {
+                    canvas.DrawLine(r.Left, r.Top, r.Right, r.Bottom, ghostOverlay);
+                    canvas.DrawLine(r.Left, r.Bottom, r.Right, r.Top, ghostOverlay);
+                }
             }
         }
         DrawHoverInfo(canvas, info, lines, pt);
+    }
+
+    private static (double Min, double Max) GetLbmValueRange(LBMGrid mesh, IReadOnlyDictionary<int, double> values)
+    {
+        bool hasValue = false;
+        double min = 0.0;
+        double max = 0.0;
+
+        foreach (var element in mesh.GetElements().Cast<LBMElement>())
+        {
+            if (element.IsWall)
+                continue;
+
+            if (!values.TryGetValue(element.Id, out double value))
+                continue;
+
+            if (double.IsNaN(value) || double.IsInfinity(value))
+                continue;
+
+            if (!hasValue)
+            {
+                min = max = value;
+                hasValue = true;
+            }
+            else
+            {
+                if (value < min) min = value;
+                if (value > max) max = value;
+            }
+        }
+
+        if (!hasValue)
+            return (0.0, 1e-12);
+
+        if (Math.Abs(max - min) < 1e-12)
+            max = min + 1e-12;
+
+        return (min, max);
     }
 
     [Obsolete]
@@ -529,7 +844,9 @@ public partial class ReconstructionPage : ContentPage
         {
             double t = i / (double)(steps - 1);
             double val = min + (max - min) * t;
-            colors[i] = isPotential ? GetPotentialColor(val, min, max, modeOverride) : ColorForValue(val, min, max);
+            colors[i] = isPotential
+                ? GetPotentialColor(val, min, max, modeOverride)
+                : GetConductivityColor(val, min, max);
             positions[i] = (float)t;
         }
         using var paint = new SKPaint
@@ -551,15 +868,52 @@ public partial class ReconstructionPage : ContentPage
     #endregion
 
     #region Canvas paint
-    private void OnResidualTrendCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
-        => DrawResidualTrend(e.Surface.Canvas, e.Info, _viewModel.ResidualHistory);
+    private void OnMetricTrendCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
+    {
+        var key = _viewModel.SelectedTrendMetricKey;
+        var history = _viewModel.GetTrendHistorySnapshot(key);
+        var metric = _viewModel.GetMetricByKey(key);
+        string metricName = metric?.Name ?? "Metric";
+        var style = ResolveTrendStyle(metric?.TrendCategory ?? TrendMetricCategory.Residual);
 
-    [Obsolete]
-    private void DrawResidualTrend(SKCanvas canvas, SKImageInfo info, IReadOnlyList<double> history)
+        string lastFormattedValue = "—";
+        int lastIteration = history.Count;
+        for (int i = history.Count - 1; i >= 0; i--)
+        {
+            double value = history[i];
+            if (double.IsNaN(value) || double.IsInfinity(value))
+                continue;
+
+            lastFormattedValue = _viewModel.FormatTrendValue(key, value);
+            lastIteration = i + 1;
+            break;
+        }
+
+        DrawMetricTrend(e.Surface.Canvas, e.Info, history, metricName, lastFormattedValue, lastIteration, style);
+    }
+
+    private void DrawMetricTrend(SKCanvas canvas,
+                                 SKImageInfo info,
+                                 IReadOnlyList<double> history,
+                                 string metricName,
+                                 string lastFormattedValue,
+                                 int lastIteration,
+                                 TrendVisualizationStyle style)
     {
         canvas.Clear(DistributionCanvasBackgroundColor);
 
-        if (history.Count == 0)
+        double minValue = double.PositiveInfinity;
+        double maxValue = double.NegativeInfinity;
+        foreach (double value in history)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value))
+                continue;
+
+            if (value < minValue) minValue = value;
+            if (value > maxValue) maxValue = value;
+        }
+
+        if (double.IsPositiveInfinity(minValue) || double.IsNegativeInfinity(maxValue))
         {
             using var emptyPaint = new SKPaint
             {
@@ -568,20 +922,12 @@ public partial class ReconstructionPage : ContentPage
                 IsAntialias = true,
                 TextAlign = SKTextAlign.Center
             };
-            canvas.DrawText("No residual data", info.Width / 2f, info.Height / 2f, emptyPaint);
+            canvas.DrawText($"No data for {metricName}", info.Width / 2f, info.Height / 2f, emptyPaint);
             return;
         }
 
-        double minResidual = double.MaxValue;
-        double maxResidual = double.MinValue;
-        foreach (double value in history)
-        {
-            if (value < minResidual) minResidual = value;
-            if (value > maxResidual) maxResidual = value;
-        }
-
-        if (Math.Abs(maxResidual - minResidual) < 1e-12)
-            maxResidual = minResidual + 1e-12;
+        if (Math.Abs(maxValue - minValue) < 1e-12)
+            maxValue = minValue + 1e-12;
 
         const float leftPadding = 64f;
         const float rightPadding = 28f;
@@ -660,8 +1006,11 @@ public partial class ReconstructionPage : ContentPage
             float y = chartRect.Top + chartRect.Height * t;
             canvas.DrawLine(chartRect.Left, y, chartRect.Right, y, gridPaint);
 
-            double value = maxResidual - (maxResidual - minResidual) * t;
-            canvas.DrawText(value.ToString("F3"), chartRect.Left - 10f, y + valuePaint.TextSize / 3f, valuePaint);
+            double value = maxValue - (maxValue - minValue) * t;
+            canvas.DrawText(value.ToString("G4", CultureInfo.InvariantCulture),
+                            chartRect.Left - 10f,
+                            y + valuePaint.TextSize / 3f,
+                            valuePaint);
         }
 
         int count = history.Count;
@@ -692,7 +1041,7 @@ public partial class ReconstructionPage : ContentPage
 
         using var linePaint = new SKPaint
         {
-            Color = ChartLineColor,
+            Color = style.LineColor,
             StrokeWidth = 3,
             IsAntialias = true,
             Style = SKPaintStyle.Stroke,
@@ -702,21 +1051,21 @@ public partial class ReconstructionPage : ContentPage
 
         using var areaPaint = new SKPaint
         {
-            Color = ChartAreaFillColor,
+            Color = style.AreaColor,
             Style = SKPaintStyle.Fill,
             IsAntialias = true
         };
 
         using var pointPaint = new SKPaint
         {
-            Color = ChartPointColor,
+            Color = style.PointColor,
             Style = SKPaintStyle.Fill,
             IsAntialias = true
         };
 
         using var pointOutlinePaint = new SKPaint
         {
-            Color = ChartPointOutlineColor,
+            Color = style.PointOutlineColor,
             Style = SKPaintStyle.Stroke,
             StrokeWidth = 1.5f,
             IsAntialias = true
@@ -728,16 +1077,23 @@ public partial class ReconstructionPage : ContentPage
 
         float step = count > 1 ? chartRect.Width / (count - 1) : 0f;
         SKPoint lastPoint = origin;
+        bool hasStarted = false;
 
         for (int i = 0; i < count; i++)
         {
-            double residual = history[i];
+            double metricValue = history[i];
+            if (double.IsNaN(metricValue) || double.IsInfinity(metricValue))
+                continue;
+
             float x = chartRect.Left + (count > 1 ? step * i : chartRect.Width / 2f);
-            double normalized = (residual - minResidual) / (maxResidual - minResidual);
+            double normalized = (metricValue - minValue) / (maxValue - minValue);
             float y = chartRect.Top + chartRect.Height * (float)(1 - normalized);
 
-            if (i == 0)
+            if (!hasStarted)
+            {
                 linePath.MoveTo(x, y);
+                hasStarted = true;
+            }
             else
                 linePath.LineTo(x, y);
 
@@ -748,6 +1104,9 @@ public partial class ReconstructionPage : ContentPage
 
             lastPoint = new SKPoint(x, y);
         }
+
+        if (!hasStarted)
+            return;
 
         areaPath.LineTo(lastPoint.X, origin.Y);
         areaPath.Close();
@@ -760,7 +1119,7 @@ public partial class ReconstructionPage : ContentPage
         canvas.Save();
         canvas.Translate(chartRect.Left - 44f, chartRect.MidY);
         canvas.RotateDegrees(-90);
-        canvas.DrawText("Residual", 0, 0, axisLabelPaint);
+        canvas.DrawText(metricName, 0, 0, axisLabelPaint);
         canvas.Restore();
 
         using var annotationPaint = new SKPaint
@@ -776,13 +1135,15 @@ public partial class ReconstructionPage : ContentPage
         };
         using var annotationBorderPaint = new SKPaint
         {
-            Color = ChartLineColor,
+            Color = style.LineColor,
             Style = SKPaintStyle.Stroke,
             StrokeWidth = 1.2f,
             IsAntialias = true
         };
 
-        string lastLabel = $"Iter {count}: {history[count - 1]:F3}";
+        string lastLabel = lastIteration > 0
+            ? $"Iter {lastIteration}: {lastFormattedValue}"
+            : $"Iter {count}: {lastFormattedValue}";
         float labelWidth = annotationPaint.MeasureText(lastLabel);
         const float annotationMargin = 16f;
         const float annotationPaddingX = 10f;
@@ -886,25 +1247,47 @@ public partial class ReconstructionPage : ContentPage
         else if (discretization is LBMGrid lbm)
         {
             var cd = _currentResult?.OriginalConductivityDistribution ?? Workspace.GetOriginalConductivityDistribution() ?? lbm.GetConductivityDistribution();
-            double min = cd.Conductivities.Values.Min();
-            double max = cd.Conductivities.Values.Max();
-            if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
+            var (min, max) = GetLbmValueRange(lbm, cd.Conductivities);
             DrawColorBar(e.Surface.Canvas, e.Info, min, max, false);
         }
     }
+
 
     private void OnPotentialColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
         var discretization = GetDiscretization();
         var pd = _currentFrame?.CalculatedPotentialDistribution ?? discretization?.GetPotentialDistribution();
-        if (pd != null)
+
+        if (discretization is LBMGrid lbm && pd != null)
         {
-            double min = pd.Potentials.Values.Min();
-            double max = pd.Potentials.Values.Max();
+            var (min, max) = GetLbmValueRange(lbm, pd.Potentials);
+            DrawColorBar(e.Surface.Canvas, e.Info, min, max, true);
+        }
+        else if (discretization is FEMMesh && pd != null)
+        {
+            double refPotential = 0.0;
+            if (pd.Potentials.TryGetValue(VisualReferenceNodeId, out double rawRef))
+                refPotential = rawRef;
+
+            double min = double.PositiveInfinity;
+            double max = double.NegativeInfinity;
+            foreach (var val in pd.Potentials.Values)
+            {
+                double shifted = val - refPotential;
+                if (shifted < min) min = shifted;
+                if (shifted > max) max = shifted;
+            }
+            if (double.IsInfinity(min) || double.IsInfinity(max))
+            {
+                min = 0.0;
+                max = 1e-12;
+            }
             if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
+
             DrawColorBar(e.Surface.Canvas, e.Info, min, max, true);
         }
     }
+
 
     private void OnReconstructedColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
@@ -920,9 +1303,7 @@ public partial class ReconstructionPage : ContentPage
         else if (discretization is LBMGrid lbm)
         {
             var cd = _currentResult?.ReconstructedConductivityDistribution ?? lbm.GetConductivityDistribution();
-            double min = cd.Conductivities.Values.Min();
-            double max = cd.Conductivities.Values.Max();
-            if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
+            var (min, max) = GetLbmValueRange(lbm, cd.Conductivities);
             DrawColorBar(e.Surface.Canvas, e.Info, min, max, false);
         }
     }
@@ -931,7 +1312,12 @@ public partial class ReconstructionPage : ContentPage
     {
         var discretization = GetDiscretization();
         var pd = _currentFrame?.CalculatedAdjointDistribution ?? discretization?.GetPotentialDistribution();
-        if (pd != null)
+        if (discretization is LBMGrid lbm && pd != null)
+        {
+            var (min, max) = GetLbmValueRange(lbm, pd.Potentials);
+            DrawColorBar(e.Surface.Canvas, e.Info, min, max, true);
+        }
+        else if (pd != null)
         {
             double min = pd.Potentials.Values.Min();
             double max = pd.Potentials.Values.Max();
@@ -954,9 +1340,7 @@ public partial class ReconstructionPage : ContentPage
         else if (discretization is LBMGrid lbm)
         {
             var cd = _currentResult?.InitialConductivitiyDistribution ?? lbm.GetConductivityDistribution();
-            double min = cd.Conductivities.Values.Min();
-            double max = cd.Conductivities.Values.Max();
-            if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
+            var (min, max) = GetLbmValueRange(lbm, cd.Conductivities);
             DrawColorBar(e.Surface.Canvas, e.Info, min, max, false);
         }
     }
@@ -966,10 +1350,19 @@ public partial class ReconstructionPage : ContentPage
         var cd = _currentFrame?.ConductivityGradient;
         if (cd != null)
         {
-            double min = cd.Conductivities.Values.Min();
-            double max = cd.Conductivities.Values.Max();
-            if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
-            DrawColorBar(e.Surface.Canvas, e.Info, min, max, false);
+            var discretization = GetDiscretization();
+            if (discretization is LBMGrid lbm)
+            {
+                var (min, max) = GetLbmValueRange(lbm, cd.Conductivities);
+                DrawColorBar(e.Surface.Canvas, e.Info, min, max, false);
+            }
+            else
+            {
+                double min = cd.Conductivities.Values.Min();
+                double max = cd.Conductivities.Values.Max();
+                if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
+                DrawColorBar(e.Surface.Canvas, e.Info, min, max, false);
+            }
         }
     }
     #endregion
@@ -1253,41 +1646,91 @@ public partial class ReconstructionPage : ContentPage
         GradientColorbarCanvas.InvalidateSurface();
     }
 
-    private static double CalculateResidual(ConductivityDistribution reconstructed, ConductivityDistribution original)
+    private void InvalidateConductivityDisplays()
     {
-        double sum = 0.0;
-        foreach (var kv in reconstructed.Conductivities)
-        {
-            original.Conductivities.TryGetValue(kv.Key, out double origVal);
-            double diff = kv.Value - origVal;
-            sum += diff * diff;
-        }
-        return Math.Sqrt(sum);
+        OriginalDistributionCanvas.InvalidateSurface();
+        InitialDistributionCanvas.InvalidateSurface();
+        ReconstructedDistributionCanvas.InvalidateSurface();
+        GradientDistributionCanvas.InvalidateSurface();
+        OriginalColorbarCanvas.InvalidateSurface();
+        InitialColorbarCanvas.InvalidateSurface();
+        ReconstructedColorbarCanvas.InvalidateSurface();
+        GradientColorbarCanvas.InvalidateSurface();
     }
 
-    private async void OnExportVideoClicked(object sender, EventArgs e)
+    private async void OnExportClicked(object sender, EventArgs e)
     {
         await AnimateButtonAsync(sender);
 
         ExportVideoButton.IsEnabled = false;
 
-        var result = await _viewModel.ExportReconstructionVideoAsync(
+        var choice = await this.ShowPopupAsync(new ExportOptionsPopup());
+
+        switch (choice)
+        {
+            case ExportMode.Video:
+                await HandleVideoExportAsync();
+                break;
+            case ExportMode.Csv:
+                await HandleCsvExportAsync();
+                break;
+            default:
+                UpdateExportButtonState();
+                break;
+        }
+    }
+
+    private async Task HandleVideoExportAsync()
+    {
+        var popup = new VideoExportProgressPopup(_viewModel,
             PotentialDistributionCanvas.CanvasSize,
             PotentialColorbarCanvas.CanvasSize,
-            ResidualTrendCanvas.CanvasSize,
+            MetricTrendCanvas.CanvasSize,
             _potMode);
+
+        var popupResult = await this.ShowPopupAsync(popup) as VideoExportPopupResult;
 
         UpdateExportButtonState();
 
-        if (result.Success)
+        if (popupResult is { WasAborted: true, Result: var aborted })
         {
-            await DisplayAlert("Export Complete", $"Video exported to:\n{result.FilePath}", "OK");
-        }
-        else
-        {
-            string title = result.ErrorTitle ?? "Export Failed";
-            string message = result.ErrorMessage ?? "Unknown error.";
+            string title = aborted.ErrorTitle ?? "Export Aborted";
+            string message = aborted.ErrorMessage ?? "The video export was aborted.";
             await DisplayAlert(title, message, "OK");
+        }
+        else if (popupResult is { Result.Success: false, WasAborted: false })
+        {
+            var failure = popupResult.Result;
+            string title = failure.ErrorTitle ?? "Export Failed";
+            string message = failure.ErrorMessage ?? "Unknown error.";
+            await DisplayAlert(title, message, "OK");
+        }
+    }
+
+    private async Task HandleCsvExportAsync()
+    {
+        try
+        {
+            var exportResult = await _viewModel.ExportReconstructionDataAsync(_potMode, _conductivityMode);
+
+            UpdateExportButtonState();
+
+            if (exportResult.Success)
+            {
+                string message = $"Data saved to:\n{exportResult.DirectoryPath}";
+                await DisplayAlert("Export Complete", message, "OK");
+            }
+            else
+            {
+                string title = exportResult.ErrorTitle ?? "Export Failed";
+                string message = exportResult.ErrorMessage ?? "Unknown error.";
+                await DisplayAlert(title, message, "OK");
+            }
+        }
+        catch (Exception ex)
+        {
+            UpdateExportButtonState();
+            await DisplayAlert("Export Failed", ex.Message, "OK");
         }
     }
 
@@ -1312,8 +1755,7 @@ public partial class ReconstructionPage : ContentPage
             if (_currentResult != null)
             {
                 _viewModel.IterationCount = results.Count;
-                _viewModel.Residual = CalculateResidual(_currentResult.ReconstructedConductivityDistribution,
-                                                       _currentResult.OriginalConductivityDistribution);
+                _viewModel.Residual = ReconstructionStatistics.CalculateResidual(_currentResult);
             }
             Dispatcher.Dispatch(() =>
             {
@@ -1368,10 +1810,11 @@ public partial class ReconstructionPage : ContentPage
             {
                 _currentResult = res;
                 _viewModel.IterationCount = iter;
-                _viewModel.Residual = CalculateResidual(res.ReconstructedConductivityDistribution,
-                                                       res.OriginalConductivityDistribution);
+                _viewModel.Residual = ReconstructionStatistics.CalculateResidual(res);
             }
             Dispatcher.Dispatch(() => { InvalidateAll(); UpdatePlaybackLabel(); });
+
+            _viewModel.SnapGradientSelectionToFrame(index);
         }
     }
 
@@ -1390,14 +1833,14 @@ public partial class ReconstructionPage : ContentPage
             return;
         }
 
-        if (!_viewModel.CheckReconstructionMethodAgainstMesh())
+        if (!_viewModel.CheckReconstructionMethodAgainstDiscretization())
         {
             await DisplayAlert("Bad Differential Equation Solver", "You should select the same type of DE solver what your mesh is made for.", "Ok");
             return;
         }
 
         await AnimateButtonAsync(sender);
-        _viewModel?.OnSolveForwardClicked(this, e);
+        //_viewModel?.OnSolveForwardClicked(this, e);
     }
 
     private async void OnSolveInverseClicked(object sender, EventArgs e)
@@ -1408,14 +1851,14 @@ public partial class ReconstructionPage : ContentPage
             return;
         }
 
-        if (!_viewModel.CheckReconstructionMethodAgainstMesh())
+        if (!_viewModel.CheckReconstructionMethodAgainstDiscretization())
         {
-            await DisplayAlert("Bad Differential Equation Solver", "You should select the same type of DE solver what your mesh is made for.", "Ok");
+            await DisplayAlert("Bad Differential Equation Solver", "You should select the same type of DE solver what your discretization is made for.", "Ok");
             return;
         }
 
         await AnimateButtonAsync(sender);
-        _viewModel?.OnSolveInverseClicked(this, e);
+        //_viewModel?.OnSolveInverseClicked(this, e);
     }
 
     private async void OnEditBoundaryConditionsClicked(object sender, EventArgs e)
@@ -1449,13 +1892,13 @@ public partial class ReconstructionPage : ContentPage
     private void OnAdjecentDrivePatternChecked(object sender, CheckedChangedEventArgs e)
     {
         if (e.Value)
-            _viewModel.OppositeDrivePattern = false;
+            _viewModel.SetDrivePattern(DrivePattern.Adjecent);
     }
 
     private void OnOppositeDrivePatternChecked(object sender, CheckedChangedEventArgs e)
     {
         if (e.Value)
-            _viewModel.AdjecentDrivePattern = false;
+            _viewModel.SetDrivePattern(DrivePattern.Opposite);
     }
 
     private void OnPotentialModeChanged(object? sender, int index)
@@ -1465,5 +1908,35 @@ public partial class ReconstructionPage : ContentPage
         AdjointDistributionCanvas.InvalidateSurface();
         PotentialColorbarCanvas.InvalidateSurface();
         AdjointColorbarCanvas.InvalidateSurface();
+    }
+
+    private void OnConductivityModeChanged(object? sender, int index)
+    {
+        if (index < 0)
+            return;
+
+        _conductivityMode = (ConductivityDisplayMode)index;
+        InvalidateConductivityDisplays();
+    }
+
+    private async void OnResetReconstructionClicked(object sender, EventArgs e)
+    {
+        await AnimateButtonAsync(sender);
+        bool confirm = await DisplayAlert("Reset Reconstruction", "Are you sure you want to reset all reconstruction parameters and progress?", "Yes", "No");
+        if (!confirm)
+            return;
+
+        _viewModel.ResetAllToDefaults();
+
+        // Clear current visuals to initial state
+        _currentResult = null;
+        _currentFrame = null;
+        PlaybackSlider.Maximum = 0;
+        PlaybackSlider.Value = 0;
+        UpdatePlaybackLabel();
+        InvalidateAll();
+        UpdateExportButtonState();
+
+        await DisplayAlert("Reset Complete", "Reconstruction parameters and progress were reset.", "OK");
     }
 }

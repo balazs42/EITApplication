@@ -1,5 +1,11 @@
-﻿using Google.OrTools.ConstraintSolver;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 using System.Numerics;
+using ILGPU;
+using ILGPU.Algorithms;
+using ILGPU.Runtime;
 using Utility.Classes.Measurement;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
@@ -7,261 +13,1494 @@ using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 {
     /// <summary>
-    /// LBM-based solver for solving the diffusion PDE ∇·(γ∇φ)=f via D2Q9 lattice.
-    /// Implements collision, streaming, bounce-back, and CEM boundary directly.
-    /// Only uses LatticeBoltzmannOperators for inverse finite-difference gradient.
+    /// GPU-accelerated Lattice Boltzmann Method solver for diffusion PDEs in electrical impedance tomography.
+    /// Solves ∇·(γ∇φ)=f using D2Q9 lattice with BGK collision, streaming, and bounce-back boundaries.
+    /// Supports both CPU and CUDA execution paths for maximum compatibility and performance.
     /// </summary>
     public sealed class LatticeBoltzmannSolver : ISolver
     {
-        // D2Q9 discrete velocities
-        private static readonly (int cx, int cy)[] C =
+        // Solver configuration parameters
+        private int MaxIterationCount = 1000;                  // Maximum time steps before forced termination
+        private double SolutionTolerance = 1e-8;               // Convergence tolerance for steady-state detection
+        private int ConvergenceCheckFrequency = 100;           // How often to check convergence (computational cost)
+        private readonly bool _useCuda;                        // Whether to use GPU acceleration
+        private readonly bool _applyGaussianFilter;            // Smooth potential maps with Gaussian kernel
+        private readonly int _gaussianKernelSize;              // Kernel size (odd) for Gaussian smoothing
+
+        // LBM stability constants
+        private const double TauSafetyEpsilon = 0.02;          // Keep τ safely away from 0.5 to limit anisotropy
+        private const double MinTau = 0.5 + TauSafetyEpsilon; // Conservative Neumann BC requires τ ≥ 0.52
+        // CUDA kernel management - static to share across solver instances
+        private static readonly object _cudaKernelLock = new(); // Thread-safe kernel compilation
+
+        // Pre-compiled CUDA kernels for LBM operations
+        private static System.Action<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<double>, ArrayView<double>>? _initializeKernel;
+        private static System.Action<Index1D, ArrayView<double>, ArrayView<int>, ArrayView<double>, double, double, ArrayView<double>>? _collisionKernel;
+        private static System.Action<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>>? _streamKernel;
+        private static System.Action<Index1D, UpdateKernelParams>? _updateKernel;
+        private static System.Action<Index1D, GhostBoundaryKernelParams>? _ghostBoundaryKernel;
+        private static System.Action<Index1D, ArrayView<double>, ArrayView<double>>? _phiKernel;
+
+        // A blittable container for Update kernel arguments to reduce generic arity
+        private readonly struct UpdateKernelParams
         {
-            (0,0), (1,0), (0,1), (-1,0), (0,-1), (1,1), (-1,1), (-1,-1), (1,-1)
-        };
-        // Opposite direction lookup
-        private static readonly int[] Opposite = { 0, 3, 4, 1, 2, 7, 8, 5, 6 };
-        // Weights
-        private static readonly double[] W =
+            public readonly ArrayView<double> Fi;
+            public readonly ArrayView<double> FiNext;
+            public readonly ArrayView<int> IsWall;
+            public readonly ArrayView<int> IsGhost;
+            public readonly ArrayView<double> PhiStreamed;
+
+            public UpdateKernelParams(
+                ArrayView<double> fi,
+                ArrayView<double> fiNext,
+                ArrayView<int> isWall,
+                ArrayView<int> isGhost,
+                ArrayView<double> phiStreamed)
+            {
+                Fi = fi;
+                FiNext = fiNext;
+                IsWall = isWall;
+                IsGhost = isGhost;
+                PhiStreamed = phiStreamed;
+            }
+        }
+
+        private readonly struct GhostBoundaryKernelParams
         {
-            4.0 / 9.0,
-            1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0,
-            1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0
-        };
+            public GhostBoundaryKernelParams(
+                ArrayView<int> interiorIndices,
+                ArrayView<int> ghostIndices,
+                ArrayView<int> directions,
+                ArrayView<double> fluxPerLink,
+                ArrayView<double> fi,
+                ArrayView<double> phi,
+                ArrayView<double> weights,
+                ArrayView<int> opposite,
+                ArrayView<double> conductivity,
+                double deltaX)
+            {
+                InteriorIndices = interiorIndices;
+                GhostIndices = ghostIndices;
+                Directions = directions;
+                FluxPerLink = fluxPerLink;
+                Fi = fi;
+                Phi = phi;
+                Weights = weights;
+                Opposite = opposite;
+                Conductivity = conductivity;
+                DeltaX = deltaX;
+            }
 
-        private static double csSquared = 1.0 / 3.0;
+            public ArrayView<int> InteriorIndices { get; }
+            public ArrayView<int> GhostIndices { get; }
+            public ArrayView<int> Directions { get; }
+            public ArrayView<double> FluxPerLink { get; }
+            public ArrayView<double> Fi { get; }
+            public ArrayView<double> Phi { get; }
+            public ArrayView<double> Weights { get; }
+            public ArrayView<int> Opposite { get; }
+            public ArrayView<double> Conductivity { get; }
+            public double DeltaX { get; }
+        }
 
-        private int MaxIterationCount = 250;
-        private double SolutionTolerance = 1e-6;
-        private int ConvergenceCheckFrequency = 100;
+        /// <summary>
+        /// Small container describing how a single lattice cell participates in the
+        /// electrode boundary conditions.  The tuple keeps both the geometric index
+        /// of the cell and the physical data (current/potential/role) required to
+        /// enforce the mixed Dirichlet/Neumann behaviour in a consistent manner on
+        /// the CPU implementation.  The same data is mirrored to the GPU buffers in
+        /// the CUDA path so that both execution modes follow identical mathematics.
+        /// </summary>
+        private readonly struct ElectrodeRuntimeData
+        {
+            public ElectrodeRuntimeData(int electrodeId, int elementIndex, LBMElement element, double current, bool isExcitation, bool isGround)
+            {
+                ElectrodeId = electrodeId;
+                ElementIndex = elementIndex;
+                Element = element;
+                Current = current;
+                IsExcitation = isExcitation;
+                IsGround = isGround;
+            }
 
-        public LatticeBoltzmannSolver(int maxIterationCount, double solutionTolerance, int convergenceCheckFrequency)
+            public int ElectrodeId { get; }
+            public int ElementIndex { get; }
+            public LBMElement Element { get; }
+            public double Current { get; }
+            public bool IsExcitation { get; }
+            public bool IsGround { get; }
+        }
+
+        /// <summary>
+        /// Initializes LBM solver with specified convergence criteria and execution mode.
+        /// </summary>
+        /// <param name="maxIterationCount">Maximum time steps before termination</param>
+        /// <param name="solutionTolerance">Relative change threshold for convergence</param>
+        /// <param name="convergenceCheckFrequency">Iteration interval for convergence testing</param>
+        /// <param name="useCuda">Enable GPU acceleration if available</param>
+        public LatticeBoltzmannSolver(int maxIterationCount,
+                                      double solutionTolerance,
+                                      int convergenceCheckFrequency,
+                                      bool useCuda = false,
+                                      bool applyGaussianFilter = false,
+                                      int gaussianFilterSize = 3)
         {
             MaxIterationCount = maxIterationCount;
             SolutionTolerance = solutionTolerance;
             ConvergenceCheckFrequency = convergenceCheckFrequency;
+            _useCuda = useCuda;
+            _applyGaussianFilter = applyGaussianFilter;
+            _gaussianKernelSize = EnsureOddKernel(Math.Max(1, gaussianFilterSize));
         }
 
+        /// <summary>
+        /// Validates and clamps conductivity values to prevent numerical issues.
+        /// Invalid values (NaN, infinity) are set to zero for stability.
+        /// </summary>
+        private static double SanitizeConductivity(double conductivity)
+        {
+            // Check for invalid floating-point values that could crash GPU kernels
+            if (double.IsNaN(conductivity) || double.IsInfinity(conductivity) || !double.IsFinite(conductivity))
+                return 0.0;
+
+            // Ensure non-negative conductivity (physical constraint)
+            return Math.Max(0.0, conductivity);
+        }
+
+        private static int EnsureOddKernel(int size) => size % 2 == 0 ? size + 1 : size;
+
+        private static double[] BuildBinomialKernel(int size)
+        {
+            int n = size - 1;
+            double[] coeffs = new double[size];
+
+            for (int k = 0; k < size; k++)
+                coeffs[k] = BinomialCoefficient(n, k);
+
+            return coeffs;
+        }
+
+        private static double BinomialCoefficient(int n, int k)
+        {
+            k = Math.Min(k, n - k);
+            double result = 1.0;
+
+            for (int i = 1; i <= k; i++)
+            {
+                result *= n - (k - i);
+                result /= i;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Computes BGK relaxation time from material conductivity and clamps it for stability.
+        /// </summary>
+        /// <param name="conductivity">Material electrical conductivity (diffusion coefficient).</param>
+        /// <returns>Relaxation time ensuring numerical stability.</returns>
+        private static double ComputeRelaxationTime(double conductivity)
+        {
+            double tau = LatticeBoltzmannOperators.ComputeTauFromDiffusivityLU(conductivity);
+
+            // Enforce minimum relaxation time to prevent numerical instability
+            // Values below 0.5 can cause negative distribution functions
+            return tau < MinTau ? MinTau : tau;
+        }
+
+        private Dictionary<int, double> ApplyPotentialFilter(LBMGrid lbmGrid, Dictionary<int, double> potentials)
+        {
+            if (!_applyGaussianFilter)
+                return potentials;
+
+            return ApplyGaussianFilter(lbmGrid, potentials);
+        }
+
+        private Dictionary<int, double> ApplyGaussianFilter(LBMGrid lbmGrid, IReadOnlyDictionary<int, double> potentials)
+        {
+            var kernel1D = BuildBinomialKernel(_gaussianKernelSize);
+            int half = _gaussianKernelSize / 2;
+            var filtered = new Dictionary<int, double>(potentials.Count);
+
+            for (int y = 0; y < lbmGrid.Ny; y++)
+            {
+                for (int x = 0; x < lbmGrid.Nx; x++)
+                {
+                    var element = lbmGrid.GetElementAt(x, y);
+                    double original = potentials.TryGetValue(element.Id, out double value) ? value : 0.0;
+
+                    if (element.IsWall || element.GhostElement)
+                    {
+                        filtered[element.Id] = original;
+                        continue;
+                    }
+
+                    double weightedSum = 0.0;
+                    double weightTotal = 0.0;
+
+                    for (int ky = -half; ky <= half; ky++)
+                    {
+                        int ny = y + ky;
+                        if (ny < 0 || ny >= lbmGrid.Ny)
+                            continue;
+
+                        for (int kx = -half; kx <= half; kx++)
+                        {
+                            int nx = x + kx;
+                            if (nx < 0 || nx >= lbmGrid.Nx)
+                                continue;
+
+                            var neighbor = lbmGrid.GetElementAt(nx, ny);
+                            if (neighbor.IsWall || neighbor.GhostElement)
+                                continue;
+
+                            if (!potentials.TryGetValue(neighbor.Id, out double neighborValue))
+                                continue;
+
+                            double weight = kernel1D[kx + half] * kernel1D[ky + half];
+                            weightedSum += weight * neighborValue;
+                            weightTotal += weight;
+                        }
+                    }
+
+                    filtered[element.Id] = weightTotal > 0.0 ? weightedSum / weightTotal : original;
+                }
+            }
+
+            return filtered;
+        }
+
+        /// <summary>
+        /// Main entry point for forward problem solving with automatic CPU/GPU selection.
+        /// </summary>
         public PotentialDistribution SolveForward(IDiscretization discretization, BoundaryCondition boundaryCondition)
         {
+            // Cast to LBM-specific types (throw if incompatible)
             var lbmGrid = discretization as LBMGrid ?? throw new InvalidCastException();
             var bc = boundaryCondition as LBMBoundaryCondition ?? throw new InvalidCastException();
 
-            return RunForward(lbmGrid, bc);
+            // Route to appropriate implementation based on configuration.  Each solver path already
+            // applies the gauge fix (φ_ground = 0) before returning, so we simply propagate the result.
+            var result = _useCuda ? RunForwardCuda(lbmGrid, bc) : RunForward(lbmGrid, bc);
+            lbmGrid.SetPotentialDistribution(result);
+            return result;
         }
 
+        /// <summary>
+        /// Solves adjoint problem by reusing forward solver with modified boundary conditions.
+        /// Adjoint method enables efficient gradient computation for inverse problems.
+        /// </summary>
         public PotentialDistribution SolveAdjoint(IDiscretization discretization, BoundaryCondition boundaryCondition, Complex[] adjointSource)
         {
             var lbmGrid = discretization as LBMGrid ?? throw new InvalidCastException();
             var bc = boundaryCondition as LBMBoundaryCondition ?? throw new InvalidCastException();
-            var electrodes = lbmGrid.GetElectrodes();
-            var bcElectrodes = bc.GetElectrodes();
-            int bcElectrodeCount = bcElectrodes.Count();
 
+            // Get electrode collections for modification
+            var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
+            var bcElectrodes = bc.GetElectrodes().ToList();
+            int bcElectrodeCount = bcElectrodes.Count;
+
+            // Set up adjoint boundary conditions: zero potential, adjoint current sources
             for(int i = 0; i < bcElectrodeCount; i++)
             {
-                bcElectrodes[i].Potential = 0.0;
+                bcElectrodes[i].Potential = 0.0;        // Homogeneous Dirichlet conditions
                 electrodes[i].Potential = 0.0;
 
                 bcElectrodes[i].Current = adjointSource[i].Real;   // TODO: add complex currents
                 electrodes[i].Current = adjointSource[i].Real;
             }
 
-            return RunForward(lbmGrid, bc);
+            // Solve modified forward problem (adjoint equation has same structure)
+            return _useCuda ? RunForwardCuda(lbmGrid, bc) : RunForward(lbmGrid, bc);
+        }
+
+        // Direct CUDA interface methods for explicit GPU usage
+        public PotentialDistribution CUDASolveForward(IDiscretization discretization, BoundaryCondition boundaryCondition)
+        {
+            var lbmGrid = discretization as LBMGrid ?? throw new InvalidCastException();
+            var bc = boundaryCondition as LBMBoundaryCondition ?? throw new InvalidCastException();
+            return RunForwardCuda(lbmGrid, bc);
+        }
+
+        public PotentialDistribution CUDASolveAdjoint(IDiscretization discretization, BoundaryCondition boundaryCondition, Complex[] adjointSource)
+        {
+            var lbmGrid = discretization as LBMGrid ?? throw new InvalidCastException();
+            var bc = boundaryCondition as LBMBoundaryCondition ?? throw new InvalidCastException();
+            var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
+            var bcElectrodes = bc.GetElectrodes().ToList();
+            int bcElectrodeCount = bcElectrodes.Count();
+
+            for (int i = 0; i < bcElectrodeCount; i++)
+            {
+                bcElectrodes[i].Potential = 0.0;
+                electrodes[i].Potential = 0.0;
+                bcElectrodes[i].Current = adjointSource[i].Real;
+                electrodes[i].Current = adjointSource[i].Real;
+            }
+
+            return RunForwardCuda(lbmGrid, bc);
         }
 
         /// <summary>
-        /// Runs the forward LBM until steady-state, returning electrode potentials.
+        /// Computes electrode flux densities j_n for each boundary link.  Relation (b) (Krüger et al. for unit
+        /// conversion, Gebäck &amp; Heintz for the Neumann BC) distributes currents as outward flux densities so that
+        /// Σ (j_out Δs) = −I for every electrode regardless of unit system.
+        /// </summary>
+        private static double[] ComputeFluxPerLink(
+            IReadOnlyList<BoundaryLink> links,
+            IReadOnlyDictionary<int, IReadOnlyList<int>> linksByInterior,
+            IReadOnlyList<ElectrodeRuntimeData> electrodes)
+        {
+            var flux = new double[links.Count];
+
+            if (links.Count == 0 || electrodes.Count == 0)
+                return flux;
+
+            var linkOwnership = new Dictionary<int, int>();
+
+            foreach (var group in electrodes.GroupBy(e => e.ElectrodeId))
+            {
+                double totalCurrent = group.Sum(e => e.Current);
+                var perElectrodeLinks = new List<int>();
+                var perElectrodeSet = new HashSet<int>();
+
+                foreach (var electrode in group)
+                {
+                    if (!linksByInterior.TryGetValue(electrode.ElementIndex, out var perCell))
+                        continue;
+
+                    foreach (int linkIndex in perCell)
+                    {
+                        if (!perElectrodeSet.Add(linkIndex))
+                            continue;
+
+                        perElectrodeLinks.Add(linkIndex);
+
+                        if (linkOwnership.TryGetValue(linkIndex, out int owner) && owner != group.Key)
+                            throw new InvalidOperationException($"Boundary link {linkIndex} referenced by electrodes {owner} and {group.Key}.");
+
+                        linkOwnership[linkIndex] = group.Key;
+
+                        var link = links[linkIndex];
+                        Debug.Assert(link.ElectrodeId < 0 || link.ElectrodeId == group.Key,
+                            $"Boundary link {linkIndex} tagged for electrode {link.ElectrodeId} but assigned to {group.Key}.");
+                    }
+                }
+
+                if (perElectrodeLinks.Count == 0)
+                    throw new InvalidOperationException($"Electrode {group.Key} does not touch the ghost boundary.");
+
+                var perElectrodeFlux = ComputeFluxPerLink_LU(links, perElectrodeLinks, totalCurrent);
+                foreach (int linkIndex in perElectrodeLinks)
+                    flux[linkIndex] = perElectrodeFlux[linkIndex];
+
+                double logMeasure = LBUnitConverter.InputsArePhysical
+                    ? perElectrodeLinks.Sum(idx => links[idx].InterfaceLengthPhys)
+                    : perElectrodeLinks.Sum(idx => links[idx].InterfaceLengthLU);
+
+                double sampleFluxLu = perElectrodeFlux[perElectrodeLinks.First()];
+                double logFlux = LBUnitConverter.InputsArePhysical
+                    ? LBUnitConverter.FluxDensityLUToPhys(sampleFluxLu)
+                    : sampleFluxLu;
+
+                Debug.WriteLine($"[LBM] Electrode {group.Key}: links={perElectrodeLinks.Count}, ΣΔs={logMeasure:G6}, I={totalCurrent:G6}, j_out={logFlux:G6} {(LBUnitConverter.InputsArePhysical ? "[phys]" : "[LU]")}");
+            }
+
+            return flux;
+        }
+
+        /// <summary>
+        /// Distribute the total electrode current as an OUTWARD-normal flux density over the electrode arc.
+        /// The outward sign means injection electrodes (I&gt;0) produce negative j_out.
+        /// </summary>
+        private static double[] ComputeFluxPerLink_LU(
+            IReadOnlyList<BoundaryLink> links,
+            IReadOnlyList<int> linkIdxsForElectrode,
+            double electrodeCurrent)
+        {
+            double S = 0.0;
+            foreach (var idx in linkIdxsForElectrode)
+                S += LBUnitConverter.InputsArePhysical ? links[idx].InterfaceLengthPhys : links[idx].InterfaceLengthLU;
+
+            if (S <= 0)
+                throw new InvalidOperationException("Electrode boundary length is zero.");
+
+            double jLu;
+            if (LBUnitConverter.InputsArePhysical)
+            {
+                double jPhysOut = -(electrodeCurrent / S);
+                jLu = LBUnitConverter.FluxDensityPhysToLU(jPhysOut);
+            }
+            else
+            {
+                jLu = -(electrodeCurrent / S);
+            }
+
+            var fluxPerLink = new double[links.Count];
+            foreach (var idx in linkIdxsForElectrode)
+                fluxPerLink[idx] = jLu;
+
+#if DEBUG
+            if (LBUnitConverter.InputsArePhysical)
+            {
+                double sumA = 0.0;
+                double jPhysOut = LBUnitConverter.FluxDensityLUToPhys(jLu);
+                foreach (var idx in linkIdxsForElectrode)
+                    sumA += jPhysOut * links[idx].InterfaceLengthPhys;
+
+                if (Math.Abs(sumA + electrodeCurrent) > Math.Max(1e-10, 1e-10 * Math.Abs(electrodeCurrent)))
+                    throw new Exception($"Electrode current mismatch: Σ jΔs = {sumA}, expected −I = {-electrodeCurrent}");
+            }
+            else
+            {
+                double sumLu = 0.0;
+                foreach (var idx in linkIdxsForElectrode)
+                    sumLu += jLu * links[idx].InterfaceLengthLU;
+
+                if (Math.Abs(sumLu + electrodeCurrent) > 1e-12)
+                    throw new Exception($"Electrode current mismatch (LU): Σ jΔs = {sumLu}, expected −I = {-electrodeCurrent}");
+            }
+#endif
+
+            return fluxPerLink;
+        }
+
+        /// <summary>
+        /// CPU implementation of LBM forward solver using traditional object-oriented approach.
+        /// Serves as reference implementation and fallback when GPU is unavailable.
         /// </summary>
         private PotentialDistribution RunForward(LBMGrid lbmGrid, LBMBoundaryCondition bc)
         {
+            // Solver configuration replicated locally for readability.
             int maxIter = MaxIterationCount;
-            double tol = SolutionTolerance;
-            int checkFreq = ConvergenceCheckFrequency;
+            double tolerance = SolutionTolerance;
+            int checkFrequency = Math.Max(1, ConvergenceCheckFrequency);
 
+            // Ghost conductivities are mirrored from live interior values every solve.  Do NOT keep a stale baseline,
+            // otherwise the Neumann update would see a spurious σ jump at the interface and corrupt the flux.
+            lbmGrid.UpdateGhostConductivityFromNeighbors();
+
+            // D2Q9 lattice constants shared with the CUDA path so that both
+            // implementations evaluate exactly the same algebra.
+            var weights = LatticeBoltzmannConstants.Weights;       // Equilibrium weights wi
+            var opposite = LatticeBoltzmannConstants.Opposite;     // Opposite direction mapping
+            // Flatten the mesh state for sequential processing.
             var elements = lbmGrid.GetElements().Cast<LBMElement>().ToList();
-            var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
-            var bcElectrodes = bc.GetElectrodes().ToList();
+            int elementCount = elements.Count;
 
-            // 1) Initialize distributions Fi and Fi_next to zero
-            foreach (var el in elements)
+            // Map element ids to contiguous indices once; we reuse this for potential
+            // lookups and to keep the CPU and GPU memory layouts identical.
+            var elementIndexLookup = elements
+                .Select((element, idx) => new { element.Id, idx })
+                .ToDictionary(item => item.Id, item => item.idx);
+
+            // Collect a potential distribution if one exists.  Re-using the stored
+            // potential allows us to start the simulation from a steady equilibrium
+            // rather than from an artificial delta function.
+            var initialPotential = lbmGrid.GetPotentialDistribution();
+
+            // Clear electrode markers before we rebuild them from the boundary data.
+            foreach (var element in elements)
+                element.IsElectrode = false;
+
+            var (runtimeElectrodes, groundCellId) = BuildRuntimeElectrodeData(lbmGrid, bc, elements, elementIndexLookup);
+
+            var boundaryTopology = lbmGrid.BoundaryTopology;
+            var boundaryLinks = boundaryTopology.Links;
+            var fluxPerLink = ComputeFluxPerLink(boundaryLinks, boundaryTopology.LinksByInterior, runtimeElectrodes);
+
+            // Synchronise conductivity and initialise the discrete populations.
+            var conductivity = lbmGrid.GetConductivityDistribution();
+            var phi = new double[elementCount];      // Current macroscopic potential
+            var prevPhi = new double[elementCount];  // Potential used for convergence checks
+
+            static bool IsPhysicalWall(LBMElement cell) => cell.IsWall && !cell.GhostElement;
+
+            for (int idx = 0; idx < elementCount; idx++)
             {
+                var element = elements[idx];
+                bool isPhysicalWall = IsPhysicalWall(element);
+
+                // Clamp conductivity to physical, non-negative values.  Walls are
+                // treated as perfect insulators so their conductivity is zero.
+                double sigmaInput = conductivity.GetConductivity(element.Id);
+                double sigmaLu = LBUnitConverter.InputsArePhysical
+                    ? LBUnitConverter.ConductivityPhysToLU(sigmaInput)
+                    : sigmaInput;
+                sigmaLu = SanitizeConductivity(sigmaLu);
+                double sigma = isPhysicalWall ? 0.0 : sigmaLu;
+
+                // Relation (a) (Krüger et al.): convert to LU before evaluating τ.
+                element.Conductivity = sigma;
+
+                if (!LBUnitConverter.InputsArePhysical || isPhysicalWall)
+                    conductivity.Conductivities[element.Id] = sigma;
+
+                // Read the stored macroscopic potential, defaulting to zero.  Every
+                // non-wall cell is initialised at equilibrium: Fi = wi * φ.  Starting
+                // from equilibrium avoids introducing spurious transients that could
+                // destabilise the BGK relaxation during the first few iterations.
+                double phi0 = 0.0;
+                if (!isPhysicalWall && initialPotential is not null)
+                    phi0 = initialPotential.GetValue(element.Id);
+
+                phi[idx] = isPhysicalWall ? 0.0 : phi0;
+
                 for (int k = 0; k < 9; k++)
                 {
-                    el.Fi[k] = W[k];        // equilibrium with φ=1
-                    el.Fi_next[k] = 0.0;
-                }
-                if(el.IsElectrode)
-                {
-                    var correspondingElectrode = electrodes.Find(x => x.GridId == el.Id);
-
-                    if (correspondingElectrode != null)
-                    {
-                        if(correspondingElectrode.IsExcitation || correspondingElectrode.IsGround)
-                        {
-                            // Set the current going out of the electrode
-                            double current = correspondingElectrode.Current;
-                            for (int i = 0; i < 9; i++)
-                                el.Fi[i] = W[i] * current;
-
-                            // Reverse the directions which would go into walls 
-                            // TODO: Ground electrode should point outsidde?,
-                            var neighbors = el.Neighbors;
-                            for (int i = 0; i < 9; i++)
-                            {
-                                if (neighbors[i].IsWall)
-                                {
-                                    el.Fi[Opposite[i]] += el.Fi[i];
-                                    el.Fi[i] = 0.0;
-                                }
-                            }
-                        }
-                        else // Prescribe the potential onn the electrodes
-                        {
-                            correspondingElectrode.Potential = bcElectrodes[correspondingElectrode.Id].Potential;
-                            for (int i = 0; i < 9; i++)
-                                el.Fi[i] = W[i] * correspondingElectrode.Potential;
-                        }
-
-                    }
+                    element.Fi_next[k] = 0.0;                    // Streaming buffer always starts empty.
+                    element.Fi[k] = isPhysicalWall ? 0.0 : weights[k] * phi0; // Equilibrium initial state.
                 }
             }
+            int groundIndex = -1;
+            if (groundCellId >= 0 && elementIndexLookup.TryGetValue(groundCellId, out var idxGround))
+                groundIndex = idxGround;
 
-            // 2) Load conductivity γ into each element
-            var sigmaDist = lbmGrid.GetConductivityDistribution();
-            foreach (var el in elements)
-                el.Conductivity = sigmaDist.GetConductivity(el.Id);
-
-            // 3) Mark electrodes as pinned Dirichlet
-            foreach (var electrode in bcElectrodes)
+            // Main time-stepping loop: identical ordering with the CUDA implementation.
+            for (int iteration = 0; iteration < maxIter; iteration++)
             {
-                var cell = elements.First(e => e.Id == electrode.GridId);
-                if (cell != null)
-                    cell.IsElectrode = true;
-            }
-
-            // 4) Main loop
-            double[] prevPhi = new double[elements.Count()];
-            for (int t = 0; t < maxIter; t++)
-            {
-                // 4a) Collision
-                foreach (var el in elements)
+                // -----------------------------------------------------------------
+                // 1. Collision (BGK relaxation)
+                // -----------------------------------------------------------------
+                foreach (var element in elements)
                 {
-                    if (el.IsWall)
-                        continue;
+                    if (IsPhysicalWall(element))
+                        continue; // Walls keep their distributions fixed at zero.
 
-                    // Macroscopic phi = sum Fi
-                    double phi = 0;
+                    double phiLocal = 0.0;
                     for (int k = 0; k < 9; k++)
-                        phi += el.Fi[k];
+                        phiLocal += element.Fi[k];
 
-                    // Relaxation time τ = D / cs^2 + 0.5, D = γ
-                    double tau = el.Conductivity / csSquared + 0.5;
-                    if (tau <= 0.5)
-                        throw new InvalidOperationException("Nonphysical tau <= 0.5");
+                    // Diffusion relation (a) (Krüger et al.): D = c_s^2 (τ − 1/2) Δt ⇒ τ = D / (c_s^2 Δt) + 1/2.
+                    // Tau must remain greater than 0.5 to keep post-collision populations
+                    // positive; we add a small safety margin to stay in the stable regime.
+                    double tau = ComputeRelaxationTime(element.Conductivity);
                     double omega = 1.0 / tau;
 
-                    // BGK collision towards equilibrium geq = W[k]*phi (thesis eq. 4.3.1)
                     for (int k = 0; k < 9; k++)
                     {
-                        double geq = W[k] * phi;
-                        el.Fi[k] += -omega * (el.Fi[k] - geq);
+                        double feq = weights[k] * phiLocal; // Local equilibrium population.
+                        element.Fi[k] += omega * (feq - element.Fi[k]);
                     }
                 }
 
-                // 4b) Streaming + bounce-back
-                foreach (var el in elements)
+                // -----------------------------------------------------------------
+                // 2. Streaming (propagate along lattice links)
+                // -----------------------------------------------------------------
+                foreach (var element in elements)
                 {
-                    if (el.IsWall)
+                    if (IsPhysicalWall(element))
                         continue;
 
+                    // Ensure the streaming buffer starts clean every iteration.
                     for (int k = 0; k < 9; k++)
-                    {
-                        var nb = el.Neighbors[k];
-                        
-                        // send to the same direction slot in neighbor
-                        if (!nb.IsWall)
-                            nb.Fi_next[k] = el.Fi[k];
-
-                        // bounce-back into opposite direction
-                        else
-                            el.Fi_next[Opposite[k]] = el.Fi[k];
-                    }
+                        element.Fi_next[k] = 0.0;
                 }
 
-                // 4c) Update and enforce pins
-                foreach (var el in elements)
+                foreach (var element in elements)
                 {
-                    if (el.IsWall) 
+                    if (IsPhysicalWall(element))
                         continue;
 
-                    // copy next to current
-                    for (int k = 0; k < 9; k++)
+                    for (int dir = 0; dir < 9; dir++)
                     {
-                        el.Fi[k] = el.Fi_next[k];
-                        el.Fi_next[k] = 0.0;
-                    }
-                    // enforce boundary condtion Neumann or Dirichlet: Fi = W[k]*PinValue
-                    if (el.IsElectrode)
-                    {
-                        var electrode = electrodes.Find(x => x.GridId == el.Id) ?? throw new ArgumentNullException("Cannot find electrode with specified id!");
-                        double potential = electrode.Potential;
-                        // Neumann
-                        if(electrode.IsExcitation || electrode.IsGround)
+                        double fi = element.Fi[dir];
+                        var neighbour = element.Neighbors[dir];
+
+                        bool neighbourIsPhysicalWall = neighbour is null || IsPhysicalWall(neighbour);
+
+                        if (!neighbourIsPhysicalWall)
                         {
-                            double current = electrode.Current;
-                            for (int i = 0; i < 9; i++)
-                                el.Fi[i] = W[i] * current;
-
-                            var neighbors = el.Neighbors;
-                            for(int i = 0; i < 9; i++)
-                            {
-                                if (neighbors[i].IsWall)
-                                {
-                                    el.Fi[Opposite[i]] += el.Fi[i];
-                                    el.Fi[i] = 0.0;
-                                }
-                            }
+                            // Normal streaming: place Fi in the same directional slot
+                            // of the neighbour cell.  Only one population flows through
+                            // each link so a direct assignment is safe and conservative.
+                            neighbour.Fi_next[dir] = fi;
                         }
-                        // Dirichlet
                         else
                         {
-                            for (int k = 0; k < 9; k++)
-                                el.Fi[k] = W[k] * potential;
+                            // Bounce-back reflection: the neighbour is either outside the
+                            // domain or is a wall cell, so we reverse the population into
+                            // the opposite discrete velocity direction.
+                            int reflected = opposite[dir];
+                            element.Fi_next[reflected] = fi;
                         }
                     }
                 }
 
-                // 4d) Convergence check every checkFreq steps
-                if (t % checkFreq == 0)
+                // -----------------------------------------------------------------
+                // 3. Macroscopic reconstruction (φ = Σ Fi)
+                // -----------------------------------------------------------------
+                for (int idx = 0; idx < elementCount; idx++)
                 {
-                    var phi = elements.Select(e => e.Fi.Sum()).ToArray();
+                    var element = elements[idx];
+                    if (IsPhysicalWall(element))
+                    {
+                        phi[idx] = 0.0;
+                        continue;
+                    }
 
-                    double num = 0, den = 0;
+                    double phiLocal = 0.0;
+                    for (int k = 0; k < 9; k++)
+                    {
+                        element.Fi[k] = element.Fi_next[k]; // Swap streamed data into the main array.
+                        phiLocal += element.Fi[k];
+                        element.Fi_next[k] = 0.0;            // Reset buffer for next iteration.
+                    }
+
+                    phi[idx] = phiLocal;
+                }
+
+                // -----------------------------------------------------------------
+                // 4. Ghost-layer boundary update (discrete Neumann flux)
+                // -----------------------------------------------------------------
+                ApplyGhostBoundaryConditionsCpu(elements, phi, boundaryLinks, fluxPerLink, weights, opposite);
+
+                // Optionally monitor the sum of φ to ensure the simulation does not
+                // drift.  The check is lightweight and helps spotting divergence during
+                // debugging without altering the physics.
+                if (iteration % checkFrequency == 0)
+                {
+                    double totalPhi = 0.0;
+                    for (int i = 0; i < phi.Length; i++)
+                        totalPhi += phi[i];
+                    Debug.WriteLine($"[LBM-CPU] Iteration {iteration}: total potential = {totalPhi:G17}");
+                }
+
+                // Convergence test on the updated macroscopic field.
+                if (iteration % checkFrequency == 0)
+                {
+                    double numerator = 0.0;
+                    double denominator = 0.0;
 
                     for (int i = 0; i < phi.Length; i++)
                     {
-                        double d = phi[i] - prevPhi[i];
-                        num += d * d;
-                        den += phi[i] * phi[i];
+                        double diff = phi[i] - prevPhi[i];
+                        numerator += diff * diff;
+                        denominator += phi[i] * phi[i];
+                        prevPhi[i] = phi[i];
                     }
 
-                    if (den > 0 && Math.Sqrt(num / den) < tol)
-                        break;
-                    Array.Copy(phi, prevPhi, phi.Length);
+                    if (denominator > 0.0 && Math.Sqrt(numerator / denominator) < tolerance)
+                        break; // Steady state reached.
                 }
             }
 
-            // Set mesh variables
-            var dict = new Dictionary<int, double>();
+            // Assemble the final potential distribution and push it back to the grid.
+            var result = new Dictionary<int, double>(elementCount);
+            double gauge = groundIndex >= 0 && groundIndex < phi.Length ? phi[groundIndex] : 0.0;
 
-            foreach (var elemenet in elements)
-                dict.Add(elemenet.Id, elemenet.Fi.Sum());
+            for (int idx = 0; idx < elementCount; idx++)
+            {
+                double value = elements[idx].Fi.Sum() - gauge;
+                result[elements[idx].Id] = value;
+            }
 
-            var pd = new PotentialDistribution(dict);
-
+            var filtered = ApplyPotentialFilter(lbmGrid, result);
+            var pd = new PotentialDistribution(filtered);
             lbmGrid.SetPotentialDistribution(pd);
-
             return pd;
         }
+
+
+        private void ApplyGhostBoundaryConditionsCpu(
+            IReadOnlyList<LBMElement> elements,
+            double[] phi,
+            IReadOnlyList<BoundaryLink> links,
+            double[] fluxPerLink,
+            double[] weights,
+            int[] opposite)
+        {
+            // Conservative Neumann BC (Gebäck–Heintz): harmonic face conductivity, half-way ghost node and
+            // non-equilibrium reflection of the incoming population enforce j_n over each geometric boundary link.
+            if (links.Count == 0)
+                return;
+
+            const double eps = 1e-12;
+            double dx = LatticeBoltzmannConstants.DeltaX;
+
+            for (int i = 0; i < links.Count; i++)
+            {
+                var link = links[i];
+                double jn = fluxPerLink[i];
+
+                var interior = elements[link.InteriorIndex];
+                var ghost = elements[link.GhostIndex];
+
+                double phiInterior = phi[link.InteriorIndex];
+                double sigmaInterior = Math.Max(eps, interior.Conductivity);
+                double sigmaGhost = Math.Max(eps, ghost.Conductivity);
+                ghost.Conductivity = sigmaGhost;
+
+                double sigmaAvg = 2.0 / (1.0 / sigmaInterior + 1.0 / sigmaGhost);
+                double phiGhost = phiInterior - (jn * dx) / sigmaAvg;
+
+                int incomingDir = opposite[link.Direction];
+                double feqInteriorIncoming = weights[incomingDir] * phiInterior;
+                double feqGhostIncoming = weights[incomingDir] * phiGhost;
+                double nonEqInteriorIncoming = interior.Fi[incomingDir] - feqInteriorIncoming;
+                interior.Fi[incomingDir] = feqGhostIncoming - nonEqInteriorIncoming;
+                phi[link.GhostIndex] = phiGhost;
+            }
+        }
+
+        private static (List<ElectrodeRuntimeData> RuntimeElectrodes, int GroundCellId) BuildRuntimeElectrodeData(
+            LBMGrid lbmGrid,
+            LBMBoundaryCondition bc,
+            IList<LBMElement> elements,
+            Dictionary<int, int> elementIndexLookup)
+        {
+            var runtimeElectrodes = new List<ElectrodeRuntimeData>();
+            var processedGridIds = new HashSet<int>();
+
+            var gridElectrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
+            var bcElectrodes = bc.GetElectrodes().Cast<LBMElectrode>().ToList();
+
+            var gridElectrodesById = gridElectrodes.ToDictionary(e => e.Id, e => e);
+            var gridElectrodesByGridId = gridElectrodes.ToDictionary(e => e.GridId, e => e);
+
+            void AddRuntimeElectrode(LBMElectrode source, LBMElectrode? fallback)
+            {
+                if (!elementIndexLookup.TryGetValue(source.GridId, out int idx))
+                {
+                    if (!elementIndexLookup.TryGetValue(source.Id, out idx))
+                    {
+                        Debug.WriteLine($"[LBM] Electrode mapping failed (GridId={source.GridId}, Id={source.Id}). Skipping electrode.");
+                        return;
+                    }
+                }
+
+                var element = elements[idx];
+
+                // Remap wall/ghost electrodes to a neighbouring interior cell to preserve fluxes.
+                if (element.IsWall || element.GhostElement)
+                {
+                    var interiorNeighbor = element.Neighbors.FirstOrDefault(n => n != null && !n.IsWall && !n.GhostElement);
+                    if (interiorNeighbor != null && elementIndexLookup.TryGetValue(interiorNeighbor.Id, out int interiorIdx))
+                    {
+                        element = interiorNeighbor;
+                        idx = interiorIdx;
+                    }
+                    else
+                    {
+                        return;
+                    }
+                }
+
+                element.IsElectrode = true;
+
+                bool isExcitation = source.IsExcitation || (fallback?.IsExcitation ?? false);
+                bool isGround = source.IsGround || (fallback?.IsGround ?? false);
+                double current = double.IsNaN(source.Current) ? (fallback?.Current ?? 0.0) : source.Current;
+                int electrodeId = source.Id >= 0 ? source.Id : (fallback?.Id ?? source.GridId);
+
+                runtimeElectrodes.Add(new ElectrodeRuntimeData(electrodeId, idx, element, current, isExcitation, isGround));
+                processedGridIds.Add(source.GridId);
+            }
+
+            foreach (var bcElectrode in bcElectrodes)
+            {
+                gridElectrodesById.TryGetValue(bcElectrode.Id, out var fallbackById);
+                gridElectrodesByGridId.TryGetValue(bcElectrode.GridId, out var fallbackByGrid);
+                AddRuntimeElectrode(bcElectrode, fallbackById ?? fallbackByGrid);
+            }
+
+            foreach (var gridElectrode in gridElectrodes)
+            {
+                if (!processedGridIds.Contains(gridElectrode.GridId))
+                    AddRuntimeElectrode(gridElectrode, null);
+            }
+
+            int groundCellId = -1;
+            var groundFromBc = bcElectrodes.FirstOrDefault(e => e.Id == bc.GroundElectrodeId);
+            if (groundFromBc != null)
+                groundCellId = groundFromBc.GridId;
+            else if (gridElectrodesById.TryGetValue(bc.GroundElectrodeId, out var groundFromGrid))
+                groundCellId = groundFromGrid.GridId;
+            else
+            {
+                var runtimeGround = runtimeElectrodes.FirstOrDefault(e => e.IsGround);
+                if (runtimeGround.Element != null)
+                    groundCellId = runtimeGround.Element.Id;
+            }
+
+            if (groundCellId < 0 && runtimeElectrodes.Count > 0)
+                groundCellId = runtimeElectrodes[0].Element.Id;
+
+            return (runtimeElectrodes, groundCellId);
+        }
+
+
+        /// <summary>
+        /// GPU-accelerated implementation of LBM forward solver using CUDA kernels.
+        /// Processes entire mesh in parallel for maximum performance on large grids.
+        /// </summary>
+        private PotentialDistribution RunForwardCuda(LBMGrid lbmGrid, LBMBoundaryCondition bc)
+        {
+            EnsureCudaKernels();
+
+            int maxIter = MaxIterationCount;
+            double tolerance = SolutionTolerance;
+            int checkFrequency = Math.Max(1, ConvergenceCheckFrequency);
+
+            // Mirror interior conductivities to the ghost layer before uploading data to the GPU.  This keeps the
+            // Neumann flux closure consistent between CPU and CUDA execution paths.
+            lbmGrid.UpdateGhostConductivityFromNeighbors();
+
+            var topology = LatticeBoltzmannCudaHelper.BuildTopology(lbmGrid);
+            int elementCount = topology.ElementCount;
+            if (elementCount == 0)
+            {
+                var empty = new PotentialDistribution(new Dictionary<int, double>());
+                lbmGrid.SetPotentialDistribution(empty);
+                return empty;
+            }
+
+            var elements = topology.Elements;
+            var elementIds = topology.ElementIds;
+            var isWallHost = topology.IsWall;
+            var isGhostHost = topology.IsGhost;
+            var neighborIndicesHost = topology.NeighborIndices;
+            var neighborIsWallHost = topology.NeighborIsWall;
+            var neighborIsGhostHost = topology.NeighborIsGhost;
+            foreach (var element in elements)
+                element.IsElectrode = false;
+
+            var (runtimeElectrodes, groundCellId) = BuildRuntimeElectrodeData(
+                lbmGrid,
+                bc,
+                elements,
+                topology.IdToIndex);
+
+            int groundIndex = -1;
+            if (groundCellId >= 0 && topology.IdToIndex.TryGetValue(groundCellId, out var idxGround))
+                groundIndex = idxGround;
+
+            var boundaryTopology = lbmGrid.BoundaryTopology;
+            var boundaryLinks = boundaryTopology.Links;
+            var fluxPerLink = ComputeFluxPerLink(boundaryLinks, boundaryTopology.LinksByInterior, runtimeElectrodes);
+
+            var conductivity = lbmGrid.GetConductivityDistribution();
+            var initialPotential = lbmGrid.GetPotentialDistribution();
+
+            var conductivityHost = new double[elementCount];
+            var initialPhiHost = new double[elementCount];
+
+            for (int idx = 0; idx < elementCount; idx++)
+            {
+                var element = elements[idx];
+                bool isWall = isWallHost[idx] == 1;
+
+                double sigmaInput = conductivity.GetConductivity(element.Id);
+                double sigmaLu = LBUnitConverter.InputsArePhysical
+                    ? LBUnitConverter.ConductivityPhysToLU(sigmaInput)
+                    : sigmaInput;
+                sigmaLu = SanitizeConductivity(sigmaLu);
+                double sigma = isWall ? 0.0 : sigmaLu;
+
+                conductivityHost[idx] = sigma;
+
+                // Relation (a) (Krüger et al.): convert to LU before the BGK step.
+                element.Conductivity = sigma;
+
+                if (!LBUnitConverter.InputsArePhysical || isWall)
+                    conductivity.Conductivities[element.Id] = sigma;
+
+                double phi0 = 0.0;
+                if (!isWall && initialPotential is not null)
+                    phi0 = initialPotential.GetValue(element.Id);
+                initialPhiHost[idx] = isWall ? 0.0 : phi0;
+            }
+
+            var accelerator = LatticeBoltzmannCudaContext.Accelerator;
+
+            using var fiBuffer = accelerator.Allocate1D<double>(elementCount * 9);
+            using var fiNextBuffer = accelerator.Allocate1D<double>(elementCount * 9);
+            using var conductivityBuffer = accelerator.Allocate1D<double>(elementCount);
+            using var isWallBuffer = accelerator.Allocate1D<int>(elementCount);
+            using var isGhostBuffer = accelerator.Allocate1D<int>(elementCount);
+            using var neighborIndexBuffer = accelerator.Allocate1D<int>(elementCount * 9);
+            using var neighborIsWallBuffer = accelerator.Allocate1D<int>(elementCount * 9);
+            using var neighborIsGhostBuffer = accelerator.Allocate1D<int>(elementCount * 9);
+            using var phiBuffer = accelerator.Allocate1D<double>(elementCount);
+            using var initialPhiBuffer = accelerator.Allocate1D<double>(elementCount);
+
+            isWallBuffer.CopyFromCPU(isWallHost);
+            isGhostBuffer.CopyFromCPU(isGhostHost);
+            conductivityBuffer.CopyFromCPU(conductivityHost);
+            neighborIndexBuffer.CopyFromCPU(neighborIndicesHost);
+            neighborIsWallBuffer.CopyFromCPU(neighborIsWallHost);
+            neighborIsGhostBuffer.CopyFromCPU(neighborIsGhostHost);
+            initialPhiBuffer.CopyFromCPU(initialPhiHost);
+
+            int linkCount = boundaryLinks.Count;
+            using var boundaryInteriorBuffer = accelerator.Allocate1D<int>(linkCount);
+            using var boundaryGhostBuffer = accelerator.Allocate1D<int>(linkCount);
+            using var boundaryDirectionBuffer = accelerator.Allocate1D<int>(linkCount);
+            using var boundaryFluxBuffer = accelerator.Allocate1D<double>(linkCount);
+
+            if (linkCount > 0)
+            {
+                var interiorHost = boundaryLinks.Select(link => link.InteriorIndex).ToArray();
+                var ghostHost = boundaryLinks.Select(link => link.GhostIndex).ToArray();
+                var directionHost = boundaryLinks.Select(link => link.Direction).ToArray();
+
+                boundaryInteriorBuffer.CopyFromCPU(interiorHost);
+                boundaryGhostBuffer.CopyFromCPU(ghostHost);
+                boundaryDirectionBuffer.CopyFromCPU(directionHost);
+                boundaryFluxBuffer.CopyFromCPU(fluxPerLink);
+            }
+
+            if (_initializeKernel == null)
+                throw new NullReferenceException();
+
+            _initializeKernel(elementCount,
+                fiBuffer.View,
+                fiNextBuffer.View,
+                isWallBuffer.View,
+                initialPhiBuffer.View,
+                LatticeBoltzmannCudaContext.WeightsView);
+
+            accelerator.Synchronize();
+
+            double[] prevPhi = new double[elementCount];
+
+            if (_collisionKernel == null || _streamKernel == null || _updateKernel == null || _phiKernel == null)
+                throw new NullReferenceException();
+
+            for (int iteration = 0; iteration < maxIter; iteration++)
+            {
+                _collisionKernel(elementCount,
+                    fiBuffer.View,
+                    isWallBuffer.View,
+                    conductivityBuffer.View,
+                    MinTau,
+                    LatticeBoltzmannConstants.DeltaT,
+                    LatticeBoltzmannCudaContext.WeightsView);
+
+                _streamKernel(elementCount,
+                    fiBuffer.View,
+                    fiNextBuffer.View,
+                    isWallBuffer.View,
+                    neighborIndexBuffer.View,
+                    neighborIsWallBuffer.View,
+                    LatticeBoltzmannCudaContext.OppositeView);
+
+                var updateParams = new UpdateKernelParams(
+                    fiBuffer.View,
+                    fiNextBuffer.View,
+                    isWallBuffer.View,
+                    isGhostBuffer.View,
+                    phiBuffer.View);
+
+                _updateKernel(elementCount, updateParams);
+
+                if (linkCount > 0 && _ghostBoundaryKernel != null)
+                {
+                    var ghostParams = new GhostBoundaryKernelParams(
+                        boundaryInteriorBuffer.View,
+                        boundaryGhostBuffer.View,
+                        boundaryDirectionBuffer.View,
+                        boundaryFluxBuffer.View,
+                        fiBuffer.View,
+                        phiBuffer.View,
+                        LatticeBoltzmannCudaContext.WeightsView,
+                        LatticeBoltzmannCudaContext.OppositeView,
+                        conductivityBuffer.View,
+                        LatticeBoltzmannConstants.DeltaX);
+
+                    _ghostBoundaryKernel(linkCount, ghostParams);
+                }
+
+                if (iteration % checkFrequency == 0)
+                {
+                    accelerator.Synchronize();
+
+                    _phiKernel(elementCount, fiBuffer.View, phiBuffer.View);
+                    accelerator.Synchronize();
+
+                    var phiHost = phiBuffer.GetAsArray1D();
+
+                    double totalPhi = 0.0;
+                    double numerator = 0.0;
+                    double denominator = 0.0;
+
+                    for (int i = 0; i < phiHost.Length; i++)
+                    {
+                        double value = phiHost[i];
+                        double diff = value - prevPhi[i];
+                        totalPhi += value;
+                        numerator += diff * diff;
+                        denominator += value * value;
+                        prevPhi[i] = value;
+                    }
+
+                    Debug.WriteLine($"[LBM-CUDA] Iteration {iteration}: total potential = {totalPhi:G17}");
+
+                    if (denominator > 0.0 && Math.Sqrt(numerator / denominator) < tolerance)
+                        break;
+                }
+            }
+
+            accelerator.Synchronize();
+
+            var finalFi = fiBuffer.GetAsArray1D();
+            double groundPhi = 0.0;
+            if (groundIndex >= 0)
+            {
+                int groundBaseIndex = groundIndex * 9;
+                for (int k = 0; k < 9; k++)
+                    groundPhi += finalFi[groundBaseIndex + k];
+            }
+
+            var result = new Dictionary<int, double>(elementCount);
+            double gauge = groundPhi;
+
+            for (int idx = 0; idx < elementCount; idx++)
+            {
+                var element = elements[idx];
+                int baseIndex = idx * 9;
+                double phiValue = 0.0;
+
+                for (int k = 0; k < 9; k++)
+                {
+                    double value = finalFi[baseIndex + k];
+                    element.Fi[k] = value;
+                    element.Fi_next[k] = 0.0;
+                    phiValue += value;
+                }
+
+                result[elementIds[idx]] = phiValue - gauge;
+            }
+
+            var filtered = ApplyPotentialFilter(lbmGrid, result);
+            var pd = new PotentialDistribution(filtered);
+            lbmGrid.SetPotentialDistribution(pd);
+            return pd;
+        }
+
+        /// <summary>
+        /// Ensures CUDA kernels are compiled and cached for execution.
+        /// Uses thread-safe lazy initialization to avoid recompilation overhead.
+        /// </summary>
+        private static void EnsureCudaKernels()
+        {
+            // Initialize CUDA context first
+            LatticeBoltzmannCudaContext.EnsureInitialized();
+
+            // Quick check without locking for performance
+            if (_initializeKernel != null)
+                return;
+
+            // Thread-safe kernel compilation using double-checked locking
+            lock (_cudaKernelLock)
+            {
+                // Double-check after acquiring lock
+                if (_initializeKernel != null)
+                    return;
+
+                // Get accelerator for kernel compilation
+                var accelerator = LatticeBoltzmannCudaContext.Accelerator;
+
+                // Compile and cache all LBM kernels with automatic optimization
+                // ILGPU handles thread block sizing and register allocation automatically
+                _initializeKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<double>, ArrayView<double>>(InitializeKernel);
+                _collisionKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<int>, ArrayView<double>, double, double, ArrayView<double>>(CollisionKernel);
+                _streamKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<int>, ArrayView<int>, ArrayView<int>, ArrayView<int>>(StreamingKernel);
+                _updateKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, UpdateKernelParams>(UpdateKernel);
+                _ghostBoundaryKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, GhostBoundaryKernelParams>(GhostBoundaryKernel);
+                _phiKernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<double>, ArrayView<double>>(PhiKernel);
+            }
+        }
+
+        /// <summary>
+        /// CUDA kernel for initializing distribution functions and boundary conditions.
+        /// Mirrors the CPU initialisation by placing every non-wall cell in local
+        /// equilibrium with its initial macroscopic potential.  Starting from equilibrium
+        /// keeps the first collision step stable on both CPU and GPU implementations.
+        /// </summary>
+        private static void InitializeKernel(
+            Index1D index,
+            ArrayView<double> fi,
+            ArrayView<double> fiNext,
+            ArrayView<int> isWall,
+            ArrayView<double> initialPhi,
+            ArrayView<double> weights)
+        {
+            int baseIndex = index * 9;
+            bool wall = isWall[index] == 1;
+            double phi0 = wall ? 0.0 : initialPhi[index];
+
+            for (int k = 0; k < 9; k++)
+            {
+                fiNext[baseIndex + k] = 0.0;                       // Streaming buffer starts empty each iteration.
+                fi[baseIndex + k] = wall ? 0.0 : weights[k] * phi0; // Fluid cells begin in equilibrium with φ.
+            }
+        }
+
+        /// <summary>
+        /// CUDA kernel for BGK collision step of LBM algorithm.
+        /// Relaxes distribution functions toward local equilibrium based on material properties.
+        /// Each thread processes one fluid element.
+        /// </summary>
+        /// <param name="index">Linear element index (thread ID)</param>
+        /// <param name="fi">Input/Output: distribution functions [elementCount * 9]</param>
+        /// <param name="isWall">Input: wall flags [elementCount]</param>
+        /// <param name="conductivity">Input: material conductivity [elementCount]</param>
+        /// <param name="minTau">Input: minimum relaxation time for stability</param>
+        /// <param name="weights">Input: D2Q9 equilibrium weights [9]</param>
+        private static void CollisionKernel(
+            Index1D index,                      // Current thread's element index
+            ArrayView<double> fi,               // Distribution functions to update
+            ArrayView<int> isWall,              // Wall identification per element
+            ArrayView<double> conductivity,     // Material conductivity per element
+            double minTau,                      // Minimum relaxation time for stability
+            double deltaT,                      // Time step size
+            ArrayView<double> weights)          // D2Q9 equilibrium weights
+        {
+            // Skip wall elements (no collision)
+            if (isWall[index] == 1)
+                return;
+
+            // Calculate base index for this element's 9 distributions
+            int baseIndex = index * 9;
+
+            // Compute macroscopic potential (zeroth moment)
+            double phi = 0.0;
+            for (int k = 0; k < 9; k++)
+                phi += fi[baseIndex + k];
+
+            // Calculate relaxation time from material conductivity.
+            // Relation (a): D = c_s^2 (τ − 1/2) handled centrally in ComputeTauFromDiffusivityLU.
+            double tau = LatticeBoltzmannOperators.ComputeTauFromDiffusivityLU(conductivity[index]);
+
+            // Enforce minimum relaxation time for numerical stability
+            if (tau < minTau)
+                tau = minTau;
+
+            double omega = 1.0 / tau; // Collision frequency (inverse relaxation time)
+
+            // Apply BGK collision operator: Fi = Fi - ω(Fi - Fi_eq)
+            for (int k = 0; k < 9; k++)
+            {
+                double geq = weights[k] * phi;          // Local equilibrium distribution
+                double value = fi[baseIndex + k];       // Current distribution
+                fi[baseIndex + k] = value - omega * (value - geq); // Relax toward equilibrium
+            }
+        }
+
+        /// <summary>
+        /// CUDA kernel for streaming step of LBM algorithm.
+        /// Propagates distribution functions to neighboring elements according to velocity directions.
+        /// Uses atomic operations to handle race conditions in parallel execution.
+        /// </summary>
+        /// <param name="index">Linear element index (thread ID)</param>
+        /// <param name="fi">Input: source distribution functions [elementCount * 9]</param>
+        /// <param name="fiNext">Output: destination distribution functions [elementCount * 9]</param>
+        /// <param name="isWall">Input: wall flags [elementCount]</param>
+        /// <param name="neighborIndices">Input: neighbor connectivity [elementCount * 9]</param>
+        /// <param name="neighborIsWall">Input: neighbor wall flags [elementCount * 9]</param>
+        /// <param name="opposite">Input: opposite direction mapping [9]</param>
+        private static void StreamingKernel(
+            Index1D index,                      // Current thread's element index
+            ArrayView<double> fi,               // Source distribution functions
+            ArrayView<double> fiNext,           // Destination distribution functions
+            ArrayView<int> isWall,              // Wall identification per element
+            ArrayView<int> neighborIndices,     // Neighbor connectivity array
+            ArrayView<int> neighborIsWall,      // Neighbor wall flags
+            ArrayView<int> opposite)            // Opposite direction mapping
+        {
+            // Skip wall elements (no streaming)
+            if (isWall[index] == 1)
+                return;
+
+            // Calculate base index for this element's 9 distributions
+            int baseIndex = index * 9;
+
+            // Stream all 9 distribution functions to their target locations
+            for (int k = 0; k < 9; k++)
+            {
+                double value = fi[baseIndex + k];              // Distribution to stream
+                int neighborIndex = neighborIndices[baseIndex + k]; // Target neighbor index
+
+                // Check if neighbor exists and is not a wall
+                if (neighborIndex >= 0 && neighborIsWall[baseIndex + k] == 0)
+                {
+                    // Normal streaming: propagate to same direction in neighbor
+                    ref double destination = ref fiNext[neighborIndex * 9 + k];
+                    Atomic.Exchange(ref destination, value); // Atomic operation prevents race conditions
+                }
+                // Check if neighbor exists but is a wall (bounce-back required)
+                else if (neighborIndex >= 0)
+                {
+                    // Bounce-back: reflect distribution to opposite direction in current element
+                    int opp = opposite[k];
+                    ref double bounceDestination = ref fiNext[baseIndex + opp];
+                    Atomic.Exchange(ref bounceDestination, value); // Atomic add for multiple bounces
+                }
+                // If neighbourIndex < 0, we hit a physical boundary.  Mirror the
+                // population just like the CPU path does when neighbour == null so
+                // mass is conserved and CUDA/CPU solutions stay in lockstep.
+                else if (neighborIndex < 0)
+                {
+                    int opp = opposite[k];
+                    ref double bounceDestination = ref fiNext[baseIndex + opp];
+                    Atomic.Exchange(ref bounceDestination, value);
+                }
+            }
+        }
+
+        /// <summary>
+        /// CUDA kernel for updating distribution functions and enforcing boundary conditions.
+        /// The implementation mirrors the CPU logic to keep the collision-streaming-BC order
+        /// identical across execution modes.  The kernel copies streamed populations into
+        /// the main array and leaves the macroscopic gauge to be fixed in post-processing,
+        /// while ghost-node kernels handle the conservative Neumann flux correction.
+        /// </summary>
+        private static void UpdateKernel(
+            Index1D index,
+            UpdateKernelParams p)
+        {
+            bool isPhysicalWall = p.IsWall[index] == 1 && p.IsGhost[index] == 0;
+            if (isPhysicalWall)
+                return;
+
+            int baseIndex = index * 9;
+            double phi = 0.0;
+
+            for (int k = 0; k < 9; k++)
+            {
+                double value = p.FiNext[baseIndex + k];
+                p.Fi[baseIndex + k] = value;
+                p.FiNext[baseIndex + k] = 0.0;
+                phi += value;
+            }
+
+            p.PhiStreamed[index] = phi;
+        }
+
+        // CPU and CUDA ghost updates are algebraically identical by construction.
+        private static void GhostBoundaryKernel(
+            Index1D index,
+            GhostBoundaryKernelParams p)
+        {
+            int interior = p.InteriorIndices[index];
+            int ghost = p.GhostIndices[index];
+            int direction = p.Directions[index];
+
+            double jn = p.FluxPerLink[index];
+            double phiInterior = p.Phi[interior];
+
+            const double eps = 1e-12;
+            double sigmaInterior = XMath.Max(p.Conductivity[interior], eps);
+            double sigmaGhost = XMath.Max(p.Conductivity[ghost], eps);
+            p.Conductivity[ghost] = sigmaGhost;
+
+            double sigmaAvg = 2.0 / (1.0 / sigmaInterior + 1.0 / sigmaGhost);
+            double phiGhost = phiInterior - (jn * p.DeltaX) / sigmaAvg;
+
+            int baseInterior = interior * 9;
+            int incomingDir = p.Opposite[direction];
+            double feqInteriorIncoming = p.Weights[incomingDir] * phiInterior;
+            double feqGhostIncoming = p.Weights[incomingDir] * phiGhost;
+            double nonEqInteriorIncoming = p.Fi[baseInterior + incomingDir] - feqInteriorIncoming;
+            p.Fi[baseInterior + incomingDir] = feqGhostIncoming - nonEqInteriorIncoming;
+            p.Phi[ghost] = phiGhost;
+        }
+
+        /// <summary>
+        /// CUDA kernel for computing macroscopic potential field from distribution functions.
+        /// Used for convergence checking and final solution extraction.
+        /// Each thread processes one element and computes φ = Σ Fi.
+        /// </summary>
+        /// <param name="index">Linear element index (thread ID)</param>
+        /// <param name="fi">Input: distribution functions [elementCount * 9]</param>
+        /// <param name="phiOut">Output: potential field [elementCount]</param>
+        private static void PhiKernel(
+            Index1D index,                      // Current thread's element index
+            ArrayView<double> fi,               // Distribution functions
+            ArrayView<double> phiOut)           // Output potential field
+        {
+            // Calculate base index for this element's 9 distributions
+            int baseIndex = index * 9;
+
+            // Sum all 9 distribution functions to get macroscopic potential
+            double phi = 0.0;
+            for (int k = 0; k < 9; k++)
+                phi += fi[baseIndex + k];
+
+            // Store result in output array
+            phiOut[index] = phi;
+        }
+
+#if DEBUG
+        /// <summary>
+        /// Debug-only acceptance test that validates current closure and CPU↔CUDA equivalence on a uniform disk
+        /// while toggling diagonal boundary links.  Invoke from a debugger or immediate window when needed.
+        /// </summary>
+        internal static void Test_UniformDisk_CPUeqCUDA_and_FluxClosure()
+        {
+            const int nx = 33;
+            const double lxPhys = 0.3;      // [m]
+            const double sigmaPhys = 0.5;   // [S/m]
+            const double deltaTPhys = 1e-6; // [s]
+            const double driveCurrent = 2e-3; // [A]
+
+            (LBMGrid Grid, LBMBoundaryCondition Boundary) CreateSetup(double electrodeCurrent)
+            {
+                var grid = new LBMGrid(nx, nx);
+                grid.ApplyCircularDomain((nx - 1) / 2.0, (nx - 1) / 2.0, (nx - 3) / 2.0);
+
+                var interior = grid.GetElements().Cast<LBMElement>()
+                    .Where(e => !e.IsWall && !e.GhostElement)
+                    .ToList();
+
+                var north = interior
+                    .Where(e => e.Neighbors[2]?.GhostElement == true)
+                    .OrderBy(e => grid.ToLattice(e.Id).x)
+                    .ToList();
+                var south = interior
+                    .Where(e => e.Neighbors[4]?.GhostElement == true)
+                    .OrderBy(e => grid.ToLattice(e.Id).x)
+                    .ToList();
+
+                if (north.Count == 0 || south.Count == 0)
+                    throw new InvalidOperationException("Circular test domain lacks boundary cells in required directions.");
+
+                var drive = north[north.Count / 2];
+                var sink = south[south.Count / 2];
+
+                var electrodes = new List<LBMElectrode>
+                {
+                    new LBMElectrode(id: 0, gridId: drive.Id, current: electrodeCurrent, potential: 0.0, contactImpedance: 0.0, isExcitation: true, isGround: false),
+                    new LBMElectrode(id: 1, gridId: sink.Id, current: -electrodeCurrent, potential: 0.0, contactImpedance: 0.0, isExcitation: false, isGround: true)
+                };
+
+                grid.SetElectrodes(electrodes);
+                var bc = new LBMBoundaryCondition(new List<LBMElectrode>(electrodes), requireDrivePair: false);
+                return (grid, bc);
+            }
+
+            void PopulateUniformConductivity(LBMGrid grid, double conductivityValue)
+            {
+                var conductivity = grid.GetConductivityDistribution();
+                foreach (var element in grid.GetElements().Cast<LBMElement>())
+                {
+                    if (element.IsWall)
+                        continue;
+
+                    conductivity.Conductivities[element.Id] = conductivityValue;
+                    element.Conductivity = conductivityValue;
+                }
+
+                grid.UpdateGhostConductivityFromNeighbors();
+            }
+
+            void ValidateFlux(LBMGrid grid, LBMBoundaryCondition bc)
+            {
+                var elements = grid.GetElements().Cast<LBMElement>().ToList();
+                var lookup = elements
+                    .Select((element, idx) => new { element.Id, idx })
+                    .ToDictionary(item => item.Id, item => item.idx);
+
+                var (runtimeElectrodes, _) = BuildRuntimeElectrodeData(grid, bc, elements, lookup);
+                var topology = grid.BoundaryTopology;
+                var fluxPerLink = ComputeFluxPerLink(topology.Links, topology.LinksByInterior, runtimeElectrodes);
+
+                foreach (var group in runtimeElectrodes.GroupBy(e => e.ElectrodeId))
+                {
+                    var seen = new HashSet<int>();
+                    double netCurrent = 0.0;
+
+                    foreach (var electrode in group)
+                    {
+                        if (!topology.LinksByInterior.TryGetValue(electrode.ElementIndex, out var perCell))
+                            continue;
+
+                        foreach (int linkIndex in perCell)
+                        {
+                            if (!seen.Add(linkIndex))
+                                continue;
+
+                            double deltaS = LBUnitConverter.InputsArePhysical
+                                ? topology.Links[linkIndex].InterfaceLengthPhys
+                                : topology.Links[linkIndex].InterfaceLengthLU;
+                            double fluxDensityLu = fluxPerLink[linkIndex];
+                            double fluxDensity = LBUnitConverter.InputsArePhysical
+                                ? LBUnitConverter.FluxDensityLUToPhys(fluxDensityLu)
+                                : fluxDensityLu;
+                            netCurrent += fluxDensity * deltaS;
+                        }
+                    }
+
+                    double expected = group.Sum(e => e.Current);
+                    double tol = LBUnitConverter.InputsArePhysical
+                        ? Math.Max(1e-12, Math.Abs(expected) * 1e-10)
+                        : 1e-12;
+
+                    Debug.Assert(Math.Abs(netCurrent + expected) <= tol,
+                        $"Flux closure mismatch for electrode {group.Key} (diagonals {(LBMGrid.UseDiagonalBoundaryLinks ? "on" : "off")}): expected −I={-expected:G6}, Σ j_out Δs={netCurrent:G6}.");
+                }
+            }
+
+            foreach (bool inputsArePhysical in new[] { true, false })
+            {
+                double deltaXPhys = lxPhys / Math.Max(1, nx - 1);
+                LBUnitConverter.Configure(deltaXPhys, deltaTPhys, inputsArePhysical);
+                double conductivityValue = inputsArePhysical ? sigmaPhys : LBUnitConverter.ConductivityPhysToLU(sigmaPhys);
+                double electrodeCurrent = inputsArePhysical
+                    ? driveCurrent
+                    : driveCurrent * (LBUnitConverter.DeltaTPhys / (LBUnitConverter.DeltaXPhys * LBUnitConverter.DeltaXPhys));
+
+                foreach (bool useDiagonals in new[] { false, true })
+                {
+                    bool previousToggle = LBMGrid.UseDiagonalBoundaryLinks;
+                    try
+                    {
+                        LBMGrid.UseDiagonalBoundaryLinks = useDiagonals;
+
+                        var (cpuGrid, cpuBoundary) = CreateSetup(electrodeCurrent);
+                        PopulateUniformConductivity(cpuGrid, conductivityValue);
+                        ValidateFlux(cpuGrid, cpuBoundary);
+
+                        var solverCpu = new LatticeBoltzmannSolver(4000, 1e-12, 50, useCuda: false);
+                        var cpuResult = solverCpu.SolveForward(cpuGrid, cpuBoundary);
+
+                        PotentialDistribution? gpuResult = null;
+                        try
+                        {
+                            var (gpuGrid, gpuBoundary) = CreateSetup(electrodeCurrent);
+                            PopulateUniformConductivity(gpuGrid, conductivityValue);
+                            var solverGpu = new LatticeBoltzmannSolver(4000, 1e-12, 50, useCuda: true);
+                            gpuResult = solverGpu.SolveForward(gpuGrid, gpuBoundary);
+                        }
+                        catch (InvalidOperationException ex) when (ex.Message.Contains("CUDA"))
+                        {
+                            continue; // CUDA unavailable in this debug session.
+                        }
+
+                        var cpuPotentials = cpuResult.Potentials;
+                        var gpuPotentials = gpuResult!.Potentials;
+                        double maxDiff = 0.0;
+
+                        foreach (var element in cpuGrid.GetElements().Cast<LBMElement>())
+                        {
+                            if (element.IsWall || element.GhostElement)
+                                continue;
+
+                            double diff = Math.Abs(cpuPotentials[element.Id] - gpuPotentials[element.Id]);
+                            maxDiff = Math.Max(maxDiff, diff);
+                        }
+
+                        Debug.Assert(maxDiff < 1e-10,
+                            $"CPU/CUDA mismatch ({(inputsArePhysical ? "phys" : "LU")}, {(useDiagonals ? "diagonals" : "axis only")}): Δφ_max = {maxDiff:G3}");
+                    }
+                    finally
+                    {
+                        LBMGrid.UseDiagonalBoundaryLinks = previousToggle;
+                    }
+                }
+            }
+        }
+#endif
     }
 }

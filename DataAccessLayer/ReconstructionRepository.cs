@@ -1,6 +1,7 @@
 using System.Xml.Linq;
 using Utility.Classes;
 using Utility.Classes.ReconstructionParameters;
+using Utility.Exports;
 
 namespace DataAccessLayer
 {
@@ -9,7 +10,7 @@ namespace DataAccessLayer
         private static string ReconDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                                                         "EITApplication", "Reconstructions");
 
-        public void SaveReconstruction(List<ReconstructionResult> frames, string name, EITReconstructionParameters parameters)
+        public void SaveReconstruction(List<ReconstructionResult> frames, string name, ReconstructionRuntimeContext parameters)
         {
             if (frames == null || frames.Count == 0) throw new ArgumentException("No frames to save.", nameof(frames));
             if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Name required.", nameof(name));

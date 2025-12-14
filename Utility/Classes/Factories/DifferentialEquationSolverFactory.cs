@@ -1,8 +1,8 @@
 ﻿using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Reconstruction.DESolvers;
 using Utility.Classes.ReconstructionParameters;
 using Utility.Classes.Solvers.GraphBasedSolver;
-
 using Workspace = Utility.Classes.Application.Workspace;
 
 namespace Utility.Classes.Factories
@@ -12,26 +12,34 @@ namespace Utility.Classes.Factories
     /// </summary>
     public static class DifferentialEquationSolverFactory
     {
-        public static IDifferentialEquationSolver Create(IDiscretization discretization, DifferentialEquationSolver des, INumericSolver numericSolver) => des switch
+        public static IDifferentialEquationSolver Create(IDiscretization discretization,
+                                                         DifferentialEquationSolver des,
+                                                         INumericSolver numericSolver,
+                                                         bool useOmpParallelization = false,
+                                                         bool useCudaAcceleration = false,
+                                                         bool useLbmPotentialFilter = false,
+                                                         int lbmGaussianKernelSize = 3) => des switch
         {
-            DifferentialEquationSolver.FEM => CreateFiniteElementSolver((FEMMesh)discretization, numericSolver),
-            DifferentialEquationSolver.LBM => CreateLatticeBoltzmannSolver(),
+            DifferentialEquationSolver.FEM => CreateFiniteElementSolver((FEMMesh)discretization, numericSolver, useOmpParallelization),
+            DifferentialEquationSolver.LBM => CreateLatticeBoltzmannSolver(useCudaAcceleration, useLbmPotentialFilter, lbmGaussianKernelSize),
             DifferentialEquationSolver.Graph => CreateGraphBasedSolver((FEMMesh)discretization, numericSolver),
             _ => throw new NotSupportedException()
         };
 
-        private static FiniteElementDESolver CreateFiniteElementSolver(FEMMesh mesh, INumericSolver numericSolver)
+        private static FiniteElementDESolver CreateFiniteElementSolver(FEMMesh mesh, INumericSolver numericSolver, bool useOmpParallelization)
         {
-            var deSolver = new FiniteElementDESolver(mesh, numericSolver);
+            var deSolver = new FiniteElementDESolver(mesh, numericSolver, useOmpParallelization);
 
             Workspace.AddLogMessage("DifferentialEquationSolverFactory", "Created Finite Element solver object.");
 
             return deSolver;
         }
 
-        private static LatticeBoltzmannDESolver CreateLatticeBoltzmannSolver()
+        private static LatticeBoltzmannDESolver CreateLatticeBoltzmannSolver(bool useCudaAcceleration, bool useLbmPotentialFilter, int lbmGaussianKernelSize)
         {
-            var deSolver = new LatticeBoltzmannDESolver();
+            var deSolver = new LatticeBoltzmannDESolver(useCudaAcceleration: useCudaAcceleration,
+                                                        applyGaussianFilter: useLbmPotentialFilter,
+                                                        gaussianFilterSize: lbmGaussianKernelSize);
 
             Workspace.AddLogMessage("DifferentialEquationSolverFactory", "Created Lattice Boltzmann solver object.");
 

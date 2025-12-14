@@ -6,9 +6,10 @@
              xmlns:skia="clr-namespace:SkiaSharp.Views.Maui.Controls;assembly=SkiaSharp.Views.Maui.Controls"
              xmlns:models="clr-namespace:Utility.Classes;assembly=Utility"
              x:Class="ElectricalImpedanceTomography.Views.ReconstructionPage"
+             x:Name="ReconstructionPageRoot"
              Title="ReconstructionPage"
              Shell.NavBarIsVisible="False"
-             BackgroundColor="{AppThemeBinding Dark=#1B1A13, Light=#F2E7D8}"
+             BackgroundColor="{AppThemeBinding Dark=#101B2B, Light=#F2E7D8}"
              x:DataType="viewmodels:ReconstructionPageViewModel">
     <ContentPage.MenuBarItems>
         <MenuBarItem Text="Reconstruction">
@@ -40,7 +41,7 @@
         <Style TargetType="Label">
             <Setter Property="FontFamily" Value="SF Pro Text"/>
             <Setter Property="FontAttributes" Value="Bold"/>
-            <Setter Property="TextColor" Value="{AppThemeBinding Light=White, Dark=White}"/>
+            <Setter Property="TextColor" Value="#F0F4FF"/>
         </Style>
         <Style TargetType="skia:SKCanvasView">
             <Setter Property="Margin" Value="5"/>
@@ -52,7 +53,7 @@
             <Setter Property="Padding" Value="0"/>
             <Setter Property="Stroke">
                 <Setter.Value>
-                    <SolidColorBrush Color="{AppThemeBinding Light=#3A7CA5, Dark=#C0CAD8}" />
+                    <SolidColorBrush Color="{AppThemeBinding Light=#3A7CA5, Dark=#4D6FA3}" />
                 </Setter.Value>
             </Setter>
             <Setter Property="Shadow">
@@ -63,13 +64,13 @@
         </Style>
 
         <Style TargetType="Picker">
-            <Setter Property="TextColor" Value="{AppThemeBinding Light=White, Dark=White}"/>
-            <Setter Property="TitleColor" Value="{AppThemeBinding Light=White, Dark=White}"/>
+            <Setter Property="TextColor" Value="#F0F4FF"/>
+            <Setter Property="TitleColor" Value="#9DAAD3"/>
             <Setter Property="BackgroundColor" Value="Transparent"/>
         </Style>
 
         <Style TargetType="Entry">
-            <Setter Property="TextColor" Value="{AppThemeBinding Light=White, Dark=White}"/>
+            <Setter Property="TextColor" Value="#F0F4FF"/>
             <Setter Property="BackgroundColor" Value="Transparent"/>
         </Style>
 
@@ -77,7 +78,7 @@
             <Setter Property="StrokeShape" Value="RoundRectangle 10"/>
             <Setter Property="StrokeThickness" Value="0"/>
             <Setter Property="Padding" Value="12"/>
-            <Setter Property="BackgroundColor" Value="{AppThemeBinding Light=#242F47, Dark=#323B47}"/>
+            <Setter Property="BackgroundColor" Value="{AppThemeBinding Light=#242F47, Dark=#293756}"/>
         </Style>
 
         <Style x:Key="CanvasBorderStyle" TargetType="Border">
@@ -85,7 +86,7 @@
             <Setter Property="StrokeThickness" Value="1"/>
             <Setter Property="Stroke" Value="Transparent"/>
             <Setter Property="Padding" Value="10"/>
-            <Setter Property="BackgroundColor" Value="{AppThemeBinding Light=#1A2436, Dark=#1F2733}"/>
+            <Setter Property="BackgroundColor" Value="{AppThemeBinding Light=#1A2436, Dark=#1C2638}"/>
             <Setter Property="Shadow">
                 <Setter.Value>
                     <Shadow Brush="{AppThemeBinding Light=#663A7CA5, Dark=#66B3C2D6}" Offset="0,6" Radius="14" Opacity="0.5" />
@@ -94,260 +95,486 @@
         </Style>
 
         <LinearGradientBrush x:Key="ConfigurationPanelBrush" StartPoint="0,0" EndPoint="0,1">
-            <GradientStop Color="{AppThemeBinding Light=#232E45, Dark=#C0C0D0}" Offset="0" />
-            <GradientStop Color="{AppThemeBinding Light=#161D2C, Dark=#343C49}" Offset="1" />
+            <GradientStop Color="{AppThemeBinding Light=#232E45, Dark=#1E273B}" Offset="0" />
+            <GradientStop Color="{AppThemeBinding Light=#161D2C, Dark=#101624}" Offset="1" />
         </LinearGradientBrush>
         <LinearGradientBrush x:Key="ControlPanelBrush" StartPoint="0,0" EndPoint="0,1">
-            <GradientStop Color="{AppThemeBinding Light=#1E273B, Dark=#B9C3D3}" Offset="0" />
-            <GradientStop Color="{AppThemeBinding Light=#101624, Dark=#2C3440}" Offset="1" />
+            <GradientStop Color="{AppThemeBinding Light=#1E273B, Dark=#1E273B}" Offset="0" />
+            <GradientStop Color="{AppThemeBinding Light=#101624, Dark=#101624}" Offset="1" />
         </LinearGradientBrush>
         <LinearGradientBrush x:Key="PartialResultsBrush" StartPoint="0,0" EndPoint="0,1">
-            <GradientStop Color="{AppThemeBinding Light=#202A3F, Dark=#B0BACB}" Offset="0" />
-            <GradientStop Color="{AppThemeBinding Light=#121923, Dark=#28303C}" Offset="1" />
+            <GradientStop Color="{AppThemeBinding Light=#202A3F, Dark=#202A3F}" Offset="0" />
+            <GradientStop Color="{AppThemeBinding Light=#121923, Dark=#121923}" Offset="1" />
         </LinearGradientBrush>
         <LinearGradientBrush x:Key="FullResultsBrush" StartPoint="0,0" EndPoint="0,1">
-            <GradientStop Color="{AppThemeBinding Light=#1C2638, Dark=#AAB5C6}" Offset="0" />
-            <GradientStop Color="{AppThemeBinding Light=#0F151F, Dark=#252D38}" Offset="1" />
+            <GradientStop Color="{AppThemeBinding Light=#1C2638, Dark=#1C2638}" Offset="0" />
+            <GradientStop Color="{AppThemeBinding Light=#0F151F, Dark=#0F151F}" Offset="1" />
         </LinearGradientBrush>
         <LinearGradientBrush x:Key="HistoryPanelBrush" StartPoint="0,0" EndPoint="0,1">
-            <GradientStop Color="{AppThemeBinding Light=#222E45, Dark=#C8D1E0}" Offset="0" />
-            <GradientStop Color="{AppThemeBinding Light=#141B28, Dark=#343C48}" Offset="1" />
+            <GradientStop Color="{AppThemeBinding Light=#222E45, Dark=#222E45}" Offset="0" />
+            <GradientStop Color="{AppThemeBinding Light=#141B28, Dark=#141B28}" Offset="1" />
         </LinearGradientBrush>
         <LinearGradientBrush x:Key="StatisticsPanelBrush" StartPoint="0,0" EndPoint="0,1">
-            <GradientStop Color="{AppThemeBinding Light=#1E2435, Dark=#C0CADD}" Offset="0" />
-            <GradientStop Color="{AppThemeBinding Light=#111723, Dark=#2A323E}" Offset="1" />
+            <GradientStop Color="{AppThemeBinding Light=#1E2435, Dark=#1E2435}" Offset="0" />
+            <GradientStop Color="{AppThemeBinding Light=#111723, Dark=#111723}" Offset="1" />
         </LinearGradientBrush>
     </ContentPage.Resources>
     
     
-    <Grid RowDefinitions="Auto, Auto">
+    <Grid RowDefinitions="*">
+        <!--
         <controls:NavBarControl x:Name="NavBar" Grid.Row="0" Grid.ColumnSpan="1" CurrentPageName="ReconstructionPage"/>
-
+        -->
         <!-- Main Grid For Page display -->
-        <Grid Grid.Row="1" ColumnDefinitions="Auto, Auto, *" Margin="5">
+        <Grid Grid.Row="1" ColumnDefinitions="Auto, *, Auto" Margin="5">
             <!-- Left hand Side controls-->
             <Border Style="{StaticResource PanelBorderStyle}"
+                    MaximumWidthRequest="400"
                     Grid.Column="0"
                     Margin="5"
                     Background="{StaticResource ConfigurationPanelBrush}">
                 <Border.Stroke>
-                    <SolidColorBrush Color="{AppThemeBinding Light=#4D6FA3, Dark=#C0CAD8}" />
+                    <SolidColorBrush Color="{AppThemeBinding Light=#4D6FA3, Dark=#4D6FA3}" />
                 </Border.Stroke>
-                <VerticalStackLayout Margin="5" Spacing="20">
+                <VerticalStackLayout Margin="5" Spacing="10">
                     <Grid ColumnDefinitions="Auto, *" ColumnSpacing="8">
                         <Image Grid.Column="0" Source="icon_configuration.png" HeightRequest="35"/>
-                        <Label Grid.Column="1" Text="Configuration" FontAttributes="Italic" FontSize="Large" TextColor="{AppThemeBinding Light=White, Dark=#262E38}"/>
+                        <Label Grid.Column="1" Text="Configuration" FontAttributes="Italic" FontSize="Large" TextColor="#F0F4FF"/>
                     </Grid>
-                    <Grid ColumnDefinitions="*, *" ColumnSpacing="14" RowSpacing="0">
+                    <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="14" RowSpacing="0">
                         <!-- Method Selection -->
                         <Border Grid.Column="0"
                                 Style="{StaticResource PanelSectionBorderStyle}"
-                                BackgroundColor="{AppThemeBinding Light=#27344D, Dark=#3B4452}">
-                            <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
+                                BackgroundColor="{AppThemeBinding Light=#27344D, Dark=#27344D}">
+                            <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
                                 <Label Grid.Row="0" Text="Methods" FontSize="Medium" FontAttributes="Bold" Margin="0,0,0,12"/>
-                                <Label Grid.Row="1" HorizontalOptions="Start" Text="DE Solver" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="2" ItemsSource="{Binding DifferentialEquationSolverOptions}" SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}"/>
-                                <Label Grid.Row="3" HorizontalOptions="Start" Text="Error Metric" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="4" ItemsSource="{Binding ErrorMetricOptions}" SelectedItem="{Binding ReconstructionParameters.ErrorMetric}" WidthRequest="150"/>
-                                <Label Grid.Row="5" HorizontalOptions="Start" Text="Regularization" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="6" ItemsSource="{Binding RegularizationTechniqueOptions}" SelectedItem="{Binding ReconstructionParameters.RegularizationTechnique}"/>
-                                <Label Grid.Row="7" HorizontalOptions="Start" Text="Linear Solver" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="8" ItemsSource="{Binding NumericSolverOptions}" SelectedItem="{Binding ReconstructionParameters.NumericSolver}"/>
+                                <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                    <Label Grid.Column="0"
+                                           HorizontalOptions="Start"
+                                           Text="Initial Distribution"
+                                           VerticalOptions="Center"
+                                           FontFamily="SF Pro Text"
+                                           FontAttributes="None"/>
+                                    <Button Grid.Column="1"
+                                            Text="Edit"
+                                            Padding="12,4"
+                                            FontFamily="SF Pro Text"
+                                            FontSize="12"
+                                            Clicked="OnEditInitialDistributionClicked"
+                                            IsEnabled="{Binding CanEditInitialDistribution}"
+                                            BackgroundColor="#2E3C55"
+                                            TextColor="#E5EEFF"
+                                            CornerRadius="8"/>
+                                </Grid>
+                                <Picker Grid.Row="2"
+                                        ItemsSource="{Binding InitialDistributionOptions}"
+                                        SelectedItem="{Binding ReconstructionParameters.InitialDistributionType}"
+                                        SelectedIndexChanged="OnInitialDistributionPickerChanged"
+                                        MaximumWidthRequest="150"/>
+                                <Label Grid.Row="3" HorizontalOptions="Start" Text="DE Solver" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Picker Grid.Row="4" ItemsSource="{Binding DifferentialEquationSolverOptions}" SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}" WidthRequest="150"/>
+                                <Label Grid.Row="5" HorizontalOptions="Start" Text="Error Metric" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Picker Grid.Row="6" HorizontalOptions="Start" ItemsSource="{Binding ErrorMetricPickerOptions}" SelectedItem="{Binding SelectedErrorMetricDisplay}" WidthRequest="150" IsEnabled="{Binding IsErrorMetricPickerEnabled}"/>
+                                <Label Grid.Row="7" HorizontalOptions="Start" Text="Regularization" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Picker Grid.Row="8" ItemsSource="{Binding RegularizationPickerOptions}" SelectedItem="{Binding SelectedRegularizationDisplay}" WidthRequest="150" IsEnabled="{Binding IsRegularizationPickerEnabled}"/>
                                 <Label Grid.Row="9" HorizontalOptions="Start" Text="Optimizer" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="10" ItemsSource="{Binding NumericOptimizerOptions}" SelectedItem="{Binding ReconstructionParameters.NumericOptimizer}"/>
+                                <Picker Grid.Row="10" ItemsSource="{Binding OptimizerPickerOptions}" SelectedItem="{Binding SelectedOptimizerDisplay}" IsEnabled="{Binding IsOptimizerPickerEnabled}"/>
+                                <Label Grid.Row="11" HorizontalOptions="Start" Text="Linear Solver" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Picker Grid.Row="12" ItemsSource="{Binding NumericSolverOptions}" SelectedItem="{Binding ReconstructionParameters.NumericSolver}" WidthRequest="150"/>
+                                <Label Grid.Row="13" HorizontalOptions="Start" Text="{Binding ParallelizationToggleLabel}" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Switch Grid.Row="14" IsToggled="{Binding UseParallelizationToggle}" HorizontalOptions="Start"/>
                             </Grid>
                         </Border>
                         <!-- Parameter Configuration -->
                         <Border Grid.Column="1"
+                                MaximumWidthRequest="180"
                                 Style="{StaticResource PanelSectionBorderStyle}"
-                                BackgroundColor="{AppThemeBinding Light=#25324A, Dark=#353F4B}">
-                            <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
+                                BackgroundColor="{AppThemeBinding Light=#25324A, Dark=#25324A}">
+                            <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto,
+                                                  Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto,
+                                                  Auto, Auto, Auto" RowSpacing="8">
                                 <Label Grid.Row="0" Text="Parameters" FontSize="Medium" FontAttributes="Bold" Margin="0,0,0,12"/>
-                                <Label Grid.Row="1" HorizontalOptions="Start" Text="Regularization Weight (θ)" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Entry Grid.Row="2" Text="{Binding RegularizationWeight}"/>
-                                <Label Grid.Row="3" HorizontalOptions="Start" Text="Gradient Step Size (β)" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Entry Grid.Row="4" Text="{Binding StepSize}"/>
-                                <Label Grid.Row="5" HorizontalOptions="Start" Text="Max Iteration Count" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Entry Grid.Row="6" Text="{Binding MaxIterationCount}"/>
-                                <Label Grid.Row="7" HorizontalOptions="Start" Text="Initial Distribution" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="8" ItemsSource="{Binding InitialDistributionOptions}" SelectedItem="{Binding ReconstructionParameters.InitialDistributionType}"/>
+                                <HorizontalStackLayout Grid.Row="1" Spacing="10">
+                                    <Label HorizontalOptions="Start"
+                                           VerticalOptions="Center"
+                                           Text="Visualize Iterations"
+                                           FontFamily="SF Pro Text"
+                                           FontAttributes="None"/>
+                                    <CheckBox IsChecked="{Binding VisualizeIterations}" HorizontalOptions="Start"/>
+                                </HorizontalStackLayout>
+                                <Label Grid.Row="2" HorizontalOptions="Start" Text="Max Iteration Count" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Entry Grid.Row="3" Text="{Binding MaxIterationCount}" MaximumWidthRequest="130" HorizontalOptions="Start"/>
+                                <Label Grid.Row="4" HorizontalOptions="Start" Text="Regularization Weight (θ)" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Entry Grid.Row="5" Text="{Binding RegularizationWeight}" MaximumWidthRequest="130" HorizontalOptions="Start"/>
+                                <Label Grid.Row="6" HorizontalOptions="Start" Text="Gradient Step Size (β)" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Entry Grid.Row="7" Text="{Binding StepSize}" MaximumWidthRequest="130" HorizontalOptions="Start"/>
+                                <Label Grid.Row="8" HorizontalOptions="Start" Text="Measurement Noise" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Picker Grid.Row="9" ItemsSource="{Binding MeasurementNoiseTypeOptions}" SelectedItem="{Binding ReconstructionParameters.MeasurementNoiseType}" MaximumWidthRequest="130" HorizontalOptions="Start"/>
+                                <Label Grid.Row="10" HorizontalOptions="Start" Text="Noise Amplitude / dB" FontFamily="SF Pro Text" FontAttributes="None"/>
+                                <Entry Grid.Row="11"
+                                       Text="{Binding ReconstructionParameters.MeasurementNoiseAmplitude}"
+                                       Keyboard="Numeric"
+                                       HorizontalOptions="Start"
+                                       IsEnabled="{Binding IsNoiseAmplitudeEnabled}"/>
+
+                                <Label Grid.Row="12"
+                                       HorizontalOptions="Start"
+                                       Text="Conductivity Bounds [S]"
+                                       FontFamily="SF Pro Text"
+                                       FontAttributes="None"/>
+                                <Grid Grid.Row="13" ColumnDefinitions="*, *" ColumnSpacing="8">
+                                    <Entry Grid.Column="0"
+                                           Placeholder="Min"
+                                           HorizontalOptions="Start"
+                                           Keyboard="Numeric"
+                                           MaximumWidthRequest="60"
+                                           Text="{Binding ReconstructionParameters.ConductivityMinimumBound}"/>
+                                    <Entry Grid.Column="1"
+                                           Placeholder="Max"
+                                           HorizontalOptions="Start"
+                                           MaximumWidthRequest="60"
+                                           Keyboard="Numeric"
+                                           Text="{Binding ReconstructionParameters.ConductivityMaximumBound}"/>
+                                </Grid>
+
+                                <Label Grid.Row="14"
+                                       HorizontalOptions="Start"
+                                       Text="Potential Smoothing"
+                                       FontFamily="SF Pro Text"
+                                       FontAttributes="None"
+                                       IsVisible="{Binding IsLbmSolverSelected}"/>
+                                <Grid Grid.Row="15" ColumnDefinitions="*,Auto" ColumnSpacing="8"
+                                      IsVisible="{Binding IsLbmSolverSelected}">
+                                    <Label Text="Filter"
+                                           VerticalOptions="Center"
+                                           FontFamily="SF Pro Text"/>
+                                    <Switch Grid.Column="1"
+                                            IsToggled="{Binding ReconstructionParameters.UseLbmGaussianFilter}"
+                                            HorizontalOptions="End"/>
+                                </Grid>
+
+                                <Label Grid.Row="16"
+                                       HorizontalOptions="Start"
+                                       Text="Conductivity Smoothing"
+                                       FontFamily="SF Pro Text"
+                                       FontAttributes="None"
+                                       IsVisible="{Binding IsLbmSolverSelected}"/>
+                                <Grid Grid.Row="17" ColumnDefinitions="Auto" ColumnSpacing="8"
+                                      IsVisible="{Binding IsLbmSolverSelected}">
+                                    <Switch Grid.Column="1"
+                                            IsToggled="{Binding ReconstructionParameters.UseLbmConductivityFilter}"
+                                            HorizontalOptions="End"/>
+                                </Grid>
+
+                                <Label Grid.Row="18"
+                                       HorizontalOptions="Start"
+                                       Text="Virtual Electrode Method"
+                                       FontFamily="SF Pro Text"
+                                       FontAttributes="None"
+                                       IsVisible="{Binding VirtualElectrodeSettings.UseVirtualElectrodes}"/>
+                                <Picker Grid.Row="19"
+                                        ItemsSource="{Binding VirtualElectrodeMethods}"
+                                        SelectedItem="{Binding VirtualElectrodeSettings.Method}"
+                                        IsVisible="{Binding VirtualElectrodeSettings.UseVirtualElectrodes}"
+                                        MaximumWidthRequest="150"/>
+
+                                <Grid Grid.Row="20" ColumnDefinitions="Auto,*" ColumnSpacing="8"
+                                      IsVisible="{Binding IsLinearCombinationMethod}">
+                                    <Label Text="Alpha (0..1)"
+                                           VerticalOptions="Center"
+                                           FontFamily="SF Pro Text"/>
+                                    <Entry Grid.Column="1"
+                                           Text="{Binding VirtualElectrodeSettings.LinearCombinationAlpha}"
+                                           Keyboard="Numeric"
+                                           HorizontalTextAlignment="End"/>
+                                </Grid>
+
+                                <Grid Grid.Row="21" ColumnDefinitions="Auto,*" ColumnSpacing="8"
+                                      IsVisible="{Binding IsHarrachMethod}">
+                                    <Label Text="Harrach λ"
+                                           VerticalOptions="Center"
+                                           FontFamily="SF Pro Text"/>
+                                    <Entry Grid.Column="1"
+                                           Text="{Binding VirtualElectrodeSettings.HarrachLambda}"
+                                           Keyboard="Numeric"
+                                           HorizontalTextAlignment="End"/>
+                                </Grid>
+
+                                <Grid Grid.Row="22" ColumnDefinitions="Auto,*" ColumnSpacing="8"
+                                      IsVisible="{Binding IsNdMethod}">
+                                    <Label Text="ND Max Mode"
+                                           VerticalOptions="Center"
+                                           FontFamily="SF Pro Text"/>
+                                    <Entry Grid.Column="1"
+                                           Text="{Binding VirtualElectrodeSettings.NdMaxMode}"
+                                           Keyboard="Numeric"
+                                           HorizontalTextAlignment="End"/>
+                                </Grid>
                             </Grid>
                         </Border>
                     </Grid>
 
                     <Border Style="{StaticResource PanelSectionBorderStyle}"
-                            BackgroundColor="{AppThemeBinding Light=#253049, Dark=#3F4856}">
-                        <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
-                            <Grid Grid.Row="0" ColumnDefinitions="Auto, *" ColumnSpacing="8">
+                            MaximumWidthRequest="350"
+                            BackgroundColor="{AppThemeBinding Light=#253049, Dark=#253049}">
+                        <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
+                            <Grid Grid.Row="0" ColumnDefinitions="Auto, *, Auto" ColumnSpacing="8">
                                 <Image Grid.Column="0" Source="icon_boundary.png" HeightRequest="25"/>
                                 <Label Grid.Column="1" Text="Boundary Conditions" FontAttributes="Italic" FontSize="Medium"/>
+                                <Button Grid.Column="2" Text="Edit" Background="#2F9E9C" TextColor="White" FontAttributes="Bold" Clicked="OnEditBoundaryConditionsClicked"/>
                             </Grid>
-                            <Label Grid.Row="1" Text="Starting Excitation Electrode" FontAttributes="None"/>
-                            <Entry Grid.Row="2" Text="{Binding ExcitationElectrodeId}"/>
-                            <Label Grid.Row="3" Text="Starting Ground Electrode" FontAttributes="None"/>
-                            <Entry Grid.Row="4" Text="{Binding GroundElectrodeId}"/>
-                            <Label Grid.Row="5" Text="Drive Pattern:" FontAttributes="None"/>
-                            <Grid Grid.Row="6" ColumnDefinitions="Auto, Auto, Auto, Auto" ColumnSpacing="20" HorizontalOptions="Center">
-                                <CheckBox Grid.Column="0"
-                                          HorizontalOptions="Center"
-                                          VerticalOptions="Center"
-                                          IsChecked="{Binding AdjecentDrivePattern}"
-                                          CheckedChanged="OnAdjecentDrivePatternChecked"/>
-                                <Label Grid.Column="1" Text="Adjecent" VerticalOptions="Center" HorizontalOptions="Start" FontAttributes="None"/>
-                                <CheckBox Grid.Column="2"
-                                          HorizontalOptions="Center"
-                                          VerticalOptions="Center"
-                                          IsChecked="{Binding OppositeDrivePattern}"
-                                          CheckedChanged="OnOppositeDrivePatternChecked"/>
-                                <Label Grid.Column="3" Text="Opposite" HorizontalOptions="Start" VerticalOptions="Center" FontAttributes="None"/>
-                            </Grid>
-                            <Button Grid.Row="7" Text="Edit Boundary Conditions" Background="#2F9E9C" TextColor="White" FontAttributes="Bold" Clicked="OnEditBoundaryConditionsClicked"/>
+
+                            <VerticalStackLayout Grid.Row="1">
+                                <Label HorizontalOptions="Start"
+                                       Text="Measurement Source"
+                                       FontFamily="SF Pro Text"
+                                       FontAttributes="None"
+                                       IsVisible="True"/>
+                                <VerticalStackLayout Spacing="4"
+                                                     IsVisible="True">
+                                   <Grid ColumnDefinitions="*, *" ColumnSpacing="10">
+                                        <RadioButton Content="Simulated"
+                                                     IsChecked="{Binding IsSimulatedMeasurementSelected}"
+                                                     GroupName="MeasurementSourceOptions"
+                                                     HorizontalOptions="Start"/>
+                                        <RadioButton Grid.Column="1"
+                                                     Content="{Binding RealMeasurementOptionLabel}"
+                                                     IsChecked="{Binding IsRealMeasurementSelected}"
+                                                     GroupName="MeasurementSourceOptions"
+                                                     HorizontalOptions="Start"/>        
+                                    </Grid>
+                                </VerticalStackLayout>
+                            </VerticalStackLayout>
+        
+                            <BoxView Grid.Row="3" Color="#BBBBBB" HeightRequest="1"/>
+
+                            <VerticalStackLayout Grid.Row="4">
+                                <Label Text="Drive Pattern:" FontAttributes="Bold" FontSize="Small" VerticalOptions="Center"/>
+                                <Grid ColumnDefinitions="Auto, Auto, Auto, Auto" ColumnSpacing="0" HorizontalOptions="Center">
+                                    <Label Grid.Column="0" Margin="5" Text="Adjacent" VerticalOptions="Center" HorizontalOptions="Start" FontAttributes="None"/>
+                                    <CheckBox Grid.Column="1"
+                                              VerticalOptions="Center"
+                                              IsChecked="{Binding AdjecentDrivePattern}"
+                                              CheckedChanged="OnAdjecentDrivePatternChecked"/>
+                                    <Label Grid.Column="2" Margin="5" Text="Opposite" VerticalOptions="Center" HorizontalOptions="Start" FontAttributes="None"/>
+                                    <CheckBox Grid.Column="3"
+                                              HorizontalOptions="Center"
+                                              VerticalOptions="Center"
+                                              IsChecked="{Binding OppositeDrivePattern}"
+                                              CheckedChanged="OnOppositeDrivePatternChecked"/>
+                                </Grid>
+                            </VerticalStackLayout>
+
+                            <BoxView Grid.Row="5" Color="#BBBBBB" HeightRequest="1"/>
+                            
+                            <HorizontalStackLayout Grid.Row="6" Spacing="10">
+                                <Label HorizontalOptions="Start"
+                                       VerticalOptions="Center"
+                                       Text="Use Potential Differences"
+                                       FontFamily="SF Pro Text"
+                                       FontAttributes="None"/>
+                                <Switch IsToggled="{Binding ReconstructionParameters.UsePotentialDifferences}"
+                                        HorizontalOptions="Start"/>    
+                            </HorizontalStackLayout>
+
+                            <BoxView Grid.Row="7" Color="#BBBBBB" HeightRequest="1"/>
+<!--
+                            <HorizontalStackLayout Grid.Row="8" Spacing="40">
+                                <Label Grid.Row="3" Text="Starting Excitation Electrode" FontAttributes="None" VerticalOptions="Center"/>
+                                <Entry Grid.Row="4" Text="{Binding ExcitationElectrodeId}" HorizontalOptions="End" WidthRequest="50"/>
+                            </HorizontalStackLayout>
+
+                            <HorizontalStackLayout Grid.Row="9" Spacing="52">
+                                <Label Grid.Row="5" Text="Starting Ground Electrode" FontAttributes="None" VerticalOptions="Center"/>
+                                <Entry Grid.Row="6" Text="{Binding GroundElectrodeId}" HorizontalOptions="End" WidthRequest="50"/>
+                            </HorizontalStackLayout>
+                            -->
                         </Grid>
                     </Border>
+                    <!--
+                    <Border Style="{StaticResource PanelSectionBorderStyle}"
+                            BackgroundColor="{AppThemeBinding Light=#22304A, Dark=#36404C}">
+                        <VerticalStackLayout Spacing="12">
+                            <Entry Text="{Binding Name}" Placeholder="Name" TextColor="{AppThemeBinding Light=White, Dark=#262E38}"/>
+                            <Grid ColumnDefinitions="*, *" ColumnSpacing="12">
+                                <Button Grid.Column="0" Text="Save" BackgroundColor="#2E8B57" TextColor="White" FontFamily="SF Pro Text" FontAttributes="Bold" Clicked="OnSaveClicked"/>
+                                <Button Grid.Column="1" Text="Load" BackgroundColor="#3A7CA5" TextColor="White" FontFamily="SF Pro Text" FontAttributes="Bold" Clicked="OnLoadClicked"/>
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Border>
+                    -->
                 </VerticalStackLayout>
             </Border>
 
             <!-- Center Content -->
             <Grid Grid.Column="1" 
+                  BackgroundColor="Transparent"
                   Margin="5"
-                  RowDefinitions="Auto, Auto" 
+                  RowDefinitions="Auto, *" 
                   HorizontalOptions="Center">
 
                 <!-- Control Panel to control reconstruction -->
                     <Border Style="{StaticResource PanelBorderStyle}"                           
                             Grid.Row="0"
-                            Background="{StaticResource ConfigurationPanelBrush}">
-                    <Border.Stroke>
-                        <SolidColorBrush Color="{AppThemeBinding Light=#3A5F8A, Dark=#C0CAD8}" />
-                    </Border.Stroke>
-                    <Grid ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto"
-                          RowDefinitions="*, Auto"
-                          ColumnSpacing="15"
-                          HorizontalOptions="Center">
-                        <Border x:Name="PlayButton" Grid.Column="0" HeightRequest="60" WidthRequest="60" Margin="5" HorizontalOptions="Center" VerticalOptions="Center" Stroke="Transparent">
-                            <Image Source="icon_play_green.png" WidthRequest="40">
-                                <Image.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnPlayButtonClicked"/>
-                                </Image.GestureRecognizers>
-                                <VisualStateManager.VisualStateGroups>
+                            MaximumWidthRequest="1010"
+                            Background="{StaticResource ControlPanelBrush}">
+                        <Border.Stroke>
+                            <SolidColorBrush Color="{AppThemeBinding Light=#3A5F8A, Dark=#3A5F8A}" />
+                        </Border.Stroke>
+                        <Grid ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto"
+                              RowDefinitions="*, Auto"
+                              ColumnSpacing="10"
+                              HorizontalOptions="Center">
+                            <Border x:Name="PlayButton" Grid.Column="0" HeightRequest="60" WidthRequest="60" Margin="5" HorizontalOptions="Center" VerticalOptions="Center" Stroke="Transparent">
+                                <Image Source="icon_play_green.png" WidthRequest="40">
+                                    <Image.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnPlayButtonClicked"/>
+                                    </Image.GestureRecognizers>
+                                    <VisualStateManager.VisualStateGroups>
                                     
-                                </VisualStateManager.VisualStateGroups>
-                            </Image>
-                        </Border>
-                        <Border x:Name="PauseButton" Grid.Column="0" HeightRequest="50" WidthRequest="50" Margin="5" HorizontalOptions="Center" VerticalOptions="Center" Stroke="Transparent">
-                            <Image Source="icon_pause_blue.png" WidthRequest="40">
+                                    </VisualStateManager.VisualStateGroups>
+                                </Image>
+                            </Border>
+                            <Border x:Name="PauseButton" Grid.Column="0" HeightRequest="50" WidthRequest="50" Margin="5" HorizontalOptions="Center" VerticalOptions="Center" Stroke="Transparent">
+                                <Image Source="icon_pause_blue.png" WidthRequest="40">
+                                    <Image.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnPauseButtonClicked"/>
+                                    </Image.GestureRecognizers>
+                                </Image>
+                            </Border>
+                            <Border x:Name="StepButton" Grid.Column="1" HeightRequest="50" WidthRequest="50" Margin="5" Stroke="Transparent">
+                                <Image Source="icon_next_blue.png" WidthRequest="40">
+                                    <Image.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnStepButtonClicked"/>
+                                    </Image.GestureRecognizers>
+                                </Image>
+                            </Border>
+                            <Border x:Name="StopButton" Grid.Column="2" HeightRequest="50" WidthRequest="50" Margin="5" Stroke="Transparent">
+                                <Image Source="icon_stop_red.png" WidthRequest="40">
+                                    <Image.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnStopButtonClicked"/>
+                                    </Image.GestureRecognizers>
+                                </Image>
+                            </Border>
+
+                            <Label Grid.Column="3" HorizontalOptions="Center" WidthRequest="100"  VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding IterationCount, StringFormat='Iteration: {0}'}" TextColor="#F0F4FF"/>
+                            <Label Grid.Column="4" HorizontalOptions="Center" WidthRequest="160" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding Residual, StringFormat='Residual: {0:F3} [mV]'}" TextColor="#F0F4FF"/>
+
+                            <Border Grid.Column="5" Margin="2" Background="Transparent" Stroke="Transparent">
+                                <Button Text="Reset Reconstruction" Margin="10" BackgroundColor="DarkRed" TextColor="White" FontAttributes="Bold" Clicked="OnResetReconstructionClicked" HorizontalOptions="Center" VerticalOptions="Center"/>
+                            </Border>
+                            <Border Grid.Column="6" Margin="2" Background="Transparent" Stroke="Transparent">
+                            </Border>
+                            <Picker x:Name="PotentialModePicker"
+                                    Margin="5"
+                                    Grid.Column="7"
+                                    TitleColor="#9DAAD3"
+                                    TextColor="#F0F4FF"
+                                    HorizontalOptions="Center"
+                                    VerticalOptions="Center"
+                                    SelectedItem="Default"
+                                    Title="Potential Display Mode">
+                                <Picker.Items>
+                                    <x:String>Default</x:String>
+                                    <x:String>Grayscale</x:String>
+                                    <x:String>Inverted</x:String>
+                                    <x:String>Heatmap</x:String>
+                                    <x:String>Rainbow</x:String>
+                                </Picker.Items>
+                            </Picker>
+                            <Border Grid.Column="5" Grid.Row="1" Background="Transparent" Stroke="Transparent">
+                                <Button x:Name="ExportVideoButton"
+                                        Text="Export"
+                                        Margin="10"
+                                        BackgroundColor="#3A7CA5"
+                                        TextColor="White"
+                                        FontAttributes="Bold"
+                                        Clicked="OnExportClicked"
+                                        IsEnabled="False"/>
+                            </Border>
+                            <Picker x:Name="ConductivityModePicker"
+                                    Margin="5"
+                                    Grid.Column="7"
+                                    Grid.Row="1"
+                                    TitleColor="#9DAAD3"
+                                    TextColor="#F0F4FF"
+                                    HorizontalOptions="Center"
+                                    VerticalOptions="Center"
+                                    Title="Conductivity Display Mode">
+                                <Picker.Items>
+                                    <x:String>Classic</x:String>
+                                    <x:String>Enhanced Diverging</x:String>
+                                    <x:String>Rainbow</x:String>
+                                    <x:String>Matlab Jet</x:String>
+                                    <x:String>Parula</x:String>
+                                    <x:String>Viridis</x:String>
+                                    <x:String>Plasma</x:String>
+                                    <x:String>Magma</x:String>
+                                    <x:String>Cividis</x:String>
+                                    <x:String>Cool-Warm</x:String>
+                                </Picker.Items>
+                            </Picker>
+                            <Slider x:Name="PlaybackSlider"
+                                    Margin="5"
+                                    Grid.Row="1"
+                                    WidthRequest="250"
+                                    VerticalOptions="Center"
+                                    HorizontalOptions="Center"
+                                    Grid.ColumnSpan="3"
+                                    Minimum="0"
+                                    Maximum="0"
+                                    ValueChanged="OnPlaybackSliderValueChanged" />
+                            <Label x:Name="PlaybackFrameLabel"
+                                   WidthRequest="100"
+                                   Grid.Row="1"
+                                   Grid.Column="3"
+                                   VerticalOptions="Center"
+                                   Text="0 / 0"
+                                   FontFamily="SF Pro Text"/>
+
+                            <Image x:Name="PlayerForwardButton"
+                                   Grid.Row="1"
+                                   Grid.Column="4"
+                                   Source="icon_next_player.png"
+                                   HeightRequest="35"
+                                   WidthRequest="35"
+                                   HorizontalOptions="Start"
+                                   Rotation="180"
+                                   Margin="5"
+                                   IsEnabled="False">
+                                <Image.Shadow>
+                                    <Shadow Brush="White" Opacity="1.0" Radius="1.0"/>
+                                </Image.Shadow>
                                 <Image.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnPauseButtonClicked"/>
+                                    <TapGestureRecognizer Tapped="OnPlayerBackButtontapped"/>
                                 </Image.GestureRecognizers>
                             </Image>
-                        </Border>
-                        <Border x:Name="StepButton" Grid.Column="1" HeightRequest="50" WidthRequest="50" Margin="5" Stroke="Transparent">
-                            <Image Source="icon_next_blue.png" WidthRequest="40">
+                            <Image x:Name="PlayerBackButton"
+                                   Grid.Row="1"
+                                   Grid.Column="4"
+                                   Source="icon_next_player.png"
+                                   HeightRequest="35"
+                                   WidthRequest="35"
+                                   HorizontalOptions="End"
+                                   Margin="5"
+                                   IsEnabled="False">
+                                <Image.Shadow>
+                                    <Shadow Brush="White" Opacity="1.0" Radius="1.0"/>
+                                </Image.Shadow>
                                 <Image.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnStepButtonClicked"/>
+                                    <TapGestureRecognizer Tapped="OnPlayerForwardButtontapped"/>
                                 </Image.GestureRecognizers>
                             </Image>
-                        </Border>
-                        <Border x:Name="StopButton" Grid.Column="2" HeightRequest="50" WidthRequest="50" Margin="5" Stroke="Transparent">
-                            <Image Source="icon_stop_red.png" WidthRequest="40">
-                                <Image.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnStopButtonClicked"/>
-                                </Image.GestureRecognizers>
-                            </Image>
-                        </Border>
-
-                        <Label Grid.Column="3" HorizontalOptions="Center" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding IterationCount, StringFormat='Iteration: {0}'}" TextColor="{AppThemeBinding Light=#F0F4FF, Dark=#262E38}"/>
-                        <Label Grid.Column="4" HorizontalOptions="Center" VerticalOptions="Center" FontFamily="SF Pro Text" Text="{Binding Residual, StringFormat='Residual: {0:F3}'}" TextColor="{AppThemeBinding Light=#F0F4FF, Dark=#262E38}"/>
-
-                        <Border Grid.Column="5" Margin="2" Background="Transparent" Stroke="Transparent">
-                            <Button Text="Solve Forward" Margin="10" BackgroundColor="DarkOliveGreen" TextColor="White" FontAttributes="Bold" Clicked="OnSolveForwardClicked"/>
-                        </Border>
-                        <Border Grid.Column="6" Margin="2" Background="Transparent" Stroke="Transparent">
-                            <Button Text="Solve Inverse" Margin="10" BackgroundColor="DarkRed" TextColor="White" FontAttributes="Bold" Clicked="OnSolveInverseClicked"/>
-                        </Border>
-                        <Picker x:Name="PotentialModePicker"
-                                Margin="5"
-                                Grid.Column="7"
-                                TitleColor="{AppThemeBinding Light=Gray, Dark=#262E38}"
-                                TextColor="{AppThemeBinding Light=Gray, Dark=#262E38}"
-                                HorizontalOptions="Center"
-                                VerticalOptions="Center"
-                                SelectedItem="Default"
-                                Title="Potential Display Mode">
-                            <Picker.Items>
-                                <x:String>Default</x:String>
-                                <x:String>Grayscale</x:String>
-                                <x:String>Inverted</x:String>
-                                <x:String>Heatmap</x:String>
-                                <x:String>Rainbow</x:String>
-                            </Picker.Items>
-                        </Picker>
-                        <Border Grid.Column="7" Grid.Row="1"  Background="Transparent" Stroke="Transparent">
-                            <Button x:Name="ExportVideoButton"
-                                    Text="Export Video"
-                                    Margin="10"
-                                    BackgroundColor="#3A7CA5"
-                                    TextColor="White"
-                                    FontAttributes="Bold"
-                                    Clicked="OnExportVideoClicked"
-                                    IsEnabled="False"/>
-                        </Border>
-                        <Slider x:Name="PlaybackSlider"
-                                Grid.Row="1"
-                                Grid.ColumnSpan="3"
-                                Minimum="0"
-                                Maximum="0"
-                                ValueChanged="OnPlaybackSliderValueChanged" />
-                        <Label x:Name="PlaybackFrameLabel"
-                               Grid.Row="1"
-                               Grid.Column="3"
-                               VerticalOptions="Center"
-                               Text="0 / 0"
-                               FontFamily="SF Pro Text"/>
-
-                        <Image x:Name="PlayerBackButton"
-                               Grid.Row="1"
-                               Grid.Column="4"
-                               Rotation="180"
-                               Source="icon_next_player.png"
-                               HeightRequest="35"
-                               WidthRequest="35"
-                               HorizontalOptions="End"
-                               Margin="5"
-                               IsEnabled="False">
-                            <Image.Shadow>
-                                <Shadow Brush="White" Opacity="1.0" Radius="1.0"/>
-                            </Image.Shadow>
-                            <Image.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnPlayerBackButtontapped"/>
-                            </Image.GestureRecognizers>
-                        </Image>
-                        <Image x:Name="PlayerForwardButton"
-                               Grid.Row="1"
-                               Grid.Column="5"
-                               Source="icon_next_player.png"
-                               HeightRequest="35"
-                               WidthRequest="35"
-                               HorizontalOptions="Start"
-                               Margin="5"
-                               IsEnabled="False">
-                            <Image.Shadow>
-                                <Shadow Brush="White" Opacity="1.0" Radius="1.0"/>
-                            </Image.Shadow>
-                            <Image.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnPlayerForwardButtontapped"/>
-                            </Image.GestureRecognizers>
-                        </Image>
-                    </Grid>
+                        </Grid>
                 </Border>
 
                 <!-- Displays for reconstruction steps -->
                 <Grid Grid.Row="1" Margin="0,5,0,0" RowDefinitions="Auto, Auto" ColumnDefinitions="Auto" HorizontalOptions="Center" VerticalOptions="Center" RowSpacing="14">
-                    <Border Grid.Row="0" Margin="0, 0, 0, -10" Style="{StaticResource PanelBorderStyle}" Background="{StaticResource PartialResultsBrush}" Stroke="{AppThemeBinding Light=#2F4F77, Dark=#B5C0D0}">
+                    <Border Grid.Row="0" Margin="0, 0, 0, -10" Style="{StaticResource PanelBorderStyle}" Background="{StaticResource PartialResultsBrush}" Stroke="#2F4F77">
                         <Grid ColumnDefinitions="Auto,Auto,Auto" RowDefinitions="Auto, Auto" HorizontalOptions="Center" Margin="18" ColumnSpacing="18">
                             <!-- Calculated Potential -->
                             <VerticalStackLayout Grid.Row="0" Grid.Column="0" HorizontalOptions="Center" Spacing="10">
-                                <Label Text="Calculated Potential [mV]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="{AppThemeBinding Light=#F0F4FF, Dark=#262E38}"/>
+                                <Label Text="Calculated Potential [mV]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="#F0F4FF"/>
                                 <Border Style="{StaticResource CanvasBorderStyle}" Margin="10" HorizontalOptions="Center">
                                     <Grid RowDefinitions="Auto,Auto">
                                         <skia:SKCanvasView x:Name="PotentialDistributionCanvas" PaintSurface="OnPotentialCanvasPaintSurface" EnableTouchEvents="True" Touch="OnPotentialCanvasTouch" HeightRequest="250" WidthRequest="250" Margin="10" />
@@ -357,7 +584,7 @@
                             </VerticalStackLayout>
                             <!-- Adjoint Potential -->
                             <VerticalStackLayout Grid.Row="0" Grid.Column="1" HorizontalOptions="Center" Spacing="10">
-                                <Label Text="Adjoint Potential [mV]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="{AppThemeBinding Light=#F0F4FF, Dark=#262E38}"/>
+                                <Label Text="Adjoint Potential [mV]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="#F0F4FF"/>
                                 <Border Style="{StaticResource CanvasBorderStyle}" Margin="10" HorizontalOptions="Center">
                                     <Grid RowDefinitions="Auto,Auto">
                                         <skia:SKCanvasView x:Name="AdjointDistributionCanvas" PaintSurface="OnAdjointCanvasPaintSurface" EnableTouchEvents="True" Touch="OnAdjointCanvasTouch" HeightRequest="250" WidthRequest="250" Margin="10"/>
@@ -367,7 +594,7 @@
                             </VerticalStackLayout>
                             <!-- Gradient -->
                             <VerticalStackLayout Grid.Row="0" Grid.Column="2" HorizontalOptions="Center" Spacing="10">
-                                <Label Text="Conductivity Gradient [∂Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="{AppThemeBinding Light=#F0F4FF, Dark=#262E38}"/>
+                                <Label Text="Conductivity Gradient [∂S]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="#F0F4FF"/>
                                 <Border Style="{StaticResource CanvasBorderStyle}" Margin="10" HorizontalOptions="Center">
                                     <Grid RowDefinitions="Auto,Auto">
                                         <skia:SKCanvasView x:Name="GradientDistributionCanvas" PaintSurface="OnGradientCanvasPaintSurface" EnableTouchEvents="True" Touch="OnGradientCanvasTouch" HeightRequest="250" WidthRequest="250" Margin="10"/>
@@ -377,7 +604,7 @@
                             </VerticalStackLayout>
                             <!-- Original -->
                             <VerticalStackLayout Grid.Row="1" Grid.Column="0" HorizontalOptions="Center" Spacing="10">
-                                <Label Text="Original Distribution [Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="{AppThemeBinding Light=#F0F4FF, Dark=#262E38}"/>
+                                <Label Text="Original Distribution [S]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="#F0F4FF"/>
                                 <Border Style="{StaticResource CanvasBorderStyle}" Margin="10" HorizontalOptions="Center">
                                     <Grid RowDefinitions="Auto,Auto">
                                         <skia:SKCanvasView x:Name="OriginalDistributionCanvas" PaintSurface="OnOriginalCanvasPaintSurface" EnableTouchEvents="True" Touch="OnOriginalCanvasTouch" HeightRequest="250" WidthRequest="250" Margin="10"/>
@@ -387,7 +614,7 @@
                             </VerticalStackLayout>
                             <!-- Initial -->
                             <VerticalStackLayout Grid.Row="2" Grid.Column="1" HorizontalOptions="Center" Spacing="10">
-                                <Label Text="Initial Distribution [Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="{AppThemeBinding Light=#F0F4FF, Dark=#262E38}"/>
+                                <Label Text="Initial Distribution [S]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="#F0F4FF"/>
                                 <Border Style="{StaticResource CanvasBorderStyle}" Margin="10" HorizontalOptions="Center">
                                     <Grid RowDefinitions="Auto,Auto">
                                         <skia:SKCanvasView x:Name="InitialDistributionCanvas" PaintSurface="OnInitialCanvasPaintSurface" EnableTouchEvents="True" Touch="OnInitialCanvasTouch" HeightRequest="250" WidthRequest="250" Margin="10"/>
@@ -397,7 +624,7 @@
                             </VerticalStackLayout>
                             <!-- Reconstructed -->
                             <VerticalStackLayout Grid.Row="3" Grid.Column="2" HorizontalOptions="Center" Spacing="10">
-                                <Label Text="Reconstructed Distribution [Ω]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="{AppThemeBinding Light=#F0F4FF, Dark=#262E38}"/>
+                                <Label Text="Reconstructed Distribution [S]" HorizontalOptions="Center" FontFamily="SF Pro Text" FontSize="Small" FontAttributes="Bold" TextColor="#F0F4FF"/>
                                 <Border Style="{StaticResource CanvasBorderStyle}" Margin="10" HorizontalOptions="Center">
                                     <Grid RowDefinitions="Auto,Auto">
                                         <skia:SKCanvasView x:Name="ReconstructedDistributionCanvas" PaintSurface="OnReconstructedCanvasPaintSurface" EnableTouchEvents="True" Touch="OnReconstructedCanvasTouch" HeightRequest="250" WidthRequest="250" Margin="10"/>
@@ -410,10 +637,10 @@
                 </Grid>
             </Grid>
             <Grid Grid.Column="2" 
-                  RowDefinitions="Auto, Auto, Auto" 
-                  RowSpacing="10" 
+                  WidthRequest="270"
                   Margin="5"
                   HorizontalOptions="End">
+                <!--
                 <Border Grid.Row="2" Style="{StaticResource PanelBorderStyle}" Background="{StaticResource HistoryPanelBrush}">
                     <Border.Stroke>
                         <SolidColorBrush Color="{AppThemeBinding Light=#3D5D8C, Dark=#C0CAD8}" />
@@ -443,48 +670,79 @@
                         </Border>
                     </VerticalStackLayout>
                 </Border>
-                                
-                <Border Style="{StaticResource PanelSectionBorderStyle}"
-                         BackgroundColor="{AppThemeBinding Light=#22304A, Dark=#36404C}"
-                         Grid.Row="1">
-                    <VerticalStackLayout Spacing="12">
-                        <Entry Text="{Binding Name}" Placeholder="Name" TextColor="{AppThemeBinding Light=White, Dark=#262E38}"/>
-                        <Grid ColumnDefinitions="*, *" ColumnSpacing="12">
-                            <Button Grid.Column="0" Text="Save" BackgroundColor="#2E8B57" TextColor="White" FontFamily="SF Pro Text" FontAttributes="Bold" Clicked="OnSaveClicked"/>
-                            <Button Grid.Column="1" Text="Load" BackgroundColor="#3A7CA5" TextColor="White" FontFamily="SF Pro Text" FontAttributes="Bold" Clicked="OnLoadClicked"/>
-                        </Grid>
-                    </VerticalStackLayout>
-                </Border>
-
+               -->
                 <Border Grid.Row="0" Style="{StaticResource PanelBorderStyle}" Background="{StaticResource StatisticsPanelBrush}">
                     <Border.Stroke>
-                        <SolidColorBrush Color="{AppThemeBinding Light=#3A7CA5, Dark=#C0CAD8}" />
+                        <SolidColorBrush Color="{AppThemeBinding Light=#3A7CA5, Dark=#3A7CA5}" />
                     </Border.Stroke>
-                    <VerticalStackLayout Margin="16" Spacing="16">
-                        <Label Text="Reconstruction Statistics" HorizontalOptions="Center" FontSize="16"  TextColor="{AppThemeBinding Light=#F0F4FF, Dark=#262E38}"/>
-                        <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="12">
-                            <Border Style="{StaticResource PanelSectionBorderStyle}" BackgroundColor="{AppThemeBinding Light=#252F44, Dark=#353F4C}">
-                                <VerticalStackLayout Spacing="2">
-                                    <Label Text="Elapsed Time" FontAttributes="None" FontSize="12" TextColor="#9DAAD3"/>
-                                    <Label Text="{Binding ElapsedTime, StringFormat='{0:mm\\:ss}'}" FontSize="18" TextColor="#F0F4FF"/>
-                                </VerticalStackLayout>
-                            </Border>
-                            <Border Grid.Column="1" Style="{StaticResource PanelSectionBorderStyle}" BackgroundColor="{AppThemeBinding Light=#252F44, Dark=#3A4452}">
-                                <VerticalStackLayout Spacing="2">
-                                    <Label Text="Residual" FontAttributes="None" FontSize="12" TextColor="#9DAAD3"/>
-                                    <Label Text="{Binding Residual, StringFormat='{0:F3}'}" FontSize="18" TextColor="#F0F4FF"/>
-                                </VerticalStackLayout>
-                            </Border>
-                            <Border Grid.Row="1" Grid.ColumnSpan="2" Style="{StaticResource PanelSectionBorderStyle}" BackgroundColor="{AppThemeBinding Light=#252F44, Dark=#353F4C}">
-                                <VerticalStackLayout Spacing="2">
-                                    <Label Text="Correlation" FontAttributes="None" FontSize="12" TextColor="#9DAAD3"/>
-                                    <Label Text="{Binding Correlation, StringFormat='{0:F3}'}" FontSize="18" TextColor="#F0F4FF"/>
-                                </VerticalStackLayout>
-                            </Border>
-                        </Grid>
-                        <skia:SKCanvasView x:Name="ResidualTrendCanvas"
+                    <VerticalStackLayout Margin="16" Spacing="10">
+                        <Label Text="Reconstruction Statistics" HorizontalOptions="Center" FontSize="16"  TextColor="#F0F4FF"/>
+                        <VerticalStackLayout BindableLayout.ItemsSource="{Binding MetricGroups}" Spacing="10">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate x:DataType="viewmodels:ReconstructionMetricGroupViewModel">
+                                    <Border Style="{StaticResource PanelSectionBorderStyle}" BackgroundColor="{AppThemeBinding Light=#252F44, Dark=#252F44}">
+                                        <VerticalStackLayout Spacing="5">
+                                            <Label Text="{Binding Title}" FontSize="12" FontAttributes="Bold" TextColor="#F0F4FF"/>
+                                            <VerticalStackLayout BindableLayout.ItemsSource="{Binding Metrics}" Spacing="6">
+                                                <BindableLayout.ItemTemplate>
+                                                    <DataTemplate x:DataType="viewmodels:ReconstructionMetricViewModel">
+                                                        <Border Padding="2"
+                                                                StrokeThickness="0"
+                                                                BackgroundColor="Transparent"
+                                                                StrokeShape="RoundRectangle 6">
+                                                            <Border.Triggers>
+                                                                <DataTrigger TargetType="Border" Binding="{Binding IsTrendSelected}" Value="True">
+                                                                    <Setter Property="StrokeThickness" Value="1.5"/>
+                                                                    <Setter Property="Stroke">
+                                                                        <Setter.Value>
+                                                                            <SolidColorBrush Color="{AppThemeBinding Light=#3A9CED, Dark=#8FD3FF}"/>
+                                                                        </Setter.Value>
+                                                                    </Setter>
+                                                                    <Setter Property="BackgroundColor" Value="{AppThemeBinding Light=#2A354C, Dark=#465268}"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger TargetType="Border" Binding="{Binding IsTrendSelectable}" Value="False">
+                                                                    <Setter Property="Opacity" Value="0.75"/>
+                                                                </DataTrigger>
+                                                            </Border.Triggers>
+                                                            <Border.GestureRecognizers>
+                                                                <TapGestureRecognizer Command="{Binding Source={x:Reference ReconstructionPageRoot}, Path=BindingContext.SelectTrendMetricCommand}"
+                                                                                      CommandParameter="{Binding Key}"/>
+                                                                <TapGestureRecognizer NumberOfTapsRequired="2"
+                                                                                      Command="{Binding Source={x:Reference ReconstructionPageRoot}, Path=BindingContext.RequestGradientInspectionCommand}"
+                                                                                      CommandParameter="{Binding Key}"/>
+                                                            </Border.GestureRecognizers>
+                                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                                                <Label Text="{Binding Name}" FontAttributes="Italic" FontSize="12" TextColor="#9DAAD3">
+                                                                    <Label.Triggers>
+                                                                        <DataTrigger TargetType="Label" Binding="{Binding IsTrendSelected}" Value="True">
+                                                                            <Setter Property="TextColor" Value="#E3EDFF"/>
+                                                                        </DataTrigger>
+                                                                    </Label.Triggers>
+                                                                </Label>
+                                                                <Label Grid.Column="1"
+                                                                       Text="{Binding Value}"
+                                                                       FontSize="9"
+                                                                       TextColor="#F0F4FF"                                                                       
+                                                                       HorizontalOptions="End">
+                                                                    <Label.Triggers>
+                                                                        <DataTrigger TargetType="Label" Binding="{Binding IsTrendSelected}" Value="True">
+                                                                            <Setter Property="TextColor" Value="#FFFFFF"/>
+                                                                        </DataTrigger>
+                                                                    </Label.Triggers>
+                                                                </Label>
+                                                            </Grid>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </BindableLayout.ItemTemplate>
+                                            </VerticalStackLayout>
+                                        </VerticalStackLayout>
+                                    </Border>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </VerticalStackLayout>
+                        <skia:SKCanvasView x:Name="MetricTrendCanvas"
                                                   HeightRequest="170"
-                                                  PaintSurface="OnResidualTrendCanvasPaintSurface"/>
+                                                  PaintSurface="OnMetricTrendCanvasPaintSurface"/>
                     </VerticalStackLayout>
                 </Border>
             </Grid>

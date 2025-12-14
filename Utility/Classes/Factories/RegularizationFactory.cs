@@ -1,5 +1,6 @@
 ﻿using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Reconstruction.Regulizers;
 using Utility.Classes.ReconstructionParameters;
 
 using Workspace = Utility.Classes.Application.Workspace;
@@ -9,7 +10,7 @@ namespace Utility.Classes.Factories
     /// <summary>
     /// The regularization factory should be used to create the regulizer applied during the inverse solve step of the reconstruciton.
     /// </summary>
-    public static class RegularisationFactory
+    public static class RegularizationFactory
     {
         public static IRegularizer Create(RegularizationTechnique rt, IDiscretization discretization, double lambda = 1e-3) => rt switch
         {

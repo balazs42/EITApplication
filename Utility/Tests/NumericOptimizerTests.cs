@@ -1,5 +1,5 @@
-﻿using Utility.Classes.Factories;
-using Utility.Classes.ReconstructionParameters;
+﻿using Utility.Classes;
+using Utility.Classes.Reconstruction.NumericOptimizers;
 using Xunit;
 
 namespace Utility.Tests
@@ -9,7 +9,7 @@ namespace Utility.Tests
         [Fact]
         public void GradientBased_Clamps_And_Steps()
         {
-            var opt = new GradientBasedOptimizer(); // min=1e-6, max=10.0  
+            var opt = new GradientBasedOptimizer(); // min=1e-6, max=10.0
             var σk = TestData.Sigma((0, 9.9), (1, 1.0), (2, 1e-7));
             var g = TestData.Grad((0, -10.0), (1, 2.0), (2, 10.0)); // negative grad increases value
 
@@ -20,6 +20,27 @@ namespace Utility.Tests
             Assert.Equal(10.0, σnext.GetConductivity(0), 12);
             Assert.Equal(0.6, σnext.GetConductivity(1), 12);
             Assert.Equal(1e-6, σnext.GetConductivity(2), 12);
+        }
+
+        [Fact]
+        public void Bfgs_Adjusts_Step_Length_From_Curvature()
+        {
+            var opt = new BfgsOptimizer();
+            const double optimum = 1.0;
+            const double curvature = 4.0;
+
+            var σ0 = TestData.Sigma((0, 5.0));
+            var g0 = QuadraticGradient(σ0, optimum, curvature);
+            var σ1 = opt.OptimizationStep(σ0, g0, 0.1);
+
+            var g1 = QuadraticGradient(σ1, optimum, curvature);
+            var σ2 = opt.OptimizationStep(σ1, g1, 0.1);
+
+            double firstRatio = Math.Abs((σ0.GetConductivity(0) - σ1.GetConductivity(0)) / (0.1 * g0.GetConductivity(0)));
+            double secondRatio = Math.Abs((σ1.GetConductivity(0) - σ2.GetConductivity(0)) / (0.1 * g1.GetConductivity(0)));
+
+            Assert.InRange(firstRatio, 0.99, 1.01); // identity inverse Hessian on first step
+            Assert.InRange(secondRatio, 0.24, 0.26); // approximates 1 / curvature after update
         }
 
         [Fact]
@@ -126,6 +147,16 @@ namespace Utility.Tests
             var σ1 = opt.OptimizationStep(σ0, g, 0.0);
             Assert.Equal(1.0, σ1.GetConductivity(0), 12);
             Assert.Equal(2.0, σ1.GetConductivity(1), 12);
+        }
+
+        private static ConductivityDistribution QuadraticGradient(
+            ConductivityDistribution sigma,
+            double optimum,
+            double curvature)
+        {
+            double value = sigma.GetConductivity(0);
+            double gradient = curvature * (value - optimum);
+            return TestData.Grad((0, gradient));
         }
     }
 }

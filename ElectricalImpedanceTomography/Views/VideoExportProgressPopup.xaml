@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<toolkit:Popup
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:toolkit="clr-namespace:CommunityToolkit.Maui.Views;assembly=CommunityToolkit.Maui"
+    x:Class="ElectricalImpedanceTomography.Views.VideoExportProgressPopup"
+    CanBeDismissedByTappingOutsideOfPopup="False"
+    Color="Transparent">
+
+    <Border
+        StrokeShape="RoundRectangle 18"
+        StrokeThickness="0"
+        Padding="24"
+        WidthRequest="420"
+        HeightRequest="400"
+        BackgroundColor="{AppThemeBinding Light=#F8FAFC, Dark=#111827}">
+        <Border.Shadow>
+            <Shadow
+                Brush="{AppThemeBinding Light=#1F2937, Dark=#000000}"
+                Radius="24"
+                Opacity="0.25" />
+        </Border.Shadow>
+
+        <VerticalStackLayout Spacing="24">
+            <Label
+                Text="{Binding VideoExportHeading}"
+                FontSize="20"
+                FontAttributes="Bold"
+                HorizontalOptions="Center"
+                TextColor="{AppThemeBinding Light=#0F172A, Dark=#E2E8F0}" />
+
+            <VerticalStackLayout Spacing="12" IsVisible="{Binding VideoExportIsConfiguring}">
+                <Label
+                    Text="Select the output file type"
+                    FontSize="16"
+                    FontAttributes="Bold"
+                    TextColor="{AppThemeBinding Light=#0F172A, Dark=#E2E8F0}" />
+                <Picker
+                    Title="File type"
+                    TitleColor="{AppThemeBinding Light=#334155, Dark=#CBD5F5}"
+                    TextColor="{AppThemeBinding Light=#0F172A, Dark=#E2E8F0}"
+                    ItemsSource="{Binding VideoExportFormatOptions}"
+                    SelectedItem="{Binding SelectedVideoExportFormat}"
+                    ItemDisplayBinding="{Binding DisplayName}"
+                    HorizontalOptions="Fill"
+                    BackgroundColor="{AppThemeBinding Light=#E2E8F0, Dark=#1F2A3A}"
+                    Margin="0,0,0,4" />
+                <Label
+                    Text="{Binding SelectedVideoExportFormat.Description}"
+                    FontSize="13"
+                    TextColor="{AppThemeBinding Light=#475569, Dark=#94A3B8}"
+                    LineBreakMode="WordWrap"/>
+                <Label
+                    Text="{Binding VideoExportEstimatedSizeText}"
+                    FontSize="13"
+                    FontAttributes="Bold"
+                    TextColor="{AppThemeBinding Light=#1E293B, Dark=#E2E8F0}" />
+                <Label
+                    Text="{Binding VideoExportEstimatedTimeText}"
+                    FontSize="13"
+                    FontAttributes="Bold"
+                    TextColor="{AppThemeBinding Light=#1E293B, Dark=#E2E8F0}" />
+            </VerticalStackLayout>
+
+            <Border
+                StrokeShape="RoundRectangle 16"
+                BackgroundColor="{AppThemeBinding Light=#E0F2FE, Dark=#1D3A5F}"
+                Padding="20"
+                HorizontalOptions="Center"
+                IsVisible="{Binding VideoExportIsRunning}">
+                <ActivityIndicator
+                    WidthRequest="48"
+                    HeightRequest="48"
+                    IsRunning="{Binding VideoExportIsRunning}"
+                    Color="{AppThemeBinding Light=#2563EB, Dark=#60A5FA}" />
+            </Border>
+
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" IsVisible="{Binding VideoExportIsRunning}">
+                <ProgressBar
+                    Progress="{Binding VideoExportProgress}"
+                    HeightRequest="8"
+                    VerticalOptions="Center"
+                    ProgressColor="{AppThemeBinding Light=#2563EB, Dark=#60A5FA}"
+                    BackgroundColor="{AppThemeBinding Light=#E2E8F0, Dark=#1F2A3A}" />
+                <Label
+                    Grid.Column="1"
+                    Text="{Binding VideoExportProgressPercentText}"
+                    FontAttributes="Bold"
+                    FontSize="16"
+                    VerticalOptions="Center"
+                    TextColor="{AppThemeBinding Light=#0F172A, Dark=#E2E8F0}" />
+            </Grid>
+
+            <Label
+                Text="{Binding VideoExportStatusMessage}"
+                FontSize="14"
+                TextColor="{AppThemeBinding Light=#334155, Dark=#CBD5F5}"
+                LineBreakMode="WordWrap" />
+
+            <Border
+                IsVisible="{Binding VideoExportWasSuccessful}"
+                StrokeShape="RoundRectangle 12"
+                BackgroundColor="{AppThemeBinding Light=#ECFDF5, Dark=#0F2A1F}"
+                Padding="16">
+                <VerticalStackLayout Spacing="4">
+                    <Label
+                        Text="Saved to"
+                        FontAttributes="Bold"
+                        FontSize="14"
+                        TextColor="{AppThemeBinding Light=#047857, Dark=#6EE7B7}" />
+                    <Label
+                        Text="{Binding VideoExportFilePath}"
+                        FontSize="13"
+                        TextColor="{AppThemeBinding Light=#064E3B, Dark=#A7F3D0}"
+                        LineBreakMode="CharacterWrap" />
+                </VerticalStackLayout>
+            </Border>
+
+            <Grid ColumnDefinitions="*" ColumnSpacing="16" VerticalOptions="Center">
+                <Button
+                    x:Name="StartButton"
+                    Text="Start"
+                    Clicked="OnStartClicked"
+                    IsVisible="{Binding VideoExportIsConfiguring}"
+                    IsEnabled="{Binding VideoExportCanStart}"
+                    BackgroundColor="{AppThemeBinding Light=#2563EB, Dark=#1D4ED8}"
+                    TextColor="White"
+                    CornerRadius="10"
+                    Padding="18,8"
+                    FontAttributes="Bold" />
+                <Button
+                    x:Name="AbortButton"
+                    Text="Abort"
+                    Clicked="OnAbortClicked"
+                    IsVisible="{Binding VideoExportIsRunning}"
+                    BackgroundColor="{AppThemeBinding Light=#F87171, Dark=#7F1D1D}"
+                    TextColor="White"
+                    CornerRadius="10"
+                    Padding="12,8"
+                    FontAttributes="Bold" />
+                <Button
+                    Grid.Column="2"
+                    Text="Done"
+                    Clicked="OnDoneClicked"
+                    IsVisible="{Binding VideoExportHasResult}"
+                    IsEnabled="{Binding VideoExportHasResult}"
+                    BackgroundColor="{AppThemeBinding Light=#2563EB, Dark=#1D4ED8}"
+                    TextColor="White"
+                    CornerRadius="10"
+                    Padding="18,8"
+                    FontAttributes="Bold" />
+            </Grid>
+        </VerticalStackLayout>
+    </Border>
+</toolkit:Popup>

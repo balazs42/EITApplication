@@ -1,31 +1,64 @@
-﻿using Utility.Classes.Discretizer;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Utility.Classes.Discretizer;
+using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
+using Utility.Classes.Measurement;
+using Utility.Classes.Reconstruction;
 using Utility.Classes.ReconstructionParameters;
+using Utility.Classes.Configurations.ReconstructionConfiguration;
 
 namespace Utility.Classes.Application
 {
     public static class Workspace
     {
+        private const int MaxMessageCount = 200;
+
         private static User _user { get; set; } = new DefaultUser(0, "No User");
-        private static EITReconstructionParameters _reconstructionParameters = new();
+        private static ReconstructionRuntimeContext _reconstructionParameters = new();
         private static IDiscretization? _discretization{ get; set; } = null;
         private static IDiscretization? _originalDiscretization { get; set; } = null;
         private static IDiscretization? _initialDiscretization { get; set; } = null;
 
+        private static bool _useBlockConfiguration;
+
         private static int _maxIterationCount = 50;
         private static double _stepSize = 0.001;
         private static double _regularizationWeight = 1e-3;
+        private static double _conductivityMinimumBound = 0.1;
+        private static double _conductivityMaximumBound = 10.0;
 
         public const int ReconstructionVideoFramesPerSecond = 10;
 
         private static List<ReconstructionResult> _reconstructionResults = [];
         private static List<ReconstructionFrame> _reconstructionFrames = [];
+        private static List<ReconstructionConfigurationBlock> _reconstructionBlocks = [];
+        private static CompleteReconstructionConfiguration? _completeReconstructionConfiguration;
         private static List<WorkspaceMessage> _messages = [];
         private static ConductivityDistribution? _originalConductivityDistribution = null;
+        private static ConductivityDistribution? _initialConductivityDistribution = null;
         public static event Action<WorkspaceMessage>? MessageAdded;
 
-        private static bool _initialized = false; 
+        private static List<FEMElement>? _currentGlobalFemElements;
+        private static List<FEMElectrode>? _currentGlobalFemElectrodes;
+        private static FEMBoundaryCondition? _currentGlobalFemBoundaryCondition;
 
-        public static void Initialize(User user, EITReconstructionParameters? eITReconstructionParameters, IDiscretization? discretization)
+        private static List<LBMElement>? _currentGlobalLbmElements;
+        private static List<LBMElectrode>? _currentGlobalLbmElectrodes;
+        private static LBMBoundaryCondition? _currentGlobalLbmBoundaryCondition;
+
+        private static bool _initialized = false;
+
+        private static EITMeasurement? _importedMeasurement;
+        private static string? _importedMeasurementLabel;
+        private static MeasurementSourceOption _measurementSource = MeasurementSourceOption.Simulated;
+        private static ElectrodeMeasurementSetup _electrodeMeasurementSetup = ElectrodeMeasurementSetup.Active;
+        private static MeasurementPattern? _measurementPattern;
+
+        public static event Action<ElectrodeMeasurementSetup>? ElectrodeMeasurementSetupChanged;
+
+        public static void Initialize(User user, ReconstructionRuntimeContext? eITReconstructionParameters, IDiscretization? discretization)
         {
             if(_initialized) return;
 
@@ -43,22 +76,152 @@ namespace Utility.Classes.Application
         }
 
         public static void SetUser(User user) => _user = user;
-        public static void SetReconstructionParameters(EITReconstructionParameters eITReconstructionParameters) => _reconstructionParameters = eITReconstructionParameters;
+        public static void SetReconstructionParameters(ReconstructionRuntimeContext eITReconstructionParameters)
+        {
+            _reconstructionParameters = eITReconstructionParameters;
+            _conductivityMinimumBound = eITReconstructionParameters.ConductivityMinimumBound;
+            _conductivityMaximumBound = eITReconstructionParameters.ConductivityMaximumBound;
+            ConductivityClipper.UpdateBounds(_conductivityMinimumBound, _conductivityMaximumBound);
+        }
         public static void SetDiscretization(IDiscretization? discretization) => _discretization = discretization;
         public static void SetOriginalDiscretization(IDiscretization? originalDiscretization) => _originalDiscretization = originalDiscretization;
         public static void SetInitialDiscretization(IDiscretization? initialDiscretization) => _initialDiscretization = initialDiscretization;
         public static void SetReconstructionResults(List<ReconstructionResult> results) => _reconstructionResults = results;
         public static void SetReconstructionFrames(List<ReconstructionFrame> frames) => _reconstructionFrames = frames;
+        public static void SetReconstructionBlocks(List<ReconstructionConfigurationBlock> blocks) => _reconstructionBlocks = blocks;
+        public static void SetCompleteReconstructionConfiguration(CompleteReconstructionConfiguration? configuration)
+            => _completeReconstructionConfiguration = configuration;
         public static void SetOriginalConductivityDistribution(ConductivityDistribution? sigma) => _originalConductivityDistribution = sigma;
+        public static void SetInitialConductivityDistribution(ConductivityDistribution? sigma) => _initialConductivityDistribution = sigma;
+        public static void SetUseBlockConfiguration(bool enabled) => _useBlockConfiguration = enabled;
 
         public static User GetUser() => _user;
-        public static EITReconstructionParameters GetReconstructionParameters() => _reconstructionParameters;
+        public static ReconstructionRuntimeContext GetReconstructionParameters() => _reconstructionParameters;
         public static IDiscretization? GetDiscretization() => _discretization;
         public static IDiscretization? GetOriginalDiscretization() => _originalDiscretization;
         public static IDiscretization? GetInitialDiscretization() => _initialDiscretization;
         public static List<ReconstructionResult> GetReconstructionResults() => _reconstructionResults;
         public static List<ReconstructionFrame> GetReconstructionFrames() => _reconstructionFrames;
+        public static IReadOnlyList<ReconstructionConfigurationBlock> GetReconstructionBlocks() => _reconstructionBlocks;
+        public static CompleteReconstructionConfiguration? GetCompleteReconstructionConfiguration() => _completeReconstructionConfiguration;
         public static ConductivityDistribution? GetOriginalConductivityDistribution() => _originalConductivityDistribution;
+        public static ConductivityDistribution? GetInitialConductivityDistribution() => _initialConductivityDistribution;
+        public static bool GetUseBlockConfiguration() => _useBlockConfiguration;
+
+        public static void UpdateCurrentGlobalFemElements(FEMMesh mesh)
+            => _currentGlobalFemElements = [.. mesh.GetElements().Cast<FEMElement>()];
+
+        public static void SetCurrentGlobalFemElements(List<FEMElement> elements)
+            => _currentGlobalFemElements = elements;
+
+        public static List<FEMElement> GetCurrentGlobalFemElements()
+            => _currentGlobalFemElements ?? throw new InvalidOperationException("Current FEM elements have not been cached in the workspace.");
+
+        public static void UpdateCurrentGlobalFemElectrodes(FEMMesh mesh)
+        {
+            mesh.UpdateElectrodeLengths();
+            _currentGlobalFemElectrodes = [.. mesh.GetElectrodes().Cast<FEMElectrode>()];
+        }
+
+        public static void SetCurrentGlobalFemElectrodes(List<FEMElectrode> electrodes)
+            => _currentGlobalFemElectrodes = electrodes;
+
+        public static List<FEMElectrode> GetCurrentGlobalFemElectrodes()
+            => _currentGlobalFemElectrodes ?? throw new InvalidOperationException("Current FEM electrodes have not been cached in the workspace.");
+
+        public static void SetCurrentGlobalFemBoundaryCondition(FEMBoundaryCondition boundaryCondition)
+            => _currentGlobalFemBoundaryCondition = boundaryCondition;
+
+        public static FEMBoundaryCondition GetCurrentGlobalFemBoundaryCondition()
+            => _currentGlobalFemBoundaryCondition ?? throw new InvalidOperationException("Current FEM boundary condition has not been cached in the workspace.");
+
+        public static void UpdateCurrentGlobalLbmElements(LBMGrid mesh)
+            => _currentGlobalLbmElements = [.. mesh.GetElements().Cast<LBMElement>()];
+
+        public static void SetCurrentGlobalLbmElements(List<LBMElement> elements)
+            => _currentGlobalLbmElements = elements;
+
+        public static List<LBMElement> GetCurrentGlobalLbmElements()
+            => _currentGlobalLbmElements ?? throw new InvalidOperationException("Current LBM elements have not been cached in the workspace.");
+
+        public static void UpdateCurrentGlobalLbmElectrodes(LBMGrid mesh)
+            => _currentGlobalLbmElectrodes = [.. mesh.GetElectrodes().Cast<LBMElectrode>()];
+
+        public static void SetCurrentGlobalLbmElectrodes(List<LBMElectrode> electrodes)
+            => _currentGlobalLbmElectrodes = electrodes;
+
+        public static List<LBMElectrode> GetCurrentGlobalLbmElectrodes()
+            => _currentGlobalLbmElectrodes ?? throw new InvalidOperationException("Current LBM electrodes have not been cached in the workspace.");
+
+        public static void SetCurrentGlobalLbmBoundaryCondition(LBMBoundaryCondition boundaryCondition)
+            => _currentGlobalLbmBoundaryCondition = boundaryCondition;
+
+        public static LBMBoundaryCondition GetCurrentGlobalLbmBoundaryCondition()
+            => _currentGlobalLbmBoundaryCondition ?? throw new InvalidOperationException("Current LBM boundary condition has not been cached in the workspace.");
+
+        public static void SetImportedMeasurement(EITMeasurement? measurement, string? label = null)
+        {
+            bool hadMeasurement = _importedMeasurement != null;
+
+            if (measurement == null)
+            {
+                _importedMeasurement = null;
+                _importedMeasurementLabel = null;
+                _measurementSource = MeasurementSourceOption.Simulated;
+                return;
+            }
+
+            _importedMeasurement = measurement;
+            _importedMeasurementLabel = label;
+
+            if (!hadMeasurement)
+                _measurementSource = MeasurementSourceOption.Real;
+        }
+
+        public static void ClearImportedMeasurement() => SetImportedMeasurement(null);
+
+        public static EITMeasurement? GetImportedMeasurement() => _importedMeasurement;
+
+        public static string? GetImportedMeasurementLabel() => _importedMeasurementLabel;
+
+        public static ElectrodeMeasurementSetup GetElectrodeMeasurementSetup() => _electrodeMeasurementSetup;
+
+        public static void SetElectrodeMeasurementSetup(ElectrodeMeasurementSetup setup)
+        {
+            if (_electrodeMeasurementSetup == setup)
+                return;
+
+            _electrodeMeasurementSetup = setup;
+            ElectrodeMeasurementSetupChanged?.Invoke(setup);
+        }
+
+        public static MeasurementSourceOption GetMeasurementSource() => _measurementSource;
+
+        public static void SetMeasurementSource(MeasurementSourceOption source)
+        {
+            if (source == MeasurementSourceOption.Real && _importedMeasurement == null)
+            {
+                _measurementSource = MeasurementSourceOption.Simulated;
+                return;
+            }
+
+            _measurementSource = source;
+        }
+
+        /// <summary>
+        /// Retrieves the most recently configured measurement pattern.  The
+        /// pattern captures which electrodes contribute to the sanitised
+        /// measurement vector and how potential differences are assembled.
+        /// </summary>
+        public static MeasurementPattern? GetMeasurementPattern() => _measurementPattern;
+
+        /// <summary>
+        /// Stores the active measurement pattern so that services, error
+        /// metrics, and export routines can share a consistent description of
+        /// the acquisition layout.
+        /// </summary>
+        public static void SetMeasurementPattern(MeasurementPattern? pattern)
+            => _measurementPattern = pattern;
 
         public static int MaxIterationCount
         {
@@ -78,6 +241,18 @@ namespace Utility.Classes.Application
             set => _regularizationWeight = value;
         }
 
+        public static double ConductivityMinimumBound
+        {
+            get => _conductivityMinimumBound;
+            set => _conductivityMinimumBound = value;
+        }
+
+        public static double ConductivityMaximumBound
+        {
+            get => _conductivityMaximumBound;
+            set => _conductivityMaximumBound = value;
+        }
+
         public static void AddReconstructionResultToWorkspace(ReconstructionResult reconstructionResult) => _reconstructionResults.Add(reconstructionResult);
         public static void RemoveReconstructionResultFromWorkspace(int index) => _reconstructionResults.RemoveAt(index);
         public static void AddReconstructionFrameToWorkspace(ReconstructionFrame frame) => _reconstructionFrames.Add(frame);
@@ -88,6 +263,7 @@ namespace Utility.Classes.Application
             DateTime time = DateTime.Now;
             var msg = new WorkspaceMessage(time, message, type);
             _messages.Add(msg);
+            EnforceMessageLimit();
             MessageAdded?.Invoke(msg);
         }
 
@@ -98,5 +274,30 @@ namespace Utility.Classes.Application
         public static void AddLogMessage(string source, string message, WorkspaceMessageType type = WorkspaceMessageType.Log) => AddMessage(source + ": " + message, type);
 
         public static IReadOnlyList<WorkspaceMessage> GetMessages() => _messages;
+
+        private static void EnforceMessageLimit()
+        {
+            while (_messages.Count > MaxMessageCount)
+            {
+                var candidate = _messages
+                    .OrderBy(m => GetMessagePriority(m.Type))
+                    .ThenBy(m => m.Time)
+                    .FirstOrDefault();
+
+                if (candidate == null)
+                    break;
+
+                _messages.Remove(candidate);
+            }
+        }
+
+        private static int GetMessagePriority(WorkspaceMessageType type) => type switch
+        {
+            WorkspaceMessageType.Error => 4,
+            WorkspaceMessageType.Warning => 3,
+            WorkspaceMessageType.Loading => 2,
+            WorkspaceMessageType.Info => 1,
+            _ => 0,
+        };
     }
 }

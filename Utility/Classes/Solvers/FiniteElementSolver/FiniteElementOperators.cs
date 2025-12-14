@@ -1,4 +1,5 @@
 ﻿using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Solvers;
 
 namespace Utility.Classes.Solvers.FiniteElementSolver
 {
@@ -205,6 +206,10 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
 
         #region Private Helpers
 
+        /// <summary>
+        /// Computes the cotangent of the angle at <paramref name="p3"/> for the
+        /// triangle defined by <paramref name="p1"/>-<paramref name="p2"/>-<paramref name="p3"/>.
+        /// </summary>
         private static double Cotangent(FEMVertex p1, FEMVertex p2, FEMVertex p3)
         {
             // Calculate cotangent of the angle at p3 for the triangle p1-p2-p3
@@ -220,6 +225,9 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             return Math.Abs(crossProductMagnitude) < 1e-12 ? 0 : dotProduct / crossProductMagnitude;
         }
 
+        /// <summary>
+        /// Builds an undirected vertex adjacency map for the supplied mesh.
+        /// </summary>
         private static Dictionary<int, List<int>> BuildAdjacencyMap(FEMMesh mesh)
         {
             var adjacency = new Dictionary<int, List<int>>();
@@ -234,6 +242,9 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             return adjacency;
         }
 
+        /// <summary>
+        /// Inserts an undirected edge into the adjacency map.
+        /// </summary>
         private static void AddEdge(Dictionary<int, List<int>> adjacency, int u, int v)
         {
             if (!adjacency.ContainsKey(u)) adjacency[u] = [];
@@ -242,6 +253,10 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             if (!adjacency[v].Contains(u)) adjacency[v].Add(u);
         }
 
+        /// <summary>
+        /// Builds a mapping from undirected edges to the list of elements that
+        /// share the edge.
+        /// </summary>
         private static Dictionary<(int, int), List<int>> BuildEdgeToElementMap(IEnumerable<FEMElement> elements)
         {
             var map = new Dictionary<(int, int), List<int>>();
@@ -264,6 +279,9 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             return map;
         }
 
+        /// <summary>
+        /// Returns an ordered key for an undirected edge.
+        /// </summary>
         private static (int, int) NormaliseEdgeKey(int a, int b) => a < b ? (a, b) : (b, a);
 
         #endregion

@@ -1,8 +1,9 @@
-﻿using Utility.Classes.Discretizer;
-using MIConvexHull;
+﻿using MIConvexHull;
+using System.Xml.Linq;
+using Utility.Classes.Application;
+using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
-using Utility.Classes.Application;
 
 namespace Utility.Classes.Factories
 {
@@ -12,6 +13,9 @@ namespace Utility.Classes.Factories
     /// </summary>
     public static class MeshFactory
     {
+        private const double MinTriangleArea = 1e-10;
+        private const double MinEdgeLengthSquared = 1e-12;
+
         public static IDiscretization Create(DiscretizationParameters parameters, double inhomogenityValue = 1.0) => parameters.MeshType switch
         {
             DiscretizationType.FEM => CreateCircularFEMMesh(layers: parameters.Layers,
@@ -31,9 +35,9 @@ namespace Utility.Classes.Factories
         /// Builds a circular FEM mesh with given concentric layers and boundary vertices,
         /// then distributes `electrodeCount` electrodes evenly around the outer boundary.
         /// </summary>
-        public static FEMMesh CreateCircularFEMMesh(int layers, int boundaryFEMVertexCount, int electrodeCount = 16)
+        public static FEMMesh CreateCircularFEMMesh(int layers, int boundaryFEMVertexCount, int electrodeCount = 16, int nodesPerElectrode = 1, double electrodeLengthHint = 0.3)
         {
-            var mesh = CreateCircularFEMMeshInternal(layers, boundaryFEMVertexCount, electrodeCount, inhomogeneityValue: 3.0);
+            var mesh = CreateCircularFEMMeshInternal(layers, boundaryFEMVertexCount, electrodeCount, inhomogeneityValue: 3.0, nodesPerElectrode: nodesPerElectrode, electrodeLengthHint: electrodeLengthHint);
 
             mesh.Metadata.Generator = nameof(CreateCircularFEMMesh);
             mesh.Metadata.Parameters["layers"] = layers.ToString();
@@ -47,9 +51,9 @@ namespace Utility.Classes.Factories
         /// Builds an inhomogeneous circular FEM mesh where elements in the inner rings
         /// have conductivity scaled by inhomogeneityValue (default 3.0).
         /// </summary>
-        public static FEMMesh CreateCircularFEMMesh(int layers, int boundaryFEMVertexCount, int electrodeCount = 16, double inhomogeneityValue = 3.0)
+        public static FEMMesh CreateCircularFEMMesh(int layers, int boundaryFEMVertexCount, int electrodeCount = 16, double inhomogeneityValue = 3.0, int nodesPerElectrode = 1, double electrodeLengthHint = 0.3)
         {
-            var mesh = CreateCircularFEMMeshInternal(layers, boundaryFEMVertexCount, electrodeCount, inhomogeneityValue);
+            var mesh = CreateCircularFEMMeshInternal(layers, boundaryFEMVertexCount, electrodeCount, inhomogeneityValue, nodesPerElectrode, electrodeLengthHint);
 
             mesh.Metadata.Generator = nameof(CreateCircularFEMMesh);
             mesh.Metadata.Parameters["layers"] = layers.ToString();
@@ -63,7 +67,7 @@ namespace Utility.Classes.Factories
         }
 
         // common implementation with inhomogeneity scaling
-        private static FEMMesh CreateCircularFEMMeshInternal(int layers, int boundaryFEMVertexCount, int electrodeCount, double inhomogeneityValue)
+        private static FEMMesh CreateCircularFEMMeshInternal(int layers, int boundaryFEMVertexCount, int electrodeCount, double inhomogeneityValue, int nodesPerElectrode, double electrodeLengthHint)
         {
             if (electrodeCount > boundaryFEMVertexCount)
                 electrodeCount = boundaryFEMVertexCount;
@@ -92,88 +96,78 @@ namespace Utility.Classes.Factories
                 }
             }
 
-            // 2) triangulate
-            var triVerts = vertices.Select(v => new TriFEMVertex(v)).ToArray();
-            var delaunay = DelaunayTriangulation<TriFEMVertex, DefaultTriangulationCell<TriFEMVertex>>.Create(triVerts, 1e-3);
+            // 2) build layered triangulation explicitly to avoid sliver elements
+            var rings = new List<List<FEMVertex>>(layers + 1)
+            {
+                new List<FEMVertex> { vertices[0] } // center
+            };
 
-            // 3) create elements with inhomogeneous conductivity
+            for (int layer = 1; layer <= layers; layer++)
+            {
+                var ring = new List<FEMVertex>(boundaryFEMVertexCount);
+                for (int i = 0; i < boundaryFEMVertexCount; i++)
+                {
+                    int index = 1 + (layer - 1) * boundaryFEMVertexCount + i;
+                    ring.Add(vertices[index]);
+                }
+                rings.Add(ring);
+            }
+
             var elements = new List<FEMElement>();
             int eid = 0;
             double innerRadius = 1.0 / (layers + 1e-4); // threshold
 
-            foreach (var cell in delaunay.Cells)
+            if (layers >= 1 && boundaryFEMVertexCount >= 3)
             {
-                var a = cell.Vertices[0].Original;
-                var b = cell.Vertices[1].Original;
-                var c = cell.Vertices[2].Original;
+                var center = rings[0][0];
+                var firstRing = rings[1];
+                for (int i = 0; i < boundaryFEMVertexCount; i++)
+                {
+                    int next = (i + 1) % boundaryFEMVertexCount;
+                    if (TryCreateElement(center, firstRing[i], firstRing[next], eid, innerRadius, inhomogeneityValue, out var element))
+                    {
+                        if (element is null)
+                            throw new NullReferenceException();
 
-                var elem = new FEMElement(eid++, a, b, c);
+                        elements.Add(element);
+                        eid = element.Id + 1;
+                    }
+                }
+            }
 
-                // compute average radial distance of element vertices
-                double rA = Math.Sqrt(a.X * a.X + a.Y * a.Y);
-                double rB = Math.Sqrt(b.X * b.X + b.Y * b.Y);
-                double rC = Math.Sqrt(c.X * c.X + c.Y * c.Y);
+            for (int layer = 2; layer <= layers; layer++)
+            {
+                var innerRing = rings[layer - 1];
+                var outerRing = rings[layer];
 
-                double avgRadius = (rA + rB + rC) / 3.0;
+                for (int i = 0; i < boundaryFEMVertexCount; i++)
+                {
+                    int next = (i + 1) % boundaryFEMVertexCount;
 
-                // if inside inner circle, scale conductivity
-                if (avgRadius < innerRadius)
-                    elem.Conductivity = inhomogeneityValue;
-                else
-                    elem.Conductivity = 1.0;
+                    if (TryCreateElement(innerRing[i], outerRing[i], outerRing[next], eid, innerRadius, inhomogeneityValue, out var first))
+                    {
+                        if (first is null)
+                            throw new NullReferenceException();
 
-                elements.Add(elem);
+                        elements.Add(first);
+                        eid = first.Id + 1;
+                    }
+
+                    if (TryCreateElement(innerRing[i], outerRing[next], innerRing[next], eid, innerRadius, inhomogeneityValue, out var second))
+                    {
+                        if (second is null)
+                            throw new NullReferenceException();
+
+                        elements.Add(second);
+                        eid = second.Id + 1;
+                    }
+                }
             }
 
             // 4) assemble mesh
             var mesh = new FEMMesh(vertices, elements);
 
-            // 5) distribute electrodes
-
-            // clear any leftover flags
-            foreach (var v in vertices)
-            {
-                v.IsElectrode = false;
-                v.ElectrodeId = -1;
-            }
-
-            // gather boundary vertices sorted by their BoundaryId
-            var boundaryVerts = vertices
-                .Where(v => v.IsBoundary)
-                .OrderBy(v => v.BoundaryId)
-                .ToList();
-            int boundaryCount = boundaryVerts.Count;
-
-            // use fractional steps so electrodes remain evenly spaced even
-            // when boundaryCount isn't divisible by electrodeCount
-            double step = boundaryCount / (double)electrodeCount;
-            double pos = 0.0;
-
-            var electrodes = new List<FEMElectrode>(electrodeCount);
-            for (int elId = 0; elId < electrodeCount; elId++)
-            {
-                int idx = (int)Math.Round(pos, MidpointRounding.AwayFromZero);
-                if (idx >= boundaryCount)
-                    idx = boundaryCount - 1;
-
-                FEMVertex v = boundaryVerts[idx];
-                v.IsElectrode = true;
-                v.ElectrodeId = elId;
-
-                var el = new FEMElectrode(
-                    id: elId,
-                    meshId: v.GlobalId,
-                    current: 0.0,
-                    zContact: 0.1,
-                    voltage: 1.0);
-
-                el.FEMVertexIds.Add(v.GlobalId);
-                electrodes.Add(el);
-
-                pos += step;
-            }
-
-            mesh.SetElectrodes(electrodes);
+            mesh.PlaceEquidistantElectrodes(electrodeCount, 0.1, electrodeLengthHint, nodesPerElectrode);
 
             // Assing FEMVertex neighbors
             foreach (var element in elements)
@@ -244,7 +238,7 @@ namespace Utility.Classes.Factories
         /// equally spaced boundary vertices. If electrodeCount exceeds the number of boundary
         /// vertices it is clamped accordingly.
         /// </summary>
-        public static FEMMesh CreatePolygonFEMMesh(IList<(double x, double y)> perimeter, int layers, int electrodeCount = 16)
+        public static FEMMesh CreatePolygonFEMMesh(IList<(double x, double y)> perimeter, int layers, int electrodeCount = 16, int nodesPerElectrode = 1, double electrodeLengthHint = 0.3)
         {
             ValidatePerimeter(perimeter);
 
@@ -288,39 +282,19 @@ namespace Utility.Classes.Factories
                 if (!IsPointInPolygon(mx, my, perimeter))
                     continue;
 
-                elements.Add(new FEMElement(eid++, a, b, c));
+                if (TryCreateElement(a, b, c, eid, out var element))
+                {
+                    if (element is null)
+                        throw new NullReferenceException();
+
+                    elements.Add(element);
+                    eid = element.Id + 1;
+                }
             }
 
             var mesh = new FEMMesh(vertices, elements);
 
-            var boundaryVerts = vertices.Where(v => v.IsBoundary).OrderBy(v => v.BoundaryId).ToList();
-            electrodeCount = Math.Min(electrodeCount, boundaryVerts.Count);
-            double step = boundaryVerts.Count / (double)electrodeCount;
-            double pos = 0.0;
-
-            var electrodes = new List<FEMElectrode>();
-            for (int e = 0; e < electrodeCount; e++)
-            {
-                int idx = (int)Math.Round(pos, MidpointRounding.AwayFromZero);
-                if (idx >= boundaryVerts.Count)
-                    idx = boundaryVerts.Count - 1;
-                var v = boundaryVerts[idx];
-                v.IsElectrode = true;
-                v.ElectrodeId = e;
-
-                var el = new FEMElectrode(
-                    id: e,
-                    meshId: v.GlobalId,
-                    current: 0.0,
-                    zContact: 0.1,
-                    voltage: 1.0);
-                el.FEMVertexIds.Add(v.GlobalId);
-                electrodes.Add(el);
-
-                pos += step;
-            }
-
-            mesh.SetElectrodes(electrodes);
+            mesh.PlaceEquidistantElectrodes(electrodeCount, 0.1, electrodeLengthHint, nodesPerElectrode);
 
             foreach (var element in elements)
             {
@@ -364,7 +338,7 @@ namespace Utility.Classes.Factories
         /// <summary>
         /// Convenience wrapper that builds a rectangular FEM mesh from corner points.
         /// </summary>
-        public static FEMMesh CreateRectangularFEMMesh(double width, double height, int electrodeCount = 16, int layers = 1)
+        public static FEMMesh CreateRectangularFEMMesh(double width, double height, int electrodeCount = 16, int layers = 1, int nodesPerElectrode = 1, double electrodeLengthHint = 0.3)
         {
             var hw = width / 2.0;
             var hh = height / 2.0;
@@ -375,7 +349,7 @@ namespace Utility.Classes.Factories
                 ( hw,  hh),
                 (-hw,  hh)
             };
-            var mesh = CreatePolygonFEMMesh(pts, layers, electrodeCount);
+            var mesh = CreatePolygonFEMMesh(pts, layers, electrodeCount, nodesPerElectrode, electrodeLengthHint);
             mesh.Metadata.Generator = nameof(CreateRectangularFEMMesh);
             mesh.Metadata.Parameters["width"] = width.ToString();
             mesh.Metadata.Parameters["height"] = height.ToString();
@@ -387,14 +361,87 @@ namespace Utility.Classes.Factories
         /// <summary>
         /// Create a FEM mesh from an arbitrary thorax-shaped perimeter.
         /// </summary>
-        public static FEMMesh CreateThoraxFEMMesh(IList<(double x, double y)> perimeter, int electrodeCount = 16, int layers = 1)
+        public static FEMMesh CreateThoraxFEMMesh(IList<(double x, double y)> perimeter, int electrodeCount = 16, int layers = 1, int nodesPerElectrode = 1, double electrodeLengthHint = 0.3)
         {
-            var mesh = CreatePolygonFEMMesh(perimeter, layers, electrodeCount);
+            var mesh = CreatePolygonFEMMesh(perimeter, layers, electrodeCount, nodesPerElectrode, electrodeLengthHint);
             mesh.Metadata.Generator = nameof(CreateThoraxFEMMesh);
             mesh.Metadata.Parameters["electrodeCount"] = electrodeCount.ToString();
             mesh.Metadata.Parameters["perimeter"] = string.Join(";", perimeter.Select(p => $"{p.x},{p.y}"));
             mesh.Metadata.Parameters["layers"] = layers.ToString();
             return mesh;
+        }
+
+        private static bool TryCreateElement(FEMVertex a,
+                                             FEMVertex b,
+                                             FEMVertex c,
+                                             int elementId,
+                                             double innerRadius,
+                                             double inhomogeneityValue,
+                                             out FEMElement? element)
+        {
+            if (!TryCreateElement(a, b, c, elementId, out element))
+                return false;
+
+            if (element is null)
+                throw new NullReferenceException();
+
+            ApplyLayeredConductivity(element, innerRadius, inhomogeneityValue);
+            return true;
+        }
+
+        private static bool TryCreateElement(FEMVertex a,
+                                             FEMVertex b,
+                                             FEMVertex c,
+                                             int elementId,
+                                             out FEMElement? element)
+        {
+            element = null;
+
+            if (!IsTriangleValid(a, b, c))
+                return false;
+
+            element = new FEMElement(elementId, a, b, c);
+            return true;
+        }
+
+        private static void ApplyLayeredConductivity(FEMElement element, double innerRadius, double inhomogeneityValue)
+        {
+            var verts = element.Vertices;
+            double rA = Math.Sqrt(verts[0].X * verts[0].X + verts[0].Y * verts[0].Y);
+            double rB = Math.Sqrt(verts[1].X * verts[1].X + verts[1].Y * verts[1].Y);
+            double rC = Math.Sqrt(verts[2].X * verts[2].X + verts[2].Y * verts[2].Y);
+
+            double avgRadius = (rA + rB + rC) / 3.0;
+            element.Conductivity = avgRadius < innerRadius ? inhomogeneityValue : 1.0;
+        }
+
+        private static bool IsTriangleValid(FEMVertex a, FEMVertex b, FEMVertex c)
+        {
+            if (!double.IsFinite(a.X) || !double.IsFinite(a.Y) ||
+                !double.IsFinite(b.X) || !double.IsFinite(b.Y) ||
+                !double.IsFinite(c.X) || !double.IsFinite(c.Y))
+            {
+                return false;
+            }
+
+            if (HasTinyEdge(a, b) || HasTinyEdge(b, c) || HasTinyEdge(c, a))
+                return false;
+
+            double area = TriangleArea(a, b, c);
+            return double.IsFinite(area) && area > MinTriangleArea;
+        }
+
+        private static double TriangleArea(FEMVertex a, FEMVertex b, FEMVertex c)
+            => 0.5 * Math.Abs(a.X * (b.Y - c.Y)
+                              + b.X * (c.Y - a.Y)
+                              + c.X * (a.Y - b.Y));
+
+        private static bool HasTinyEdge(FEMVertex a, FEMVertex b)
+        {
+            double dx = a.X - b.X;
+            double dy = a.Y - b.Y;
+            double lengthSquared = dx * dx + dy * dy;
+            return lengthSquared < MinEdgeLengthSquared;
         }
 
         private class TriFEMVertex : IVertex
@@ -422,31 +469,14 @@ namespace Utility.Classes.Factories
                 for (int x = 0; x < nx; x++)
                     inside[x, y] = IsPointInPolygon(x + 0.5, y + 0.5, perimeter);
 
-            for (int y = 0; y < ny; y++)
-            {
-                for (int x = 0; x < nx; x++)
-                {
-                    var el = grid.GetElementAt(x, y);
-                    bool cellInside = inside[x, y];
-                    bool boundary = false;
-                    if (cellInside)
-                    {
-                        boundary = x == 0 || x == nx - 1 || y == 0 || y == ny - 1 ||
-                                   !inside[Math.Max(x - 1, 0), y] ||
-                                   !inside[Math.Min(x + 1, nx - 1), y] ||
-                                   !inside[x, Math.Max(y - 1, 0)] ||
-                                   !inside[x, Math.Min(y + 1, ny - 1)];
-                    }
-                    el.IsWall = !cellInside || boundary;
-                    el.IsElectrode = false;
-                }
-            }
+            grid.ApplyDomainMask(inside);
 
             // place electrodes evenly around the domain boundary
             grid.PlaceEquidistantElectrodes(electrodeCount);
 
             var cd = grid.GetElements().ToDictionary(e => e.Id, e => e.Conductivity);
             grid.SetConductivityDistribution(new ConductivityDistribution(cd));
+            grid.UpdateGhostConductivityFromNeighbors();
 
             Workspace.AddLogMessage("MeshFactory", "Created LBMGrid from Perimeter definition.");
 
@@ -467,6 +497,7 @@ namespace Utility.Classes.Factories
 
             var cd = grid.GetElements().ToDictionary(e => e.Id, e => e.Conductivity);
             grid.SetConductivityDistribution(new ConductivityDistribution(cd));
+            grid.UpdateGhostConductivityFromNeighbors();
 
             grid.Metadata.Generator = nameof(CreateRectangularLBMGrid);
             grid.Metadata.Parameters["nx"] = nx.ToString();
@@ -486,7 +517,7 @@ namespace Utility.Classes.Factories
             return grid;
         }
 
-        private static LBMGrid LBMCreateRectangularWithBorder(int nx = 15, int ny = 15, int electrodeCount = 16)
+        private static LBMGrid LBMCreateRectangularWithBorder(int nx = 25, int ny = 25, int electrodeCount = 16)
         {
             var grid = new LBMGrid(nx, ny);
             grid.Metadata.Generator = nameof(LBMCreateRectangularWithBorder);
@@ -497,7 +528,7 @@ namespace Utility.Classes.Factories
         }
 
 
-        private static LBMGrid LBMCreateRectangularWithInhomogenity(int nx = 15, int ny = 15, int electrodeCount = 16, double inhomogenityValue = 1.0, int inhomogenitySize = 4)
+        private static LBMGrid LBMCreateRectangularWithInhomogenity(int nx = 25, int ny = 25, int electrodeCount = 16, double inhomogenityValue = 1.0, int inhomogenitySize = 4)
         {
             if (inhomogenitySize > nx || inhomogenitySize > ny)
                 throw new ArgumentOutOfRangeException("Cannot create LBM mesh with inhomogenity, size too big!");
@@ -523,6 +554,7 @@ namespace Utility.Classes.Factories
             // 3) rebuild distribution so downstream code sees it
             var cd = grid.GetElements().ToDictionary(e => e.Id, e => e.Conductivity);
             grid.SetConductivityDistribution(new ConductivityDistribution(cd));
+            grid.UpdateGhostConductivityFromNeighbors();
 
             grid.Metadata.Generator = nameof(LBMCreateRectangularWithInhomogenity);
             grid.Metadata.Parameters["nx"] = nx.ToString();
@@ -542,7 +574,7 @@ namespace Utility.Classes.Factories
         /// <param name="radius">Radius of the inner circle.</param>
         /// <param name="electrodeCount">Number of electrodes to distribute.</param>
         /// <returns></returns>
-        private static LBMGrid LBMCreateCircular(int nx = 15, int ny = 15, int radius = 10, int electrodeCount = 16)
+        private static LBMGrid LBMCreateCircular(int nx = 25, int ny = 25, int radius = 10, int electrodeCount = 16)
         {
             if (radius > nx / 2 || radius > ny / 2)
                 throw new ArgumentOutOfRangeException(nameof(radius),
@@ -601,12 +633,13 @@ namespace Utility.Classes.Factories
                 el.IsWall = outside || onBoundary || ex == 0 || ey == 0 || ex == nx - 1 || ey == ny - 1;
             }
 
-            // Place electrodes on outermost non-wall layer
+            // Place electrodes on the wall cells directly adjacent to the fluid domain
             grid.PlaceEquidistantElectrodes(electrodeCount);
 
             // Refresh conductivity distribution
             var cd = grid.GetElements().ToDictionary(e => e.Id, e => e.Conductivity);
             grid.SetConductivityDistribution(new ConductivityDistribution(cd));
+            grid.UpdateGhostConductivityFromNeighbors();
 
             Workspace.AddLogMessage("MeshFactory", "Created ciruclar LBMGrid object.");
 
@@ -622,6 +655,11 @@ namespace Utility.Classes.Factories
 
         #endregion
 
+        /// <summary>
+        /// Perturbs the conductivity values of every element in the
+        /// discretization using zero-mean Gaussian noise with a 5% relative
+        /// standard deviation.
+        /// </summary>
         public static void AddGaussianNoise(IDiscretization discretization)
         {
             if (discretization == null) throw new ArgumentNullException(nameof(discretization));
@@ -646,10 +684,16 @@ namespace Utility.Classes.Factories
             }
 
             discretization.SetConductivityDistribution(new ConductivityDistribution(noisy));
+            if (discretization is LBMGrid lbmGrid)
+                lbmGrid.UpdateGhostConductivityFromNeighbors();
 
             Workspace.AddLogMessage("MeshFactory", "Added gaussian noise to mesh conductivities.");
         }
 
+        /// <summary>
+        /// Validates that a polygonal perimeter contains at least three
+        /// distinct consecutive points.
+        /// </summary>
         private static void ValidatePerimeter(IList<(double x, double y)> perimeter)
         {
             if (perimeter is null || perimeter.Count < 3)
@@ -663,6 +707,10 @@ namespace Utility.Classes.Factories
             }
         }
 
+        /// <summary>
+        /// Implements the ray casting test to determine whether a point lies
+        /// inside a polygon.
+        /// </summary>
         private static bool IsPointInPolygon(double x, double y, IList<(double x, double y)> polygon)
         {
             bool inside = false;

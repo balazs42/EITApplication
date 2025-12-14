@@ -18,6 +18,13 @@
         public bool IsGround { get; set; } = false;
         public bool IsMeasuring { get; set; } = false;
 
+        /// <summary>
+        /// Indicates whether the electrode is a virtual (synthetic) contact generated between
+        /// two physical electrodes. Virtual electrodes never act as excitation/ground sources
+        /// but participate in measurement completion workflows.
+        /// </summary>
+        public bool IsVirtual { get; set; } = false;
+
         public bool IsSource => (IsGround || IsExcitation);
 
         public Electrode()

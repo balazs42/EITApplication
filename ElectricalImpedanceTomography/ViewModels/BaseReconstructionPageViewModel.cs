@@ -1,4 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
+using System.ComponentModel;
+using Utility.Classes.Reconstruction;
 using Utility.Classes.ReconstructionParameters;
 using Utility.Classes.Factories;
 
@@ -8,6 +10,8 @@ namespace ElectricalImpedanceTomography.ViewModels
 {
     public partial class BaseReconstructionPageViewModel : BaseViewModel
     {
+        private ReconstructionRuntimeContext _currentParameters;
+
         private static readonly DifferentialEquationSolver[] DifferentialEquationSolverValues = Enum.GetValues<DifferentialEquationSolver>();
         public IEnumerable<DifferentialEquationSolver> DifferentialEquationSolverOptions => DifferentialEquationSolverValues;
 
@@ -26,10 +30,62 @@ namespace ElectricalImpedanceTomography.ViewModels
         private static readonly InitialDistributionTypes[] InitialDistributionTypeValues = Enum.GetValues<InitialDistributionTypes>();
         public IEnumerable<InitialDistributionTypes> InitialDistributionOptions => InitialDistributionTypeValues;
 
-        [ObservableProperty]
-        private EITReconstructionParameters reconstructionParameters = Workspace.GetReconstructionParameters();
+        private static readonly MeasurementNoiseType[] MeasurementNoiseTypeValues = Enum.GetValues<MeasurementNoiseType>();
+        public IEnumerable<MeasurementNoiseType> MeasurementNoiseTypeOptions => MeasurementNoiseTypeValues;
 
-        partial void OnReconstructionParametersChanged(EITReconstructionParameters value) => Workspace.SetReconstructionParameters(value);
+        [ObservableProperty]
+        private ReconstructionRuntimeContext reconstructionParameters = Workspace.GetReconstructionParameters();
+
+        public bool IsNoiseAmplitudeEnabled => ReconstructionParameters.MeasurementNoiseType != MeasurementNoiseType.None;
+
+        public bool IsLbmSolverSelected => ReconstructionParameters.DifferentialEquationSolver == DifferentialEquationSolver.LBM;
+
+        public BaseReconstructionPageViewModel()
+        {
+            _currentParameters = ReconstructionParameters;
+            _currentParameters.PropertyChanged += OnReconstructionParametersPropertyChanged;
+            OnPropertyChanged(nameof(IsNoiseAmplitudeEnabled));
+            OnPropertyChanged(nameof(IsLbmSolverSelected));
+            Workspace.ConductivityMinimumBound = _currentParameters.ConductivityMinimumBound;
+            Workspace.ConductivityMaximumBound = _currentParameters.ConductivityMaximumBound;
+            ConductivityClipper.UpdateBounds(_currentParameters.ConductivityMinimumBound,
+                                             _currentParameters.ConductivityMaximumBound);
+        }
+
+        partial void OnReconstructionParametersChanged(ReconstructionRuntimeContext value)
+        {
+            if (_currentParameters != null)
+                _currentParameters.PropertyChanged -= OnReconstructionParametersPropertyChanged;
+
+            Workspace.SetReconstructionParameters(value);
+
+            _currentParameters = value;
+            _currentParameters.PropertyChanged += OnReconstructionParametersPropertyChanged;
+            OnPropertyChanged(nameof(IsNoiseAmplitudeEnabled));
+            OnPropertyChanged(nameof(IsLbmSolverSelected));
+        }
+
+        private void OnReconstructionParametersPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(ReconstructionRuntimeContext.MeasurementNoiseType))
+                OnPropertyChanged(nameof(IsNoiseAmplitudeEnabled));
+
+            if (e.PropertyName == nameof(ReconstructionRuntimeContext.DifferentialEquationSolver))
+                OnPropertyChanged(nameof(IsLbmSolverSelected));
+
+            if (e.PropertyName == nameof(ReconstructionRuntimeContext.ConductivityMinimumBound)
+                || e.PropertyName == nameof(ReconstructionRuntimeContext.ConductivityMaximumBound))
+            {
+                var parameters = ReconstructionParameters;
+                if (parameters != null)
+                {
+                    Workspace.ConductivityMinimumBound = parameters.ConductivityMinimumBound;
+                    Workspace.ConductivityMaximumBound = parameters.ConductivityMaximumBound;
+                    ConductivityClipper.UpdateBounds(parameters.ConductivityMinimumBound,
+                                                     parameters.ConductivityMaximumBound);
+                }
+            }
+        }
 
         [ObservableProperty]
         private int layers = 2;
@@ -47,13 +103,13 @@ namespace ElectricalImpedanceTomography.ViewModels
         private int groundElectrodeId = 0;
 
         [ObservableProperty]
-        private double excitationCurrentAmplitude = 1.0;
+        private double excitationCurrentAmplitude = 10.0;
 
         [ObservableProperty]
-        private double electrodeSurfaceLength = 1.0;
+        private double electrodeSurfaceLength = 0.1;
 
         [ObservableProperty]
-        private double contactImpedance = 1.0;
+        private double contactImpedance = 0.001;
 
         [ObservableProperty]
         private double inhomogenityValue = 2.0;

@@ -2,25 +2,43 @@
 using System.Diagnostics;
 using System.Numerics;
 using Utility.Classes;
+using Utility.Classes.Application;
 using Utility.Classes.Factories;
 using Utility.Classes.Measurement;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Models;
+using Utility.Classes.Reconstruction;
+using Utility.Classes.Reconstruction.VirtualElectrodes;
 using Utility.Classes.ReconstructionParameters;
+using Utility.Exports;
 using Utility.Classes.Solvers.FiniteElementSolver;
 using Utility.Classes.Solvers.LatticeBoltzmannSolver;
+using Utility.Classes.Reconstruction.DESolvers;
 
 namespace BusinessLayer
 {
+    /// <summary>
+    /// Central orchestration and persistence layer for EIT reconstructions.
+    /// - Initializes the forward/adjoint solvers, error metric, regularizer, and optimizer from user parameters.
+    /// - Provides single "step" APIs (forward and inverse) for FEM and LBM discretizations.
+    /// - Implements full iterative reconstruction loops (foreground and background) for FEM/LBM.
+    /// - Bridges workspace state (electrodes, boundary conditions) and manages measurement preparation.
+    /// - Persists reconstruction results through the repository.
+    ///
+    /// This class does not own meshes; it operates on the provided discretizations.
+    /// It also supports an optional background task mode with Run()/Stop() controlling the lifecycle.
+    /// </summary>
     public class ReconstructionPersistence : IReconstructionPersistence
     {
+        // --- Persistence / repositories ---
         private readonly IDAQRepository _daqRepository;
         private readonly IReconstructionRepository _reconstructionRepository;
+        private readonly IMeasurementPersistence _measurementPersistence;
 
+        // --- Core components configured during InitializeReconstruction() ---
         private InverseModel? _inverseModel = null;
-        
         private IDiscretization? _discretization = null;
         private INumericSolver? _numericSolver = null;
         private IDifferentialEquationSolver? _differentialEquationSolver = null;
@@ -28,14 +46,29 @@ namespace BusinessLayer
         private IErrorMetric? _errorMetric = null;
         private INumericOptimizer? _numericOptimizer = null;
 
-        private double _gradientStepSize = 0.001;
-        private double _regularizationWeight = 0.001;
+        // --- User-configurable / session parameters ---
+        private double _gradientStepSize = 0.001;           // step size for gradient update in background loops
+        private double _regularizationWeight = 0.001;       // weight of regularization contribution
         private InitialDistributionTypes _initialDistributionType = InitialDistributionTypes.SlightlyDiffering;
+        private bool _useOmpParallelization = false;        // enable OMP for FEM assembly
+        private bool _useCudaParallelization = false;       // enable CUDA in LBM routines
+        private bool _usePotentialDifferences = false;      // represent data as sequential potential differences instead of absolute values
+        private bool _useLbmConductivityFilter = false;     // apply smoothing to conductivity updates on LBM grids
+        private int _lbmConductivityFilterInterval = 5;     // iteration cadence for conductivity smoothing
+        private int _lbmGaussianKernelSize = 3;             // shared kernel size for LBM Gaussian filters
+        private NumericSolver _numericSolverChoice = NumericSolver.LU;
+        private ErrorMetric _errorMetricChoice = ErrorMetric.L2;
 
+        private double _conductivityMinimumBound = 0.1;     // clipping bounds for conductivity fields
+        private double _conductivityMaximumBound = 10.0;
+
+        // Optional reference and initial conductivity distributions supplied from UI/test harness
         private ConductivityDistribution? _originalSigma = null;
         private ConductivityDistribution? _initialSigma = null;
 
-        private bool _initialized = false;
+        private bool _initialized = false;                  // indicates successful InitializeReconstruction()
+
+        private DrivePattern _drivePattern = DrivePattern.Adjecent; // electrode drive pattern used for simulations
 
         // --- Background reconstruction bookkeeping ---
         // Holds the running reconstruction task.  The task performs full
@@ -47,106 +80,179 @@ namespace BusinessLayer
         // reconstruction result.
         private bool _stopRequested = false;
 
-        public ReconstructionPersistence(IDAQRepository daqRepository, IReconstructionRepository reconstructionRepository)
+        public ReconstructionPersistence(IDAQRepository daqRepository,
+                                         IReconstructionRepository reconstructionRepository,
+                                         IMeasurementPersistence measurementPersistence)
         {
             _daqRepository = daqRepository;
             _reconstructionRepository = reconstructionRepository;
+            _measurementPersistence = measurementPersistence;
         }
 
+        /// <summary>
+        /// Sets externally provided conductivity fields used as ground truth and initial guess.
+        /// Values are clipped to global bounds via <see cref="ConductivityClipper"/>.
+        /// If not set, defaults are created during initialization.
+        /// </summary>
         public void SetConductivityDistributions(ConductivityDistribution original, ConductivityDistribution initial)
         {
-            _originalSigma = original;
-            _initialSigma = initial;
+            _originalSigma = ConductivityClipper.Clip(original);
+            _initialSigma = ConductivityClipper.Clip(initial);
         }
 
-        public void InitializeReconstruction(IDiscretization discretization, EITReconstructionParameters parameters, bool reinit)
+        /// <summary>
+        /// Initializes all components required for reconstruction based on the given discretization and parameters.
+        /// Creates the DE solver (FEM/LBM), error metric, regularizer, numeric solver and optimizer.
+        /// Updates workspace globals (bounds/clipping) and prepares the inverse model.
+        /// </summary>
+        /// <param name="discretization">The mesh/grid to reconstruct (FEMMesh or LBMGrid).</param>
+        /// <param name="parameters">User configuration for solvers and reconstruction.</param>
+        /// <param name="reinit">If true forces re-initialization.</param>
+        public void InitializeReconstruction(IDiscretization discretization, ReconstructionRuntimeContext parameters, bool reinit)
         {
             if(!_initialized || reinit)
             {
                 _discretization = discretization;
 
-                _numericSolver = NumericSolverFactory.Create(parameters.NumericSolver);
-                _differentialEquationSolver = DifferentialEquationSolverFactory.Create(discretization, parameters.DifferentialEquationSolver, _numericSolver);
-                _regularizer = RegularisationFactory.Create(parameters.RegularizationTechnique, _discretization);
-                _errorMetric = ErrorMetricFactory.Create(parameters.ErrorMetric);
-                _initialDistributionType = parameters.InitialDistributionType;
-                var initSigma = _initialSigma ?? ConductivityDistributionFactory.CreateInitialDistribution(discretization, _initialDistributionType);
-                _numericOptimizer = NumericOptimizerFactory.Create(parameters.NumericOptimizer, initSigma);
+                // --- Numeric linear solver / parallelization choices ---
+                _numericSolverChoice = parameters.NumericSolver;
+                _numericSolver = NumericSolverFactory.Create(_numericSolverChoice);
+                _useOmpParallelization = parameters.UseOmpParallelization;
+                _useCudaParallelization = parameters.UseCudaAcceleration;
 
+                // Inform user about assembly/solver mode
+                if (parameters.DifferentialEquationSolver == DifferentialEquationSolver.FEM)
+                {
+                    Workspace.AddLogMessage("Reconstruction", _useOmpParallelization
+                        ? "Using OMP-accelerated finite element assembly."
+                        : "Using standard finite element assembly.");
+                }
+                else if (parameters.DifferentialEquationSolver == DifferentialEquationSolver.LBM)
+                {
+                    Workspace.AddLogMessage("Reconstruction", _useCudaParallelization
+                        ? "Using CUDA-accelerated Lattice Boltzmann solver."
+                        : "Using standard Lattice Boltzmann solver.");
+                }
+
+                // Create differential equation solver according to discretization and requested backend
+                _lbmGaussianKernelSize = (int)Math.Max(1, parameters.LbmGaussianFilterSize);
+                if (_lbmGaussianKernelSize % 2 == 0)
+                    _lbmGaussianKernelSize += 1;
+                _differentialEquationSolver = DifferentialEquationSolverFactory.Create(discretization,
+                                                                                       parameters.DifferentialEquationSolver,
+                                                                                       _numericSolver,
+                                                                                       _useOmpParallelization,
+                                                                                       _useCudaParallelization,
+                                                                                       parameters.UseLbmGaussianFilter,
+                                                                                       _lbmGaussianKernelSize);
+                _regularizer = RegularizationFactory.Create(parameters.RegularizationTechnique, _discretization);
+                _errorMetricChoice = parameters.ErrorMetric;
+                _errorMetric = ErrorMetricFactory.Create(_errorMetricChoice);
+                _initialDistributionType = parameters.InitialDistributionType;
+                _useLbmConductivityFilter = parameters.UseLbmConductivityFilter;
+                _lbmConductivityFilterInterval = Math.Max(1, parameters.LbmConductivityFilterInterval);
+
+                // Initial conductivity distribution; may be provided externally
+                var initSigma = _initialSigma ?? ConductivityDistributionFactory.CreateInitialDistribution(discretization, _initialDistributionType);
+
+                // Clamp global conductivity bounds; also clip cached distributions
+                _conductivityMinimumBound = parameters.ConductivityMinimumBound;
+                _conductivityMaximumBound = parameters.ConductivityMaximumBound;
+                ConductivityClipper.UpdateBounds(_conductivityMinimumBound, _conductivityMaximumBound);
+                if (_initialSigma != null)
+                    _initialSigma = ConductivityClipper.Clip(_initialSigma);
+                if (_originalSigma != null)
+                    _originalSigma = ConductivityClipper.Clip(_originalSigma);
+                initSigma = ConductivityClipper.Clip(initSigma);
+
+                _numericOptimizer = NumericOptimizerFactory.Create(parameters.NumericOptimizer, initSigma);
+                _drivePattern = parameters.DrivePattern;
+                _usePotentialDifferences = parameters.UsePotentialDifferences;
+
+                // Assemble the high-level inverse model pipeline
                 _inverseModel = InverseModelFactory.Create(_discretization, _numericOptimizer, _regularizer, _errorMetric, _differentialEquationSolver);
 
                 _initialized = true;
             }
         }
 
-        public ReconstructionFrame Step(double[] measurement, BoundaryCondition boundaryCondition, double gradientStepSize, double redularizationStepSize)
+        /// <summary>
+        /// Performs one full inverse update step on the current discretization.
+        /// - Runs a forward and adjoint solve to compute the data gradient.
+        /// - Adds regularization contribution and updates the conductivity via the optimizer.
+        /// </summary>
+        /// <param name="measurement">Current measured potentials for the active drive pattern.</param>
+        /// <param name="boundaryCondition">Boundary conditions representing the drive electrodes.</param>
+        /// <param name="gradientStepSize">Optimizer step size for this update.</param>
+        /// <param name="redularizationStepSize">Weight for the regularization gradient.</param>
+        /// <returns>A frame capturing the gradient and relevant potential fields.</returns>
+        public ReconstructionFrame Step(double[] measurement, BoundaryCondition boundaryCondition, double gradientStepSize, double regularizationStepSize)
         {
-            _regularizationWeight = redularizationStepSize;
+            _regularizationWeight = regularizationStepSize;
 
             if (_numericOptimizer == null)
                 throw new NullReferenceException("Numeric optimizer is null, check calling code!");
 
+            ReconstructionFrame? frame = null;
+            ConductivityDistribution? sigma = null;
+            ConductivityDistribution? totalGrad = null;
+            ConductivityDistribution? updated = null;
+
+            // Dispatch by discretization type (FEM vs LBM); compute frame and update sigma
             if (_discretization is FEMMesh femMesh)
             {
                 FEMBoundaryCondition bc = boundaryCondition as FEMBoundaryCondition ?? throw new ArgumentException("Cannot convert boundary condition to FEM boundary condition, check calling code!");
 
-                var frame = InverseSolveStepFem(femMesh, bc, measurement, gradientStepSize);
-
-                var totalGradDict = frame.ConductivityGradient.Conductivities.ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => kvp.Value + redularizationStepSize * frame.CalculatedRegularization.GetConductivity(kvp.Key));
-                var totalGrad = new ConductivityDistribution(totalGradDict);
-
-                var sigma = femMesh.GetConductivityDistribution();
-                var updated = _numericOptimizer.OptimizationStep(sigma, totalGrad, gradientStepSize);
-                femMesh.SetConductivityDistribution(updated);
-
-                return new ReconstructionFrame(totalGrad,
-                                              frame.CalculatedPotentialDistribution,
-                                              frame.CalculatedAdjointDistribution,
-                                              frame.CalculatedRegularization);
+                frame = InverseSolveStepFem(femMesh, bc, measurement, gradientStepSize);
             }
             else if (_discretization is LBMGrid lbmGrid)
             {
                 LBMBoundaryCondition bc = boundaryCondition as LBMBoundaryCondition ?? throw new ArgumentException("Cannot convert boundary condition to LBM boundary condition, check calling code!");
 
-                var frame = InverseSolveStepLbm(lbmGrid, bc, measurement);
-
-                var totalGradDict = frame.ConductivityGradient.Conductivities.ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => kvp.Value + redularizationStepSize * frame.CalculatedRegularization.GetConductivity(kvp.Key));
-                var totalGrad = new ConductivityDistribution(totalGradDict);
-
-                var sigma = lbmGrid.GetConductivityDistribution();
-                var updated = _numericOptimizer.OptimizationStep(sigma, totalGrad, gradientStepSize);
-                lbmGrid.SetConductivityDistribution(updated);
-
-                return new ReconstructionFrame(totalGrad,
-                                              frame.CalculatedPotentialDistribution,
-                                              frame.CalculatedAdjointDistribution,
-                                              frame.CalculatedRegularization);
+                frame = InverseSolveStepLbm(lbmGrid, bc, measurement);
             }
             else throw new ArgumentOutOfRangeException();
+
+            // Combine data and regularization gradients before optimizer step
+            var totalGradDict = frame.ConductivityGradient.Conductivities.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value - regularizationStepSize * frame.CalculatedRegularization.GetConductivity(kvp.Key));
+            totalGrad = new ConductivityDistribution(totalGradDict);
+
+            // Use optimizer to update based on the gradient
+            sigma = _discretization.GetConductivityDistribution();
+
+            updated = _numericOptimizer.OptimizationStep(sigma, totalGrad, gradientStepSize);
+            updated = ConductivityClipper.Clip(updated);
+            
+            _discretization.SetConductivityDistribution(updated);
+
+            return new ReconstructionFrame(totalGrad,
+                                           frame.CalculatedPotentialDistribution,
+                                           frame.CalculatedAdjointDistribution,
+                                           frame.CalculatedRegularization,
+                                           frame.MeasuredElectrodeValues,
+                                           frame.SimulatedElectrodeValues);
         }
 
+        /// <summary>
+        /// Starts a background task that performs full reconstruction cycles on the active discretization.
+        /// The loop runs until either the maximum iteration count is reached or <see cref="Stop"/> is called.
+        /// Stores the user-provided step sizes so the task can update sigma without UI thread participation.
+        /// </summary>
         public void Run(int maxIterationCount, double gradientStepSize, double redularizationStepSize)
         {
             if (!_initialized || _discretization == null)
                 throw new InvalidOperationException("Reconstruction must be initialised before calling Run().");
 
-            // Store the user supplied step sizes so the background task can
-            // access them while updating the conductivity distribution.
+            // Store parameters for use in the background loop
             _gradientStepSize = gradientStepSize;
             _regularizationWeight = redularizationStepSize;
 
-            // Reset the stop flag in case a previous reconstruction has been
-            // executed.
+            // Reset cancellation request in case this is a new run
             _stopRequested = false;
 
-            // Spawn the background task.  Depending on the mesh type the
-            // appropriate reconstruction routine is executed.  The task keeps
-            // running until Stop() sets the _stopRequested flag or the
-            // maximum iteration count is reached.
+            // Spawn the background worker that selects the appropriate routine for the discretization type
             _backgroundTask = Task.Run(() =>
             {
                 if (_discretization is FEMMesh femMesh)
@@ -158,27 +264,31 @@ namespace BusinessLayer
             });
         }
 
+        /// <summary>
+        /// Signals the background reconstruction task to finish its current cycle and return.
+        /// Waits for completion and returns the final <see cref="ReconstructionResult"/>.
+        /// </summary>
         public ReconstructionResult Stop()
         {
             if (_backgroundTask == null)
                 throw new InvalidOperationException("Run() must be called before Stop().");
 
-            // Signal the background task to finish the current iteration and
-            // exit gracefully.  The task checks the _stopRequested flag at the
-            // start of every cycle.
+            // Request graceful stop; the loops poll this flag once per iteration
             _stopRequested = true;
 
-            // Wait for the task to complete and return the final reconstruction
-            // result.  Using GetAwaiter().GetResult() avoids AggregateException
-            // wrapping and propagates the original exception if one occurred.
+            // Await completion and propagate any exceptions directly
             var result = _backgroundTask.GetAwaiter().GetResult();
 
-            // Clear task reference so a new reconstruction can be started.
+            // Clear task reference so a new run can be started later
             _backgroundTask = null;
 
             return result;
         }
 
+        /// <summary>
+        /// Executes one FEM forward solve using the current workspace FEM boundary conditions.
+        /// Returns the clipped potential distribution.
+        /// </summary>
         public PotentialDistribution ForwardSolveStepFem()
         {
             if (_discretization is not FEMMesh mesh)
@@ -187,13 +297,19 @@ namespace BusinessLayer
             if (_differentialEquationSolver == null)
                 throw new NullReferenceException("Differential equation solver is null, check calling code!");
 
-            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
+            // Ensure workspace has up-to-date electrodes and BCs
+            Workspace.UpdateCurrentGlobalFemElectrodes(mesh);
+            var electrodes = Workspace.GetCurrentGlobalFemElectrodes();
+            var boundaryConditions = new FEMBoundaryCondition(electrodes);
+            Workspace.SetCurrentGlobalFemBoundaryCondition(boundaryConditions);
 
-            FEMBoundaryCondition boundaryConditions = new(electrodes);
-
-            return _differentialEquationSolver.Solve(mesh, boundaryConditions, null);
+            var potential = _differentialEquationSolver.Solve(mesh, boundaryConditions, null);
+            return PotentialClipper.Clip(potential);
         }
 
+        /// <summary>
+        /// Executes one LBM forward solve and returns the clipped potential distribution.
+        /// </summary>
         public PotentialDistribution ForwardSolveStepLbm()
         {
             if (_discretization is not LBMGrid lbmGrid)
@@ -202,69 +318,42 @@ namespace BusinessLayer
             if (_differentialEquationSolver == null)
                 throw new NullReferenceException("Differential equation solver is null, check calling code!");
 
-            var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
+            Workspace.UpdateCurrentGlobalLbmElectrodes(lbmGrid);
+            var electrodes = Workspace.GetCurrentGlobalLbmElectrodes();
+            var boundaryConditions = new LBMBoundaryCondition(electrodes);
+            Workspace.SetCurrentGlobalLbmBoundaryCondition(boundaryConditions);
 
-            LBMBoundaryCondition boundaryConditions = new(electrodes);
-
-            return _differentialEquationSolver.Solve(lbmGrid, boundaryConditions, null);
+            var potential = _differentialEquationSolver.Solve(lbmGrid, boundaryConditions, null);
+            return PotentialClipper.Clip(potential);
         }
 
-        public ReconstructionFrame InverseSolveStepFem(FEMMesh mesh, FEMBoundaryCondition bc, double[] currentMeasurement, double _)
+        /// <summary>
+        /// Executes one LBM forward solve using a CUDA-accelerated path (if the active DE solver supports it).
+        /// </summary>
+        public PotentialDistribution ForwardSolveStepLbmCuda()
         {
-            if (_differentialEquationSolver == null)
-                throw new NullReferenceException("Differential equation solver is null, check calling code!");
+            if (_discretization is not LBMGrid lbmGrid)
+                throw new TypeInitializationException("Mesh should be of type LBMGrid to use LBM solver!", new Exception("Invalid type in solver!"));
 
-            if(_errorMetric == null)
-                throw new NullReferenceException("Error metric is null, check calling code!");
+            if (_differentialEquationSolver is not LatticeBoltzmannDESolver lbmSolver)
+                throw new InvalidOperationException("CUDA forward solve requested, but LBM solver is not initialised.");
 
-            if (_regularizer == null)
-                throw new NullReferenceException("Regularizer is null, check calling code!");
+            Workspace.UpdateCurrentGlobalLbmElectrodes(lbmGrid);
+            var electrodes = Workspace.GetCurrentGlobalLbmElectrodes();
+            var boundaryConditions = new LBMBoundaryCondition(electrodes);
+            Workspace.SetCurrentGlobalLbmBoundaryCondition(boundaryConditions);
 
-            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
-
-            // Solve Forward to extract simulated potentials
-            PotentialDistribution phi = _differentialEquationSolver.Solve(mesh, bc, null);
-
-            // Extract simulated potentials
-            double[] simulatedPotentials = mesh.GetElectrodePotentials();
-
-            // Error metric based gradeint expression for the adjoint equation
-            var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, currentMeasurement, simulatedPotentials);
-
-            // Create the new adjoint source array
-            Complex[] adjointSource = new Complex[adjSrc.Length];
-            for (int k = 0; k < adjSrc.Length; k++)
-                adjointSource[k] = adjSrc[k];
-
-            // Solve the adjoint equation with the new boundary condition
-            PotentialDistribution mu = _differentialEquationSolver.Solve(mesh, new FEMBoundaryCondition(electrodes), adjointSource);
-
-            // Gradient expression for the conductivity field
-            ConductivityDistribution dataGrad = new ConductivityDistribution(
-                mesh.GetElements().Cast<FEMElement>().ToDictionary(
-                    el => el.Id,
-                    el => {
-                        // compute ∇φ, ∇μ on this element
-                        var gPhi = FiniteElementOperators.CalculateElementWiseGradient(mesh, phi)
-                                    .GetVector(el.Id);
-                        var gMu = FiniteElementOperators.CalculateElementWiseGradient(mesh, mu)
-                                    .GetVector(el.Id);
-                        return -(gMu.X * gPhi.X + gMu.Y * gPhi.Y) * el.Area;
-                    }
-                )
-            );
-
-            ConductivityDistribution sigma = mesh.GetConductivityDistribution();
-
-            // Calculate the regularization field
-            double regTerm = _regularizer.EvaluateTerm(mesh, sigma);
-            ConductivityDistribution regularization = _regularizer.EvaluateGradient(mesh, sigma);
-
-            // Returning the partial results from the inverse calculations
-            return new ReconstructionFrame(dataGrad, phi, mu, regularization);
+            var potential = lbmSolver.CUDASolveForward(lbmGrid, boundaryConditions);
+            return PotentialClipper.Clip(potential);
         }
 
-        public ReconstructionFrame InverseSolveStepLbm(LBMGrid mesh, LBMBoundaryCondition bc, double[] currentMeasurement)
+        /// <summary>
+        /// Performs a single inverse step on a FEM mesh for a specific boundary condition and measurement vector.
+        /// - Runs forward solve to produce φ and simulated boundary data.
+        /// - Builds adjoint source from error metric, runs adjoint solve to produce μ.
+        /// - Computes element-wise data gradient −(∇μ·∇φ)·Area and regularization gradient.
+        /// </summary>
+        public ReconstructionFrame InverseSolveStepFem(FEMMesh mesh, FEMBoundaryCondition bc, double[] currentMeasurement, double gradientStepSize)
         {
             if (_differentialEquationSolver == null)
                 throw new NullReferenceException("Differential equation solver is null, check calling code!");
@@ -272,38 +361,324 @@ namespace BusinessLayer
             if (_errorMetric == null)
                 throw new NullReferenceException("Error metric is null, check calling code!");
 
-            var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
+            if (_regularizer == null)
+                throw new NullReferenceException("Regularizer is null, check calling code!");
+
+            return ComputeFemInverseStep(mesh,
+                                         bc,
+                                         currentMeasurement,
+                                         gradientStepSize,
+                                         _differentialEquationSolver,
+                                         _errorMetric,
+                                         _regularizer,
+                                         updateWorkspace: true);
+        }
+
+        /// <summary>
+        /// Performs one inverse step on an LBM grid.
+        /// Uses CUDA for forward/adjoint solves if enabled and supported.
+        /// </summary>
+        public ReconstructionFrame InverseSolveStepLbm(LBMGrid grid, LBMBoundaryCondition bc, double[] currentMeasurement)
+        {
+            if (_differentialEquationSolver == null)
+                throw new NullReferenceException("Differential equation solver is null, check calling code!");
+
+            if (_errorMetric == null)
+                throw new NullReferenceException("Error metric is null, check calling code!");
+
+            // Update workspace for the current LBM configuration
+            Workspace.UpdateCurrentGlobalLbmElectrodes(grid);
+            Workspace.UpdateCurrentGlobalLbmElements(grid);
+            Workspace.SetCurrentGlobalLbmBoundaryCondition(bc);
+            var electrodes = Workspace.GetCurrentGlobalLbmElectrodes();
+            var elements = Workspace.GetCurrentGlobalLbmElements();
+
+            // Preserve the forward drive pair so the adjoint boundary condition retains the
+            // same grounding reference instead of falling back to the library defaults.
+            var forwardElectrodeSnapshot = bc.GetElectrodes()
+                                             .Select(CloneLbmElectrode)
+                                             .ToList();
 
             // Solve Forward to extract simulated potentials
-            PotentialDistribution phi = _differentialEquationSolver.Solve(mesh, bc, null);
+            var lbmSolver = _differentialEquationSolver as LatticeBoltzmannDESolver;
 
-            // Extract simulated potentials
-            double[] simulatedPotentials = mesh.GetElectrodePotentials();
+            PotentialDistribution phi = _useCudaParallelization && lbmSolver != null
+                ? lbmSolver.CUDASolveForward(grid, bc)
+                : _differentialEquationSolver.Solve(grid, bc, null);
+            phi = PotentialClipper.Clip(phi);
 
-            double currentError = _errorMetric.Evaluate(mesh, currentMeasurement, simulatedPotentials);
+            // Extract simulated potentials and project both measured and simulated to the representation
+            double[] simulatedPotentials = PotentialClipper.Clip(grid.GetElectrodePotentials());
+            var measurementSetup = Workspace.GetElectrodeMeasurementSetup();
+            var electrodeProjectionList = electrodes.Cast<Electrode>().ToList();
+            // Normalise Option 1–4 frames (see MeasurementPattern) prior to evaluating the misfit.
+            var projection = MeasurementProjector.Create(electrodeProjectionList,
+                                                         measurementSetup,
+                                                         _usePotentialDifferences,
+                                                         currentMeasurement,
+                                                         simulatedPotentials);
+            Workspace.SetMeasurementPattern(projection.Pattern);
 
-            // Error metric based gradeint expression
-            var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, currentMeasurement, simulatedPotentials);
+            double currentError = _errorMetric.Evaluate(grid, projection.Measured, projection.Simulated);
+            _ = currentError; // error value is not stored in this frame, but could be logged if needed
 
-            Complex[] adjointSource = new Complex[adjSrc.Length];
-            for (int k = 0; k < adjSrc.Length; k++)
-                adjointSource[k] = adjSrc[k];
+            // Error metric based gradient expression
+            var adjSrc = _errorMetric.EvaluateAdjointSource(grid, projection.Measured, projection.Simulated);
+            var expandedAdjoint = projection.ExpandAdjoint(adjSrc);
+            Complex[] adjointSource = ToComplex(expandedAdjoint);
 
-            PotentialDistribution mu = _differentialEquationSolver.Solve(mesh, new LBMBoundaryCondition(electrodes), adjointSource);
+            // Reset electrodes to measurement state before constructing adjoint boundary condition
+            PotentialDistribution mu;
+            var preservedElectrodeStates = electrodes
+                .Select(electrode => new
+                {
+                    Electrode = electrode,
+                    electrode.IsExcitation,
+                    electrode.IsGround,
+                    electrode.IsMeasuring,
+                    electrode.Current
+                })
+                .ToList();
+
+            try
+            {
+                foreach (var electrode in electrodes)
+                {
+                    electrode.IsExcitation = false;
+                    electrode.IsGround = false;
+                    electrode.IsMeasuring = true;
+                    electrode.Current = 0.0;
+                }
+
+                ReinstateGroundElectrode(forwardElectrodeSnapshot, electrodes);
+
+                // Adjoint solve using the same electrode geometry but without drive pair applied
+                var adjointBoundaryCondition = new LBMBoundaryCondition(electrodes, requireDrivePair: false);
+                Workspace.SetCurrentGlobalLbmBoundaryCondition(adjointBoundaryCondition);
+                mu = _useCudaParallelization && lbmSolver != null
+                    ? lbmSolver.CUDASolveAdjoint(grid, adjointBoundaryCondition, adjointSource)
+                    : _differentialEquationSolver.Solve(grid, adjointBoundaryCondition, adjointSource);
+                mu = PotentialClipper.Clip(mu);
+            }
+            finally
+            {
+                foreach (var state in preservedElectrodeStates)
+                {
+                    state.Electrode.IsExcitation = state.IsExcitation;
+                    state.Electrode.IsGround = state.IsGround;
+                    state.Electrode.IsMeasuring = state.IsMeasuring;
+                    state.Electrode.Current = state.Current;
+                }
+            }
+
+            Workspace.SetCurrentGlobalLbmBoundaryCondition(bc);
+
+            // Compute data gradient per element using dot product of gradients
+            var phiGradientField = _useCudaParallelization
+                ? LatticeBoltzmannOperators.CalculateGradientCuda(grid, phi)
+                : LatticeBoltzmannOperators.CalculateGradient(grid, phi);
+            var muGradientField = _useCudaParallelization
+                ? LatticeBoltzmannOperators.CalculateGradientCuda(grid, mu)
+                : LatticeBoltzmannOperators.CalculateGradient(grid, mu);
 
             ConductivityDistribution dataGrad = new ConductivityDistribution(
-                mesh.GetElements().ToDictionary(
+                elements.ToDictionary(
                     el => el.Id,
                     el => {
-                        // compute <∇φ, ∇μ> on this element
-                        var gPhi = LatticeBoltzmannOperators.CalculateGradient(mesh, phi).GetVector(el.Id);
-                        var gMu = LatticeBoltzmannOperators.CalculateGradient(mesh, mu).GetVector(el.Id);
+                        // Do not update electrode or ghost cells
+                        if (el.IsElectrode || el.GhostElement || el.IsWall)
+                            return 0.0;
+
+                        var gPhi = phiGradientField.GetVector(el.Id);
+                        var gMu = muGradientField.GetVector(el.Id);
                         return -(gMu.X * gPhi.X + gMu.Y * gPhi.Y);
                     }
                 )
             );
 
-            return new ReconstructionFrame(dataGrad, phi, mu, new ConductivityDistribution([]));
+            // LBM path in this routine does not compute explicit regularization (left empty)
+            return new ReconstructionFrame(dataGrad,
+                                           phi,
+                                           mu,
+                                           new ConductivityDistribution([]),
+                                           projection.Measured,
+                                           projection.Simulated);
+        }
+
+        /// <summary>
+        /// Utility that converts a real vector to a Complex vector (imaginary parts set to 0).
+        /// </summary>
+        private static Complex[] ToComplex(double[] values)
+        {
+            Complex[] complex = new Complex[values.Length];
+            for (int i = 0; i < values.Length; i++)
+                complex[i] = values[i];
+
+            return complex;
+        }
+
+        private static void ReinstateGroundElectrode(IEnumerable<LBMElectrode>? referenceElectrodes, IList<LBMElectrode> targetElectrodes)
+        {
+            if (targetElectrodes == null || targetElectrodes.Count == 0)
+                return;
+
+            LBMElectrode? groundTarget = null;
+
+            if (referenceElectrodes != null)
+            {
+                var referenceGround = referenceElectrodes.FirstOrDefault(e => e.IsGround);
+                if (referenceGround != null)
+                {
+                    groundTarget = targetElectrodes.FirstOrDefault(e => e.Id == referenceGround.Id)
+                                   ?? targetElectrodes.FirstOrDefault(e => e.GridId == referenceGround.GridId);
+                }
+            }
+
+            groundTarget ??= targetElectrodes.FirstOrDefault();
+
+            if (groundTarget != null)
+            {
+                groundTarget.IsGround = true;
+                groundTarget.IsMeasuring = false;
+            }
+        }
+
+        private static LBMElectrode CloneLbmElectrode(LBMElectrode electrode)
+        {
+            if (electrode == null)
+                throw new ArgumentNullException(nameof(electrode));
+
+            return new LBMElectrode(electrode.Id,
+                                     electrode.GridId,
+                                     electrode.Current,
+                                     electrode.Potential,
+                                     electrode.ZContact,
+                                     electrode.IsExcitation,
+                                     electrode.IsGround,
+                                     electrode.IsMeasuring,
+                                     electrode.IsVirtual);
+        }
+
+        /// <summary>
+        /// Shared implementation of a FEM inverse step with explicit dependency injection for testing.
+        /// Performs: forward solve, misfit projection, adjoint source, adjoint solve, data gradient, and regularizer.
+        /// </summary>
+        private ReconstructionFrame ComputeFemInverseStep(FEMMesh mesh,
+                                                          FEMBoundaryCondition bc,
+                                                          double[] currentMeasurement,
+                                                          double gradientStepSize,
+                                                          IDifferentialEquationSolver solver,
+                                                          IErrorMetric errorMetric,
+                                                          IRegularizer regularizer,
+                                                          bool updateWorkspace)
+        {
+            if (solver == null)
+                throw new ArgumentNullException(nameof(solver));
+            if (errorMetric == null)
+                throw new ArgumentNullException(nameof(errorMetric));
+            if (regularizer == null)
+                throw new ArgumentNullException(nameof(regularizer));
+
+            _ = gradientStepSize; // Currently unused but preserved for API compatibility.
+
+            List<FEMElectrode> electrodes;
+            List<FEMElement> elements;
+
+            if (updateWorkspace)
+            {
+                // Refresh global caches in the workspace; used by various utilities
+                Workspace.UpdateCurrentGlobalFemElectrodes(mesh);
+                Workspace.UpdateCurrentGlobalFemElements(mesh);
+                Workspace.SetCurrentGlobalFemBoundaryCondition(bc);
+
+                electrodes = Workspace.GetCurrentGlobalFemElectrodes();
+                elements = Workspace.GetCurrentGlobalFemElements();
+            }
+            else
+            {
+                electrodes = new List<FEMElectrode>(bc.GetElectrodes());
+                elements = mesh.GetElements().Cast<FEMElement>().ToList();
+            }
+
+            // Forward solve: φ
+            PotentialDistribution phi = PotentialClipper.Clip(solver.Solve(mesh, bc, null));
+            double[] simulatedPotentials = PotentialClipper.Clip(mesh.GetElectrodePotentials());
+
+            var measurementSetup = Workspace.GetElectrodeMeasurementSetup();
+            var electrodeProjectionList = electrodes.Cast<Electrode>().ToList();
+            // Normalise Option 1–4 frames (see MeasurementPattern) prior to evaluating the misfit.
+            var projection = MeasurementProjector.Create(electrodeProjectionList,
+                                                         measurementSetup,
+                                                         _usePotentialDifferences,
+                                                         currentMeasurement,
+                                                         simulatedPotentials);
+            Workspace.SetMeasurementPattern(projection.Pattern);
+
+            // Build adjoint source from error metric and project back to electrode-space
+            var adjSrc = errorMetric.EvaluateAdjointSource(mesh, projection.Measured, projection.Simulated);
+            var expandedAdjoint = projection.ExpandAdjoint(adjSrc);
+            Complex[] adjointSource = ToComplex(expandedAdjoint);
+
+            foreach(var electrode in electrodes)
+            {
+                electrode.IsExcitation = false;
+                electrode.IsGround = false;
+                electrode.IsMeasuring = true;
+            }
+
+            // Adjoint solve: μ
+            var adjointBoundaryCondition = new FEMBoundaryCondition(new List<FEMElectrode>(electrodes));
+            if (updateWorkspace)
+                Workspace.SetCurrentGlobalFemBoundaryCondition(adjointBoundaryCondition);
+
+            PotentialDistribution mu = PotentialClipper.Clip(solver.Solve(mesh, adjointBoundaryCondition, adjointSource));
+
+            // Compute ∇φ and ∇μ on elements
+            var phiGradient = FiniteElementOperators.CalculateElementWiseGradient(mesh, phi);
+            var muGradient = FiniteElementOperators.CalculateElementWiseGradient(mesh, mu);
+
+            // Data gradient: −(∇μ·∇φ)·Area per element
+            ConductivityDistribution dataGrad = new ConductivityDistribution(
+                elements.ToDictionary(
+                    el => el.Id,
+                    el =>
+                    {
+                        var gPhi = phiGradient.GetVector(el.Id);
+                        var gMu = muGradient.GetVector(el.Id);
+                        return -(gMu.X * gPhi.X + gMu.Y * gPhi.Y) * el.Area;
+                    })
+            );
+
+            // Regularization gradient for the current sigma
+            ConductivityDistribution sigma = mesh.GetConductivityDistribution();
+
+            _ = regularizer.EvaluateTerm(mesh, sigma); // evaluate/optionally log; value is not used here
+            ConductivityDistribution regularization = regularizer.EvaluateGradient(mesh, sigma);
+
+            return new ReconstructionFrame(dataGrad,
+                                           phi,
+                                           mu,
+                                           regularization,
+                                           projection.Measured,
+                                           projection.Simulated);
+        }
+
+        /// <summary>
+        /// CUDA-enabled convenience wrapper for <see cref="InverseSolveStepLbm"/>.
+        /// Temporarily forces CUDA path for the duration of the call and restores previous setting.
+        /// </summary>
+        public ReconstructionFrame InverseSolveStepLbmCuda(LBMGrid mesh, LBMBoundaryCondition bc, double[] currentMeasurement)
+        {
+            bool previous = _useCudaParallelization;
+            _useCudaParallelization = true;
+            try
+            {
+                return InverseSolveStepLbm(mesh, bc, currentMeasurement);
+            }
+            finally
+            {
+                _useCudaParallelization = previous;
+            }
         }
 
         // ------------------------------------------------------------------
@@ -311,17 +686,13 @@ namespace BusinessLayer
         // ------------------------------------------------------------------
 
         /// <summary>
-        ///     Runs the complete FEM reconstruction in a background task.
-        ///     Each iteration excites neighbouring electrode pairs, performs
-        ///     a forward and adjoint solve and accumulates the resulting
-        ///     gradient.  After all electrode pairs are processed the
-        ///     regularization term is added, the gradient is normalised and the
-        ///     conductivity distribution is updated.
+        /// Runs the complete FEM reconstruction in a background task.
+        /// For each iteration, cycles through the electrode drive pattern:
+        /// - sets up excitation/ground electrodes,
+        /// - runs inverse steps accumulating the data gradient,
+        /// - adds regularization, normalizes, and updates conductivity.
+        /// Stops early if <see cref="_stopRequested"/> is set.
         /// </summary>
-        /// <param name="mesh">Finite element mesh being reconstructed.</param>
-        /// <param name="maxIterationCount">Maximum number of reconstruction
-        ///     cycles to execute.</param>
-        /// <returns>The final reconstruction result produced by the task.</returns>
         private ReconstructionResult RunFemReconstruction(FEMMesh mesh, int maxIterationCount)
         {
             if (_errorMetric == null || _regularizer == null)
@@ -329,27 +700,52 @@ namespace BusinessLayer
 
             // --- Prepare reference data --------------------------------------------------
 
+            // If a ground-truth conductivity was provided, simulate frames on that; otherwise on the current mesh
             ConductivityDistribution originalSigma = _originalSigma ?? mesh.DeepCopy().GetConductivityDistribution();
             List<double[]> measurementFrames;
             if (_originalSigma != null)
             {
                 FEMMesh measMesh = (FEMMesh)mesh.DeepCopy();
                 measMesh.SetConductivityDistribution(originalSigma);
-                measurementFrames = SimulateFemMeasurements(measMesh, 1.0);
+                var parameters = Workspace.GetReconstructionParameters();
+                var virtualSettings = parameters?.VirtualElectrodeSettings ?? new VirtualElectrodeSettings();
+                var measurementSetup = Workspace.GetElectrodeMeasurementSetup();
+                var solver = _differentialEquationSolver ?? throw new NullReferenceException("Differential equation solver not initialised.");
+                var simulation = _measurementPersistence.SimulateFemMeasurements(measMesh,
+                                                                                1.0,
+                                                                                _drivePattern,
+                                                                                _usePotentialDifferences,
+                                                                                solver,
+                                                                                measurementSetup,
+                                                                                virtualSettings);
+                measurementFrames = simulation.Frames;
             }
             else
             {
-                measurementFrames = SimulateFemMeasurements(mesh, 1.0);
+                var parameters = Workspace.GetReconstructionParameters();
+                var virtualSettings = parameters?.VirtualElectrodeSettings ?? new VirtualElectrodeSettings();
+                var measurementSetup = Workspace.GetElectrodeMeasurementSetup();
+                var solver = _differentialEquationSolver ?? throw new NullReferenceException("Differential equation solver not initialised.");
+                var simulation = _measurementPersistence.SimulateFemMeasurements(mesh,
+                                                                                1.0,
+                                                                                _drivePattern,
+                                                                                _usePotentialDifferences,
+                                                                                solver,
+                                                                                measurementSetup,
+                                                                                virtualSettings);
+                measurementFrames = simulation.Frames;
             }
 
+            // Use provided or generated initial sigma
             ConductivityDistribution initialSigma = _initialSigma ?? ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType);
             mesh.SetConductivityDistribution(initialSigma);
 
             // Cache electrode and element information for repeated use.
-            List<FEMElectrode> electrodes = [.. mesh.GetElectrodes().Cast<FEMElectrode>()];
+            Workspace.UpdateCurrentGlobalFemElectrodes(mesh);
+            Workspace.UpdateCurrentGlobalFemElements(mesh);
+            var electrodes = Workspace.GetCurrentGlobalFemElectrodes();
+            var elements = Workspace.GetCurrentGlobalFemElements();
             int electrodeCount = electrodes.Count;
-
-            var elements = mesh.GetElements().Cast<FEMElement>().ToList();
 
             // Container that stores intermediate frames for later inspection.
             List<ReconstructionFrame> frames = [];
@@ -357,16 +753,12 @@ namespace BusinessLayer
             // --- Iterative reconstruction loop -----------------------------------------
             for (int iter = 0; iter < maxIterationCount && !_stopRequested; iter++)
             {
-                // Initialise an accumulator for the gradient contributions of
-                // all electrode pairs.
-                Dictionary<int, double> totalGrad = elements.ToDictionary(el => el.Id, _ => 0.0);
+                // Accumulate gradient contributions over the full electrode cycle
+                var totalGrad = elements.ToDictionary(el => el.Id, _ => 0.0);
 
                 for (int exc = 0; exc < electrodeCount; exc++)
                 {
-                    // Reset electrode roles before applying a new excitation
-                    // pattern.  The excitation amplitude is set to unity for
-                    // simplicity; the measurement data already includes this
-                    // amplitude.
+                    // Configure current drive pair and mark non-measuring electrodes
                     foreach (var el in electrodes)
                     {
                         el.Current = 0.0;
@@ -378,23 +770,20 @@ namespace BusinessLayer
 
                     electrodes[exc % electrodeCount].IsExcitation = true;
                     electrodes[exc % electrodeCount].IsMeasuring = false;
-                    electrodes[exc % electrodeCount].Current = 1.0;
+                    electrodes[exc % electrodeCount].Current = 10.0;
                     electrodes[(exc + 1) % electrodeCount].IsGround = true;
                     electrodes[(exc + 1) % electrodeCount].IsMeasuring = false;
-                    electrodes[(exc + 1) % electrodeCount].Current = -1.0;
+                    electrodes[(exc + 1) % electrodeCount].Current = -10.0;
 
-                    // Boundary condition reflecting the just configured
-                    // electrode setup.
+                    // Boundary condition reflecting the just configured electrode setup.
                     var bc = new FEMBoundaryCondition(electrodes);
+                    Workspace.SetCurrentGlobalFemBoundaryCondition(bc);
 
                     // Measurement corresponding to this excitation pattern.
                     double[] dObs = measurementFrames[exc];
 
-                    // Perform forward/adjoint solve and obtain the gradient
-                    // contribution for this electrode pair.  The gradient step
-                    // size is set to unity so the returned gradient represents
-                    // ∇J_data without any scaling.
-                    var frame = InverseSolveStepFem(mesh, bc, dObs, 1.0);
+                    // Perform forward/adjoint solve and obtain the gradient contribution for this electrode pair.
+                    var frame = InverseSolveStepFem(mesh, bc, dObs, 1.0); // step size 1.0 -> pure gradient (no scaling)
 
                     frames.Add(frame);
 
@@ -402,8 +791,7 @@ namespace BusinessLayer
                         totalGrad[kvp.Key] += kvp.Value;
                 }
 
-                // Add regularisation gradient to the accumulated data
-                // gradient and normalise by the number of electrode pairs.
+                // Add regularisation gradient and normalise by the number of electrode pairs.
                 var sigma = mesh.GetConductivityDistribution();
                 var regGrad = _regularizer.EvaluateGradient(mesh, sigma);
                 foreach (var key in totalGrad.Keys.ToList())
@@ -412,13 +800,13 @@ namespace BusinessLayer
                     totalGrad[key] = g / electrodeCount;
                 }
 
-                // Update the conductivity distribution by taking a step along
-                // the accumulated gradient.
+                // Update the conductivity distribution by taking a step along the accumulated gradient.
                 var newSigmaDict = sigma.Conductivities.ToDictionary(
                     kvp => kvp.Key,
                     kvp => kvp.Value + _gradientStepSize * totalGrad[kvp.Key]);
 
-                mesh.SetConductivityDistribution(new ConductivityDistribution(newSigmaDict));
+                var updatedSigma = ConductivityClipper.Clip(new ConductivityDistribution(newSigmaDict));
+                mesh.SetConductivityDistribution(updatedSigma);
             }
 
             // Final reconstructed distribution after termination of the loop.
@@ -431,10 +819,95 @@ namespace BusinessLayer
                                             frames);
         }
 
+        private ConductivityDistribution ApplyLbmConductivityGaussianFilter(LBMGrid mesh, ConductivityDistribution source)
+        {
+            int kernelSize = _lbmGaussianKernelSize;
+            if (kernelSize % 2 == 0)
+                kernelSize += 1;
+
+            var kernel1D = BuildBinomialKernel(kernelSize);
+            int half = kernelSize / 2;
+
+            var filtered = new Dictionary<int, double>(source.Conductivities.Count);
+
+            for (int y = 0; y < mesh.Ny; y++)
+            {
+                for (int x = 0; x < mesh.Nx; x++)
+                {
+                    var element = mesh.GetElementAt(x, y);
+                    double original = source.GetConductivity(element.Id);
+
+                    if (element.IsWall || element.GhostElement || element.IsElectrode)
+                    {
+                        filtered[element.Id] = original;
+                        continue;
+                    }
+
+                    double weightedSum = 0.0;
+                    double weightTotal = 0.0;
+
+                    for (int dy = -half; dy <= half; dy++)
+                    {
+                        int ny = y + dy;
+                        if (ny < 0 || ny >= mesh.Ny)
+                            continue;
+
+                        double wy = kernel1D[dy + half];
+
+                        for (int dx = -half; dx <= half; dx++)
+                        {
+                            int nx = x + dx;
+                            if (nx < 0 || nx >= mesh.Nx)
+                                continue;
+
+                            double wx = kernel1D[dx + half];
+                            double weight = wx * wy;
+
+                            var neighbor = mesh.GetElementAt(nx, ny);
+                            if (neighbor.IsWall || neighbor.GhostElement || neighbor.IsElectrode)
+                                continue;
+
+                            weightedSum += weight * source.GetConductivity(neighbor.Id);
+                            weightTotal += weight;
+                        }
+                    }
+
+                    filtered[element.Id] = weightTotal > 0 ? weightedSum / weightTotal : original;
+                }
+            }
+
+            return new ConductivityDistribution(filtered);
+        }
+
+        private static double[] BuildBinomialKernel(int size)
+        {
+            int n = size - 1;
+            double[] coeffs = new double[size];
+
+            for (int k = 0; k < size; k++)
+                coeffs[k] = BinomialCoefficient(n, k);
+
+            return coeffs;
+        }
+
+        private static double BinomialCoefficient(int n, int k)
+        {
+            k = Math.Min(k, n - k);
+            double result = 1.0;
+
+            for (int i = 1; i <= k; i++)
+            {
+                result *= n - (k - i);
+                result /= i;
+            }
+
+            return result;
+        }
+
         /// <summary>
-        ///     Background reconstruction routine for Lattice Boltzmann meshes.
-        ///     The structure mirrors <see cref="RunFemReconstruction"/> but
-        ///     utilises LBM specific data structures and operators.
+        /// Background reconstruction routine for Lattice Boltzmann meshes.
+        /// Mirrors the FEM routine: for each iteration cycles electrode pairs, accumulates data gradients,
+        /// adds optional regularization, normalizes, and updates conductivities.
         /// </summary>
         private ReconstructionResult RunLbmReconstruction(LBMGrid mesh, int maxIterationCount)
         {
@@ -447,20 +920,45 @@ namespace BusinessLayer
             {
                 LBMGrid measMesh = (LBMGrid)mesh.DeepCopy();
                 measMesh.SetConductivityDistribution(originalSigma);
-                measurementFrames = SimulateLbmMeasurements(measMesh, 1.0);
+                // Ghost-layer conductivities are derived from the interior; recompute them before any solves.
+                measMesh.UpdateGhostConductivityFromNeighbors();
+                var simulation = GenerateLbmMeasurements(measMesh, 1.0);
+                measurementFrames = simulation.Amplitude.HasValue
+                    ? new EITMeasurement(simulation.Frames, simulation.Amplitude.Value, simulation.Pattern)
+                    : new EITMeasurement(simulation.Frames, simulation.Pattern);
+                Workspace.SetElectrodeMeasurementSetup(simulation.MeasurementSetup);
             }
             else
             {
-                measurementFrames = SimulateLbmMeasurements(mesh, 1.0);
+                var simulation = GenerateLbmMeasurements(mesh, 1.0);
+                measurementFrames = simulation.Amplitude.HasValue
+                    ? new EITMeasurement(simulation.Frames, simulation.Amplitude.Value, simulation.Pattern)
+                    : new EITMeasurement(simulation.Frames, simulation.Pattern);
+                Workspace.SetElectrodeMeasurementSetup(simulation.MeasurementSetup);
             }
 
-            ConductivityDistribution initialSigma = _initialSigma ?? mesh.GetConductivityDistribution();
+            ConductivityDistribution initialSigma = _initialSigma
+                ?? ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType);
+            initialSigma = ConductivityClipper.Clip(initialSigma);
             mesh.SetConductivityDistribution(initialSigma);
+            // Reconstruction only optimises interior conductivities; keep the ghost layer in sync with them.
+            mesh.UpdateGhostConductivityFromNeighbors();
 
-            var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
-            int electrodeCount = electrodes.Count;
+            Workspace.UpdateCurrentGlobalLbmElectrodes(mesh);
+            Workspace.UpdateCurrentGlobalLbmElements(mesh);
+            var electrodes = Workspace.GetCurrentGlobalLbmElectrodes();
+            var realElectrodes = electrodes.Where(e => !e.IsVirtual).ToList();
+            int realElectrodeCount = realElectrodes.Count;
+            var driveStrategy = DrivePatternStrategyProvider.GetStrategy(_drivePattern);
+            int cycleLength = realElectrodeCount > 0
+                ? Math.Max(1, driveStrategy.GetCycleLength(realElectrodeCount))
+                : 1;
+            double driveAmplitude = measurementFrames.CurrentAmplitude ?? 1.0;
 
-            var elements = mesh.GetElements().ToList();
+            var elements = Workspace.GetCurrentGlobalLbmElements();
+            var interiorElementIds = new HashSet<int>(elements
+                .Where(el => !el.GhostElement && !el.IsWall)
+                .Select(el => el.Id));
 
             List<ReconstructionFrame> frames = [];
 
@@ -468,7 +966,7 @@ namespace BusinessLayer
             {
                 Dictionary<int, double> totalGrad = elements.ToDictionary(el => el.Id, _ => 0.0);
 
-                for (int exc = 0; exc < electrodeCount; exc++)
+                for (int step = 0; step < cycleLength; step++)
                 {
                     foreach (var el in electrodes)
                     {
@@ -479,15 +977,24 @@ namespace BusinessLayer
                         el.Potential = 0.0;
                     }
 
-                    electrodes[exc % electrodeCount].IsExcitation = true;
-                    electrodes[exc % electrodeCount].IsMeasuring = false;
-                    electrodes[exc % electrodeCount].Current = 1.0;
-                    electrodes[(exc + 1) % electrodeCount].IsGround = true;
-                    electrodes[(exc + 1) % electrodeCount].IsMeasuring = false;
-                    electrodes[(exc + 1) % electrodeCount].Current = -1.0;
+                    if (realElectrodeCount > 0)
+                    {
+                        var (excitationIndex, groundIndex) = driveStrategy.GetElectrodePair(realElectrodeCount, step);
+                        var excitation = realElectrodes[excitationIndex];
+                        excitation.IsExcitation = true;
+                        excitation.IsMeasuring = false;
+                        excitation.Current = driveAmplitude;
+
+                        var ground = realElectrodes[groundIndex];
+                        ground.IsGround = true;
+                        ground.IsMeasuring = false;
+                        ground.Current = -driveAmplitude;
+                    }
 
                     var bc = new LBMBoundaryCondition(electrodes);
-                    double[] dObs = measurementFrames.Frames[exc];
+                    Workspace.SetCurrentGlobalLbmBoundaryCondition(bc);
+                    int frameIndex = step % Math.Max(1, measurementFrames.Frames.Count);
+                    double[] dObs = measurementFrames.Frames[frameIndex];
 
                     var frame = InverseSolveStepLbm(mesh, bc, dObs);
 
@@ -504,14 +1011,26 @@ namespace BusinessLayer
                     double g = totalGrad[key];
                     if (regGrad != null)
                         g += _regularizationWeight * regGrad.GetConductivity(key);
-                    totalGrad[key] = g / electrodeCount;
+                    totalGrad[key] = g / cycleLength;
                 }
 
                 var newSigmaDict = sigma.Conductivities.ToDictionary(
                     kvp => kvp.Key,
-                    kvp => kvp.Value + _gradientStepSize * totalGrad[kvp.Key]);
+                    kvp => interiorElementIds.Contains(kvp.Key)
+                        ? kvp.Value + _gradientStepSize * totalGrad[kvp.Key]
+                        : kvp.Value);
 
-                mesh.SetConductivityDistribution(new ConductivityDistribution(newSigmaDict));
+                var updated = ConductivityClipper.Clip(new ConductivityDistribution(newSigmaDict));
+                mesh.SetConductivityDistribution(updated);
+                // Ghost conductivities are derived quantities; refresh them immediately after interior updates.
+                mesh.UpdateGhostConductivityFromNeighbors();
+
+                if (_useLbmConductivityFilter && (iter + 1) % _lbmConductivityFilterInterval == 0)
+                {
+                    var smoothed = ApplyLbmConductivityGaussianFilter(mesh, mesh.GetConductivityDistribution());
+                    mesh.SetConductivityDistribution(smoothed);
+                    mesh.UpdateGhostConductivityFromNeighbors();
+                }
             }
 
             ConductivityDistribution reconstructed = mesh.GetConductivityDistribution();
@@ -523,6 +1042,10 @@ namespace BusinessLayer
                                             frames);
         }
 
+        /// <summary>
+        /// Legacy/explicit FEM inverse loop over all drive patterns using the provided excitation amplitude.
+        /// Preserves the previous API shape and prints diagnostic information to Debug.
+        /// </summary>
         public ReconstructionResult InverseSolveFem(int maxIterationCount, double gradientStepSize, double redularizationStepSize, double excitationAmplitude, double tolerance = 1e-6)
         {
             if(_discretization is not FEMMesh mesh)
@@ -536,33 +1059,508 @@ namespace BusinessLayer
 
             _regularizationWeight = redularizationStepSize;
 
+            // Ground truth (if provided), otherwise simulate on current mesh
             ConductivityDistribution originalConductivityDistribution = _originalSigma ?? mesh.DeepCopy().GetConductivityDistribution();
             List<double[]> simulatedMeasurements;
             if (_originalSigma != null)
             {
                 FEMMesh measMesh = (FEMMesh)mesh.DeepCopy();
                 measMesh.SetConductivityDistribution(originalConductivityDistribution);
-                simulatedMeasurements = SimulateFemMeasurements(measMesh, excitationAmplitude);
+                simulatedMeasurements = GenerateFemMeasurements(measMesh, excitationAmplitude);
             }
             else
-                simulatedMeasurements = SimulateFemMeasurements(mesh, excitationAmplitude);
+                simulatedMeasurements = GenerateFemMeasurements(mesh, excitationAmplitude);
             
+            // Initial field selection
             ConductivityDistribution initialConductivityDistribution = _initialSigma ?? ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType);
+            initialConductivityDistribution = ConductivityClipper.Clip(initialConductivityDistribution);
             mesh.SetConductivityDistribution(initialConductivityDistribution);
 
-            List<FEMElectrode> electrodes = [.. mesh.GetElectrodes().Cast<FEMElectrode>()];
+            // Prepare workspace caches
+            Workspace.UpdateCurrentGlobalFemElectrodes(mesh);
+            Workspace.UpdateCurrentGlobalFemElements(mesh);
+            var electrodes = Workspace.GetCurrentGlobalFemElectrodes();
             var bc = new FEMBoundaryCondition(electrodes);
+            Workspace.SetCurrentGlobalFemBoundaryCondition(bc);
             int electrodeCount = electrodes.Count;
 
-            var elements = mesh.GetElements().Cast<FEMElement>().ToList();
+            var elements = Workspace.GetCurrentGlobalFemElements();
             int elementCount = elements.Count;
 
-            // 4) Iterative loop
+            // Iterative loop with simple stopping criterion
             double prevJ = double.PositiveInfinity;
             List<double> errors = [];
             List<ReconstructionFrame> frames = [];
 
             for (int iter = 0; iter < maxIterationCount; iter++)
+            {
+                Debug.WriteLine($"\n=== Inverse iteration {iter} ===");
+
+                Dictionary<int, double> totalGrad = [];
+                for (int i = 0; i < elementCount; i++)
+                    totalGrad.Add(i, 0.0);
+
+                // Iterate around with the excitation electrodes
+                for (int exc = 0; exc < electrodeCount; exc++)
+                {
+                    // Clear electrode status and configure new pair
+                    foreach (var el in electrodes)
+                    {
+                        el.Current = 0.0;
+                        el.IsExcitation = false;
+                        el.IsGround = false;
+                        el.IsMeasuring = true;
+                        el.Potential = 0.0;
+                    }
+
+                    // Set new electrode setup
+                    electrodes[exc % electrodeCount].IsExcitation = true;
+                    electrodes[exc % electrodeCount].IsMeasuring = false;
+                    electrodes[exc % electrodeCount].Current = excitationAmplitude;
+                    electrodes[(exc + 1) % electrodeCount].IsGround = true;
+                    electrodes[(exc + 1) % electrodeCount].IsMeasuring = false;
+                    electrodes[(exc + 1) % electrodeCount].Current = -excitationAmplitude;
+
+                    // Current simulated measurement extraction
+                    double[] dObs = simulatedMeasurements[exc];
+
+                    // Perform an inverse solve step and extract partial results
+                    var frame = InverseSolveStepFem(mesh, bc, dObs, gradientStepSize);
+
+                    // Get the gradient expression from the inverse solve step
+                    var dataGrad = frame.ConductivityGradient;
+
+                    // Accumulate
+                    foreach (var kvp in dataGrad.Conductivities)
+                        totalGrad[kvp.Key] += kvp.Value;
+                }
+
+                // Regularization term J_reg and grad ∇J_reg
+                double regTerm = _regularizer.EvaluateTerm(mesh, initialConductivityDistribution);
+                var regGrad = _regularizer.EvaluateGradient(mesh, initialConductivityDistribution);
+                Debug.WriteLine($"Regularization R = {regTerm:0.#####}");
+
+                // Total gradient ∇J = ∇J_data + λ∇R and normalization
+                var totalGradDict = totalGrad.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value + _regularizationWeight * regGrad.GetConductivity(kvp.Key)
+                );
+
+                foreach (var kvp in totalGradDict)
+                    totalGradDict[kvp.Key] = kvp.Value / simulatedMeasurements.Count;
+
+                var grad = new ConductivityDistribution(totalGradDict);
+
+                Debug.WriteLine("Gradient ∇J computed.");
+
+                // Apply optimization step
+                var newConductivityDistribution = _numericOptimizer.OptimizationStep(mesh.ConductivityDistribution, grad, gradientStepSize);
+                newConductivityDistribution = ConductivityClipper.Clip(newConductivityDistribution);
+
+                mesh.SetConductivityDistribution(newConductivityDistribution);
+
+                // Compute total misfit across all patterns for progress monitoring
+                double Jtotal = CalculateTotalMisiftFem(mesh, simulatedMeasurements, bc, excitationAmplitude);
+                Debug.WriteLine($"Iteration {iter}: total misfit = {Jtotal}");
+                errors.Add(Jtotal);
+
+                // Check error threshold
+                if (Math.Abs(prevJ - Jtotal) < tolerance)
+                    break;
+
+                prevJ = Jtotal;
+            }
+
+            Debug.WriteLine("Erorrs during iteration:");
+            // print errors
+            for (int i = 0; i < errors.Count; i++)
+                if (i % 5 == 0)
+                    Debug.WriteLine($"It[{i}]: {errors[i]:F6} ");
+                else Debug.Write($"It[{i}]: {errors[i]:F6}\t");
+
+            Debug.WriteLine("");
+
+            // Reset elements to initial sigma and produce final result
+            foreach (var el in elements)
+                el.Conductivity = initialConductivityDistribution.GetConductivity(el.Id);
+
+            ConductivityDistribution reconstructedConductivityDistribution = mesh.GetConductivityDistribution();
+
+            return new ReconstructionResult(mesh, originalConductivityDistribution, initialConductivityDistribution, reconstructedConductivityDistribution, frames);
+        }
+
+        /// <summary>
+        /// Legacy/explicit LBM inverse loop that defers to the background-style implementation.
+        /// Stores gradient and regularization weights and runs the iterative routine.
+        /// </summary>
+        public ReconstructionResult InverseSolveLbm(int maxIterationCount,
+                                                    double gradientStepSize,
+                                                    double redularizationStepSize,
+                                                    double excitationAmplitude,
+                                                    double tolerance = 1e-6)
+        {
+            if (_discretization is not LBMGrid lbmGrid)
+                throw new TypeInitializationException("Mesh should be of type LBMGrid to use LBM solver!", new Exception("Invalid type in solver!"));
+
+            if (_regularizer == null)
+                throw new NullReferenceException("Regularizer is null, check calling code!");
+
+            _gradientStepSize = gradientStepSize;
+            _regularizationWeight = redularizationStepSize;
+
+            return RunLbmReconstruction(lbmGrid, maxIterationCount);
+        }
+
+        /// <summary>
+        /// Convenience wrapper around <see cref="InverseSolveLbm"/> that temporarily forces CUDA for the call.
+        /// </summary>
+        public ReconstructionResult InverseSolveLbmCuda(int maxIterationCount,
+                                                        double gradientStepSize,
+                                                        double redularizationStepSize,
+                                                        double excitationAmplitude,
+                                                        double tolerance = 1e-6)
+        {
+            bool previous = _useCudaParallelization;
+            _useCudaParallelization = true;
+            try
+            {
+                return InverseSolveLbm(maxIterationCount, gradientStepSize, redularizationStepSize, excitationAmplitude, tolerance);
+            }
+            finally
+            {
+                _useCudaParallelization = previous;
+            }
+        }
+
+        /// <summary>
+        /// Computes the total misfit across all drive patterns for a FEM mesh.
+        /// Aligns measurement vectors to the current electrode roles, applies representation projection,
+        /// and accumulates the error metric value.
+        /// </summary>
+        private double CalculateTotalMisiftFem(FEMMesh mesh, List<double[]> simulatedMeasurements, FEMBoundaryCondition bc, double excitationAmplitude)
+        {
+            if (_differentialEquationSolver == null)
+                throw new NullReferenceException("Differential equation solver is null, check calling code!");
+
+            if (_errorMetric == null)
+                throw new NullReferenceException("Error metric is null, check calling code!");
+
+            Workspace.UpdateCurrentGlobalFemElectrodes(mesh);
+            Workspace.SetCurrentGlobalFemBoundaryCondition(bc);
+            var electrodes = Workspace.GetCurrentGlobalFemElectrodes();
+            int electrodeCount = electrodes.Count;
+
+            double Jtotal = 0;
+
+            for (int exc = 0; exc < electrodeCount; exc++)
+            {
+                // Clear electrode status and configure new pair
+                foreach (var el in electrodes)
+                {
+                    el.Current = 0.0;
+                    el.IsExcitation = false;
+                    el.IsGround = false;
+                    el.IsMeasuring = true;
+                    el.Potential = 0.0;
+                }
+
+                // Set new electrode setup
+                electrodes[exc % electrodeCount].IsExcitation = true;
+                electrodes[exc % electrodeCount].IsMeasuring = false;
+                electrodes[exc % electrodeCount].Current = excitationAmplitude;
+                electrodes[(exc + 1) % electrodeCount].IsGround = true;
+                electrodes[(exc + 1) % electrodeCount].IsMeasuring = false;
+                electrodes[(exc + 1) % electrodeCount].Current = -excitationAmplitude;
+
+                _ = _differentialEquationSolver.Solve(mesh, bc, null);
+                double[] dSimNew = PotentialClipper.Clip(mesh.GetElectrodePotentials());
+                double[] dObs = simulatedMeasurements[exc];
+                var measurementSetup = Workspace.GetElectrodeMeasurementSetup();
+                var electrodeProjectionList = electrodes.Cast<Electrode>().ToList();
+                // Normalise Option 1–4 frames (see MeasurementPattern) prior to evaluating the misfit.
+                var projection = MeasurementProjector.Create(electrodeProjectionList,
+                                                             measurementSetup,
+                                                             _usePotentialDifferences,
+                                                             dObs,
+                                                             dSimNew);
+                Workspace.SetMeasurementPattern(projection.Pattern);
+                Jtotal += _errorMetric.Evaluate(mesh, projection.Measured, projection.Simulated);
+            }
+
+            return Jtotal;
+        }
+
+
+        #region Lattice Boltzmann Reconstruction
+
+        /// <summary>
+        /// Executes a single LBM forward/adjoint pair and returns the data gradient (without regularization).
+        /// Uses CUDA for gradient calculations if enabled.
+        /// </summary>
+        private ReconstructionFrame LbmSolveStep(LBMGrid mesh, LBMBoundaryCondition bc, double[] currentMeasurement)
+        {
+            if (_differentialEquationSolver == null)
+                throw new NullReferenceException("Cannot perform solve step, DE solver is null.");
+
+            if (_errorMetric == null)
+                throw new NullReferenceException("Cannot perform solve step Error Metric is null.");
+
+            Workspace.UpdateCurrentGlobalLbmElectrodes(mesh);
+            Workspace.UpdateCurrentGlobalLbmElements(mesh);
+            Workspace.SetCurrentGlobalLbmBoundaryCondition(bc);
+            var electrodes = Workspace.GetCurrentGlobalLbmElectrodes();
+            var elements = Workspace.GetCurrentGlobalLbmElements();
+
+            // Solve Forward to extract simulated potentials
+            PotentialDistribution phi = PotentialClipper.Clip(_differentialEquationSolver.Solve(mesh, bc, null));
+
+            // Extract simulated potentials
+            double[] simulatedPotentials = PotentialClipper.Clip(mesh.GetElectrodePotentials());
+            var measurementSetup = Workspace.GetElectrodeMeasurementSetup();
+            var electrodeProjectionList = electrodes.Cast<Electrode>().ToList();
+            var projection = MeasurementProjector.Create(electrodeProjectionList,
+                                                         measurementSetup,
+                                                         _usePotentialDifferences,
+                                                         currentMeasurement,
+                                                         simulatedPotentials);
+            Workspace.SetMeasurementPattern(projection.Pattern);
+
+            double currentError = _errorMetric.Evaluate(mesh, projection.Measured, projection.Simulated);
+            _ = currentError;
+
+            // Error metric based gradient expression
+            var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, projection.Measured, projection.Simulated);
+            var expandedAdjoint = projection.ExpandAdjoint(adjSrc);
+            Complex[] adjointSource = ToComplex(expandedAdjoint);
+
+            PotentialDistribution mu;
+            var preservedElectrodeStates = electrodes
+                .Select(electrode => new
+                {
+                    Electrode = electrode,
+                    electrode.IsExcitation,
+                    electrode.IsGround,
+                    electrode.IsMeasuring,
+                    electrode.Current
+                })
+                .ToList();
+
+            try
+            {
+                foreach (var electrode in electrodes)
+                {
+                    electrode.IsExcitation = false;
+                    electrode.IsGround = false;
+                    electrode.IsMeasuring = true;
+                    electrode.Current = 0.0;
+                }
+
+                ReinstateGroundElectrode(bc.GetElectrodes().Cast<LBMElectrode>(), electrodes);
+
+                var adjointBoundaryCondition = new LBMBoundaryCondition(electrodes, requireDrivePair: false);
+                Workspace.SetCurrentGlobalLbmBoundaryCondition(adjointBoundaryCondition);
+                mu = PotentialClipper.Clip(_differentialEquationSolver.Solve(mesh, adjointBoundaryCondition, adjointSource));
+            }
+            finally
+            {
+                foreach (var state in preservedElectrodeStates)
+                {
+                    state.Electrode.IsExcitation = state.IsExcitation;
+                    state.Electrode.IsGround = state.IsGround;
+                    state.Electrode.IsMeasuring = state.IsMeasuring;
+                    state.Electrode.Current = state.Current;
+                }
+            }
+
+            Workspace.SetCurrentGlobalLbmBoundaryCondition(bc);
+
+            var phiGradientField = _useCudaParallelization
+                ? LatticeBoltzmannOperators.CalculateGradientCuda(mesh, phi)
+                : LatticeBoltzmannOperators.CalculateGradient(mesh, phi);
+            var muGradientField = _useCudaParallelization
+                ? LatticeBoltzmannOperators.CalculateGradientCuda(mesh, mu)
+                : LatticeBoltzmannOperators.CalculateGradient(mesh, mu);
+
+            ConductivityDistribution dataGrad = new ConductivityDistribution(
+                elements.ToDictionary(
+                    el => el.Id,
+                    el => {
+                        var gPhi = phiGradientField.GetVector(el.Id);
+                        var gMu = muGradientField.GetVector(el.Id);
+                        return (gMu.X * gPhi.X + gMu.Y * gPhi.Y);
+                    }
+                )
+            );
+
+            return new ReconstructionFrame(dataGrad,
+                                          phi,
+                                          mu,
+                                          new ConductivityDistribution([]),
+                                          projection.Measured,
+                                          projection.Simulated);
+        }
+
+        /// <summary>
+        /// High-level multi-iteration LBM inverse routine that repeatedly calls <see cref="LbmSolveStep"/>
+        /// and updates the conductivity field by gradient descent.
+        /// </summary>
+        public ReconstructionResult SolveLbmInverse(int maxIterationCount)
+        {
+            double stepSize = _gradientStepSize;
+            LBMGrid? lbmGrid = (_discretization as LBMGrid);
+
+            if (_inverseModel == null || _discretization == null || lbmGrid == null || _differentialEquationSolver == null || _errorMetric == null)
+                throw new NullReferenceException();
+
+            ConductivityDistribution originalConductivityDistribution = _originalSigma ?? ((LBMGrid)lbmGrid.DeepCopy()).GetConductivityDistribution();
+            lbmGrid = (LBMGrid)lbmGrid.DeepCopy();
+            lbmGrid.UpdateGhostConductivityFromNeighbors();
+
+            Workspace.UpdateCurrentGlobalLbmElectrodes(lbmGrid);
+            Workspace.UpdateCurrentGlobalLbmElements(lbmGrid);
+            var electrodes = Workspace.GetCurrentGlobalLbmElectrodes();
+
+            LBMBoundaryCondition bc = new(electrodes);
+            Workspace.SetCurrentGlobalLbmBoundaryCondition(bc);
+
+            EITMeasurement measurementFrames;
+            if (_originalSigma != null)
+            {
+                LBMGrid measMesh = (LBMGrid)lbmGrid.DeepCopy();
+                measMesh.SetConductivityDistribution(originalConductivityDistribution);
+                measMesh.UpdateGhostConductivityFromNeighbors();
+                var simulation = GenerateLbmMeasurements(measMesh, 1.0);
+                measurementFrames = simulation.Amplitude.HasValue
+                    ? new EITMeasurement(simulation.Frames, simulation.Amplitude.Value, simulation.Pattern)
+                    : new EITMeasurement(simulation.Frames, simulation.Pattern);
+                Workspace.SetElectrodeMeasurementSetup(simulation.MeasurementSetup);
+            }
+            else
+            {
+                lbmGrid.UpdateGhostConductivityFromNeighbors();
+                var simulation = GenerateLbmMeasurements(lbmGrid, 1.0);
+                measurementFrames = simulation.Amplitude.HasValue
+                    ? new EITMeasurement(simulation.Frames, simulation.Amplitude.Value, simulation.Pattern)
+                    : new EITMeasurement(simulation.Frames, simulation.Pattern);
+                Workspace.SetElectrodeMeasurementSetup(simulation.MeasurementSetup);
+            }
+
+            // Container to hold partial results from reconstrucion
+            List<ReconstructionFrame> frames = [];
+            var interiorElementIds = new HashSet<int>(lbmGrid.GetElements()
+                .Cast<LBMElement>()
+                .Where(el => !el.GhostElement && !el.IsWall)
+                .Select(el => el.Id));
+
+            // --- Inverse Solver Iterations ---
+
+            // Loop to run the inverse iterations
+            for(int i = 0; i < maxIterationCount; i++)
+            {
+                // One iteration run on the whole measurement frame
+                for(int j = 0; j < measurementFrames.Frames.Count; j++)
+                {
+                    double[] currentMeasurement = measurementFrames.GetNextFrame();
+
+                    var frame = LbmSolveStep(lbmGrid, bc, currentMeasurement);
+
+                    // --- Set new conductivities ---
+                    double step = stepSize;  
+                    var sigma = lbmGrid.GetConductivityDistribution();
+
+                    var newSigmaDict = sigma.Conductivities.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => interiorElementIds.Contains(kvp.Key)
+                            ? kvp.Value - step * frame.ConductivityGradient.GetConductivity(kvp.Key)
+                            : kvp.Value
+                    );
+
+                    var updatedSigma = ConductivityClipper.Clip(new ConductivityDistribution(newSigmaDict));
+                    lbmGrid.SetConductivityDistribution(updatedSigma);
+                    // Ghost conductivities inherit from interior cells immediately after each update step.
+                    lbmGrid.UpdateGhostConductivityFromNeighbors();
+
+                    // Add partial results
+                    frames.Add(frame);
+                }
+            }
+
+            ConductivityDistribution reconstructedConductivityDistribution = lbmGrid.GetConductivityDistribution();
+
+            var initialConductivityDistribution = _initialSigma ?? lbmGrid.GetConductivityDistribution();
+            return new ReconstructionResult((LBMGrid)lbmGrid,
+                                            originalConductivityDistribution,
+                                            initialConductivityDistribution,
+                                            reconstructedConductivityDistribution,
+                                            frames);
+        }
+
+        #endregion
+
+        #region Finite Element Method Reconstrucion
+
+        /// <summary>
+        /// Runs a FEM forward solve and writes the resulting potential distribution back to the mesh.
+        /// The mesh is returned for fluent-style chaining.
+        /// </summary>
+        public FEMMesh SolveFemForward(FEMMesh mesh)
+        {
+            if (_differentialEquationSolver == null)
+                throw new NullReferenceException("Cannot perform Finite Element forward solve, differential equation solver is not specified!");
+
+            var conductivitiyDistribution = mesh.GetConductivityDistribution();
+            _ = conductivitiyDistribution; // value not used here, but access ensures state is current
+
+            Workspace.UpdateCurrentGlobalFemElectrodes(mesh);
+            var electrodes = Workspace.GetCurrentGlobalFemElectrodes();
+            var boundaryConditions = new FEMBoundaryCondition(electrodes);
+            Workspace.SetCurrentGlobalFemBoundaryCondition(boundaryConditions);
+
+            PotentialDistribution potentialDistribution = PotentialClipper.Clip(_differentialEquationSolver.Solve(mesh, boundaryConditions, null));
+            mesh.SetPotentialDistribution(potentialDistribution);
+
+            return mesh;
+        }
+
+        /// <summary>
+        /// End-to-end FEM inverse over all measurement frames using the configured drive pattern.
+        /// Performs gradient accumulation across frames, adds regularization, and updates sigma via the optimizer.
+        /// Produces debug output and supports early stopping on misfit improvement stagnation.
+        /// </summary>
+        public FEMMesh SolveFemInverseAllFrames(FEMMesh mesh, int maxIterCount, double stepSize, double regularization, double excitationAmplitude = 1.0, double tolerance = 1e-5, double minConductivtiy = 1e-3, double maxConductivity = 10.0)
+        {
+            throw new NotImplementedException();
+            if (_differentialEquationSolver == null ||
+                _errorMetric == null ||
+                _regularizer == null ||
+                _numericOptimizer == null)
+                throw new NullReferenceException("Some solver parameter is null, the solver must properly be initialized, throguh the layer, check code!");
+
+            _regularizationWeight = regularization;
+
+            List<double[]> simulatedMeasurements = GenerateFemMeasurements(mesh, excitationAmplitude);
+            
+            // 2) Initialize conductivity (σ^{(0)}) based on user selection
+            ConductivityDistribution sigma = ConductivityClipper.Clip(ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType));
+            mesh.SetConductivityDistribution(sigma);
+
+            Workspace.UpdateCurrentGlobalFemElectrodes(mesh);
+            Workspace.UpdateCurrentGlobalFemElements(mesh);
+            var electrodes = Workspace.GetCurrentGlobalFemElectrodes();
+            var bc = new FEMBoundaryCondition(electrodes);
+            Workspace.SetCurrentGlobalFemBoundaryCondition(bc);
+            int electrodeCount = electrodes.Count;
+
+            var elements = Workspace.GetCurrentGlobalFemElements();
+            int elementCount = elements.Count;
+
+            // 4) Iterative loop
+            double prevJ = double.PositiveInfinity;
+            List<double> errors = [];
+
+            // TODO: Add partial results
+
+            for (int iter = 0; iter < maxIterCount; iter++)
             {
                 Debug.WriteLine($"\n=== Inverse iteration {iter} ===");
 
@@ -591,379 +1589,12 @@ namespace BusinessLayer
                     electrodes[(exc + 1) % electrodeCount].IsMeasuring = false;
                     electrodes[(exc + 1) % electrodeCount].Current = -excitationAmplitude;
 
-                    // Current simulated measurement extraction
-                    double[] dObs = simulatedMeasurements[exc];
-
-                    // Perform an inverse solve step and extract partial results
-                    var frame = InverseSolveStepFem(mesh, bc, dObs, gradientStepSize);
-
-                    // Get the gradient expression from the inverse solve step
-                    var dataGrad = frame.ConductivityGradient;
-
-                    // Add the gradient expression to the total gradient expression
-                    foreach (var kvp in dataGrad.Conductivities)
-                        totalGrad[kvp.Key] += kvp.Value;
-                }
-
-                // Regularization term J_reg and grad ∇J_reg (Eq. 2.1.27/2.1.28)
-                double regTerm = _regularizer.EvaluateTerm(mesh, initialConductivityDistribution);
-                var regGrad = _regularizer.EvaluateGradient(mesh, initialConductivityDistribution);
-                Debug.WriteLine($"Regularization R = {regTerm:0.#####}");
-
-                // Total gradient ∇J = ∇J_data + ∇R  (Eq. 2.1.31)
-                var totalGradDict = totalGrad.ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => kvp.Value + _regularizationWeight * regGrad.GetConductivity(kvp.Key)
-                );
-
-                // Normalize gradient
-                foreach (var kvp in totalGradDict)
-                    totalGradDict[kvp.Key] = kvp.Value / simulatedMeasurements.Count;
-
-                // Create the new conductivity field with the gradient expression
-                var grad = new ConductivityDistribution(totalGradDict);
-
-                Debug.WriteLine("Gradient ∇J computed.");
-
-                // Apply optimization step
-                var newConductivityDistribution = _numericOptimizer.OptimizationStep(mesh.ConductivityDistribution, grad, gradientStepSize);
-
-                mesh.SetConductivityDistribution(newConductivityDistribution);
-
-                // Compute total misfit
-                double Jtotal = CalculateTotalMisiftFem(mesh, simulatedMeasurements, bc, excitationAmplitude);
-                Debug.WriteLine($"Iteration {iter}: total misfit = {Jtotal}");
-                errors.Add(Jtotal);
-
-                // Check error threshold
-                if (Math.Abs(prevJ - Jtotal) < tolerance)
-                    break;
-
-                prevJ = Jtotal;
-            }
-
-            Debug.WriteLine("Erorrs during iteration:");
-            // print errors
-            for (int i = 0; i < errors.Count; i++)
-                if (i % 5 == 0)
-                    Debug.WriteLine($"It[{i}]: {errors[i]:F6} ");
-                else Debug.Write($"It[{i}]: {errors[i]:F6}\t");
-
-            Debug.WriteLine("");
-
-            // 5) Update mesh ConductivityDistribution and return
-            foreach (var el in elements)
-                el.Conductivity = initialConductivityDistribution.GetConductivity(el.Id);
-
-            ConductivityDistribution reconstructedConductivityDistribution = mesh.GetConductivityDistribution();
-
-            return new ReconstructionResult(mesh, originalConductivityDistribution, initialConductivityDistribution, reconstructedConductivityDistribution, frames);
-        }
-
-        public ReconstructionResult InverseSolveLbm(int maxIterationCount,
-                                                    double gradientStepSize,
-                                                    double redularizationStepSize,
-                                                    double excitationAmplitude,
-                                                    double tolerance = 1e-6)
-        {
-            if (_discretization is not LBMGrid lbmGrid)
-                throw new TypeInitializationException("Mesh should be of type LBMGrid to use LBM solver!", new Exception("Invalid type in solver!"));
-
-            if (_regularizer == null)
-                throw new NullReferenceException("Regularizer is null, check calling code!");
-
-            _gradientStepSize = gradientStepSize;
-            _regularizationWeight = redularizationStepSize;
-
-            return RunLbmReconstruction(lbmGrid, maxIterationCount);
-        }
-
-        private double CalculateTotalMisiftFem(FEMMesh mesh, List<double[]> simulatedMeasurements, FEMBoundaryCondition bc, double excitationAmplitude)
-        {
-            if (_differentialEquationSolver == null)
-                throw new NullReferenceException("Differential equation solver is null, check calling code!");
-
-            if (_errorMetric == null)
-                throw new NullReferenceException("Error metric is null, check calling code!");
-
-            List<FEMElectrode> electrodes = [.. mesh.GetElectrodes().Cast<FEMElectrode>()];
-            int electrodeCount = electrodes.Count;
-
-            double Jtotal = 0;
-
-            for (int exc = 0; exc < electrodeCount; exc++)
-            {
-                // Clear electrode status
-                foreach (var el in electrodes)
-                {
-                    el.Current = 0.0;
-                    el.IsExcitation = false;
-                    el.IsGround = false;
-                    el.IsMeasuring = true;
-                    el.Potential = 0.0;
-                }
-
-                // Set new electrode setup
-                electrodes[exc % electrodeCount].IsExcitation = true;
-                electrodes[exc % electrodeCount].IsMeasuring = false;
-                electrodes[exc % electrodeCount].Current = excitationAmplitude;
-                electrodes[(exc + 1) % electrodeCount].IsGround = true;
-                electrodes[(exc + 1) % electrodeCount].IsMeasuring = false;
-                electrodes[(exc + 1) % electrodeCount].Current = -excitationAmplitude;
-
-                _ = _differentialEquationSolver.Solve(mesh, bc, null);
-                double[] dSimNew = mesh.GetElectrodePotentials();
-                double[] dObs = simulatedMeasurements[exc];
-                Jtotal += _errorMetric.Evaluate(mesh, dObs, dSimNew);
-            }
-
-            return Jtotal;
-        }
-
-
-        #region Lattice Boltzmann Reconstruction
-
-        private ReconstructionFrame LbmSolveStep(LBMGrid mesh, LBMBoundaryCondition bc, double[] currentMeasurement)
-        {
-            if (_differentialEquationSolver == null)
-                throw new NullReferenceException("Cannot perform solve step, DE solver is null.");
-
-            if (_errorMetric == null)
-                throw new NullReferenceException("Cannot perform solve step Error Metric is null.");
-
-            var electrodes = mesh.GetElectrodes().Cast<LBMElectrode>().ToList();
-
-            // Solve Forward to extract simulated potentials
-            PotentialDistribution phi = _differentialEquationSolver.Solve(mesh, bc, null);
-
-            // Extract simulated potentials
-            double[] simulatedPotentials = mesh.GetElectrodePotentials();
-
-            double currentError = _errorMetric.Evaluate(mesh, currentMeasurement, simulatedPotentials);
-
-            // Error metric based gradeint expression
-            var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, currentMeasurement, simulatedPotentials);
-
-            Complex[] adjointSource = new Complex[adjSrc.Length];
-            for (int k = 0; k < adjSrc.Length; k++)
-                adjointSource[k] = adjSrc[k];
-
-            PotentialDistribution mu = _differentialEquationSolver.Solve(mesh, new LBMBoundaryCondition(electrodes), adjointSource);
-
-            ConductivityDistribution dataGrad = new ConductivityDistribution(
-                mesh.GetElements().ToDictionary(
-                    el => el.Id,
-                    el => {
-                        // compute <∇φ, ∇μ> on this element
-                        var gPhi = LatticeBoltzmannOperators.CalculateGradient(mesh, phi).GetVector(el.Id);
-                        var gMu = LatticeBoltzmannOperators.CalculateGradient(mesh, mu).GetVector(el.Id);
-                        return (gMu.X * gPhi.X + gMu.Y * gPhi.Y);
-                    }
-                )
-            );
-
-            return new ReconstructionFrame(dataGrad, phi, mu, new ConductivityDistribution([]));
-        }
-
-        public ReconstructionResult SolveLbmInverse(int maxIterationCount)
-        {
-            double stepSize = _gradientStepSize;
-            LBMGrid? lbmGrid = (_discretization as LBMGrid);
-
-            if (_inverseModel == null || _discretization == null || lbmGrid == null || _differentialEquationSolver == null || _errorMetric == null)
-                throw new NullReferenceException();
-
-            ConductivityDistribution originalConductivityDistribution = _originalSigma ?? ((LBMGrid)lbmGrid.DeepCopy()).GetConductivityDistribution();
-            lbmGrid = (LBMGrid)lbmGrid.DeepCopy();
-
-            var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
-
-            LBMBoundaryCondition bc = new(electrodes);
-
-            EITMeasurement measurementFrames;
-            if (_originalSigma != null)
-            {
-                LBMGrid measMesh = (LBMGrid)lbmGrid.DeepCopy();
-                measMesh.SetConductivityDistribution(originalConductivityDistribution);
-                measurementFrames = SimulateLbmMeasurements(measMesh, 1.0);
-            }
-            else
-            {
-                measurementFrames = SimulateLbmMeasurements(lbmGrid, 1.0);
-            }
-
-            // Container to hold partial results from reconstrucion
-            List<ReconstructionFrame> frames = [];
-
-            // --- Inverse Solver Iterations ---
-
-            // Loop to run the inverse iterations
-            for(int i = 0; i < maxIterationCount; i++)
-            {
-                // One iteration run on the whole measurement frame
-                for(int j = 0; j < measurementFrames.Frames.Count; j++)
-                {
-                    double[] currentMeasurement = measurementFrames.GetNextFrame();
-
-                    var frame = LbmSolveStep(lbmGrid, bc, currentMeasurement);
-
-                    // --- Set new conductivities ---
-                    double step = stepSize;  
-                    var sigma = lbmGrid.GetConductivityDistribution();
-
-                    var newSigmaDict = sigma.Conductivities.ToDictionary(
-                        kvp => kvp.Key,
-                        // Clamp conductivites which got below 0
-                        kvp => ((kvp.Value - step * frame.ConductivityGradient.GetConductivity(kvp.Key)) < 0.0) ?
-                                                                1e-1 : kvp.Value - step * frame.ConductivityGradient.GetConductivity(kvp.Key)
-                    );
-
-                    sigma = new ConductivityDistribution(newSigmaDict);
-                    lbmGrid.SetConductivityDistribution(sigma);
-
-                    // Add partial results
-                    frames.Add(frame);
-                }
-            }
-
-            ConductivityDistribution reconstructedConductivityDistribution = lbmGrid.GetConductivityDistribution();
-
-            var initialConductivityDistribution = _initialSigma ?? lbmGrid.GetConductivityDistribution();
-            return new ReconstructionResult((LBMGrid)lbmGrid,
-                                            originalConductivityDistribution,
-                                            initialConductivityDistribution,
-                                            reconstructedConductivityDistribution,
-                                            frames);
-        }
-
-        public EITMeasurement SimulateLbmMeasurements(LBMGrid mesh, double exciationAmplitude)
-        {
-            if (_differentialEquationSolver == null)
-                throw new NullReferenceException("Differential equation solver was null, check initializiation code!");
-
-            LBMGrid deepCopy = (LBMGrid)mesh.DeepCopy();
-            var electrodes = deepCopy.GetElectrodes().Cast<LBMElectrode>().ToList();
-            int electrodeCount = electrodes.Count;
-
-            double[,] measurementFrames = new double[electrodeCount, electrodeCount];
-
-            for (int i = 0; i < electrodeCount; i++)
-            {
-                foreach (var el in electrodes)
-                {
-                    el.IsMeasuring = true;
-                    el.IsGround = false;
-                    el.IsExcitation = false;
-                    el.Potential = 0.0;
-                    el.Current = 0.0;
-                }
-
-                electrodes[i % electrodeCount].IsExcitation = true;
-                electrodes[i % electrodeCount].IsMeasuring = false;
-                electrodes[i % electrodeCount].Current = exciationAmplitude;
-                electrodes[(i + 1) % electrodeCount].IsGround = true;
-                electrodes[(i + 1) % electrodeCount].IsMeasuring = false;
-                electrodes[(i + 1) % electrodeCount].Current = -exciationAmplitude;
-
-                LBMBoundaryCondition boundaryCondition = new LBMBoundaryCondition(electrodes);
-
-                _ = _differentialEquationSolver.Solve(deepCopy, boundaryCondition, null);
-
-                double[] electrodePotentials = deepCopy.GetElectrodePotentials();
-
-                for (int j = 0; j < electrodeCount; j++)
-                    measurementFrames[i, j] = electrodePotentials[j];
-            }
-
-            return new EITMeasurement(measurementFrames);
-        }
-
-        #endregion
-
-        #region Finite Element Method Reconstrucion
-
-        public FEMMesh SolveFemForward(FEMMesh mesh)
-        {
-            if (_differentialEquationSolver == null)
-                throw new NullReferenceException("Cannot perform Finite Element forward solve, differential equation solver is not specified!");
-
-            var conductivitiyDistribution = mesh.GetConductivityDistribution();
-
-            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
-
-            BoundaryCondition boundaryConditions = new FEMBoundaryCondition(electrodes);
-
-            PotentialDistribution potentialDistribution = _differentialEquationSolver.Solve(mesh, boundaryConditions, null);
-            mesh.SetPotentialDistribution(potentialDistribution);
-
-            return mesh;
-        }
-
-        public FEMMesh SolveFemInverseAllFrames(FEMMesh mesh, int maxIterCount, double stepSize, double regularization, double excitationAmplitude = 1.0, double tolerance = 1e-5, double minConductivtiy = 1e-3, double maxConductivity = 10.0)
-        {
-            if (_differentialEquationSolver == null ||
-                _errorMetric == null ||
-                _regularizer == null ||
-                _numericOptimizer == null)
-                throw new NullReferenceException("Some solver parameter is null, the solver must properly be initialized, throguh the layer, check code!");
-
-            _regularizationWeight = regularization;
-
-            List<double[]> simulatedMeasurements = SimulateFemMeasurements(mesh, excitationAmplitude);
-            
-            // 2) Initialize conductivity (σ^{(0)}) based on user selection
-            ConductivityDistribution sigma = ConductivityDistributionFactory.CreateInitialDistribution(mesh, _initialDistributionType);
-            mesh.SetConductivityDistribution(sigma);
-
-            List<FEMElectrode> electrodes = [.. mesh.GetElectrodes().Cast<FEMElectrode>()];
-            var bc = new FEMBoundaryCondition(electrodes);
-            int electrodeCount = electrodes.Count;
-
-            var elements = mesh.GetElements().Cast<FEMElement>().ToList();
-            int elementCount = elements.Count;
-
-            // 4) Iterative loop
-            double prevJ = double.PositiveInfinity;
-            List<double> errors = [];
-
-            // TODO: Add partial results
-
-            for (int iter = 0; iter < maxIterCount; iter++)
-            {
-                Debug.WriteLine($"\n=== Inverse iteration {iter} ===");
-
-                Dictionary<int, double> totalGrad = [];
-                for (int i = 0; i < elementCount; i++)
-                    totalGrad.Add(i, 0.0);
-
-                for(int exc = 0; exc < electrodeCount; exc++)
-                {
-                    // Clear electrode status
-                    foreach (var el in electrodes)
-                    {
-                        el.Current = 0.0;
-                        el.IsExcitation = false;
-                        el.IsGround = false;
-                        el.IsMeasuring = true;
-                        el.Potential = 0.0;
-                    }
-
-                    // Set new electrode setup
-                    electrodes[exc % electrodeCount].IsExcitation = true;
-                    electrodes[exc % electrodeCount].IsMeasuring = false;
-                    electrodes[exc % electrodeCount].Current = excitationAmplitude;
-                    electrodes[(exc + 1) % electrodeCount].IsGround = true;
-                    electrodes[(exc + 1) % electrodeCount].IsMeasuring = false;
-                    electrodes[(exc + 1) % electrodeCount].Current = -excitationAmplitude;
-
-                    bc = new FEMBoundaryCondition(electrodes);
-
-                    // 4a) Forward solve φ⁽ᵏ⁾ = S(σ⁽ᵏ⁾)   (thesis Eq. 1.1.16)
-                    PotentialDistribution phi = _differentialEquationSolver.Solve(mesh, bc, null);
+                    // 4a) Forward solve φ⁽ᵏ⁾ = S(σ⁽ᵏ⁾)
+                    PotentialDistribution phi = PotentialClipper.Clip(_differentialEquationSolver.Solve(mesh, bc, null));
                     Debug.WriteLine("Forward φ computed.");
 
                     // 4b) Extract simulated boundary data d_sim
-                    double[] dSim = mesh.GetElectrodePotentials();
+                    double[] dSim = PotentialClipper.Clip(mesh.GetElectrodePotentials());
                     Debug.WriteLine("The simulated electrode potentials during iteration:");
                     for (int i = 0; i < dSim.Length; i++)
                         Debug.WriteLine($"{dSim[i]}");
@@ -971,54 +1602,53 @@ namespace BusinessLayer
                     double[] dObs = simulatedMeasurements[exc];
 
                     // 4e) Build adjoint source s = EvaluateAdjointSource (L2: residual; W2: Kantorovich φ) 
-                    var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, dObs, dSim);
-
-                    Complex[] adjointSource = new Complex[adjSrc.Length];
-                    for(int i = 0; i < adjSrc.Length; i++)
-                        adjointSource[i] = adjSrc[i];
-
+                    var adjSrc = PotentialClipper.Clip(_errorMetric.EvaluateAdjointSource(mesh, dObs, dSim));
+                    //var expandedAdjoint = BuildAdjointSourceVector(adjSrc, electrodes.Count);
+                    //Complex[] adjointSource = ToComplex(expandedAdjoint);
 
                     // wrap into a PotentialDistribution on electrodes
-                    var srcDist = new PotentialDistribution(
-                        Enumerable.Range(0, adjSrc.Length)
-                                  .ToDictionary(i => electrodes[i].Id, i => adjSrc[i])
-                    );
+                    //var srcDist = new PotentialDistribution(
+                    //    Enumerable.Range(0, expandedAdjoint.Length)
+                    //              .ToDictionary(i => electrodes[i].Id, i => expandedAdjoint[i])
+                    //);
 
                     // 4f) Adjoint solve μ: same forward‐solver but feed in adjSrc as boundary currents
-                    var mu = _differentialEquationSolver.Solve(mesh, new FEMBoundaryCondition(electrodes, srcDist), adjointSource);
+                    //var adjointBoundaryCondition = new FEMBoundaryCondition(electrodes, srcDist);
+                    //Workspace.SetCurrentGlobalFemBoundaryCondition(adjointBoundaryCondition);
+                    //var mu = PotentialClipper.Clip(_differentialEquationSolver.Solve(mesh, adjointBoundaryCondition, adjointSource));
                     Debug.WriteLine("Adjoint μ computed.");
 
-                    // 4g) Compute gradient ∇J_data = ∇μ·∇φ elementwise  (thesis Eq. 2.1.20)
-                    var dataGrad = new ConductivityDistribution(
-                        mesh.GetElements().Cast<FEMElement>().ToDictionary(
-                            el => el.Id,
-                            el => {
-                                // compute ∇φ, ∇μ on this element
-                                var gPhi = FiniteElementOperators.CalculateElementWiseGradient(mesh, phi)
-                                            .GetVector(el.Id);
-                                var gMu = FiniteElementOperators.CalculateElementWiseGradient(mesh, mu)
-                                            .GetVector(el.Id);
-                                return (gMu.X * gPhi.X + gMu.Y * gPhi.Y) * el.Area;
-                            }
-                        )
-                    );
+                    // 4g) Compute gradient ∇J_data = ∇μ·∇φ elementwise
+                    //var phiGradient = FiniteElementOperators.CalculateElementWiseGradient(mesh, phi);
+                    //var muGradient = FiniteElementOperators.CalculateElementWiseGradient(mesh, mu);
 
-                    foreach (var kvp in dataGrad.Conductivities)
-                        totalGrad[kvp.Key] += kvp.Value;
+                    //var dataGrad = new ConductivityDistribution(
+                    //    Workspace.GetCurrentGlobalFemElements().ToDictionary(
+                    //        el => el.Id,
+                    //        el => {
+                    //            // compute ∇φ, ∇μ on this element
+                    //            var gPhi = phiGradient.GetVector(el.Id);
+                    //            var gMu = muGradient.GetVector(el.Id);
+                    //            return (gMu.X * gPhi.X + gMu.Y * gPhi.Y) * el.Area;
+                    //        }
+                    //    )
+                    //);
+                    //
+                    //foreach (var kvp in dataGrad.Conductivities)
+                    //    totalGrad[kvp.Key] += kvp.Value;
                 }
 
-                // 4d) Regularization term J_reg and grad ∇J_reg (Eq. 2.1.27/2.1.28)
+                // 4d) Regularization term J_reg and grad ∇J_reg
                 double regTerm = _regularizer.EvaluateTerm(mesh, sigma);
                 var regGrad = _regularizer.EvaluateGradient(mesh, sigma);
                 Debug.WriteLine($"Regularization R = {regTerm:0.#####}");
 
-                // 4h) Total gradient ∇J = ∇J_data + ∇R  (Eq. 2.1.31)
+                // 4h) Total gradient ∇J = ∇J_data + ∇R and normalization
                 var totalGradDict = totalGrad.ToDictionary(
                     kvp => kvp.Key,
                     kvp => kvp.Value + _regularizationWeight * regGrad.GetConductivity(kvp.Key)
                 );
 
-                // Normalize gradient
                 foreach (var kvp in totalGradDict)
                     totalGradDict[kvp.Key] = kvp.Value / simulatedMeasurements.Count;
 
@@ -1028,6 +1658,7 @@ namespace BusinessLayer
 
                 // 4i) Apply optimization step
                 var newConductivityDistribution = _numericOptimizer.OptimizationStep(mesh.ConductivityDistribution, grad, stepSize);
+                newConductivityDistribution = ConductivityClipper.Clip(newConductivityDistribution);
 
                 mesh.SetConductivityDistribution(newConductivityDistribution);
 
@@ -1053,10 +1684,19 @@ namespace BusinessLayer
                     electrodes[(exc + 1) % electrodeCount].IsMeasuring = false;
                     electrodes[(exc + 1) % electrodeCount].Current = -excitationAmplitude;
 
-                    var phiNew = _differentialEquationSolver.Solve(mesh, bc, null);
-                    double[] dSimNew = mesh.GetElectrodePotentials();
+                    var phiNew = PotentialClipper.Clip(_differentialEquationSolver.Solve(mesh, bc, null));
+                    double[] dSimNew = PotentialClipper.Clip(mesh.GetElectrodePotentials());
                     double[] dObs = simulatedMeasurements[exc];
-                    Jtotal += _errorMetric.Evaluate(mesh, dObs, dSimNew);
+                    var measurementSetup = Workspace.GetElectrodeMeasurementSetup();
+                    var electrodeProjectionList = electrodes.Cast<Electrode>().ToList();
+                    // Normalise Option 1–4 frames (see MeasurementPattern) prior to evaluating the misfit.
+                    var projection = MeasurementProjector.Create(electrodeProjectionList,
+                                                                 measurementSetup,
+                                                                 _usePotentialDifferences,
+                                                                 dObs,
+                                                                 dSimNew);
+                    Workspace.SetMeasurementPattern(projection.Pattern);
+                    Jtotal += _errorMetric.Evaluate(mesh, projection.Measured, projection.Simulated);
                 }
                 Debug.WriteLine($"Iteration {iter}: total misfit = {Jtotal}");
 
@@ -1077,106 +1717,107 @@ namespace BusinessLayer
 
             Debug.WriteLine("");
 
-            // 5) Update mesh ConductivityDistribution and return
+            // Reset elements to initial sigma and produce final result
             foreach (var el in elements)
                 el.Conductivity = sigma.GetConductivity(el.Id);
 
             return mesh;
         }
 
-        public List<double[]> SimulateFemMeasurements(FEMMesh mesh, double excitationAmplitude)
+        private List<double[]> GenerateFemMeasurements(FEMMesh mesh, double excitationAmplitude)
         {
-            List<double[]> measurements = [];
+            var parameters = Workspace.GetReconstructionParameters();
+            var virtualSettings = parameters?.VirtualElectrodeSettings ?? new VirtualElectrodeSettings();
+            var measurementSetup = Workspace.GetElectrodeMeasurementSetup();
+            var solver = _differentialEquationSolver ?? throw new NullReferenceException("Differential equation solver not initialised.");
 
-            FEMMesh deepCopy = (FEMMesh)mesh.DeepCopy();
-            var electrodes = deepCopy.GetElectrodes().ToList();
-            int electrodeCount = electrodes.Count();
+            return _measurementPersistence
+                .SimulateFemMeasurements(mesh,
+                                          excitationAmplitude,
+                                          _drivePattern,
+                                          _usePotentialDifferences,
+                                          solver,
+                                          measurementSetup,
+                                          virtualSettings)
+                .Frames;
+        }
 
-            for (int i = 0; i < electrodeCount; i++)
-            {
-                // Clear electrode status
-                foreach(var el in electrodes)
-                {
-                    el.Current = 0.0;
-                    el.IsExcitation = false;
-                    el.IsGround = false;
-                    el.IsMeasuring = true;
-                    el.Potential = 0.0;
-                }
+        private MeasurementSimulationResult GenerateLbmMeasurements(LBMGrid grid, double excitationAmplitude)
+        {
+            var parameters = Workspace.GetReconstructionParameters();
+            var virtualSettings = parameters?.VirtualElectrodeSettings ?? new VirtualElectrodeSettings();
+            var measurementSetup = Workspace.GetElectrodeMeasurementSetup();
+            var solver = _differentialEquationSolver ?? throw new NullReferenceException("Differential equation solver not initialised.");
 
-                // Set new electrode setup
-                electrodes[i % electrodeCount].IsExcitation = true;
-                electrodes[i % electrodeCount].IsMeasuring = false;
-                electrodes[i % electrodeCount].Current = excitationAmplitude;
-                electrodes[(i + 1) % electrodeCount].IsGround = true;
-                electrodes[(i + 1) % electrodeCount].IsMeasuring = false;
-                electrodes[(i + 1) % electrodeCount].Current = -excitationAmplitude;
-
-                FEMMesh result = SolveFemForward(deepCopy);
-
-                measurements.Add(result.GetElectrodePotentials());
-            }
-
-            return measurements;
+            return _measurementPersistence.SimulateLbmMeasurements(grid,
+                                                                    excitationAmplitude,
+                                                                    _drivePattern,
+                                                                    _usePotentialDifferences,
+                                                                    solver,
+                                                                    measurementSetup,
+                                                                    virtualSettings);
         }
 
         #endregion
 
         /// <summary>
-        ///     Performs a forward solve on a graph representation of the mesh.
-        ///     The finite element mesh is converted to a resistor network and
-        ///     the discrete Laplace equation with Complete Electrode Model
-        ///     boundary conditions is solved.
+        /// Performs a forward solve on the dual graph representation of the mesh and writes potentials back.
         /// </summary>
-        /// <param name="mesh">Mesh whose potentials are computed.</param>
-        /// <returns>The same mesh populated with the solved potentials.</returns>
         public FEMMesh SolveGraphForward(FEMMesh mesh)
         {
             if (_differentialEquationSolver == null)
                 throw new NullReferenceException("Cannot perform graph based forward solve, differential equation solver is not specified!");
 
-            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
-            BoundaryCondition bc = new FEMBoundaryCondition(electrodes);
-            var pd = _differentialEquationSolver.Solve(mesh, bc, null);
+            Workspace.UpdateCurrentGlobalFemElectrodes(mesh);
+            var electrodes = Workspace.GetCurrentGlobalFemElectrodes();
+            var bc = new FEMBoundaryCondition(electrodes);
+            Workspace.SetCurrentGlobalFemBoundaryCondition(bc);
+            var pd = PotentialClipper.Clip(_differentialEquationSolver.Solve(mesh, bc, null));
             mesh.SetPotentialDistribution(pd);
             return mesh;
         }
 
         /// <summary>
-        ///     Executes one gradient-descent step for the graph-based inverse
-        ///     problem.  The adjoint field <c>μ</c> is obtained from the
-        ///     residual <c>d<sub>meas</sub> − d<sub>sim</sub></c> and used to
-        ///     update edge conductances via <c>(∇φ·∇μ)</c> on the graph.
+        /// Executes one gradient-descent step for the graph-based inverse problem.
+        /// The adjoint field μ is obtained from the residual (d_meas − d_sim) and used
+        /// to update edge conductances via (∇φ·∇μ) on the graph. Path is currently incomplete.
         /// </summary>
-        /// <param name="mesh">Mesh whose conductivities are updated.</param>
-        /// <param name="measurement">Measured electrode potentials.</param>
-        /// <param name="boundaryCondition">Applied current pattern.</param>
-        /// <param name="stepSize">Currently unused step-size parameter.</param>
-        /// <returns>Reconstruction result with updated conductivity field.</returns>
         public ReconstructionResult InverseSolveStepGraph(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double stepSize)
         {
             if (_differentialEquationSolver is not GraphSolver graphSolver || _numericSolver == null || _errorMetric == null)
                 throw new NullReferenceException("Graph solver path not initialized.");
 
-            PotentialDistribution phi = _differentialEquationSolver.Solve(mesh, boundaryCondition, null);
-            var dSim = mesh.GetElectrodePotentials();
-            var adjSrc = _errorMetric.EvaluateAdjointSource(mesh, measurement, dSim);
+            PotentialDistribution phi = PotentialClipper.Clip(_differentialEquationSolver.Solve(mesh, boundaryCondition, null));
+            var dSim = PotentialClipper.Clip(mesh.GetElectrodePotentials());
+            var adjSrc = PotentialClipper.Clip(_errorMetric.EvaluateAdjointSource(mesh, measurement, dSim));
             var adjComplex = adjSrc.Select(x => new Complex(x, 0.0)).ToArray();
-            PotentialDistribution mu = graphSolver.SolveAdjoint(mesh, _numericSolver, adjComplex);
+            PotentialDistribution mu = PotentialClipper.Clip(graphSolver.SolveAdjoint(mesh, _numericSolver, adjComplex));
             ConductivityDistribution original = mesh.GetConductivityDistribution();
-            ConductivityDistribution sigma = graphSolver.InverseSolve(mesh, boundaryCondition, adjComplex);
+            ConductivityDistribution sigma = ConductivityClipper.Clip(graphSolver.InverseSolve(mesh, boundaryCondition, adjComplex));
             mesh.SetConductivityDistribution(sigma);
 
+            // TODO: return a proper ReconstructionResult for graph path when data structures are stabilized
             throw new NotImplementedException();
             //return new ReconstructionResult(mesh, phi, mu, original, original, sigma);
         }
 
         // --- Persistence ---
-        public void SaveReconstruction(List<ReconstructionResult> frames, string name, EITReconstructionParameters parameters)
+        /// <summary>
+        /// Persists the reconstruction frames and metadata via the repository implementation.
+        /// </summary>
+        public void SaveReconstruction(List<ReconstructionResult> frames, string name, ReconstructionRuntimeContext parameters)
             => _reconstructionRepository.SaveReconstruction(frames, name, parameters);
 
+        /// <summary>
+        /// Enumerates saved reconstructions (metadata only).
+        /// </summary>
         public IEnumerable<ReconstructionInfo> GetReconstructions() => _reconstructionRepository.GetReconstructions();
 
+        /// <summary>
+        /// Loads a previously saved reconstruction from a file path.
+        /// </summary>
         public List<ReconstructionResult> LoadReconstruction(string filePath) => _reconstructionRepository.LoadReconstruction(filePath);
+
+        public IDifferentialEquationSolver? GetDifferentialEquationSolver() => _differentialEquationSolver;
     }
 }

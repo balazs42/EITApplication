@@ -28,16 +28,19 @@
         </Style>
     </ContentPage.Resources>
 
-    <Grid RowDefinitions="Auto, *, Auto">
+    <Grid RowDefinitions="*, Auto">
+        <!--
         <controls:NavBarControl x:Name="NavBar"
                                 Grid.Row="0"
                                 CurrentPageName="DAQPage"/>
-
-        <Border Grid.Row="1"
+        -->
+        <Border Grid.Row="0"
                 Style="{StaticResource PanelBorderStyle}"
                 Margin="24,12,24,12"
                 Background="{StaticResource PartialResultsBrush}">
-            <CollectionView ItemsSource="{Binding PlotModels}" SelectionMode="None"
+            <CollectionView ItemsSource="{Binding PlotModels}"
+                            SelectionMode="None"
+                            BackgroundColor="Transparent"
                             Margin="16">
                 <CollectionView.Header>
                     <Label Text="Channel Monitoring"

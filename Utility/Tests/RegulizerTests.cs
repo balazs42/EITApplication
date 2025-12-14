@@ -1,4 +1,4 @@
-﻿using Utility.Classes.ReconstructionParameters;
+﻿using Utility.Classes.Reconstruction.Regulizers;
 using Xunit;
 
 namespace Utility.Tests

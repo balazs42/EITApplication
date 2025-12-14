@@ -1,9 +1,14 @@
-﻿using System.Diagnostics;
+using System.Collections.Concurrent;
 using System.Numerics;
-using Utility.Classes.Measurement;
+using MathNet.Numerics.LinearAlgebra;
+using MathNet.Numerics.LinearAlgebra.Double;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Measurement;
 using Utility.Classes.ReconstructionParameters;
+
+using Vector = MathNet.Numerics.LinearAlgebra.Vector<double>;
+using Matrix = MathNet.Numerics.LinearAlgebra.Matrix<double>;
 
 namespace Utility.Classes.Solvers.FiniteElementSolver
 {
@@ -20,38 +25,68 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
     public sealed class FiniteElementSolver : ISolver
     {
         private readonly INumericSolver _numericSolver;
+        private readonly bool _useOmpParallelization;
+        private FEMMesh _referenceMesh;
+
+        private readonly Dictionary<int, IReadOnlyList<int>> _electrodeContactCache = [];
+        private readonly Dictionary<int, List<(int start, int end, double length)>> _segmentCache = [];
+        private readonly object _cacheGuard = new();
+        private bool _boundaryMatricesDirty = true;
+        private double[] _cachedContactImpedances;
+
+        private Matrix _stiffnessMatrix;
+        private Matrix _robinMassMatrix;
+        private Matrix _couplingMatrix;
+        private Vector _electrodeDiagonal;
+        private Matrix _systemMatrix;
+        private Vector _systemRhs;
+        private int _groundElectrodeId;
+        private int _referenceNodeId = 0;   // Reference node is treated as the 0 potential node so everything is shifted by its value.
 
         public int N_phi { get; }
         public int L { get; }
 
         // Sub-block matrices
-        public Complex[,] K { get; private set; }
-        public Complex[,] M { get; private set; }
-        public Complex[,] A_coup { get; private set; }
-        public Complex[,] D { get; private set; }
+        public Matrix K => _stiffnessMatrix;
+        public Matrix M => _robinMassMatrix;
+        public Matrix A_coup => _couplingMatrix;
+        public Vector D => _electrodeDiagonal;
 
         // Global system
-        public Complex[,] SystemMatrix { get; private set; }
-        public Complex[] SystemRHS { get; private set; }
+        public Matrix SystemMatrix => _systemMatrix;
+        public Vector SystemRHS => _systemRhs;
 
         /// <summary>
         /// Initialize solver with mesh sizes and numeric solver.
         /// </summary>
-        public FiniteElementSolver(FEMMesh mesh, INumericSolver numericSolver)
+        public FiniteElementSolver(FEMMesh mesh, INumericSolver numericSolver, bool useOmpParallelization = false)
         {
             N_phi = mesh.Vertices.Count;
             L = mesh.GetElectrodes().Count;
             _numericSolver = numericSolver ?? throw new ArgumentNullException(nameof(numericSolver));
+            _useOmpParallelization = useOmpParallelization;
 
-            // allocate
-            K = new Complex[N_phi, N_phi];
-            M = new Complex[N_phi, N_phi];
-            A_coup = new Complex[N_phi, L];
-            D = new Complex[L, L];
-            SystemMatrix = new Complex[N_phi + L, N_phi + L];
-            SystemRHS = new Complex[N_phi + L];
+            _referenceMesh = mesh;
+
+            _stiffnessMatrix = SparseMatrix.Create(N_phi, N_phi, 0.0);
+            _robinMassMatrix = SparseMatrix.Create(N_phi, N_phi, 0.0);
+            _couplingMatrix = SparseMatrix.Create(N_phi, L, 0.0);
+            _electrodeDiagonal = Vector.Build.Dense(L, 0.0);
+            _systemMatrix = SparseMatrix.Create(N_phi + Math.Max(0, L - 1), N_phi + Math.Max(0, L - 1), 0.0);
+            _systemRhs = Vector.Build.Sparse(N_phi + Math.Max(0, L - 1));
+            _cachedContactImpedances = Enumerable.Repeat(double.NaN, L).ToArray();
+            _groundElectrodeId = 0;
+            _referenceNodeId = 0;
         }
 
+        /// <summary>
+        /// Solves the forward CEM problem on the provided discretization by
+        /// assembling the block saddle-point system and applying the configured
+        /// numeric linear solver.
+        /// </summary>
+        /// <param name="discretization">Finite-element discretization.</param>
+        /// <param name="boundaryCondition">Boundary condition carrying electrode drives.</param>
+        /// <returns>Computed potential distribution.</returns>
         public PotentialDistribution SolveForward(IDiscretization discretization, BoundaryCondition boundaryCondition)
         {
             var femMesh = discretization as FEMMesh ?? throw new InvalidCastException();
@@ -61,13 +96,22 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             return Solve(femMesh, bcElectrodes);
         }
 
+        /// <summary>
+        /// Reuses the forward assembly to solve the adjoint CEM problem driven
+        /// by an electrode source vector.  This feeds reconstruction
+        /// algorithms that require ∇·(σ∇λ) solves.
+        /// </summary>
+        /// <param name="discretization">Finite-element discretization.</param>
+        /// <param name="boundaryCondition">Boundary condition providing electrode metadata.</param>
+        /// <param name="adjointSource">Adjoint current density per electrode.</param>
+        /// <returns>Adjoint potential distribution.</returns>
         public PotentialDistribution SolveAdjoint(IDiscretization discretization, BoundaryCondition boundaryCondition, Complex[] adjointSource)
         {
             var femMesh = discretization as FEMMesh ?? throw new InvalidCastException();
             var bc = boundaryCondition as FEMBoundaryCondition ?? throw new InvalidCastException();
             var electrodes = femMesh.GetElectrodes();
             var bcElectrodes = bc.GetElectrodes();
-            int bcElectrodeCount = bcElectrodes.Count();
+            int bcElectrodeCount = bcElectrodes.Count;
 
             for (int i = 0; i < bcElectrodeCount; i++)
             {
@@ -82,228 +126,431 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         }
 
         /// <summary>
-        /// Solve forward CEM problem. First builds the saddle point system, applies grounding then solves with _numericSolver.
-        /// Finally reinserts grounding and returing the arising potential distribution on the mesh.
+        /// Solve forward CEM problem by assembling the sparse saddle point system,
+        /// removing the grounded electrode degree of freedom during assembly and solving
+        /// the reduced system for node and electrode potentials.
         /// </summary>
         /// <param name="mesh"/> FEM mesh
         /// <param name="electrodes"/> electrode list with .Current, .IsGround set
         /// <returns>vector [alpha; U]</returns>
         private PotentialDistribution Solve(FEMMesh mesh, List<FEMElectrode> electrodes)
         {
-            // Build sub-blocks of the Saddle-Point System
-            BuildStiffnessMatrix(mesh);     // Eq (1.2.3)
-            BuildRobinMassMatrix(mesh);     // Eq (1.1.12)
-            BuildCouplingMatrix(mesh);      // Eq (1.1.12)
-            BuildElectrodeMatrix(mesh);     // Eq (1.1.15)
+            AssembleSystem(mesh, electrodes);
 
-            // Assemble saddle system S [α; U] = b  (Eq 1.1.16)
-            BuildSystemMatrix();
-            BuildRhsVector(electrodes);
+            var solution = _numericSolver.SolveLinearSystem(_systemMatrix, _systemRhs);
 
-            Debug.WriteLine("Assembled S and b");
+            // --- 1) get potential at reference node (EIDORS gnd_node) ---
+            if (_referenceNodeId < 0 || _referenceNodeId >= N_phi)
+                throw new InvalidOperationException(
+                    $"Reference node id {_referenceNodeId} out of range [0, {N_phi - 1}]");
 
-            // Find ground index
-            int groundId = electrodes.Find(e => e.IsGround)?.Id ?? throw new InvalidOperationException("No ground electrode.");
+            double referencePotential = solution[_referenceNodeId];
 
-            // Remove ground DOF (Sec 1.1.3)
-            var (Sg, bg) = ApplyGrounding(SystemMatrix, SystemRHS, groundId);
-
-            // Solve reduced real system
-            var solRed = _numericSolver.SolveLinearSystem(MatrixToReal(Sg), VectorToReal(bg));
-
-            // Reconstruct full complex sol with U_ground=0
-            var full = ReconstructFullSolution(solRed, groundId);
-
-            Debug.WriteLine("Solution [α; U]:\n" + FormatComplexVector(full));
-
-            // Create new potential distribution for the 
-            Dictionary<int, double> pd = new();
+            // --- 2) build node potentials shifted so that φ(referenceNode) = 0 ---
+            var nodePotentials = new Dictionary<int, double>(N_phi);
             for (int i = 0; i < N_phi; i++)
-                pd.Add(i, full[i].Real);
+                nodePotentials[i] = solution[i];// - referencePotential;
 
-            var potentialDistribution = new PotentialDistribution(pd);
-
-            // Set the mesh potentials
+            var potentialDistribution = new PotentialDistribution(nodePotentials);
             mesh.SetPotentialDistribution(potentialDistribution);
+
+            void UpdateElectrodePotentials(IEnumerable<FEMElectrode> list)
+            {
+                foreach (var el in list)
+                {
+                    double potential = (L <= 1 || el.Id == _groundElectrodeId)
+                        ? 0.0
+                        : solution[ElectrodeColumn(el.Id)];
+                    el.Potential = potential;
+                }
+            }
+
+            UpdateElectrodePotentials(electrodes);
+            UpdateElectrodePotentials(mesh.GetElectrodes().Cast<FEMElectrode>());
 
             return potentialDistribution;
         }
 
-        #region Assembly
 
-        /// <summary>Eq (1.2.3)</summary>
+#region Assembly
+
+        private void AssembleSystem(FEMMesh mesh, List<FEMElectrode> electrodes)
+        {
+            if (mesh == null)
+                throw new ArgumentNullException(nameof(mesh));
+            if (electrodes == null)
+                throw new ArgumentNullException(nameof(electrodes));
+            if (electrodes.Count == 0)
+                throw new InvalidOperationException("The mesh does not define any electrodes.");
+
+            EnsureMeshCaches(mesh);
+
+            _groundElectrodeId = electrodes.Find(e => e.IsGround)?.Id ?? 0;
+            if (_groundElectrodeId < 0 || _groundElectrodeId >= electrodes.Count)
+                _groundElectrodeId = 0;
+
+            if (electrodes.Count != L)
+                throw new InvalidOperationException("Electrode count changed after solver initialisation.");
+
+            BuildStiffnessMatrix(mesh);
+            BuildBoundaryMatrices(mesh, electrodes);
+            BuildSystemMatrix(electrodes);
+            BuildRhsVector(electrodes);
+        }
+
+        private void EnsureMeshCaches(FEMMesh mesh)
+        {
+            if (ReferenceEquals(mesh, _referenceMesh))
+                return;
+
+            lock (_cacheGuard)
+            {
+                _electrodeContactCache.Clear();
+                _segmentCache.Clear();
+                _boundaryMatricesDirty = true;
+                _referenceMesh = mesh;
+                _cachedContactImpedances = Enumerable.Repeat(double.NaN, mesh.GetElectrodes().Count).ToArray();
+            }
+        }
+
         private void BuildStiffnessMatrix(FEMMesh mesh)
         {
-            Array.Clear(K, 0, K.Length);
-            ConductivityDistribution sigma = mesh.GetConductivityDistribution();
+            var sigma = mesh.GetConductivityDistribution();
             var elements = mesh.GetElements().Cast<FEMElement>();
 
-            foreach (var elem in elements)
+            Dictionary<long, double> contributions;
+
+            if (_useOmpParallelization)
             {
-                double area = elem.Area;
-                double sT = sigma.GetConductivity(elem.Id);
-                // get shape gradients ∇φ^T (double[3,2]) from element, Eq (1.2.2)
-                var grads = elem.GradPhi; // [3][2] array of (∂φ_i/∂x, ∂φ_i/∂y)
-                for (int i = 0; i < 3; i++)
-                {
-                    for (int j = 0; j < 3; j++)
+                var bag = new ConcurrentBag<Dictionary<long, double>>();
+                Parallel.ForEach(elements,
+                    () => new Dictionary<long, double>(9),
+                    (elem, _, local) =>
                     {
-                        double gdot = grads[i][0] * grads[j][0] + grads[i][1] * grads[j][1];
-                        K[elem.Vertices[i].GlobalId, elem.Vertices[j].GlobalId] += sT * area * gdot;
-                    }
+                        AccumulateElementStiffness(elem, sigma, local);
+                        return local;
+                    },
+                    local => bag.Add(local));
+
+                contributions = new Dictionary<long, double>();
+                foreach (var local in bag)
+                    MergeContributions(contributions, local);
+            }
+            else
+            {
+                contributions = new Dictionary<long, double>();
+                foreach (var elem in elements)
+                    AccumulateElementStiffness(elem, sigma, contributions);
+            }
+
+            _stiffnessMatrix = SparseMatrix.OfIndexed(N_phi, N_phi, EnumerateContributions(contributions));
+        }
+
+        private void BuildBoundaryMatrices(FEMMesh mesh, List<FEMElectrode> electrodes)
+        {
+            bool needsRebuild = _boundaryMatricesDirty;
+            for (int ell = 0; ell < electrodes.Count; ell++)
+            {
+                double z = electrodes[ell].ZContact;
+                if (!double.Equals(z, _cachedContactImpedances[ell]))
+                {
+                    needsRebuild = true;
+                    _cachedContactImpedances[ell] = z;
                 }
             }
-            //Debug.WriteLine("K:\n" + FormatComplexMatrix(K));
+
+            if (!needsRebuild)
+                return;
+
+            var massContrib = new Dictionary<long, double>();
+            var coupContrib = new Dictionary<long, double>();
+            var diag = new double[electrodes.Count];
+
+            for (int ell = 0; ell < electrodes.Count; ell++)
+                AccumulateElectrodeMatrices(mesh, electrodes[ell], ell, massContrib, coupContrib, diag);
+
+            _robinMassMatrix = SparseMatrix.OfIndexed(N_phi, N_phi, EnumerateContributions(massContrib));
+            _couplingMatrix = SparseMatrix.OfIndexed(N_phi, electrodes.Count, EnumerateContributions(coupContrib));
+            _electrodeDiagonal = Vector.Build.Dense(diag);
+            _boundaryMatricesDirty = false;
         }
 
-        /// <summary>Eq (1.1.12)</summary>
-        private void BuildRobinMassMatrix(FEMMesh mesh)
+        private void BuildSystemMatrix(List<FEMElectrode> electrodes)
         {
-            Array.Clear(M, 0, M.Length);
-            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>();
-            
-            foreach (var el in electrodes)
+            int systemSize = N_phi + Math.Max(0, L - 1);
+            _systemMatrix = SparseMatrix.Create(systemSize, systemSize, 0.0);
+
+            void Add(int row, int col, double value)
             {
-                double invZ = 1.0 / el.ZContact;
-                double h = el.Length / el.FEMVertexIds.Count;
-
-                foreach (int vid in el.FEMVertexIds)
-                    M[vid, vid] += invZ * h;
+                if (Math.Abs(value) < 1e-30)
+                    return;
+                _systemMatrix[row, col] = _systemMatrix[row, col] + value;
             }
-            //Debug.WriteLine("M:\n" + FormatComplexMatrix(M));
-        }
 
-        /// <summary>Eq (1.1.12)</summary>
-        private void BuildCouplingMatrix(FEMMesh mesh)
-        {
-            Array.Clear(A_coup, 0, A_coup.Length);
-            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>();
+            foreach (var (row, col, value) in _stiffnessMatrix.EnumerateIndexed(Zeros.AllowSkip))
+                Add(row, col, value);
 
-            foreach (var el in electrodes)
+            foreach (var (row, col, value) in _robinMassMatrix.EnumerateIndexed(Zeros.AllowSkip))
+                Add(row, col, value);
+
+            foreach (var (row, col, value) in _couplingMatrix.EnumerateIndexed(Zeros.AllowSkip))
             {
-                double invZ = 1.0 / el.ZContact;
-                double h = el.Length / el.FEMVertexIds.Count;
+                if (col == _groundElectrodeId)
+                    continue;
 
-                foreach (int vid in el.FEMVertexIds)
-                    A_coup[vid, el.Id] += invZ * h;
+                int c = ElectrodeColumn(col);
+                Add(row, c, -value);
+                Add(c, row, -value);
             }
-            //Debug.WriteLine("A_coup:\n" + FormatComplexMatrix(A_coup));
-        }
-
-        /// <summary>Eq (1.1.15)</summary>
-        private void BuildElectrodeMatrix(FEMMesh mesh)
-        {
-            Array.Clear(D, 0, D.Length);
-            var electrodes = mesh.GetElectrodes().Cast<FEMElectrode>();
-
-            foreach (var el in electrodes)
-                D[el.Id, el.Id] = el.Length / el.ZContact;
-
-            //Debug.WriteLine("D:\n" + FormatComplexMatrix(D));
-        }
-
-        /// <summary>Eq (1.1.16)</summary>
-        private void BuildSystemMatrix()
-        {
-            int N = N_phi, Lloc = L;
-            Array.Clear(SystemMatrix, 0, SystemMatrix.Length);
-            // K+M
-            for (int i = 0; i < N; i++) for (int j = 0; j < N; j++)
-                    SystemMatrix[i, j] = K[i, j] + M[i, j];
-            // -A_coup
-            for (int i = 0; i < N; i++) for (int ell = 0; ell < Lloc; ell++)
-                    SystemMatrix[i, N + ell] = -A_coup[i, ell];
-
-            for (int ell = 0; ell < Lloc; ell++) for (int i = 0; i < N; i++)
-                    SystemMatrix[N + ell, i] = -A_coup[i, ell];
-            // D
-            for (int ell = 0; ell < Lloc; ell++)
-                SystemMatrix[N + ell, N + ell] = D[ell, ell];
-           // Debug.WriteLine("SystemMatrix:\n" + FormatComplexMatrix(SystemMatrix));
-        }
-
-        /// <summary>rhs = [0; I] </summary>
-        private void BuildRhsVector(List<FEMElectrode> electrodes)
-        {
-            Array.Clear(SystemRHS, 0, SystemRHS.Length);
 
             for (int ell = 0; ell < L; ell++)
-                SystemRHS[N_phi + ell] = electrodes[ell].Current;
-
-           // Debug.WriteLine("SystemRHS:\n" + FormatComplexVector(SystemRHS));
-        }
-        #endregion
-
-        #region Grounding
-
-        /// <summary>Sec 1.1.3</summary>
-        private (Complex[,], Complex[]) ApplyGrounding(Complex[,] A, Complex[] b, int groundId)
-        {
-            int full = N_phi + L;
-            int rem = N_phi + groundId;
-            int red = full - 1;
-            var Ar = new Complex[red, red];
-            var br = new Complex[red];
-            for (int i = 0, ii = 0; i < full; i++)
             {
-                if (i == rem) continue;
-                br[ii] = b[i];
-                for (int j = 0, jj = 0; j < full; j++)
-                {
-                    if (j == rem) continue;
-                    Ar[ii, jj] = A[i, j]; jj++;
-                }
-                ii++;
+                if (ell == _groundElectrodeId)
+                    continue;
+
+                int c = ElectrodeColumn(ell);
+                Add(c, c, _electrodeDiagonal[ell]);
             }
-            //Debug.WriteLine($"Grounded size={red}\n" + FormatComplexMatrix(Ar));
-            return (Ar, br);
         }
 
-        /// <summary>reinsert U_ground=0</summary>
-        private Complex[] ReconstructFullSolution(double[] solRed, int groundId)
+        private void BuildRhsVector(List<FEMElectrode> electrodes)
         {
-            int full = N_phi + L;
-            var sol = new Complex[full];
-            for (int i = 0, ir = 0; i < full; i++)
-                sol[i] = i == N_phi + groundId ? Complex.Zero : new Complex(solRed[ir++], 0);
-            return sol;
+            int systemSize = N_phi + Math.Max(0, L - 1);
+            _systemRhs = Vector.Build.Sparse(systemSize);
+
+            for (int ell = 0; ell < L; ell++)
+            {
+                if (ell == _groundElectrodeId)
+                    continue;
+
+                double current = electrodes[ell].Current;
+                if (Math.Abs(current) < 1e-30)
+                    continue;
+
+                _systemRhs[ElectrodeColumn(ell)] = current;
+            }
         }
-        #endregion
+
+        private int ElectrodeColumn(int electrodeId)
+            => electrodeId < _groundElectrodeId ? N_phi + electrodeId : N_phi + electrodeId - 1;
+
+        private static void AccumulateElementStiffness(FEMElement elem, ConductivityDistribution sigma, Dictionary<long, double> target)
+        {
+            double area = elem.Area;
+            double conductivity = sigma.GetConductivity(elem.Id);
+            if (conductivity == 0.0 || area <= 0.0)
+                return;
+
+            var grads = elem.GradPhi;
+            for (int i = 0; i < 3; i++)
+            {
+                int row = elem.Vertices[i].GlobalId;
+                for (int j = 0; j < 3; j++)
+                {
+                    int col = elem.Vertices[j].GlobalId;
+                    double gdot = grads[i][0] * grads[j][0] + grads[i][1] * grads[j][1];
+                    AddContribution(target, row, col, conductivity * area * gdot);
+                }
+            }
+        }
+
+        private void AccumulateElectrodeMatrices(
+            FEMMesh mesh,
+            FEMElectrode electrode,
+            int electrodeIndex,
+            Dictionary<long, double> massTarget,
+            Dictionary<long, double> couplingTarget,
+            double[] diag)
+        {
+            if (electrode.ZContact <= 0.0)
+                return;
+
+            var contactVertexIds = GetContactVertexIdsCached(mesh, electrode);
+            double invZ = 1.0 / electrode.ZContact;
+
+            if (!electrode.PointElectrode && contactVertexIds.Count >= 2)
+            {
+                var segments = GetElectrodeSegments(mesh, electrode, contactVertexIds);
+                double totalLength = 0.0;
+                foreach (var (start, end, length) in segments)
+                {
+                    if (length <= 0.0)
+                        continue;
+
+                    totalLength += length;
+                    double diagVal = invZ * length / 3.0;
+                    double offVal = invZ * length / 6.0;
+                    AddContribution(massTarget, start, start, diagVal);
+                    AddContribution(massTarget, end, end, diagVal);
+                    AddContribution(massTarget, start, end, offVal);
+                    AddContribution(massTarget, end, start, offVal);
+
+                    double coupVal = invZ * length / 2.0;
+                    AddContribution(couplingTarget, start, electrodeIndex, coupVal);
+                    AddContribution(couplingTarget, end, electrodeIndex, coupVal);
+                }
+
+                if (totalLength > 0.0)
+                {
+                    electrode.Length = totalLength;
+                    diag[electrodeIndex] += totalLength * invZ;
+                    return;
+                }
+            }
+
+            double lengthFallback = ResolveElectrodeLength(mesh, electrode, [.. contactVertexIds]);
+            if (lengthFallback <= 0.0)
+                lengthFallback = 1e-6;
+
+            double average = lengthFallback / Math.Max(1, contactVertexIds.Count);
+            double massValue = invZ * average;
+            foreach (int vid in contactVertexIds)
+            {
+                AddContribution(massTarget, vid, vid, massValue);
+                AddContribution(couplingTarget, vid, electrodeIndex, massValue);
+            }
+
+            diag[electrodeIndex] += lengthFallback * invZ;
+        }
+
+        private static void AddContribution(Dictionary<long, double> map, int row, int col, double value)
+        {
+            long key = PackKey(row, col);
+            if (map.TryGetValue(key, out double existing))
+                map[key] = existing + value;
+            else
+                map[key] = value;
+        }
+
+        private static void MergeContributions(Dictionary<long, double> target, Dictionary<long, double> source)
+        {
+            foreach (var kv in source)
+            {
+                if (target.TryGetValue(kv.Key, out double existing))
+                    target[kv.Key] = existing + kv.Value;
+                else
+                    target[kv.Key] = kv.Value;
+            }
+        }
+
+        private static IEnumerable<Tuple<int, int, double>> EnumerateContributions(Dictionary<long, double> contributions)
+        {
+            foreach (var kv in contributions)
+            {
+                int row = (int)(kv.Key >> 32);
+                int col = (int)(kv.Key & 0xFFFFFFFF);
+                yield return Tuple.Create(row, col, kv.Value);
+            }
+        }
+
+        private static long PackKey(int row, int col) => ((long)row << 32) | (uint)col;
+
+        private IReadOnlyList<int> GetContactVertexIdsCached(FEMMesh mesh, FEMElectrode electrode)
+        {
+            lock (_cacheGuard)
+            {
+                if (_electrodeContactCache.TryGetValue(electrode.Id, out var cached))
+                    return cached;
+
+                var computed = BuildContactVertexIds(mesh, electrode);
+                _electrodeContactCache[electrode.Id] = computed;
+                _boundaryMatricesDirty = true;
+                return computed;
+            }
+        }
+
+        private IReadOnlyList<int> BuildContactVertexIds(FEMMesh mesh, FEMElectrode electrode)
+        {
+            if (electrode.FEMVertexIds != null && electrode.FEMVertexIds.Count > 0)
+                return mesh.OrderVerticesAlongBoundary(electrode.FEMVertexIds);
+
+            if (electrode.MeshId >= 0)
+                return new List<int> { electrode.MeshId };
+
+            throw new InvalidOperationException($"Electrode {electrode.Id} does not reference any FEM vertex.");
+        }
+
+        private List<(int StartId, int EndId, double Length)> GetElectrodeSegments(
+            FEMMesh mesh,
+            FEMElectrode electrode,
+            IReadOnlyList<int> orderedVertexIds)
+        {
+            lock (_cacheGuard)
+            {
+                if (_segmentCache.TryGetValue(electrode.Id, out var cached))
+                    return cached;
+
+                var segments = BuildElectrodeSegments(mesh, orderedVertexIds.ToList());
+                _segmentCache[electrode.Id] = segments;
+                return segments;
+            }
+        }
+
+#endregion
 
         #region Utils
-        /// <summary>
-        /// Converts the provided complex 2D array to real 2D array by neglecting the complex parts.
-        /// </summary>
-        /// <param name="C">Complex matrix</param>
-        /// <returns>Real valued matrix of same dimensions.</returns>
-        private static double[,] MatrixToReal(Complex[,] C)
+
+    private List<(int StartId, int EndId, double Length)> BuildElectrodeSegments(FEMMesh mesh, List<int> orderedVertexIds)
+    {
+        var segments = new List<(int, int, double)>();
+        if (orderedVertexIds == null || orderedVertexIds.Count < 2)
+            return segments;
+
+        for (int i = 0; i < orderedVertexIds.Count - 1; i++)
         {
-            int r = C.GetLength(0), c = C.GetLength(1);
-            var R = new double[r, c];
-            for (int i = 0; i < r; i++) for (int j = 0; j < c; j++) R[i, j] = C[i, j].Real;
-            return R;
+            var start = mesh.GetVertexById(orderedVertexIds[i]);
+            var end = mesh.GetVertexById(orderedVertexIds[i + 1]);
+            double dx = start.X - end.X;
+            double dy = start.Y - end.Y;
+            double length = Math.Sqrt(dx * dx + dy * dy);
+            if (length > 0.0)
+                segments.Add((start.GlobalId, end.GlobalId, length));
+        }
+        return segments;
+    }
+
+        private double ResolveElectrodeLength(FEMMesh mesh, FEMElectrode electrode, List<int> contactVertexIds)
+        {
+            double length = electrode.Length;
+            if (length > 0.0)
+                return length;
+
+            if (contactVertexIds != null && contactVertexIds.Count > 0)
+                length = mesh.ComputeElectrodeLength(contactVertexIds);
+
+            if ((length <= 0.0 || double.IsNaN(length)) && electrode.MeshId >= 0)
+                length = mesh.ComputeElectrodeLength(new List<int> { electrode.MeshId });
+
+            if (length <= 0.0 || double.IsNaN(length))
+                length = ComputeAverageBoundarySpacing(mesh);
+
+            if (length <= 0.0 || double.IsNaN(length))
+                length = 1e-6;
+
+            electrode.Length = length;
+            return length;
         }
 
-        /// <summary>
-        /// Converts the provided complex array to real array by neglecting the complex parts.
-        /// </summary>
-        /// <param name="C">Complex array.</param>
-        /// <returns>Real valued array of same dimension.</returns>
-        private static double[] VectorToReal(Complex[] C)
+        private static double ComputeAverageBoundarySpacing(FEMMesh mesh)
         {
-            int n = C.Length; var R = new double[n];
-            for (int i = 0; i < n; i++) R[i] = C[i].Real;
-            return R;
+            var boundary = mesh.GetOrderedBoundaryVertices();
+            int count = boundary.Count;
+            if (count < 2)
+                return 0.0;
+
+            double total = 0.0;
+            for (int i = 0; i < count; i++)
+            {
+                var a = boundary[i];
+                var b = boundary[(i + 1) % count];
+                double dx = a.X - b.X;
+                double dy = a.Y - b.Y;
+                total += Math.Sqrt(dx * dx + dy * dy);
+            }
+
+            return total / count;
         }
 
-        private static string FormatComplexMatrix(Complex[,] M)
-        {
-            var s = ""; int r = M.GetLength(0), c = M.GetLength(1);
-            for (int i = 0; i < r; i++) { for (int j = 0; j < c; j++) s += M[i, j].ToString("0.###") + " "; s += "\n"; }
-            return s;
-        }
-        private static string FormatComplexVector(Complex[] v)
-        { var s = ""; for (int i = 0; i < v.Length; i++) s += v[i].ToString("0.###") + "\n"; return s; }
         #endregion
     }
 }

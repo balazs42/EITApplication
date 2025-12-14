@@ -3,47 +3,66 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="ElectricalImpedanceTomography.Controls.PlusMinusEntryControl"
              x:Name="Root">
-    <Grid ColumnDefinitions="*, Auto,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="5">
-        <Label Grid.Column="0"
-               Grid.RowSpan="2"
-               TextColor="{AppThemeBinding Light=#9DAAD3, Dark=Black}"
-               HorizontalTextAlignment="Start"
-               VerticalTextAlignment="Center"
-               Text="{Binding Source={x:Reference Root}, Path=LabelText}"/>
-        <Image Grid.Column="1"
-               Grid.Row="0"
-               Margin="1"
-               HorizontalOptions="End"
-               HeightRequest="18"
-               Source="{Binding Source={x:Reference Root}, Path=PlusImageSource}">
-            <Image.GestureRecognizers>
-                <TapGestureRecognizer Tapped="OnPlusTapped"/>
-            </Image.GestureRecognizers>
-            <Image.Shadow>
-                <Shadow Brush="#AAAAAA" Opacity="0.4" Radius="1.0"/>
-            </Image.Shadow>
-        </Image>
-        <Image Grid.Column="1"
-               Grid.Row="1"
-               Margin="1"      
-               HorizontalOptions="End"
-               HeightRequest="18"
-               Source="{Binding Source={x:Reference Root}, Path=MinusImageSource}">
-            <Image.GestureRecognizers>
-                <TapGestureRecognizer Tapped="OnMinusTapped"/>
-            </Image.GestureRecognizers>
-            <Image.Shadow>
-                <Shadow Brush="#AAAAAA" Opacity="0.4" Radius="1.0"/>
-            </Image.Shadow>
-        </Image>
-        <Entry x:Name="BindableEntry"
-               Grid.Column="2"
-               Grid.RowSpan="2"
-               HorizontalTextAlignment="End"
-               HorizontalOptions="End"
-               Keyboard="Numeric"
-               TextColor="{AppThemeBinding Light=#9DAAD3, Dark=Black}"
-               MaximumWidthRequest="70"
-               Text="{Binding Source={x:Reference Root}, Path=Value, Mode=TwoWay}"/>
-    </Grid>
+    <ContentView.Resources>
+        <ResourceDictionary>
+            <Color x:Key="PrimaryAccent">#06b6d4</Color>
+            <Color x:Key="TextSecondary">#94a3b8</Color>
+            <Color x:Key="InputBackground">#050608</Color>
+            <Color x:Key="BorderColor">#1AFFFFFF</Color>
+
+            <Style TargetType="Button" x:Key="MiniBtn">
+                <Setter Property="BackgroundColor" Value="#1A1D24"/>
+                <Setter Property="TextColor" Value="#e2e8f0"/>
+                <Setter Property="FontSize" Value="14"/>
+                <Setter Property="FontAttributes" Value="Bold"/>
+                <Setter Property="BorderColor" Value="{StaticResource BorderColor}"/>
+                <Setter Property="BorderWidth" Value="1"/>
+                <Setter Property="CornerRadius" Value="4"/>
+                <Setter Property="HeightRequest" Value="30"/>
+                <Setter Property="WidthRequest" Value="20"/>
+                <Setter Property="Padding" Value="0"/>
+            </Style>
+
+            <Style TargetType="Entry" x:Key="PropEntry">
+                <Setter Property="BackgroundColor" Value="{StaticResource InputBackground}"/>
+                <Setter Property="TextColor" Value="{StaticResource PrimaryAccent}"/>
+                <Setter Property="FontSize" Value="Micro"/>
+                <Setter Property="FontFamily" Value="Monospace"/>
+                <Setter Property="MaximumHeightRequest" Value="24"/>
+            </Style>
+
+            <Style TargetType="Slider">
+                <Setter Property="MinimumTrackColor" Value="{StaticResource PrimaryAccent}"/>
+                <Setter Property="MaximumTrackColor" Value="#1A1D24"/>
+                <Setter Property="ThumbColor" Value="#e2e8f0"/>
+            </Style>
+        </ResourceDictionary>
+    </ContentView.Resources>
+
+    <VerticalStackLayout Spacing="2">
+        <!-- Label Row -->
+        <Label Text="{Binding Source={x:Reference Root}, Path=LabelText}"
+               FontSize="Micro"
+               TextColor="{StaticResource TextSecondary}"
+               VerticalOptions="Center"
+               Margin="0,4,0,4"/>
+
+        <!-- Control Row -->
+        <Grid ColumnDefinitions="*, Auto, 50, Auto" ColumnSpacing="8" Margin="0,0,0,12">
+            <Slider Grid.Column="0"
+                    VerticalOptions="Center"
+                    Value="{Binding Source={x:Reference Root}, Path=Value}"
+                    Minimum="{Binding Source={x:Reference Root}, Path=Min}"
+                    Maximum="{Binding Source={x:Reference Root}, Path=Max}"/>
+
+            <Button Grid.Column="1" Text="-" Style="{StaticResource MiniBtn}" Clicked="OnMinusClicked"/>
+
+            <Entry Grid.Column="2" 
+                   Text="{Binding Source={x:Reference Root}, Path=Value}"
+                   Style="{StaticResource PropEntry}" 
+                   Keyboard="Numeric"/>
+
+            <Button Grid.Column="3" Text="+" Style="{StaticResource MiniBtn}" Clicked="OnPlusClicked"/>
+        </Grid>
+    </VerticalStackLayout>
 </ContentView>

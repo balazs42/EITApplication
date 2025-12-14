@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
 ﻿namespace Utility.Classes.Measurement
 {
     public class EITMeasurement
@@ -13,7 +17,18 @@
 
         public static int currentFrameIndex = 0;
 
-        public EITMeasurement(List<double[]> frames)
+        public MeasurementPattern? Pattern { get; set; }
+
+        /// <summary>Optional drive/measurement description that generated the frames.</summary>
+        public DrivePatternDescription? PatternDescription { get; set; }
+
+        /// <summary>
+        /// Tracks which drive-pattern step each frame corresponds to so excitation/ground
+        /// assignment can be reproduced downstream.
+        /// </summary>
+        public List<int> StepIndices { get; } = new();
+
+        public EITMeasurement(List<double[]> frames, MeasurementPattern? pattern = null, DrivePatternDescription? patternDescription = null, List<int>? stepIndices = null)
         {
             Frames = frames;
 
@@ -23,6 +38,9 @@
                     throw new ArgumentOutOfRangeException("All measurement frames should be of the same size!");
 
             FrameSize = Frames[0].Length;
+            Pattern = pattern;
+            PatternDescription = patternDescription;
+            StepIndices = stepIndices ?? Enumerable.Range(0, Frames.Count).ToList();
         }
 
         public EITMeasurement(double[,] measurementFrames)
@@ -35,11 +53,12 @@
                     frame[j] = measurementFrames[i, j];
 
                 Frames.Add(frame);
+                StepIndices.Add(i);
             }
         }
 
 
-        public EITMeasurement(List<double[]> frames, double currentAmplitude)
+        public EITMeasurement(List<double[]> frames, double currentAmplitude, MeasurementPattern? pattern = null, DrivePatternDescription? patternDescription = null, List<int>? stepIndices = null)
         {
             Frames = frames;
 
@@ -50,6 +69,9 @@
 
             FrameSize = Frames[0].Length;
             CurrentAmplitude = currentAmplitude;
+            Pattern = pattern;
+            PatternDescription = patternDescription;
+            StepIndices = stepIndices ?? Enumerable.Range(0, Frames.Count).ToList();
         }
 
         public double[] GetNextFrame()

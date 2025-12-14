@@ -1,4 +1,5 @@
-﻿using Utility.Classes.ReconstructionParameters;
+﻿using Utility.Classes.Reconstruction.NumericOptimizers;
+using Utility.Classes.ReconstructionParameters;
 
 using Workspace = Utility.Classes.Application.Workspace;
 
@@ -21,6 +22,7 @@ namespace Utility.Classes.Factories
             NumericOptimizer.HomotopyContinuation => CreateHomotopyContinuationOptimizer(sigmaPrior ?? throw new NullReferenceException()),
             NumericOptimizer.SimulatedAnnealing => CreateSimulatedAnnealingOptimizer(),
             NumericOptimizer.ParticleSwarm => CreateParticleSwarmOptimizer(),
+            NumericOptimizer.BFGS => CreateBfgsOptimizer(),
             _ => throw new NotSupportedException()
         };
 
@@ -81,11 +83,20 @@ namespace Utility.Classes.Factories
 
             return optimizer;
         }
-        private static ParticleSwarmOptimizer CreateParticleSwarmOptimizer() 
+        private static ParticleSwarmOptimizer CreateParticleSwarmOptimizer()
         {
             var optimizer = new ParticleSwarmOptimizer();
 
             Workspace.AddLogMessage("NumericOptimizerFactory","Created Particle Swarm Numeric Optimizer object.");
+
+            return optimizer;
+        }
+
+        private static BfgsOptimizer CreateBfgsOptimizer()
+        {
+            var optimizer = new BfgsOptimizer();
+
+            Workspace.AddLogMessage("NumericOptimizerFactory","Created BFGS Numeric Optimizer object.");
 
             return optimizer;
         }

@@ -9,6 +9,7 @@
   <ItemGroup>
     <PackageReference Include="System.IO.Ports" Version="9.0.5" />
     <PackageReference Include="Unity" Version="5.11.10" />
+    <PackageReference Include="SkiaSharp" Version="3.119.0" />
   </ItemGroup>
 
   <ItemGroup>

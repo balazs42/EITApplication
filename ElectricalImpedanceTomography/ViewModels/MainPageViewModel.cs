@@ -21,10 +21,10 @@ namespace ElectricalImpedanceTomography.ViewModels
         private ObservableCollection<WorkspaceMessage> debugLog = [];
 
         [ObservableProperty]
-        private double currentAmplitude = 1.0;
+        private double currentAmplitude = 10.0;
 
         [ObservableProperty]
-        private double excitationFrequency = 1.0;
+        private double excitationFrequency = 10.0;
 
         [ObservableProperty]
         private CurrentImpedanceModel currentImpedanceModel = new();
@@ -33,7 +33,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         private bool hardwareConnected;
 
         [ObservableProperty]
-        private EITReconstructionParameters reconstructionParameters = Workspace.GetReconstructionParameters();
+        private ReconstructionRuntimeContext reconstructionParameters = Workspace.GetReconstructionParameters();
 
         [ObservableProperty]
         private User user = Workspace.GetUser();
@@ -41,7 +41,16 @@ namespace ElectricalImpedanceTomography.ViewModels
         [ObservableProperty]
         private string consoleInput = string.Empty;
 
-        partial void OnReconstructionParametersChanged(EITReconstructionParameters value) => Workspace.SetReconstructionParameters(value);
+        [ObservableProperty]
+        private string version = ApplicationInformation.VersionNumber;
+
+        [ObservableProperty]
+        private string developedBy = ApplicationInformation.DevelopedBy;
+
+        [ObservableProperty]
+        private string latestReleaseDate = ApplicationInformation.LatestReleaseDate;
+
+        partial void OnReconstructionParametersChanged(ReconstructionRuntimeContext value) => Workspace.SetReconstructionParameters(value);
         partial void OnCurrentAmplitudeChanged(double value) => CurrentImpedanceModel.Intensity = (float)Math.Clamp(value, 0, 1);
         partial void OnExcitationFrequencyChanged(double value) => CurrentImpedanceModel.Color = value > 1 ? Colors.Red : Colors.CornflowerBlue;
 
@@ -212,8 +221,8 @@ namespace ElectricalImpedanceTomography.ViewModels
                         Layers = 2,
                         BoundaryFEMVertexCount = 16,
                         ElectrodeCount = 16,
-                        Nx = 15,
-                        Ny = 15,
+                        Nx = 25,
+                        Ny = 25,
                         Radius = 7
                     };
                     var mesh = MeshFactory.CreateDefault(parameters);

@@ -1,0 +1,318 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:skia="clr-namespace:SkiaSharp.Views.Maui.Controls;assembly=SkiaSharp.Views.Maui.Controls"
+             xmlns:viewmodels="clr-namespace:ElectricalImpedanceTomography.ViewModels"
+             xmlns:converters="clr-namespace:ElectricalImpedanceTomography.Converters"
+             xmlns:selectors="clr-namespace:ElectricalImpedanceTomography.TemplateSelectors"
+             xmlns:models="clr-namespace:Utility.Classes.Configurations.ReconstructionConfiguration;assembly=Utility"
+             x:Class="ElectricalImpedanceTomography.Views.ReconstructionConfigurationPage"
+             Title="Visual Reconstruction Flow Editor"
+             Shell.NavBarIsVisible="False"
+             BackgroundColor="#1E1E2E">
+
+    <ContentPage.Resources>
+        <ResourceDictionary>
+            <!-- Color Palette inspired by modern dark IDE themes -->
+            <Color x:Key="BgPanel">#252535</Color>
+            <Color x:Key="NodeBg">#3A3A4E</Color>
+            <Color x:Key="Accent">#4CC9F0</Color>
+            <Color x:Key="TextMain">#E0E0E0</Color>
+            <Color x:Key="TextMuted">#AAAAAA</Color>
+            <Color x:Key="InputBg">#1A1A24</Color>
+
+            <!-- Converters for selecting property templates based on parameter type -->
+            <converters:IsNotNullConverter x:Key="IsNotNullConverter"/>
+            <converters:IsNullConverter x:Key="IsNullConverter"/>
+
+            <DataTemplate x:Key="TextParameterTemplate" x:DataType="models:TextParameter">
+                <VerticalStackLayout Spacing="6" IsVisible="{Binding IsVisible}">
+                    <Label Text="{Binding Name}" TextColor="{StaticResource TextMain}" FontSize="13" FontAttributes="Bold"/>
+                    <Entry Text="{Binding Value}" BackgroundColor="{StaticResource InputBg}" TextColor="White" />
+                </VerticalStackLayout>
+            </DataTemplate>
+
+            <DataTemplate x:Key="NumberParameterTemplate" x:DataType="models:NumberParameter">
+                <VerticalStackLayout Spacing="6" IsVisible="{Binding IsVisible}">
+                    <Label Text="{Binding Name}" TextColor="{StaticResource TextMain}" FontSize="13" FontAttributes="Bold"/>
+                    <Entry Text="{Binding Value}" Keyboard="Numeric" BackgroundColor="{StaticResource InputBg}" TextColor="{StaticResource Accent}" />
+                </VerticalStackLayout>
+            </DataTemplate>
+
+            <DataTemplate x:Key="BoolParameterTemplate" x:DataType="models:BoolParameter">
+                <VerticalStackLayout Spacing="6" IsVisible="{Binding IsVisible}">
+                    <Label Text="{Binding Name}" TextColor="{StaticResource TextMain}" FontSize="13" FontAttributes="Bold"/>
+                    <Switch IsToggled="{Binding Value}" OnColor="{StaticResource Accent}" HorizontalOptions="Start"/>
+                </VerticalStackLayout>
+            </DataTemplate>
+
+            <DataTemplate x:Key="ChoiceParameterTemplate" x:DataType="models:ChoiceParameter">
+                <VerticalStackLayout Spacing="6" IsVisible="{Binding IsVisible}">
+                    <Label Text="{Binding Name}" TextColor="{StaticResource TextMain}" FontSize="13" FontAttributes="Bold"/>
+                    <Border Stroke="#444" StrokeThickness="1" StrokeShape="RoundRectangle 4" BackgroundColor="{StaticResource InputBg}">
+                        <Picker ItemsSource="{Binding Options}" SelectedItem="{Binding SelectedOption}" TextColor="White" TitleColor="Gray" FontSize="13"/>
+                    </Border>
+                </VerticalStackLayout>
+            </DataTemplate>
+
+            <selectors:ParameterTemplateSelector x:Key="ParameterTemplateSelector"
+                                                 TextTemplate="{StaticResource TextParameterTemplate}"
+                                                 NumberTemplate="{StaticResource NumberParameterTemplate}"
+                                                 BoolTemplate="{StaticResource BoolParameterTemplate}"
+                                                 ChoiceTemplate="{StaticResource ChoiceParameterTemplate}" />
+        </ResourceDictionary>
+    </ContentPage.Resources>
+
+    <Grid>
+        <Grid Grid.Row="0" ColumnDefinitions="260, *, 320">
+
+        <!-- LEFT SIDE: TOOLBOX -->
+        <Border Grid.Column="0" BackgroundColor="{StaticResource BgPanel}" StrokeThickness="0" Padding="15">
+            <Grid RowDefinitions="Auto, Auto, *">
+                <!-- ... (Preview Area Same as before) ... -->
+                <VerticalStackLayout Grid.Row="0" Spacing="10">
+                    <Label Text="DOMAIN PREVIEW" FontSize="11" FontAttributes="Bold" TextColor="{StaticResource TextMuted}" />
+                    <Border HeightRequest="160" BackgroundColor="#111" Stroke="#444" StrokeShape="RoundRectangle 6">
+                        <Grid>
+                            <skia:SKCanvasView x:Name="MeshPreviewCanvas"
+                                               PaintSurface="OnMeshPreviewPaintSurface"
+                                               IgnorePixelScaling="True"/>
+                            <Label x:Name="MeshPreviewPlaceholder"
+                                   Text="No mesh loaded in workspace"
+                                   FontSize="10"
+                                   TextColor="#666"
+                                   HorizontalOptions="Center"
+                                   VerticalOptions="Center"/>
+                        </Grid>
+                    </Border>
+                </VerticalStackLayout>
+
+                <Label Grid.Row="1" Text="COMPONENTS" FontSize="11" FontAttributes="Bold" TextColor="{StaticResource TextMuted}" Margin="0,25,0,10"/>
+
+                <ScrollView Grid.Row="2">
+                    <StackLayout BindableLayout.ItemsSource="{Binding BlockTypes}" Spacing="8">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <Button Text="{Binding .}"
+                                        BackgroundColor="{StaticResource NodeBg}"
+                                        TextColor="{StaticResource TextMain}"
+                                        BorderColor="#444"
+                                        BorderWidth="1"
+                                        CornerRadius="6"
+                                        HeightRequest="45"
+                                        FontSize="13"
+                                        Clicked="OnAddBlockClicked"
+                                        CommandParameter="{Binding .}"/>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </StackLayout>
+                </ScrollView>
+
+                <!-- ACTIONS (Updated) -->
+                <VerticalStackLayout Grid.Row="2" VerticalOptions="End" Spacing="10">
+                        <Button Text="Use this configuration"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center"
+                                Margin="12"
+                                Padding="14,8"
+                                BackgroundColor="{StaticResource Accent}"
+                                TextColor="Black"
+                                FontAttributes="Bold"
+                                Command="{Binding UseConfigurationCommand}"
+                                IsEnabled="{Binding CanUseConfiguration}" />
+                        <Button Text="Delete Selected" BackgroundColor="#FF4757" TextColor="White" HeightRequest="40" CornerRadius="6" Command="{Binding DeleteSelectedCommand}"/>
+                    <Grid ColumnDefinitions="*,*">
+                        <Button Grid.Column="0" Text="Save" BackgroundColor="#2E8B57" TextColor="White" HeightRequest="40" CornerRadius="6" Margin="0,0,5,0" Command="{Binding SaveConfigurationCommand}"/>
+                        <Button Grid.Column="1" Text="Load" BackgroundColor="#3A7CA5" TextColor="White" HeightRequest="40" CornerRadius="6" Margin="5,0,0,0" Command="{Binding LoadConfigurationCommand}"/>
+                    </Grid>
+                    <Button Text="Reset Canvas" BackgroundColor="#444" TextColor="#CCC" HeightRequest="40" CornerRadius="6" Command="{Binding ClearAllCommand}"/>
+                </VerticalStackLayout>
+            </Grid>
+        </Border>
+
+        <!-- CENTER: CANVAS -->
+            <Grid Grid.Column="1">
+                <ScrollView
+                x:Name="CanvasScrollView"
+                Orientation="Both"
+                HorizontalScrollBarVisibility="Always"
+                VerticalScrollBarVisibility="Always"
+                BackgroundColor="#1E1E2E">
+                <Grid x:Name="CanvasWrapper"
+                      WidthRequest="{Binding CanvasWidth}"
+                      HeightRequest="{Binding CanvasHeight}"
+                      BackgroundColor="#1E1E2E">
+                    <BoxView Color="#232330" Opacity="0.5"/>
+
+                    <!-- Dotted background grid -->
+                    <skia:SKCanvasView x:Name="GridCanvas"
+                                       PaintSurface="OnGridPaintSurface"
+                                       InputTransparent="True"
+                                       IgnorePixelScaling="True" />
+
+                    <!-- SkiaSharp Layer: Touch Enabled -->
+                    <skia:SKCanvasView x:Name="ConnectionsCanvas"
+                                       PaintSurface="OnCanvasPaintSurface"
+                                       EnableTouchEvents="True"
+                                       Touch="OnCanvasTouch"
+                                       IgnorePixelScaling="True"
+                                       InputTransparent="False" />
+
+                    <!-- Container for blocks -->
+                    <!-- Allow the canvas below to receive touches for box selection while keeping blocks interactive. -->
+                    <AbsoluteLayout x:Name="NodeContainer"
+                                    BackgroundColor="Transparent"
+                                    InputTransparent="True"
+                                    WidthRequest="{Binding CanvasWidth}"
+                                    HeightRequest="{Binding CanvasHeight}">
+                    </AbsoluteLayout>
+
+                    <!-- Selection Rectangle Overlay (New) -->
+                    <BoxView x:Name="SelectionBox"
+                             Color="#4CC9F0"
+                             Opacity="0.2"
+                             InputTransparent="True"
+                             IsVisible="False"
+                             HorizontalOptions="Start"
+                             VerticalOptions="Start"/>
+
+                </Grid>
+            </ScrollView>
+
+            <!-- Floating grid + zoom controls -->
+                <Border HorizontalOptions="End"
+                        VerticalOptions="Start"
+                        Margin="0,12,12,0"
+                        Padding="10"
+                        BackgroundColor="#2A2A3A"
+                        Stroke="#444"
+                        StrokeShape="RoundRectangle 8"
+                        Opacity="0.95"
+                        WidthRequest="220">
+                <VerticalStackLayout Spacing="8">
+                        <Label Text="Connections and Grid" FontFamily="SF Pro Text" FontSize="Small"/>
+                        <BoxView HeightRequest="2" Color="White"/>
+                        <HorizontalStackLayout Spacing="0" VerticalOptions="Start">
+                        <VerticalStackLayout Spacing="8">
+                            <Label Text="Check to Connect" FontSize="13" TextColor="{StaticResource TextMain}" />
+                            <Label Text="Left-click and drag to link" FontSize="10" TextColor="{StaticResource TextMuted}" />
+                        </VerticalStackLayout>
+                        <CheckBox IsChecked="{Binding IsConnectionMode}"
+                                  Color="{StaticResource Accent}"
+                                  VerticalOptions="Center"
+                                  HorizontalOptions="End"
+                                  WidthRequest="30"/>
+                    </HorizontalStackLayout>
+                        <BoxView HeightRequest="2" Color="White"/>
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
+                        <Button Text="-" BackgroundColor="#444" TextColor="#CCC" HeightRequest="36" CornerRadius="6" WidthRequest="40" Command="{Binding DecreaseGridSpacingCommand}"/>
+                        <Label Grid.Column="1" Text="{Binding GridSpacing, StringFormat='{}Grid: {0:0} px'}" VerticalTextAlignment="Center" TextColor="{StaticResource TextMain}" FontSize="13" HorizontalOptions="Center" />
+                        <Button Grid.Column="2" Text="+" BackgroundColor="#444" TextColor="#CCC" HeightRequest="36" CornerRadius="6" WidthRequest="40" Command="{Binding IncreaseGridSpacingCommand}"/>
+                    </Grid>
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                        <Button Text="Zoom -" BackgroundColor="#353543" TextColor="#DDD" HeightRequest="36" CornerRadius="6" Clicked="OnZoomOutClicked"/>
+                        <Button Grid.Column="1" Text="Zoom +" BackgroundColor="#353543" TextColor="#DDD" HeightRequest="36" CornerRadius="6" Clicked="OnZoomInClicked"/>
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+        </Grid>
+
+        <!-- RIGHT SIDE: PROPERTIES -->
+        <Border Grid.Column="2" BackgroundColor="{StaticResource BgPanel}" StrokeThickness="0" Padding="20">
+            <Grid RowDefinitions="Auto, *, Auto">
+                <Label Grid.Row="0" Text="CONFIGURATION" FontSize="11" FontAttributes="Bold" TextColor="{StaticResource TextMuted}" Margin="0,0,0,15"/>
+
+                <ScrollView Grid.Row="1">
+                    <VerticalStackLayout Spacing="15">
+
+                        <!-- Block Selection -->
+                        <VerticalStackLayout IsVisible="{Binding SelectedBlock, Converter={StaticResource IsNotNullConverter}}">
+                            <!-- ... (Same as before) ... -->
+                            <Label Text="{Binding SelectedBlock.Title}" FontSize="20" FontAttributes="Bold" TextColor="{StaticResource TextMain}"/>
+                            <BoxView HeightRequest="1" Color="#444" Margin="0,10"/>
+            <StackLayout BindableLayout.ItemsSource="{Binding SelectedBlock.Parameters}"
+                         BindableLayout.ItemTemplateSelector="{StaticResource ParameterTemplateSelector}" Spacing="18" />
+        </VerticalStackLayout>
+
+                        <!-- Connection Selection (Keep) -->
+                        <VerticalStackLayout IsVisible="{Binding SelectedConnection, Converter={StaticResource IsNotNullConverter}}">
+                            <Label Text="Connection Selected" FontSize="18" TextColor="#DDD" HorizontalOptions="Center"/>
+                            <Label Text="Press 'Delete Selected' to remove." FontSize="12" TextColor="#888" HorizontalOptions="Center"/>
+                            <VerticalStackLayout Spacing="6" Margin="0,8,0,0">
+                                <Label Text="Weight" FontSize="14" TextColor="{StaticResource TextMain}" HorizontalOptions="Center"/>
+                                <Slider Minimum="0" Maximum="1" Value="{Binding SelectedConnection.Weight, Mode=TwoWay}" ThumbColor="{StaticResource Accent}" MinimumTrackColor="{StaticResource Accent}" IsEnabled="{Binding SelectedConnection.RequiresWeight}"/>
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                    <Label Grid.Column="0" Text="{Binding SelectedConnection.Weight, StringFormat='{}{0:0.0000}'}" FontSize="12" TextColor="{StaticResource TextMuted}" HorizontalOptions="Start"/>
+                                    <Entry Grid.Column="1"
+                                           WidthRequest="120"
+                                           HorizontalTextAlignment="Center"
+                                           TextColor="{StaticResource TextMain}"
+                                           BackgroundColor="{StaticResource InputBg}"
+                                           Keyboard="Numeric"
+                                           IsEnabled="{Binding SelectedConnection.RequiresWeight}"
+                                           Text="{Binding SelectedConnection.Weight, Mode=TwoWay}" />
+                                </Grid>
+                                <Label Text="Weight required when combining similar blocks." FontSize="11" TextColor="#F0AD4E" HorizontalOptions="Center" IsVisible="{Binding SelectedConnection.RequiresWeight}"/>
+                            </VerticalStackLayout>
+                        </VerticalStackLayout>
+
+                        <!-- Empty State -->
+                        <VerticalStackLayout IsVisible="{Binding SelectedBlock, Converter={StaticResource IsNullConverter}}">
+                            <VerticalStackLayout IsVisible="{Binding SelectedConnection, Converter={StaticResource IsNullConverter}}" VerticalOptions="Center" Spacing="20">
+                                <Label Text="No Selection" FontSize="18" TextColor="#555" HorizontalOptions="Center"/>
+                                <Label Text="Drag mouse to multi-select." FontSize="12" TextColor="#666" HorizontalOptions="Center"/>
+                            </VerticalStackLayout>
+                        </VerticalStackLayout>
+
+                    </VerticalStackLayout>
+                </ScrollView>
+
+                <VerticalStackLayout Grid.Row="2"
+                                      IsVisible="{Binding SelectedBlock, Converter={StaticResource IsNotNullConverter}}"
+                                      Spacing="10"
+                                      Margin="0,12,0,0">
+                    <BoxView HeightRequest="1" Color="#444" />
+                    <Label Text="Appearance" FontSize="12" TextColor="{StaticResource TextMuted}" FontAttributes="Bold" />
+                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="8">
+                        <VerticalStackLayout Grid.Row="0" Grid.Column="0" Spacing="4">
+                            <Label Text="Width" FontSize="12" TextColor="{StaticResource TextMain}" />
+                            <Entry Text="{Binding SelectedBlock.Width, Mode=TwoWay}" Keyboard="Numeric" BackgroundColor="{StaticResource InputBg}" TextColor="White" />
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Row="0" Grid.Column="1" Spacing="4">
+                            <Label Text="Height" FontSize="12" TextColor="{StaticResource TextMain}" />
+                            <Entry Text="{Binding SelectedBlock.Height, Mode=TwoWay}" Keyboard="Numeric" BackgroundColor="{StaticResource InputBg}" TextColor="White" />
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Row="1" Grid.ColumnSpan="2" Spacing="4">
+                            <Label Text="Font Size" FontSize="12" TextColor="{StaticResource TextMain}" />
+                            <Entry Text="{Binding SelectedBlock.FontSize, Mode=TwoWay}" Keyboard="Numeric" BackgroundColor="{StaticResource InputBg}" TextColor="White" />
+                        </VerticalStackLayout>
+                    </Grid>
+                </VerticalStackLayout>
+            </Grid>
+        </Border>
+        </Grid>
+
+        <!-- Debug window (fixed to bottom of screen) -->
+        <Border BackgroundColor="#111827" StrokeThickness="1" Stroke="#2C2C3A" StrokeShape="RoundRectangle 10"
+                HorizontalOptions="Center" VerticalOptions="End" Margin="0,10" Padding="12"
+                WidthRequest="420">
+            <VerticalStackLayout Spacing="4">
+                <Label Text="DEBUG" FontSize="12" FontAttributes="Bold" TextColor="#9CA3AF" HorizontalOptions="Center"/>
+                <StackLayout BindableLayout.ItemsSource="{Binding DebugLines}" Spacing="2">
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate>
+                            <Label Text="{Binding .}" FontSize="11" TextColor="#E5E7EB"/>
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </StackLayout>
+                <StackLayout BindableLayout.ItemsSource="{Binding ValidationIssues}" Spacing="2" Margin="0,6,0,0">
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate>
+                            <Label Text="{Binding .}" FontSize="11" TextColor="#FCA5A5"/>
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </StackLayout>
+            </VerticalStackLayout>
+        </Border>
+    </Grid>
+</ContentPage>

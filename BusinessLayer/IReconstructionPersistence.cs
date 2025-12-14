@@ -4,13 +4,14 @@ using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.ReconstructionParameters;
+using Utility.Exports;
 
 namespace BusinessLayer
 {
     public interface IReconstructionPersistence
     {
         void SetConductivityDistributions(ConductivityDistribution original, ConductivityDistribution initial);
-        public void InitializeReconstruction(IDiscretization discretization, EITReconstructionParameters parameters, bool reinit);
+        public void InitializeReconstruction(IDiscretization discretization, ReconstructionRuntimeContext parameters, bool reinit);
 
         public ReconstructionFrame Step(double[] measurement, BoundaryCondition boundaryCondition, double gradientStepSize, double redularizationStepSize);
         public void Run(int maxIterationCount, double gradientStepSize, double redularizationStepSize);
@@ -19,18 +20,16 @@ namespace BusinessLayer
         // --- Forward Solve Functions ---
         public PotentialDistribution ForwardSolveStepFem();
         public PotentialDistribution ForwardSolveStepLbm();
+        public PotentialDistribution ForwardSolveStepLbmCuda();
 
         // --- Inverse Solve Functions ---
         public ReconstructionFrame InverseSolveStepFem(FEMMesh mesh, FEMBoundaryCondition bc, double[] currentMeasurement, double gradientStepSize);
         public ReconstructionFrame InverseSolveStepLbm(LBMGrid mesh, LBMBoundaryCondition bc, double[] currentMeasurement);
+        public ReconstructionFrame InverseSolveStepLbmCuda(LBMGrid mesh, LBMBoundaryCondition bc, double[] currentMeasurement);
 
         public ReconstructionResult InverseSolveFem(int maxIterationCount, double gradientStepSize, double redularizationStepSize, double excitationAmplitude, double tolerance = 1e-6);
         public ReconstructionResult InverseSolveLbm(int maxIterationCount, double gradientStepSize, double redularizationStepSize, double excitationAmplitude, double tolerance = 1e-6);
-
-
-        public List<double[]> SimulateFemMeasurements(FEMMesh mesh, double excitationAmplitude);
-        public EITMeasurement SimulateLbmMeasurements(LBMGrid mesh, double excitationAmplitude);
-
+        public ReconstructionResult InverseSolveLbmCuda(int maxIterationCount, double gradientStepSize, double redularizationStepSize, double excitationAmplitude, double tolerance = 1e-6);
         // --- Graph-based Reconstruction ---
         /// <summary>
         ///     Performs a forward solve using the graph-based CEM model.  The
@@ -56,8 +55,10 @@ namespace BusinessLayer
         public ReconstructionResult InverseSolveStepGraph(FEMMesh mesh, double[] measurement, BoundaryCondition boundaryCondition, double stepSize);
 
         // --- Persistence ---
-        void SaveReconstruction(List<ReconstructionResult> frames, string name, EITReconstructionParameters parameters);
+        void SaveReconstruction(List<ReconstructionResult> frames, string name, ReconstructionRuntimeContext parameters);
         IEnumerable<ReconstructionInfo> GetReconstructions();
         List<ReconstructionResult> LoadReconstruction(string filePath);
+
+        IDifferentialEquationSolver? GetDifferentialEquationSolver();
     }
 }

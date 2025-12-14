@@ -1,19 +1,52 @@
+using System.Collections.Generic;
 using System.Globalization;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Xml.Linq;
+using System.Linq;
 using Utility.Classes;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Factories;
+using Utility.Classes.Measurement;
+using Utility.Classes.Application;
 
 namespace DataAccessLayer
 {
+    /// <summary>
+    /// Repository for persisting, loading, exporting and introspecting discretizations (FEM meshes and LBM grids).
+    /// Responsibilities:
+    /// - Save/load native <c>.eitmesh</c> XML files for FEM and LBM discretizations
+    /// - Save FEM meshes to ASCII STL for interoperability
+    /// - Load FEM meshes directly from STL (ASCII/Binary) and reconstruct a planar mesh
+    /// - Export FEM meshes for Matlab (STL + JSON sidecar) and re-import supplementary data from JSON
+    /// - Enumerate available discretization snapshots and expose metadata for UI
+    ///
+    /// All files are stored in a per-user folder under LocalApplicationData/EITApplication/Meshes.
+    /// </summary>
     public class MeshRepository : IMeshRepository
     {
+        /// <summary>
+        /// Root directory for mesh files (native XML and STL exports).
+        /// </summary>
         private static string MeshDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                                                        "EITApplication", "Meshes");
+
+        /// <summary>
+        /// Quantization step used when deduplicating vertices while parsing STL files. Points within this
+        /// tolerance are treated as identical and merged to a single vertex.
+        /// </summary>
         private const double StlMergeTolerance = 1e-9;
 
+        /// <summary>
+        /// Saves a FEM mesh into the native <c>.eitmesh</c> XML format and, in addition, into ASCII STL.
+        /// Both files are timestamped identically so the user can easily correlate them.
+        /// </summary>
+        /// <param name="mesh">Mesh to save.</param>
+        /// <param name="name">Logical name used in the file name and inside metadata.</param>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="mesh"/> is null.</exception>
+        /// <exception cref="ArgumentException">Thrown if <paramref name="name"/> is null/empty.</exception>
         public void SaveFEMMesh(FEMMesh mesh, string name)
         {
             if (mesh == null) throw new ArgumentNullException(nameof(mesh));
@@ -34,6 +67,13 @@ namespace DataAccessLayer
             SaveFemMeshAsStl(mesh, name, "fem", timestamp);
         }
 
+        /// <summary>
+        /// Saves an LBM grid into the native <c>.eitmesh</c> XML format.
+        /// </summary>
+        /// <param name="grid">Grid to save.</param>
+        /// <param name="name">Logical name used in the file name and metadata.</param>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="grid"/> is null.</exception>
+        /// <exception cref="ArgumentException">Thrown if <paramref name="name"/> is null/empty.</exception>
         public void SaveLBMGrid(LBMGrid grid, string name)
         {
             if (grid == null) throw new ArgumentNullException(nameof(grid));
@@ -44,6 +84,138 @@ namespace DataAccessLayer
             SaveDocument(doc, name, "lbm", timestamp);
         }
 
+        /// <summary>
+        /// Exports a FEM mesh for Matlab-based workflows.
+        /// Writes:
+        /// - an ASCII STL of the 2D triangular mesh embedded in the XY plane, and
+        /// - a JSON sidecar file containing mapping data (vertex order, electrode mapping, drive patterns).
+        /// </summary>
+        /// <param name="mesh">Mesh to export.</param>
+        /// <param name="name">Logical base name for files.</param>
+        /// <param name="drivePattern">Drive pattern definition used to generate electrode pairs.</param>
+        /// <param name="modelType">String describing model type to include in JSON.</param>
+        /// <returns>Paths to the created STL and JSON files.</returns>
+        /// <exception cref="ArgumentNullException">If <paramref name="mesh"/> is null.</exception>
+        /// <exception cref="ArgumentException">If <paramref name="name"/> or <paramref name="modelType"/> are empty.</exception>
+        public MatlabExportResult ExportFemMeshForMatlab(FEMMesh mesh, string name, DrivePattern drivePattern, string modelType)
+        {
+            if (mesh == null) throw new ArgumentNullException(nameof(mesh));
+            if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Name required.", nameof(name));
+            if (string.IsNullOrWhiteSpace(modelType)) throw new ArgumentException("Model type required.", nameof(modelType));
+
+            var timestamp = DateTime.UtcNow;
+            var stlVertexOrder = new List<int>(mesh.Vertices.Count);
+            string stlPath = SaveFemMeshAsStl(mesh, name, "matlab", timestamp, stlVertexOrder);
+
+            // Derive a deterministic vertex order compatible with Matlab's 1-based indexing.
+            var matlabVertexOrder = ComputeMatlabVertexOrder(mesh);
+            var matlabIndexByVertexId = new Dictionary<int, int>(matlabVertexOrder.Count);
+            for (int i = 0; i < matlabVertexOrder.Count; i++)
+            {
+                matlabIndexByVertexId[matlabVertexOrder[i]] = i;
+            }
+
+            var vertexById = mesh.Vertices.ToDictionary(v => v.GlobalId);
+            var electrodes = mesh.ElectrodesTyped
+                .Where(e => e != null)
+                .OrderBy(e => e.Id)
+                .ToList();
+            var electrodeVertices = new List<int>(electrodes.Count);
+            var electrodeVertexCoordinates = new List<double[]?>(electrodes.Count);
+            var matlabElectrodeVertexIds = new List<int>(electrodes.Count);
+            foreach (var electrode in electrodes)
+            {
+                // Pick a representative vertex for this electrode. Prefer explicit FEMVertexIds,
+                // otherwise fall back to MeshId if available.
+                int? vertexId = null;
+
+                if (electrode.FEMVertexIds != null && electrode.FEMVertexIds.Count > 0)
+                {
+                    foreach (var candidate in electrode.FEMVertexIds)
+                    {
+                        if (vertexById.TryGetValue(candidate, out var vertex))
+                        {
+                            vertexId = vertex.GlobalId;
+                            break;
+                        }
+                    }
+                }
+
+                if (!vertexId.HasValue && electrode.MeshId >= 0 && vertexById.TryGetValue(electrode.MeshId, out var meshVertex))
+                {
+                    vertexId = meshVertex.GlobalId;
+                }
+
+                int globalId = vertexId ?? -1;
+                electrodeVertices.Add(globalId);
+
+                // Export coordinates for convenience on the Matlab side.
+                if (globalId >= 0 && vertexById.TryGetValue(globalId, out var coordinateVertex))
+                {
+                    electrodeVertexCoordinates.Add(new[] { coordinateVertex.X, coordinateVertex.Y });
+                }
+                else
+                {
+                    electrodeVertexCoordinates.Add(null);
+                }
+
+                // Translate internal vertex id to Matlab's 1-based index in the exported vertex list.
+                if (globalId >= 0 && matlabIndexByVertexId.TryGetValue(globalId, out var matlabIndex))
+                {
+                    // Matlab exposes vertex indices using one-based numbering; mirror that so the
+                    // exported IDs can be used without further adjustment when the STL is loaded.
+                    matlabElectrodeVertexIds.Add(matlabIndex + 1);
+                }
+                else
+                {
+                    matlabElectrodeVertexIds.Add(-1);
+                }
+            }
+
+            var elementConductivities = mesh.ElementsTyped
+                .OrderBy(e => e.Id)
+                .Select(e => e.Conductivity)
+                .ToList();
+
+            // Generate electrode excitation/ground pairs based on the chosen drive pattern.
+            var strategy = DrivePatternStrategyProvider.GetStrategy(drivePattern);
+            var drivePatternPairs = new List<int[]>();
+            if (electrodes.Count > 0)
+            {
+                int cycleLength = Math.Max(1, strategy.GetCycleLength(electrodes.Count));
+                for (int step = 0; step < cycleLength; step++)
+                {
+                    var pair = strategy.GetElectrodePair(electrodes.Count, step);
+                    drivePatternPairs.Add(new[] { pair.Excitation, pair.Ground });
+                }
+            }
+
+            var export = new
+            {
+                stlPath = Path.GetFileName(stlPath),
+                modelType,
+                //electrodeVertices,
+                electrodeVertexCoordinates,
+                matlabElectrodeVertexIds,
+                drivePatternPairs,
+                stlVertexOrder = matlabVertexOrder,
+                inhomogenousPhantomElemData = elementConductivities
+
+            };
+
+            string jsonFile = Path.ChangeExtension(stlPath, ".json")
+                ?? throw new InvalidOperationException("Unable to determine Matlab export JSON path.");
+
+            var json = JsonSerializer.Serialize(export, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(jsonFile, json);
+
+            return new MatlabExportResult(stlPath, jsonFile);
+        }
+
+        /// <summary>
+        /// Enumerates saved discretizations in the mesh directory and yields lightweight info objects
+        /// with deserialized metadata. Supports native <c>.eitmesh</c> and STL files.
+        /// </summary>
         public IEnumerable<DiscretizationInfo> GetDiscretizationInfos()
         {
             Directory.CreateDirectory(MeshDir);
@@ -70,6 +242,7 @@ namespace DataAccessLayer
                 }
             }
 
+            // Also surface raw STL files as discretization candidates so users can select imported meshes.
             foreach (var file in Directory.GetFiles(MeshDir, "*.stl"))
             {
                 var info = TryBuildStlDiscretizationInfo(file);
@@ -78,6 +251,12 @@ namespace DataAccessLayer
             }
         }
 
+        /// <summary>
+        /// Deletes a mesh file and, if it is a native <c>.eitmesh</c>, also deletes its paired STL export.
+        /// Safe to call for non-existent files.
+        /// </summary>
+        /// <param name="filePath">Absolute path to the file to delete.</param>
+        /// <exception cref="ArgumentException">If <paramref name="filePath"/> is null/empty.</exception>
         public void DeleteMesh(string filePath)
         {
             if (string.IsNullOrWhiteSpace(filePath))
@@ -96,6 +275,15 @@ namespace DataAccessLayer
             }
         }
 
+        /// <summary>
+        /// Loads a FEM mesh from either native <c>.eitmesh</c> XML or STL (ASCII/Binary).
+        /// STL import reconstructs a planar triangular mesh from facets. When loading native XML,
+        /// this method rehydrates vertices, elements, electrodes, and distributions, then initializes the mesh.
+        /// </summary>
+        /// <param name="filePath">Absolute path to the source file.</param>
+        /// <returns>Reconstructed <see cref="FEMMesh"/>.</returns>
+        /// <exception cref="FileNotFoundException">If the file does not exist.</exception>
+        /// <exception cref="InvalidOperationException">If the native XML is invalid.</exception>
         public FEMMesh LoadFEMMesh(string filePath)
         {
             if (!File.Exists(filePath))
@@ -181,7 +369,10 @@ namespace DataAccessLayer
                 return el;
             }).ToList() ?? new List<FEMElectrode>();
             if (electrodes.Count > 0)
+            {
                 mesh.SetElectrodes(electrodes);
+                mesh.UpdateElectrodeLengths();
+            }
 
             // distributions
             var cdDict = root.Element("ConductivityDistribution")?.Elements("Value")
@@ -200,6 +391,14 @@ namespace DataAccessLayer
             return mesh;
         }
 
+        /// <summary>
+        /// Loads an LBM grid from a native <c>.eitmesh</c> XML file and rehydrates elements, electrodes
+        /// and distributions.
+        /// </summary>
+        /// <param name="filePath">Absolute path to the source XML.</param>
+        /// <returns>Reconstructed <see cref="LBMGrid"/>.</returns>
+        /// <exception cref="FileNotFoundException">If the file does not exist.</exception>
+        /// <exception cref="InvalidOperationException">If the XML is invalid.</exception>
         public LBMGrid LoadLBMGrid(string filePath)
         {
             if (!File.Exists(filePath))
@@ -259,6 +458,10 @@ namespace DataAccessLayer
             return grid;
         }
 
+        /// <summary>
+        /// Writes an XML document to the mesh directory using a safe file name composed from <paramref name="name"/>,
+        /// <paramref name="timestamp"/>, <paramref name="suffix"/> and <paramref name="extension"/>.
+        /// </summary>
         private static void SaveDocument(XDocument doc, string name, string suffix, DateTime timestamp, string extension = "eitmesh")
         {
             Directory.CreateDirectory(MeshDir);
@@ -267,7 +470,17 @@ namespace DataAccessLayer
             doc.Save(file);
         }
 
-        private static void SaveFemMeshAsStl(FEMMesh mesh, string name, string suffix, DateTime timestamp)
+        /// <summary>
+        /// Serializes the FEM mesh into an ASCII STL file. Every triangular FEM element becomes one facet
+        /// in the XY plane (Z = 0). Optionally records the first occurrence order of vertex ids for downstream mapping.
+        /// </summary>
+        /// <param name="mesh">Source FEM mesh.</param>
+        /// <param name="name">Logical base name.</param>
+        /// <param name="suffix">File name suffix to distinguish purpose (e.g. fem/matlab).</param>
+        /// <param name="timestamp">Timestamp for file name grouping.</param>
+        /// <param name="stlVertexOrder">Optional list filled with vertex ids in the order they first appear.</param>
+        /// <returns>Absolute path of the written STL file.</returns>
+        private static string SaveFemMeshAsStl(FEMMesh mesh, string name, string suffix, DateTime timestamp, IList<int>? stlVertexOrder = null)
         {
             Directory.CreateDirectory(MeshDir);
             string safeName = string.Join("_", name.Split(Path.GetInvalidFileNameChars()));
@@ -277,16 +490,22 @@ namespace DataAccessLayer
             // XY plane (all vertices have Z = 0).  Each triangular FEM element is written as one
             // STL facet.  The ASCII flavour is deliberately chosen because it is human readable and
             // many downstream tools (for example meshing utilities) accept it directly.
+            HashSet<int>? seenVertices = stlVertexOrder != null ? new HashSet<int>() : null;
             using var writer = new StreamWriter(file, false, new System.Text.UTF8Encoding(false));
 
             writer.WriteLine($"solid {safeName}");
 
-            foreach (var element in mesh.ElementsTyped)
+            var elements = mesh.ElementsTyped
+                .OrderBy(e => e.Id)
+                .ToList();
+
+            foreach (var element in elements)
             {
                 var a = element.Vertices[0];
                 var b = element.Vertices[1];
                 var c = element.Vertices[2];
 
+                // The normal is computed from 2D coordinates embedded in 3D at Z=0.
                 var normal = CalculateFacetNormal(a, b, c);
                 writer.WriteLine(string.Format(CultureInfo.InvariantCulture,
                     "  facet normal {0:G17} {1:G17} {2:G17}", normal.X, normal.Y, normal.Z));
@@ -322,13 +541,62 @@ namespace DataAccessLayer
                 return (nx / length, ny / length, nz / length);
             }
 
-            static void WriteVertex(StreamWriter writer, FEMVertex vertex)
+            void WriteVertex(StreamWriter writer, FEMVertex vertex)
             {
+                // Record the first time we encounter a vertex (by its global id) to get a stable
+                // vertex ordering list that can be used by Matlab consumers.
+                if (stlVertexOrder != null && seenVertices != null && seenVertices.Add(vertex.GlobalId))
+                {
+                    stlVertexOrder.Add(vertex.GlobalId);
+                }
+
                 writer.WriteLine(string.Format(CultureInfo.InvariantCulture,
                     "      vertex {0:G17} {1:G17} 0", vertex.X, vertex.Y));
             }
+
+            return file;
         }
 
+        /// <summary>
+        /// Computes a deterministic vertex order for Matlab post-processing by:
+        /// - merging near-duplicate vertices using <see cref="CreateVertexKey(double, double, double)"/>
+        /// - picking the lowest GlobalId for each unique position
+        /// - sorting by X, then Y, then Z (Z=0 for a planar mesh)
+        /// Returns the list of internal vertex GlobalIds in that order.
+        /// </summary>
+        private static List<int> ComputeMatlabVertexOrder(FEMMesh mesh)
+        {
+            if (mesh == null)
+                throw new ArgumentNullException(nameof(mesh));
+
+            var uniqueVertices = mesh.Vertices
+                .Select(v => new { Vertex = v, Key = CreateVertexKey(v.X, v.Y, 0.0) })
+                .GroupBy(v => v.Key)
+                .Select(g => g.OrderBy(v => v.Vertex.GlobalId).First())
+                .ToList();
+
+            uniqueVertices.Sort((a, b) =>
+            {
+                int compare = a.Key.X.CompareTo(b.Key.X);
+                if (compare != 0)
+                    return compare;
+
+                compare = a.Key.Y.CompareTo(b.Key.Y);
+                if (compare != 0)
+                    return compare;
+
+                return a.Key.Z.CompareTo(b.Key.Z);
+            });
+
+            return uniqueVertices
+                .Select(v => v.Vertex.GlobalId)
+                .ToList();
+        }
+
+        /// <summary>
+        /// Builds the native XML representation for a FEM mesh including metadata, elements, electrodes,
+        /// vertices and distributions.
+        /// </summary>
         private static XDocument BuildFemDocument(FEMMesh mesh, string name)
         {
             mesh.Metadata.ElementCount = mesh.ElementsTyped.Count;
@@ -395,6 +663,10 @@ namespace DataAccessLayer
             return doc;
         }
 
+        /// <summary>
+        /// Builds the native XML representation for an LBM grid including metadata, elements, electrodes
+        /// and distributions.
+        /// </summary>
         private static XDocument BuildLbmDocument(LBMGrid mesh, string name)
         {
             mesh.Metadata.ElementCount = mesh.ElementsTyped.Count;
@@ -446,6 +718,9 @@ namespace DataAccessLayer
             return doc;
         }
 
+        /// <summary>
+        /// Serializes common metadata to XML.
+        /// </summary>
         private static XElement SerializeMetadata(DiscretizationMetaData metadata)
         {
             return new XElement("Metadata",
@@ -461,6 +736,9 @@ namespace DataAccessLayer
             );
         }
 
+        /// <summary>
+        /// Deserializes common metadata from XML, tolerating missing nodes by providing sensible defaults.
+        /// </summary>
         private static DiscretizationMetaData DeserializeMetadata(XElement? element)
         {
             var md = new DiscretizationMetaData();
@@ -480,6 +758,10 @@ namespace DataAccessLayer
             return md;
         }
 
+        /// <summary>
+        /// Recreates a FEM mesh scaffold from metadata (generator + parameters) so that vertex/element structures
+        /// are present before we overwrite their values from the XML payload. Falls back to an empty mesh on failure.
+        /// </summary>
         private static FEMMesh CreateFemFromMetadata(DiscretizationMetaData md)
         {
             try
@@ -530,10 +812,16 @@ namespace DataAccessLayer
             }
             catch
             {
+                // Intentionally swallow and fall back to empty mesh; the XML payload will still overwrite fields
+                // where possible, allowing partial recovery from inconsistent metadata.
             }
             return new FEMMesh();
         }
 
+        /// <summary>
+        /// Attempts to interpret an STL file as a discretization candidate and builds a <see cref="DiscretizationInfo"/>
+        /// for display. Detects ASCII vs Binary STL and counts triangles to populate metadata.
+        /// </summary>
         private static DiscretizationInfo? TryBuildStlDiscretizationInfo(string filePath)
         {
             try
@@ -569,6 +857,10 @@ namespace DataAccessLayer
             }
         }
 
+        /// <summary>
+        /// Loads a FEM mesh from STL (ASCII/Binary), reconstructs planar vertices and elements, assigns default
+        /// distributions, clears electrodes and tries to augment the result from an adjacent Matlab JSON file if present.
+        /// </summary>
         private static FEMMesh LoadFemMeshFromStl(string filePath)
         {
             bool isAscii;
@@ -605,9 +897,1090 @@ namespace DataAccessLayer
             var potentials = mesh.Vertices.ToDictionary(v => v.GlobalId, v => v.Potential);
             mesh.SetPotentialDistribution(new PotentialDistribution(potentials));
 
+            // Optionally retrieve measurements/electrodes/impedances from a sidecar JSON produced by Matlab export.
+            Workspace.ClearImportedMeasurement();
+            TryAugmentFemMeshFromMatlabJson(mesh, filePath);
+
             return mesh;
         }
 
+        /// <summary>
+        /// Attempts to enrich a FEM mesh loaded from STL with information found in a sidecar JSON file (same base name).
+        /// The JSON is expected to originate from Matlab/EIDORS pipelines and may contain:
+        /// - electrode centers (possibly in different coordinate systems),
+        /// - contact impedances, drive pattern pairs and optional current amplitudes,
+        /// - measured voltage frames and optional global amplitude.
+        /// The method tries to map electrode coordinates onto mesh vertices, respecting boundary preference and
+        /// a configurable tolerance. It also stores useful provenance metadata on the mesh.
+        /// </summary>
+        private static void TryAugmentFemMeshFromMatlabJson(FEMMesh mesh, string stlFilePath)
+        {
+            if (mesh is null)
+                throw new ArgumentNullException(nameof(mesh));
+
+            string? jsonPath = Path.ChangeExtension(stlFilePath, ".json");
+            if (string.IsNullOrEmpty(jsonPath) || !File.Exists(jsonPath))
+                return;
+
+            MatlabImportDefinition? import = null;
+            MatlabJsonSupplement? supplement = null;
+
+            try
+            {
+                var json = File.ReadAllText(jsonPath);
+                using var document = JsonDocument.Parse(json, new JsonDocumentOptions { AllowTrailingCommas = true });
+                import = document.RootElement.Deserialize<MatlabImportDefinition>(new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+                supplement = ExtractMatlabSupplement(document.RootElement);
+            }
+            catch
+            {
+                return;
+            }
+
+            if (import == null)
+                return;
+
+            const double CoordinateTolerance = 2e-2;
+
+            mesh.Metadata.Parameters ??= new Dictionary<string, string>();
+            mesh.Metadata.Parameters["matlabJson"] = Path.GetFileName(jsonPath);
+            mesh.Metadata.Parameters["electrodeCoordinateTolerance"] = CoordinateTolerance.ToString(CultureInfo.InvariantCulture);
+
+            if (!string.IsNullOrWhiteSpace(import.ModelType))
+                mesh.Metadata.Parameters["matlabModelType"] = import.ModelType!;
+            if (!string.IsNullOrWhiteSpace(import.EidorsVersion))
+                mesh.Metadata.Parameters["eidorsVersion"] = import.EidorsVersion!;
+
+            if (import.DrivePatternPairs != null && import.DrivePatternPairs.Count > 0)
+            {
+                try
+                {
+                    mesh.Metadata.Parameters["drivePatternPairs"] = JsonSerializer.Serialize(import.DrivePatternPairs);
+                }
+                catch
+                {
+                }
+            }
+
+            if (import.DrivePatternPairAmps != null && import.DrivePatternPairAmps.Count > 0)
+            {
+                try
+                {
+                    mesh.Metadata.Parameters["drivePatternPairAmps"] = JsonSerializer.Serialize(import.DrivePatternPairAmps);
+                }
+                catch
+                {
+                }
+            }
+
+            // Bring measurements into the application workspace if present.
+            if (supplement?.MeasurementFrames != null && supplement.MeasurementFrames.Count > 0)
+            {
+                mesh.Metadata.Parameters["matlabMeasurementFrameCount"] = supplement.MeasurementFrames.Count.ToString(CultureInfo.InvariantCulture);
+                try
+                {
+                    var measurement = supplement.MeasurementAmplitude.HasValue
+                        ? new EITMeasurement(supplement.MeasurementFrames, supplement.MeasurementAmplitude.Value)
+                        : new EITMeasurement(supplement.MeasurementFrames);
+
+                    string label = ResolveMeasurementLabel(import);
+                    Workspace.SetImportedMeasurement(measurement, label);
+                    mesh.Metadata.Parameters["matlabMeasurementSource"] = label;
+                }
+                catch
+                {
+                    Workspace.ClearImportedMeasurement();
+                }
+            }
+
+            // If contact impedances were not declared in the main definition, try the supplement.
+            if ((import.ElectrodeZContact == null || import.ElectrodeZContact.Count == 0) && supplement?.ContactImpedances != null)
+                import.ElectrodeZContact = supplement.ContactImpedances;
+
+            // Prefer the main definition's electrode coordinates; fall back to supplement if needed.
+            var electrodeCoordinates = import.ElectrodeVertexCoordinates;
+            if ((electrodeCoordinates == null || electrodeCoordinates.Count == 0) && supplement?.ElectrodeCoordinates != null)
+                electrodeCoordinates = supplement.ElectrodeCoordinates;
+
+            // Clear stale flags, then rebuild electrode list from coordinate mapping.
+            var vertices = mesh.Vertices;
+            foreach (var vertex in vertices)
+            {
+                vertex.IsElectrode = false;
+                vertex.ElectrodeId = -1;
+            }
+
+            var electrodes = new List<FEMElectrode>();
+            var reassignedElectrodes = new List<int>();
+
+            double meshMinX = vertices.Min(v => v.X);
+            double meshMaxX = vertices.Max(v => v.X);
+            double meshMinY = vertices.Min(v => v.Y);
+            double meshMaxY = vertices.Max(v => v.Y);
+            double meshRangeX = meshMaxX - meshMinX;
+            double meshRangeY = meshMaxY - meshMinY;
+
+            // Heuristically determine how to interpret electrode coordinates (axis choice, bounds, flips).
+            var transform = DetermineElectrodeTransform(vertices, electrodeCoordinates, meshMinX, meshMaxX, meshMinY, meshMaxY);
+            if (!string.IsNullOrEmpty(transform.Description))
+                mesh.Metadata.Parameters["electrodeTransform"] = transform.Description!;
+
+            if (electrodeCoordinates != null && electrodeCoordinates.Count > 0)
+            {
+                for (int i = 0; i < electrodeCoordinates.Count; i++)
+                {
+                    var coords = electrodeCoordinates[i];
+                    if (coords == null || coords.Length == 0)
+                        continue;
+
+                    var (targetX, targetY) = ProjectElectrodeCoordinate(coords, transform, meshMinX, meshRangeX, meshMinY, meshRangeY);
+
+                    // Prefer boundary vertices to place electrodes; fall back to any vertex within tolerance.
+                    var vertex = FindNearestVertex(
+                        vertices,
+                        targetX,
+                        targetY,
+                        CoordinateTolerance,
+                        out bool withinTolerance,
+                        v => v.IsBoundary);
+
+                    if (vertex == null)
+                    {
+                        vertex = FindNearestVertex(vertices, targetX, targetY, CoordinateTolerance, out withinTolerance, null);
+                        if (vertex == null)
+                            continue;
+                    }
+
+                    if (!withinTolerance)
+                        reassignedElectrodes.Add(i);
+
+                    // Electrode contact should be specified, otherwise latter calculations fail!!!!
+                    var electrode = new FEMElectrode(i, vertex.GlobalId, 0.0,
+                        GetListValue(import.ElectrodeZContact, i, 0.001), 0.0,
+                        pointElectrode: true)
+                    {
+                        IsMeasuring = true
+                    };
+
+                    electrode.FEMVertexIds.Add(vertex.GlobalId);
+
+                    vertex.IsElectrode = true;
+                    vertex.ElectrodeId = electrode.Id;
+
+                    electrodes.Add(electrode);
+                }
+
+                if (electrodes.Count > 0)
+                {
+                    mesh.SetElectrodes(electrodes);
+                    mesh.UpdateElectrodeLengths();
+                }
+            }
+
+            if (reassignedElectrodes.Count > 0)
+                mesh.Metadata.Parameters["electrodeReassignmentIndices"] = string.Join(",", reassignedElectrodes);
+
+            // Mark the first drive pair as excitation/ground and optionally inject currents from amps array.
+            if (import.DrivePatternPairs != null && import.DrivePatternPairs.Count > 0 && electrodes.Count > 0)
+            {
+                var firstPair = import.DrivePatternPairs[0];
+                if (firstPair != null && firstPair.Length >= 2)
+                {
+                    int excitationId = firstPair[0];
+                    int groundId = firstPair[1];
+
+                    var firstAmps = import.DrivePatternPairAmps != null && import.DrivePatternPairAmps.Count > 0
+                        ? import.DrivePatternPairAmps[0]
+                        : null;
+
+                    if (excitationId >= 0 && excitationId < electrodes.Count)
+                    {
+                        var excitation = electrodes[excitationId];
+                        excitation.IsExcitation = true;
+                        excitation.IsMeasuring = false;
+                        // First entry is the negative current, second entry is the positive current
+                        excitation.Current = firstAmps != null && firstAmps.Length > 0 ? firstAmps[1] : excitation.Current;
+                    }
+
+                    if (groundId >= 0 && groundId < electrodes.Count)
+                    {
+                        var ground = electrodes[groundId];
+                        ground.IsGround = true;
+                        ground.IsMeasuring = false;
+                        ground.Current = firstAmps != null && firstAmps.Length > 1 ? firstAmps[0] : ground.Current;
+                    }
+                }
+            }
+
+            // Optional inhomogeneous phantom data mapped onto element conductivities.
+            if (import.InhomogenousPhantomElemData != null && import.InhomogenousPhantomElemData.Count > 0)
+            {
+                var conductivity = new Dictionary<int, double>(mesh.ElementsTyped.Count);
+                for (int i = 0; i < mesh.ElementsTyped.Count; i++)
+                {
+                    double sigma = GetListValue(import.InhomogenousPhantomElemData, i, 1.0);
+                    var element = mesh.ElementsTyped[i];
+                    element.Conductivity = sigma;
+                    conductivity[element.Id] = sigma;
+                }
+
+                if (conductivity.Count == mesh.ElementsTyped.Count)
+                    mesh.SetConductivityDistribution(new ConductivityDistribution(conductivity));
+            }
+        }
+
+        /// <summary>
+        /// Projects an arbitrary coordinate vector to 2D mesh space using the provided transform.
+        /// If the transform has bounds, values are normalized and optionally flipped to span the mesh extents;
+        /// otherwise the raw values of the chosen axes are used.
+        /// </summary>
+        private static (double X, double Y) ProjectElectrodeCoordinate(
+            IReadOnlyList<double> coords,
+            ElectrodeTransform transform,
+            double meshMinX,
+            double meshRangeX,
+            double meshMinY,
+            double meshRangeY)
+        {
+            double ExtractValue(int axis)
+            {
+                if (axis >= 0 && axis < coords.Count)
+                {
+                    double value = coords[axis];
+                    if (double.IsFinite(value))
+                        return value;
+                }
+
+                // Fallback: return the first finite coordinate if the chosen axis is not present.
+                foreach (var value in coords)
+                {
+                    if (double.IsFinite(value))
+                        return value;
+                }
+
+                return 0.0;
+            }
+
+            double rawX = ExtractValue(transform.AxisX);
+            double rawY = ExtractValue(transform.AxisY);
+
+            if (!transform.HasBounds)
+                return (rawX, rawY);
+
+            double normalizedX = Normalize(rawX, transform.SourceMinX, transform.SourceMaxX);
+            if (transform.FlipX)
+                normalizedX = 1.0 - normalizedX;
+
+            double normalizedY = Normalize(rawY, transform.SourceMinY, transform.SourceMaxY);
+            if (transform.FlipY)
+                normalizedY = 1.0 - normalizedY;
+
+            double mappedX = meshMinX + normalizedX * meshRangeX;
+            double mappedY = meshMinY + normalizedY * meshRangeY;
+
+            return (mappedX, mappedY);
+        }
+
+        /// <summary>
+        /// Chooses a mapping from input electrode coordinate space to mesh X/Y axes by evaluating multiple axis-pair
+        /// candidates (and optional flips) and selecting the transform that minimizes average squared distance to
+        /// nearest boundary vertices.
+        /// </summary>
+        private static ElectrodeTransform DetermineElectrodeTransform(
+            IReadOnlyList<FEMVertex> vertices,
+            IReadOnlyList<double[]>? electrodeCoordinates,
+            double meshMinX,
+            double meshMaxX,
+            double meshMinY,
+            double meshMaxY)
+        {
+            var defaultTransform = new ElectrodeTransform(0, 1, 0.0, 1.0, 0.0, 1.0, false, false, false, null);
+
+            if (electrodeCoordinates == null || electrodeCoordinates.Count == 0)
+                return defaultTransform;
+
+            int dimension = electrodeCoordinates.Max(c => c?.Length ?? 0);
+            if (dimension < 2)
+                return defaultTransform;
+
+            var boundaryVertices = vertices.Where(v => v.IsBoundary).ToList();
+            if (boundaryVertices.Count == 0)
+                boundaryVertices = vertices.ToList();
+
+            var axisPairs = new List<(int X, int Y)>();
+            for (int a = 0; a < dimension; a++)
+                for (int b = a + 1; b < dimension; b++)
+                    axisPairs.Add((a, b));
+
+            if (axisPairs.Count == 0)
+                axisPairs.Add((0, 1));
+
+            double meshRangeX = meshMaxX - meshMinX;
+            double meshRangeY = meshMaxY - meshMinY;
+
+            double bestError = double.PositiveInfinity;
+            ElectrodeTransform bestTransform = defaultTransform;
+
+            foreach (var (axisX, axisY) in axisPairs)
+            {
+                var (minX, maxX, hasBoundsX) = GetAxisBounds(electrodeCoordinates, axisX);
+                var (minY, maxY, hasBoundsY) = GetAxisBounds(electrodeCoordinates, axisY);
+
+                bool hasBounds = hasBoundsX && hasBoundsY;
+
+                if (hasBounds)
+                {
+                    foreach (bool flipX in new[] { false, true })
+                    foreach (bool flipY in new[] { false, true })
+                    {
+                        string description = $"axes[{axisX},{axisY}] {(flipX ? "invX" : "x")}/{(flipY ? "invY" : "y")}";
+                        var transform = new ElectrodeTransform(axisX, axisY, minX, maxX, minY, maxY, flipX, flipY, true, description);
+                        double error = ComputeMappingError(electrodeCoordinates, boundaryVertices, transform,
+                            meshMinX, meshRangeX, meshMinY, meshRangeY);
+                        if (error < bestError)
+                        {
+                            bestError = error;
+                            bestTransform = transform;
+                        }
+                    }
+                }
+                else
+                {
+                    var transform = new ElectrodeTransform(axisX, axisY, minX, maxX, minY, maxY, false, false, false,
+                        $"axes[{axisX},{axisY}] raw");
+                    double error = ComputeMappingError(electrodeCoordinates, boundaryVertices, transform,
+                        meshMinX, meshRangeX, meshMinY, meshRangeY);
+                    if (error < bestError)
+                    {
+                        bestError = error;
+                        bestTransform = transform;
+                    }
+                }
+            }
+
+            return bestTransform;
+        }
+
+        /// <summary>
+        /// Computes the average squared distance between projected electrode coordinates and their nearest vertices
+        /// among <paramref name="searchVertices"/>.
+        /// </summary>
+        private static double ComputeMappingError(
+            IReadOnlyList<double[]> coordinates,
+            IReadOnlyList<FEMVertex> searchVertices,
+            ElectrodeTransform transform,
+            double meshMinX,
+            double meshRangeX,
+            double meshMinY,
+            double meshRangeY)
+        {
+            if (coordinates.Count == 0 || searchVertices.Count == 0)
+                return double.PositiveInfinity;
+
+            double total = 0.0;
+            int count = 0;
+
+            foreach (var entry in coordinates)
+            {
+                if (entry == null || entry.Length == 0)
+                    continue;
+
+                var (mappedX, mappedY) = ProjectElectrodeCoordinate(entry, transform, meshMinX, meshRangeX, meshMinY, meshRangeY);
+
+                var vertex = FindNearestVertex(searchVertices, mappedX, mappedY, 0.0, out _, null);
+                if (vertex == null)
+                    continue;
+
+                double dx = vertex.X - mappedX;
+                double dy = vertex.Y - mappedY;
+                total += dx * dx + dy * dy;
+                count++;
+            }
+
+            if (count == 0)
+                return double.PositiveInfinity;
+
+            return total / count;
+        }
+
+        /// <summary>
+        /// Finds min/max bounds for a chosen axis across coordinate samples, skipping non-finite values.
+        /// Returns a flag indicating whether any valid bounds were observed.
+        /// </summary>
+        private static (double Min, double Max, bool HasBounds) GetAxisBounds(
+            IReadOnlyList<double[]> coordinates,
+            int axis)
+        {
+            double min = double.PositiveInfinity;
+            double max = double.NegativeInfinity;
+            bool hasBounds = false;
+
+            foreach (var entry in coordinates)
+            {
+                if (entry == null || axis < 0 || axis >= entry.Length)
+                    continue;
+
+                double value = entry[axis];
+                if (!double.IsFinite(value))
+                    continue;
+
+                hasBounds = true;
+                if (value < min) min = value;
+                if (value > max) max = value;
+            }
+
+            return (min, max, hasBounds);
+        }
+
+        /// <summary>
+        /// Normalizes <paramref name="value"/> into [0,1] using <paramref name="min"/>/<paramref name="max"/>.
+        /// Falls back to 0.5 when range is degenerate or non-finite.
+        /// </summary>
+        private static double Normalize(double value, double min, double max)
+        {
+            double range = max - min;
+            if (!double.IsFinite(value) || range <= 1e-12)
+                return 0.5;
+
+            double normalized = (value - min) / range;
+            if (!double.IsFinite(normalized))
+                return 0.5;
+
+            return Math.Clamp(normalized, 0.0, 1.0);
+        }
+
+        /// <summary>
+        /// Finds the nearest vertex to the given target point. Optionally restricts candidates with a predicate
+        /// and returns a flag indicating whether the best candidate lies within the specified Euclidean tolerance.
+        /// </summary>
+        private static FEMVertex? FindNearestVertex(
+            IReadOnlyList<FEMVertex> vertices,
+            double x,
+            double y,
+            double tolerance,
+            out bool withinTolerance,
+            Func<FEMVertex, bool>? predicate = null)
+        {
+            static (FEMVertex? Vertex, double DistanceSquared) FindNearest(
+                IReadOnlyList<FEMVertex> source,
+                double targetX,
+                double targetY,
+                Func<FEMVertex, bool>? filter)
+            {
+                FEMVertex? candidate = null;
+                double best = double.MaxValue;
+
+                foreach (var vertex in source)
+                {
+                    if (filter != null && !filter(vertex))
+                        continue;
+
+                    double dx = vertex.X - targetX;
+                    double dy = vertex.Y - targetY;
+                    double distance = dx * dx + dy * dy;
+
+                    if (distance < best)
+                    {
+                        best = distance;
+                        candidate = vertex;
+                    }
+                }
+
+                return (candidate, best);
+            }
+
+            var (best, bestDistance) = FindNearest(vertices, x, y, predicate);
+
+            if (best == null && predicate != null)
+            {
+                (best, bestDistance) = FindNearest(vertices, x, y, null);
+            }
+
+            if (best == null)
+            {
+                withinTolerance = false;
+                return null;
+            }
+
+            if (tolerance <= 0.0)
+            {
+                withinTolerance = true;
+                return best;
+            }
+
+            withinTolerance = bestDistance <= tolerance * tolerance;
+
+            return best;
+        }
+
+        /// <summary>
+        /// Safely reads <paramref name="index"/> from a list or returns <paramref name="fallback"/>.
+        /// </summary>
+        private static double GetListValue(IReadOnlyList<double>? values, int index, double fallback)
+        {
+            if (values == null || index < 0 || index >= values.Count)
+                return fallback;
+            return values[index];
+        }
+
+        /// <summary>
+        /// Extracts optional supplementary information from a Matlab JSON export, tolerating absent or malformed parts.
+        /// </summary>
+        private static MatlabJsonSupplement? ExtractMatlabSupplement(JsonElement root)
+        {
+            try
+            {
+                var nodes = ExtractNodeCoordinates(root);
+                var electrodeData = ExtractElectrodeData(root, nodes);
+                var measurement = ExtractMeasurementData(root);
+
+                return new MatlabJsonSupplement
+                {
+                    ElectrodeCoordinates = electrodeData.Coordinates,
+                    ContactImpedances = electrodeData.ZContact,
+                    MeasurementFrames = measurement.Frames,
+                    MeasurementAmplitude = measurement.Amplitude
+                };
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Parses an array of electrode coordinate entries, each of which can be a vector, an object with
+        /// a <c>centre/center</c> property, a scalar or even an array of arrays (averaged per component).
+        /// </summary>
+        private static List<double[]>? ParseElectrodeCoordinateArray(JsonElement element)
+        {
+            if (element.ValueKind != JsonValueKind.Array)
+                return null;
+
+            var coordinates = new List<double[]>();
+
+            foreach (var entry in element.EnumerateArray())
+            {
+                var parsed = ParseElectrodeCoordinateEntry(entry);
+                if (parsed != null && parsed.Length > 0)
+                    coordinates.Add(parsed);
+            }
+
+            return coordinates.Count > 0 ? coordinates : null;
+        }
+
+        /// <summary>
+        /// Parses a single electrode coordinate entry. Supports the same flexible input shapes as
+        /// <see cref="ParseElectrodeCoordinateArray"/> and returns a flattened vector.
+        /// </summary>
+        private static double[]? ParseElectrodeCoordinateEntry(JsonElement element)
+        {
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                var centre = ExtractDoubleArray(element, "centre") ?? ExtractDoubleArray(element, "center");
+                if (centre != null && centre.Length > 0)
+                    return centre;
+
+                return null;
+            }
+
+            if (element.ValueKind != JsonValueKind.Array)
+            {
+                if (TryReadDouble(element, out double scalar))
+                    return new[] { scalar };
+
+                return null;
+            }
+
+            if (element.GetArrayLength() == 0)
+                return Array.Empty<double>();
+
+            var enumerator = element.EnumerateArray();
+            if (!enumerator.MoveNext())
+                return Array.Empty<double>();
+
+            var first = enumerator.Current;
+
+            if (first.ValueKind == JsonValueKind.Number || first.ValueKind == JsonValueKind.String)
+                return ReadDoubleArray(element);
+
+            if (first.ValueKind != JsonValueKind.Array)
+                return ReadDoubleArray(element);
+
+            // Average over array-of-arrays samples per component to get a representative coordinate.
+            var samples = new List<double[]>();
+            foreach (var component in element.EnumerateArray())
+            {
+                var values = ReadDoubleArray(component);
+                if (values != null && values.Length > 0)
+                    samples.Add(values);
+            }
+
+            if (samples.Count == 0)
+                return null;
+
+            int dimension = samples.Max(s => s.Length);
+            if (dimension == 0)
+                return null;
+
+            var totals = new double[dimension];
+            var counts = new int[dimension];
+
+            foreach (var sample in samples)
+            {
+                for (int i = 0; i < sample.Length; i++)
+                {
+                    totals[i] += sample[i];
+                    counts[i]++;
+                }
+            }
+
+            for (int i = 0; i < dimension; i++)
+            {
+                if (counts[i] > 0)
+                    totals[i] /= counts[i];
+            }
+
+            return totals;
+        }
+
+        /// <summary>
+        /// Reads node coordinates from a nested <c>nodes</c> array in the JSON document.
+        /// </summary>
+        private static List<double[]>? ExtractNodeCoordinates(JsonElement root)
+        {
+            if (!TryFindPropertyCaseInsensitive(root, "nodes", out var nodesElement))
+                return null;
+
+            if (nodesElement.ValueKind != JsonValueKind.Array)
+                return null;
+
+            var nodes = new List<double[]>();
+            foreach (var node in nodesElement.EnumerateArray())
+            {
+                if (node.ValueKind != JsonValueKind.Array)
+                    continue;
+
+                var coords = new List<double>();
+                foreach (var component in node.EnumerateArray())
+                {
+                    if (TryReadDouble(component, out double value))
+                        coords.Add(value);
+                }
+
+                if (coords.Count > 0)
+                    nodes.Add(coords.ToArray());
+            }
+
+            return nodes.Count > 0 ? nodes : null;
+        }
+
+        /// <summary>
+        /// Extracts electrode center coordinates and optional <c>z_contact</c> values from the JSON document.
+        /// If the electrode references node indices, their average coordinate is used as the center.
+        /// </summary>
+        private static (List<double[]>? Coordinates, List<double>? ZContact) ExtractElectrodeData(JsonElement root, List<double[]>? nodes)
+        {
+            if (!TryFindPropertyCaseInsensitive(root, "electrode", out var electrodeElement))
+            {
+                if (!TryFindPropertyCaseInsensitive(root, "electrodes", out electrodeElement))
+                    return (null, null);
+            }
+
+            if (electrodeElement.ValueKind != JsonValueKind.Array)
+                return (null, null);
+
+            var coordinates = new List<double[]>();
+            List<double>? zContacts = null;
+
+            foreach (var electrode in electrodeElement.EnumerateArray())
+            {
+                double[]? coord = null;
+
+                // Accept multiple JSON schema forms for backward compatibility.
+                var indices = ExtractIntArray(electrode, "nodes")
+                    ?? ExtractIntArray(electrode, "node_indices")
+                    ?? ExtractIntArray(electrode, "nodeNumbers");
+
+                if (indices != null && nodes != null && nodes.Count > 0)
+                {
+                    var positions = new List<double[]>();
+                    foreach (int idx in indices)
+                    {
+                        var position = ResolveNode(nodes, idx);
+                        if (position != null)
+                            positions.Add(position);
+                    }
+
+                    if (positions.Count > 0)
+                    {
+                        int dimension = positions.Max(p => p.Length);
+                        var averages = new double[dimension];
+                        foreach (var pos in positions)
+                        {
+                            for (int i = 0; i < dimension && i < pos.Length; i++)
+                                averages[i] += pos[i];
+                        }
+
+                        for (int i = 0; i < dimension; i++)
+                            averages[i] /= positions.Count;
+
+                        coord = averages;
+                    }
+                }
+
+                if (coord == null)
+                {
+                    var centre = ExtractDoubleArray(electrode, "centre") ?? ExtractDoubleArray(electrode, "center");
+                    if (centre != null && centre.Length > 0)
+                        coord = centre;
+                }
+
+                if (coord != null)
+                    coordinates.Add(coord);
+
+                double? z = ExtractDouble(electrode, "z_contact");
+                if (z.HasValue)
+                {
+                    zContacts ??= new List<double>();
+                    zContacts.Add(z.Value);
+                }
+                else if (zContacts != null)
+                {
+                    zContacts.Add(0.0);
+                }
+            }
+
+            if (zContacts != null && zContacts.Count < coordinates.Count)
+            {
+                while (zContacts.Count < coordinates.Count)
+                    zContacts.Add(0.0);
+            }
+
+            return (coordinates.Count > 0 ? coordinates : null, zContacts);
+        }
+
+        /// <summary>
+        /// Extracts measurement frames from a <c>vv</c> array. If a row length matches N*(N-3) it is partitioned into
+        /// blocks of size (N-3) assuming EIT measurement layout for N electrodes.
+        /// </summary>
+        private static (List<double[]>? Frames, double? Amplitude) ExtractMeasurementData(JsonElement root)
+        {
+            if (!TryFindPropertyCaseInsensitive(root, "vv", out var vvElement))
+                return (null, null);
+
+            if (vvElement.ValueKind != JsonValueKind.Array)
+                return (null, null);
+
+            var frames = new List<double[]>();
+            foreach (var row in vvElement.EnumerateArray())
+            {
+                if (row.ValueKind != JsonValueKind.Array)
+                    continue;
+
+                var values = new List<double>();
+                foreach (var entry in row.EnumerateArray())
+                {
+                    if (TryReadDouble(entry, out double value))
+                        values.Add(value * 1000);
+                }
+
+                if (values.Count == 0)
+                    continue;
+
+                var raw = values.ToArray();
+                if (!TryPartitionMeasurementRow(raw, frames))
+                    frames.Add(raw);
+            }
+
+            return (frames.Count > 0 ? frames : null, null);
+        }
+
+        /// <summary>
+        /// Splits a flattened measurement row into frames if its length conforms to EIT block structure.
+        /// Returns true if any blocks were added.
+        /// </summary>
+        private static bool TryPartitionMeasurementRow(double[] values, List<double[]> frames)
+        {
+            int blockLength = TryGetMeasurementBlockLength(values.Length);
+            if (blockLength <= 0)
+                return false;
+
+            int existing = frames.Count;
+            for (int offset = 0; offset < values.Length; offset += blockLength)
+            {
+                var block = new double[blockLength];
+                Array.Copy(values, offset, block, 0, blockLength);
+                frames.Add(block);
+            }
+
+            return frames.Count > existing;
+        }
+
+        /// <summary>
+        /// Tries to infer the EIT block length (N-3) from a total row length M using the relation M = N*(N-3).
+        /// Returns 0 if no integer solution exists.
+        /// </summary>
+        private static int TryGetMeasurementBlockLength(int totalLength)
+        {
+            if (totalLength <= 0)
+                return 0;
+
+            double discriminant = 9.0 + 4.0 * totalLength;
+            double root = Math.Sqrt(discriminant);
+            double electrodeCandidate = (3.0 + root) / 2.0;
+            int electrodeCount = (int)Math.Round(electrodeCandidate);
+
+            if (electrodeCount <= 0)
+                return 0;
+
+            const double tolerance = 1e-6;
+            if (Math.Abs(electrodeCandidate - electrodeCount) > tolerance)
+                return 0;
+
+            int blockLength = electrodeCount - 3;
+            if (blockLength <= 0)
+                return 0;
+
+            if (blockLength * electrodeCount != totalLength)
+                return 0;
+
+            return blockLength;
+        }
+
+        /// <summary>
+        /// Case-insensitive deep search for a property named <paramref name="name"/> in the JSON tree.
+        /// </summary>
+        private static bool TryFindPropertyCaseInsensitive(JsonElement element, string name, out JsonElement value)
+        {
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var property in element.EnumerateObject())
+                {
+                    if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        value = property.Value;
+                        return true;
+                    }
+
+                    if (TryFindPropertyCaseInsensitive(property.Value, name, out value))
+                        return true;
+                }
+            }
+            else if (element.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in element.EnumerateArray())
+                {
+                    if (TryFindPropertyCaseInsensitive(item, name, out value))
+                        return true;
+                }
+            }
+
+            value = default;
+            return false;
+        }
+
+        /// <summary>
+        /// Case-insensitive, non-recursive property lookup on the current JSON object.
+        /// </summary>
+        private static bool TryGetPropertyCaseInsensitive(JsonElement element, string name, out JsonElement value)
+        {
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var property in element.EnumerateObject())
+                {
+                    if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        value = property.Value;
+                        return true;
+                    }
+                }
+            }
+
+            value = default;
+            return false;
+        }
+
+        /// <summary>
+        /// Extracts an integer array from a named JSON array property, accepting numbers and numeric strings.
+        /// </summary>
+        private static List<int>? ExtractIntArray(JsonElement element, string propertyName)
+        {
+            if (!TryGetPropertyCaseInsensitive(element, propertyName, out var array) || array.ValueKind != JsonValueKind.Array)
+                return null;
+
+            var values = new List<int>();
+            foreach (var item in array.EnumerateArray())
+            {
+                if (item.ValueKind == JsonValueKind.Number && item.TryGetInt32(out int intValue))
+                    values.Add(intValue);
+                else if (item.ValueKind == JsonValueKind.String && int.TryParse(item.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out intValue))
+                    values.Add(intValue);
+            }
+
+            return values.Count > 0 ? values : null;
+        }
+
+        /// <summary>
+        /// Extracts a double array from a named JSON array property.
+        /// </summary>
+        private static double[]? ExtractDoubleArray(JsonElement element, string propertyName)
+        {
+            if (!TryGetPropertyCaseInsensitive(element, propertyName, out var array) || array.ValueKind != JsonValueKind.Array)
+                return null;
+
+            return ReadDoubleArray(array);
+        }
+
+        /// <summary>
+        /// Extracts a single double from a property if possible.
+        /// </summary>
+        private static double? ExtractDouble(JsonElement element, string propertyName)
+        {
+            if (!TryGetPropertyCaseInsensitive(element, propertyName, out var value))
+                return null;
+
+            return TryReadDouble(value, out double result) ? result : null;
+        }
+
+        /// <summary>
+        /// Reads a JSON array of numbers or numeric strings into a <see cref="double"/> array.
+        /// </summary>
+        private static double[]? ReadDoubleArray(JsonElement array)
+        {
+            if (array.ValueKind != JsonValueKind.Array)
+                return null;
+
+            var values = new List<double>();
+            foreach (var item in array.EnumerateArray())
+            {
+                if (TryReadDouble(item, out double value))
+                    values.Add(value);
+            }
+
+            return values.Count > 0 ? values.ToArray() : null;
+        }
+
+        /// <summary>
+        /// Reads a double from a JSON token accepting either number or string tokens.
+        /// </summary>
+        private static bool TryReadDouble(JsonElement element, out double value)
+        {
+            switch (element.ValueKind)
+            {
+                case JsonValueKind.Number when element.TryGetDouble(out double numeric):
+                    value = numeric;
+                    return true;
+                case JsonValueKind.String:
+                    return double.TryParse(element.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+                default:
+                    value = 0.0;
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// Resolves a node coordinate by index supporting both 0-based and 1-based indices.
+        /// </summary>
+        private static double[]? ResolveNode(List<double[]> nodes, int index)
+        {
+            if (nodes.Count == 0)
+                return null;
+
+            if (index >= 0 && index < nodes.Count)
+                return nodes[index];
+
+            int oneBased = index - 1;
+            if (oneBased >= 0 && oneBased < nodes.Count)
+                return nodes[oneBased];
+
+            return null;
+        }
+
+        /// <summary>
+        /// Builds a human-readable measurement label from the import definition.
+        /// </summary>
+        private static string ResolveMeasurementLabel(MatlabImportDefinition import)
+        {
+            if (!string.IsNullOrWhiteSpace(import.ModelType))
+                return import.ModelType!;
+
+            if (!string.IsNullOrWhiteSpace(import.EidorsVersion))
+                return $"EIDORS {import.EidorsVersion}";
+
+            return "Matlab";
+        }
+
+        /// <summary>
+        /// Describes a linear mapping from a source coordinate system (arbitrary dimensional) onto mesh X/Y axes.
+        /// When <see cref="HasBounds"/> is true, values are normalized from <see cref="SourceMinX"/>.. <see cref="SourceMaxX"/>
+        /// and <see cref="SourceMinY"/>.. <see cref="SourceMaxY"/> and optionally flipped.
+        /// </summary>
+        private readonly struct ElectrodeTransform
+        {
+            public ElectrodeTransform(int axisX, int axisY, double sourceMinX, double sourceMaxX, double sourceMinY, double sourceMaxY, bool flipX, bool flipY, bool hasBounds, string? description)
+            {
+                AxisX = axisX;
+                AxisY = axisY;
+                SourceMinX = sourceMinX;
+                SourceMaxX = sourceMaxX;
+                SourceMinY = sourceMinY;
+                SourceMaxY = sourceMaxY;
+                FlipX = flipX;
+                FlipY = flipY;
+                HasBounds = hasBounds;
+                Description = description;
+            }
+
+            public int AxisX { get; }
+            public int AxisY { get; }
+            public double SourceMinX { get; }
+            public double SourceMaxX { get; }
+            public double SourceMinY { get; }
+            public double SourceMaxY { get; }
+            public bool FlipX { get; }
+            public bool FlipY { get; }
+            public bool HasBounds { get; }
+            public string? Description { get; }
+        }
+
+        /// <summary>
+        /// Supplementary data parsed from Matlab JSON that complements a bare STL import.
+        /// </summary>
+        private sealed class MatlabJsonSupplement
+        {
+            public List<double[]>? ElectrodeCoordinates { get; init; }
+            public List<double>? ContactImpedances { get; init; }
+            public List<double[]>? MeasurementFrames { get; init; }
+            public double? MeasurementAmplitude { get; init; }
+        }
+
+        /// <summary>
+        /// Strongly-typed facade over the JSON contract used by Matlab/EIDORS exports.
+        /// Uses a raw <see cref="JsonElement"/> for flexible coordinate parsing.
+        /// </summary>
+        private sealed class MatlabImportDefinition
+        {
+            public string? StlPath { get; set; }
+            public string? ModelType { get; set; }
+            public string? EidorsVersion { get; set; }
+            [JsonPropertyName("electrodeVertexCoordinates")]
+            public JsonElement ElectrodeVertexCoordinatesElement { get; set; }
+            [JsonIgnore]
+            public List<double[]>? ElectrodeVertexCoordinates => ParseElectrodeCoordinateArray(ElectrodeVertexCoordinatesElement);
+            public List<double>? ElectrodeZContact { get; set; }
+            public List<int[]>? DrivePatternPairs { get; set; }
+            public List<double[]>? DrivePatternPairAmps { get; set; }
+            public List<double>? InhomogenousPhantomElemData { get; set; }
+        }
+
+        /// <summary>
+        /// Parses an ASCII STL file and reconstructs unique vertices and triangles.
+        /// </summary>
         private static FEMMesh LoadFemMeshFromAsciiStl(string filePath)
         {
             var vertices = new List<(double X, double Y, double Z)>();
@@ -652,6 +2025,9 @@ namespace DataAccessLayer
             return CreateMeshFromTriangleSoup(vertices, triangles);
         }
 
+        /// <summary>
+        /// Parses a Binary STL file and reconstructs unique vertices and triangles.
+        /// </summary>
         private static FEMMesh LoadFemMeshFromBinaryStl(string filePath)
         {
             var vertices = new List<(double X, double Y, double Z)>();
@@ -700,6 +2076,10 @@ namespace DataAccessLayer
             return CreateMeshFromTriangleSoup(vertices, triangles);
         }
 
+        /// <summary>
+        /// Builds a FEM mesh from a list of unique vertex positions and triangle indices. Marks boundary vertices
+        /// by detecting edges used by a single triangle and assigns sequential boundary ids ordered by polar angle.
+        /// </summary>
         private static FEMMesh CreateMeshFromTriangleSoup(List<(double X, double Y, double Z)> vertexPositions,
                                                           List<(int A, int B, int C)> triangles)
         {
@@ -723,6 +2103,8 @@ namespace DataAccessLayer
                 });
             }
 
+            MarkBoundaryVertices(femVertices, triangles);
+
             var femElements = new List<FEMElement>(triangles.Count);
             for (int i = 0; i < triangles.Count; i++)
             {
@@ -741,6 +2123,100 @@ namespace DataAccessLayer
             return mesh;
         }
 
+        /// <summary>
+        /// Identifies boundary vertices by counting how many triangles use each undirected edge (exactly one means boundary).
+        /// Additionally orders boundary vertices around the centroid and assigns sequential <see cref="FEMVertex.BoundaryId"/>.
+        /// </summary>
+        private static void MarkBoundaryVertices(
+            List<FEMVertex> vertices,
+            List<(int A, int B, int C)> triangles)
+        {
+            if (vertices.Count == 0 || triangles.Count == 0)
+                return;
+
+            var edgeUses = new Dictionary<(int Min, int Max), BoundaryEdgeInfo>();
+
+            void RegisterEdge(int from, int to)
+            {
+                var key = from < to ? (from, to) : (to, from);
+                if (!edgeUses.TryGetValue(key, out var info))
+                {
+                    info = new BoundaryEdgeInfo();
+                    edgeUses[key] = info;
+                }
+
+                info.Count++;
+                if (info.Count == 1)
+                {
+                    info.Orientation = (from, to);
+                }
+            }
+
+            foreach (var (a, b, c) in triangles)
+            {
+                RegisterEdge(a, b);
+                RegisterEdge(b, c);
+                RegisterEdge(c, a);
+            }
+
+            var boundaryVertexIndices = new HashSet<int>();
+
+            foreach (var kvp in edgeUses)
+            {
+                var info = kvp.Value;
+                if (info.Count == 1)
+                {
+                    boundaryVertexIndices.Add(info.Orientation.From);
+                    boundaryVertexIndices.Add(info.Orientation.To);
+                }
+            }
+
+            if (boundaryVertexIndices.Count == 0)
+                return;
+
+            foreach (int idx in boundaryVertexIndices)
+            {
+                if (idx >= 0 && idx < vertices.Count)
+                {
+                    var vertex = vertices[idx];
+                    vertex.IsBoundary = true;
+                }
+            }
+
+            var boundaryVertices = boundaryVertexIndices
+                .Where(i => i >= 0 && i < vertices.Count)
+                .Select(i => vertices[i])
+                .ToList();
+
+            if (boundaryVertices.Count == 0)
+                return;
+
+            double cx = boundaryVertices.Average(v => v.X);
+            double cy = boundaryVertices.Average(v => v.Y);
+
+            var ordered = boundaryVertices
+                .OrderBy(v => Math.Atan2(v.Y - cy, v.X - cx))
+                .ToList();
+
+            for (int i = 0; i < ordered.Count; i++)
+            {
+                ordered[i].BoundaryId = i + 1;
+            }
+        }
+
+        /// <summary>
+        /// Helper for boundary detection; tracks uses of an undirected edge and its first-seen orientation.
+        /// </summary>
+        private sealed class BoundaryEdgeInfo
+        {
+            public int Count { get; set; }
+            public (int From, int To) Orientation { get; set; }
+        }
+
+        /// <summary>
+        /// Heuristically determines whether an STL stream represents ASCII or Binary STL.
+        /// Uses header signature, presence of NUL bytes and size-consistency heuristics.
+        /// </summary>
         private static bool IsAsciiStl(Stream stream)
         {
             if (!stream.CanSeek)
@@ -786,6 +2262,9 @@ namespace DataAccessLayer
             return true;
         }
 
+        /// <summary>
+        /// Counts STL triangles from either ASCII (by scanning "facet") or Binary (reading the header count).
+        /// </summary>
         private static int CountTrianglesInStl(string filePath, bool isAscii)
         {
             if (isAscii)
@@ -816,6 +2295,10 @@ namespace DataAccessLayer
             }
         }
 
+        /// <summary>
+        /// Gets the index of a vertex, inserting a new entry if it was not seen before using a quantized key
+        /// to merge near-duplicate coordinates.
+        /// </summary>
         private static int GetOrAddVertex(Dictionary<VertexKey, int> lookup,
                                            List<(double X, double Y, double Z)> vertices,
                                            double x, double y, double z)
@@ -830,6 +2313,9 @@ namespace DataAccessLayer
             return index;
         }
 
+        /// <summary>
+        /// Quantizes coordinates into a key used for deduplication at tolerance <see cref="StlMergeTolerance"/>.
+        /// </summary>
         private static VertexKey CreateVertexKey(double x, double y, double z)
         {
             double qx = Math.Round(x / StlMergeTolerance) * StlMergeTolerance;
@@ -838,8 +2324,14 @@ namespace DataAccessLayer
             return new VertexKey(qx, qy, qz);
         }
 
+        /// <summary>
+        /// Value-like key of a quantized vertex coordinate used in dictionaries.
+        /// </summary>
         private readonly record struct VertexKey(double X, double Y, double Z);
 
+        /// <summary>
+        /// Recreates an LBM grid from metadata (generator + parameters). Falls back to an empty grid on failure.
+        /// </summary>
         private static LBMGrid CreateLbmFromMetadata(DiscretizationMetaData md)
         {
             try
@@ -889,6 +2381,7 @@ namespace DataAccessLayer
             }
             catch
             {
+                // Fall back to an empty grid to keep loading resilient.
             }
             return new LBMGrid();
         }

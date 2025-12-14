@@ -5,6 +5,7 @@ using SkiaSharp.Views.Maui;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Discretizer;
+using System.Linq;
 
 namespace ElectricalImpedanceTomography.Views;
 
@@ -12,17 +13,26 @@ public partial class MeshingPage : ContentPage
 {
     private readonly MeshingPageViewModel _viewModel;
 
+    private readonly SKPaint _gridPaintMajor = new() { Style = SKPaintStyle.Stroke, Color = SKColor.Parse("#253045"), StrokeWidth = 1 };
+    private readonly SKPaint _gridPaintMinor = new() { Style = SKPaintStyle.Stroke, Color = SKColor.Parse("#1A2332"), StrokeWidth = 1 };
+
     // paints for LBM drawing
-    private readonly SKPaint _lbmFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.Black };
-    private readonly SKPaint _lbmWall = new() { Style = SKPaintStyle.Fill, Color = SKColors.White };
+    private readonly SKPaint _lbmDefault = new() { Style = SKPaintStyle.Fill, Color = SKColors.White };
+    private readonly SKPaint _lbmWall = new() { Style = SKPaintStyle.Fill, Color = SKColors.Black };
+    private readonly SKPaint _lbmGhost = new() { Style = SKPaintStyle.Fill, Color = SKColor.Parse("#546E7A") };
+    private readonly SKPaint _lbmGhostOverlay = new() { Style = SKPaintStyle.Stroke, Color = SKColors.WhiteSmoke, StrokeWidth = 0.75f };
     private readonly SKPaint _lbmElectrode = new() { Style = SKPaintStyle.Fill, Color = SKColors.Orange };
+    private readonly SKPaint _lbmVirtualElectrode = new() { Style = SKPaintStyle.Fill, Color = SKColor.Parse("#AA00FF") };
     private readonly SKPaint _lbmStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.LightGray, StrokeWidth = 1 };
     private readonly SKPaint _lbmSelected = new() { Style = SKPaintStyle.Fill, Color = SKColors.LimeGreen };
+    private readonly SKPaint _lbmGradientFill = new() { Style = SKPaintStyle.Fill };
 
     // stroke for FEM
     private readonly SKPaint _femStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1 };
     private readonly SKPaint _femFill = new() { Style = SKPaintStyle.Fill };
     private readonly SKPaint _electrodeFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.Yellow };
+    private readonly SKPaint _virtualElectrodeFill = new() { Style = SKPaintStyle.Fill, Color = SKColor.Parse("#AA00FF") };
+    private readonly SKPaint _electrodeSegmentStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Gold, StrokeWidth = 3, IsAntialias = true };
     private readonly SKPaint _pointFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.SkyBlue };
 
     // caching values for coordinate transforms
@@ -39,6 +49,14 @@ public partial class MeshingPage : ContentPage
     // dragging state
     private LBMElement? _draggedLbmElectrode;
     private FEMVertex? _draggedFemVertex;
+    private int? _draggedFemElectrodeId;
+
+    private bool _isConductivityPainting;
+    private int? _lastPaintedElementId;
+
+    private DateTime _lastLbmTapTime = DateTime.MinValue;
+    private int? _lastLbmTappedElementId;
+    private const int DoubleTapThresholdMs = 400;
 
     public MeshingPage()
     {
@@ -80,16 +98,48 @@ public partial class MeshingPage : ContentPage
             : (Color.FromArgb("#D4EFE7"), Color.FromArgb("#C2E3DA"));
     }
 
-    private SKColor ColorForValue(double val, double max)
+    private static readonly SKColor LowerHighlight = SKColor.Parse("#1E88E5");
+    private static readonly SKColor NeutralHighlight = SKColor.Parse("#F5F5F5");
+    private static readonly SKColor UpperHighlight = SKColor.Parse("#E53935");
+
+    private SKColor ColorForValue(double val, double min, double max)
     {
-        double range = max - 1;
-        if (range <= 0)
-            return new SKColor(0, 0, 255);
-        double t = (val - 1) / range;
+        const double baseline = 1.0;
+
+        double clampedMin = Math.Min(min, baseline);
+        double clampedMax = Math.Max(max, baseline);
+
+        double lowerRange = baseline - clampedMin;
+        double upperRange = clampedMax - baseline;
+
+        if (lowerRange < 1e-9 && upperRange < 1e-9)
+            return NeutralHighlight;
+
+        if (val <= baseline && lowerRange > 1e-9)
+        {
+            double t = (baseline - val) / lowerRange;
+            t = Math.Clamp(t, 0.0, 1.0);
+            return LerpColor(NeutralHighlight, LowerHighlight, t);
+        }
+
+        if (val >= baseline && upperRange > 1e-9)
+        {
+            double t = (val - baseline) / upperRange;
+            t = Math.Clamp(t, 0.0, 1.0);
+            return LerpColor(NeutralHighlight, UpperHighlight, t);
+        }
+
+        return NeutralHighlight;
+    }
+
+    private static SKColor LerpColor(SKColor from, SKColor to, double t)
+    {
         t = Math.Clamp(t, 0.0, 1.0);
-        byte r = (byte)(255 * t);
-        byte b = (byte)(255 * (1 - t));
-        return new SKColor(r, 0, b);
+        byte r = (byte)Math.Round(from.Red + (to.Red - from.Red) * t);
+        byte g = (byte)Math.Round(from.Green + (to.Green - from.Green) * t);
+        byte b = (byte)Math.Round(from.Blue + (to.Blue - from.Blue) * t);
+        byte a = (byte)Math.Round(from.Alpha + (to.Alpha - from.Alpha) * t);
+        return new SKColor(r, g, b, a);
     }
 
     private static async Task ShrinkViewAsync(VisualElement element)
@@ -101,7 +151,27 @@ public partial class MeshingPage : ContentPage
     private void OnMeshCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
         var canvas = e.Surface.Canvas;
-        canvas.Clear(SKColor.Parse("#1C2638"));
+        var info = e.Info;
+
+        // 1. Draw Background (Dark Blue/Black)
+        canvas.Clear(SKColor.Parse("#13161C"));
+
+        // 2. Draw Checkerboard/Grid Pattern
+        float gridSize = 40.0f;
+
+        // Draw Vertical Lines
+        for (float x = 0; x < info.Width; x += gridSize)
+        {
+            canvas.DrawLine(x, 0, x, info.Height, (x % (gridSize * 5) == 0) ? _gridPaintMajor : _gridPaintMinor);
+        }
+
+        // Draw Horizontal Lines
+        for (float y = 0; y < info.Height; y += gridSize)
+        {
+            canvas.DrawLine(0, y, info.Width, y, (y % (gridSize * 5) == 0) ? _gridPaintMajor : _gridPaintMinor);
+        }
+
+        // 3. Draw Mesh Content
         var mesh = _viewModel.GetCurrentMesh();
         if (mesh is null)
         {
@@ -120,6 +190,21 @@ public partial class MeshingPage : ContentPage
     {
         _cellW = (float)info.Width / grid.Nx;
         _cellH = (float)info.Height / grid.Ny;
+        const double defaultConductivity = 1.0;
+        var conductiveElements = grid.ElementsTyped
+            .Where(el => !el.IsWall && !el.IsElectrode)
+            .ToList();
+        double maxConductivity = defaultConductivity;
+        double minConductivity = defaultConductivity;
+        if (conductiveElements.Count > 0)
+        {
+            maxConductivity = Math.Max(defaultConductivity, conductiveElements.Max(el => el.Conductivity));
+            minConductivity = Math.Min(defaultConductivity, conductiveElements.Min(el => el.Conductivity));
+        }
+
+        var electrodeLookup = grid.ElectrodesTyped.Cast<LBMElectrode>()
+            .ToDictionary(e => e.Id, e => e.IsVirtual);
+
         for (int y = 0; y < grid.Ny; y++)
         {
             for (int x = 0; x < grid.Nx; x++)
@@ -129,14 +214,29 @@ public partial class MeshingPage : ContentPage
                 if (_selectedCells.Contains(el.Id))
                     fill = _lbmSelected;
                 else if (el.IsElectrode)
-                    fill = _lbmElectrode;
+                {
+                    bool isVirtual = el.ElectrodeId >= 0 && electrodeLookup.TryGetValue(el.ElectrodeId, out bool value) && value;
+                    fill = isVirtual ? _lbmVirtualElectrode : _lbmElectrode;
+                }
+                else if (el.GhostElement)
+                    fill = _lbmGhost;
                 else if (el.IsWall)
                     fill = _lbmWall;
+                else if (Math.Abs(el.Conductivity - defaultConductivity) > 1e-6)
+                {
+                    _lbmGradientFill.Color = ColorForValue(el.Conductivity, minConductivity, maxConductivity);
+                    fill = _lbmGradientFill;
+                }
                 else
-                    fill = _lbmFill;
+                    fill = _lbmDefault;
                 var r = SKRect.Create(x * _cellW, y * _cellH, _cellW, _cellH);
                 canvas.DrawRect(r, fill);
                 canvas.DrawRect(r, _lbmStroke);
+                if (el.GhostElement)
+                {
+                    canvas.DrawLine(r.Left, r.Top, r.Right, r.Bottom, _lbmGhostOverlay);
+                    canvas.DrawLine(r.Left, r.Bottom, r.Right, r.Top, _lbmGhostOverlay);
+                }
             }
         }
     }
@@ -164,7 +264,13 @@ public partial class MeshingPage : ContentPage
         _marginY = pad + (availH - usedH) / 2f;
 
         var elements = mesh.ElementsTyped;
-        double max = Math.Max(1.0, elements.Max(el => el.Conductivity));
+        double max = 1.0;
+        double min = 1.0;
+        if (elements.Count > 0)
+        {
+            max = Math.Max(1.0, elements.Max(el => el.Conductivity));
+            min = Math.Min(1.0, elements.Min(el => el.Conductivity));
+        }
 
         using var path = new SKPath();
         foreach (var el in elements)
@@ -174,88 +280,71 @@ public partial class MeshingPage : ContentPage
             var p3 = ToCanvas(el.Vertices[2]);
             path.Reset();
             path.MoveTo(p1); path.LineTo(p2); path.LineTo(p3); path.Close();
-            _femFill.Color = ColorForValue(el.Conductivity, max);
+            _femFill.Color = ColorForValue(el.Conductivity, min, max);
             canvas.DrawPath(path, _femFill);
             canvas.DrawPath(path, _femStroke);
         }
 
-        foreach (var v in mesh.Vertices.Where(v => v.IsElectrode))
-            canvas.DrawCircle(ToCanvas(v), 4f, _electrodeFill);
-    }
-
-        private async void OnClearClicked(object sender, EventArgs e)
+        foreach (var segment in mesh.GetElectrodeSegments())
         {
-            if (sender is VisualElement v) await ShrinkViewAsync(v);
-            _outlinePoints.Clear();
-            _selectedCells.Clear();
-            _outlineClosed = false;
-            _isDrawing = false;
-            _viewModel.HoveredElementInfo = string.Empty;
-            _viewModel.PushState();
-            _viewModel.Clear();
-            MeshCanvas.InvalidateSurface();
+            var start = ToCanvas(segment.Start);
+            var end = ToCanvas(segment.End);
+            canvas.DrawLine(start, end, _electrodeSegmentStroke);
         }
 
-    private async void OnEditClicked(object sender, TappedEventArgs e)
+        var femElectrodes = mesh.ElectrodesTyped.Cast<FEMElectrode>().ToDictionary(e => e.Id);
+        foreach (var v in mesh.Vertices.Where(v => v.IsElectrode))
+        {
+            var fill = _electrodeFill;
+            if (v.ElectrodeId >= 0 && femElectrodes.TryGetValue(v.ElectrodeId, out var electrode) && electrode.IsVirtual)
+                fill = _virtualElectrodeFill;
+            canvas.DrawCircle(ToCanvas(v), 4f, fill);
+        }
+    }
+
+    private async void OnClearClicked(object sender, EventArgs e)
     {
         if (sender is VisualElement v) await ShrinkViewAsync(v);
-        bool isChecked = EditingCheckbox.IsChecked;
-
-        if (isChecked)
-        {
-            EditingCheckbox.IsChecked = false;
-            _viewModel.InhomogenityEditing = false;
-        }
-        else
-        {
-            EditingCheckbox.IsChecked = true;
-            _viewModel.InhomogenityEditing = true;
-        }
-
+        _outlinePoints.Clear();
+        _selectedCells.Clear();
+        _outlineClosed = false;
+        _isDrawing = false;
+        _viewModel.HoveredElementInfo = string.Empty;
+        _viewModel.PushState();
+        _viewModel.Clear();
+        MeshCanvas.InvalidateSurface();
     }
 
-    private async void OnUndoClicked(object sender, TappedEventArgs e)
+
+    private async void OnUndoClicked(object sender, EventArgs e)
     {
         if (sender is VisualElement v) await ShrinkViewAsync(v);
         _viewModel.Undo();
         MeshCanvas.InvalidateSurface();
     }
 
-    private async void OnRedoClicked(object sender, TappedEventArgs e)
+    private async void OnRedoClicked(object sender, EventArgs e)
     {
         if (sender is VisualElement v) await ShrinkViewAsync(v);
         _viewModel.Redo();
         MeshCanvas.InvalidateSurface();
     }
 
-        private void DrawPolygonPreview(SKCanvas canvas)
-        {
-            if (_outlinePoints.Count < 1)
-                return;
-
-            using var path = new SKPath();
-            path.MoveTo(_outlinePoints[0]);
-            for (int i = 1; i < _outlinePoints.Count; i++)
-                path.LineTo(_outlinePoints[i]);
-            if (_outlineClosed)
-                path.Close();
-            canvas.DrawPath(path, _femStroke);
-
-            foreach (var p in _outlinePoints)
-                canvas.DrawCircle(p, 3f, _pointFill);
-        }
-
-    private async void OnAddNoiseTapped(object sender, TappedEventArgs e)
+    private void DrawPolygonPreview(SKCanvas canvas)
     {
-        if (sender is VisualElement v) await ShrinkViewAsync(v);
-        var mesh = _viewModel.GetCurrentMesh();
-        if (mesh == null)
-        {
-            await DisplayAlert("No mesh", "Generate a mesh before adding noise.", "OK");
+        if (_outlinePoints.Count < 1)
             return;
-        }
 
-        _viewModel.AddNoiseToMesh();
+        using var path = new SKPath();
+        path.MoveTo(_outlinePoints[0]);
+        for (int i = 1; i < _outlinePoints.Count; i++)
+            path.LineTo(_outlinePoints[i]);
+        if (_outlineClosed)
+            path.Close();
+        canvas.DrawPath(path, _femStroke);
+
+        foreach (var p in _outlinePoints)
+            canvas.DrawCircle(p, 3f, _pointFill);
     }
 
     private async void OnMeshCanvasTouch(object sender, SKTouchEventArgs e)
@@ -265,6 +354,13 @@ public partial class MeshingPage : ContentPage
         {
             await HandlePolygonDrawingAsync(e);
             return;
+        }
+
+        if (e.ActionType == SKTouchAction.Released ||
+            e.ActionType == SKTouchAction.Cancelled ||
+            e.ActionType == SKTouchAction.Exited)
+        {
+            EndConductivityPainting();
         }
 
         if (mesh is LBMGrid lbm)
@@ -281,6 +377,7 @@ public partial class MeshingPage : ContentPage
 
             if (!_viewModel.InhomogenityEditing)
             {
+                EndConductivityPainting();
                 if (e.ActionType == SKTouchAction.Moved || e.ActionType == SKTouchAction.Entered)
                     _viewModel.HoveredElementInfo = $"ID: {el.Id} \u03C3: {el.Conductivity:F2}, Wall: {el.IsWall}, Electrode: {el.IsElectrode}";
                 e.Handled = true;
@@ -289,6 +386,7 @@ public partial class MeshingPage : ContentPage
 
             if (_draggedLbmElectrode != null)
             {
+                EndConductivityPainting();
                 if (e.ActionType == SKTouchAction.Moved)
                 {
                     if (el != _draggedLbmElectrode && !el.IsWall)
@@ -310,41 +408,71 @@ public partial class MeshingPage : ContentPage
 
             if (e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed && el.IsElectrode)
             {
+                EndConductivityPainting();
                 _draggedLbmElectrode = el;
                 e.Handled = true;
                 return;
             }
 
-            if (e.MouseButton == SKMouseButton.Right && e.ActionType == SKTouchAction.Pressed)
+            bool conductivityChanged = false;
+
+            if (e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed)
             {
-                _viewModel.PushState();
-                el.Conductivity = _viewModel.InhomogenityValue;
-                _viewModel.RefreshConductivity();
+                var now = DateTime.UtcNow;
+                bool isDoubleTap = _lastLbmTappedElementId == el.Id &&
+                                   (now - _lastLbmTapTime).TotalMilliseconds <= DoubleTapThresholdMs;
+
+                _lastLbmTapTime = now;
+                _lastLbmTappedElementId = el.Id;
+
+                if (isDoubleTap)
+                {
+                    _viewModel.PushState();
+                    EndConductivityPainting();
+                    el.IsWall = !el.IsWall;
+                    if (el.IsWall)
+                        el.IsElectrode = false;
+                    _viewModel.RefreshConductivity();
+                    conductivityChanged = true;
+                }
+                else
+                {
+                    BeginConductivityPainting();
+                    conductivityChanged = TryApplyConductivity(el.Id, () => el.Conductivity = _viewModel.InhomogenityValue);
+                }
             }
-            else if (e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed)
+
+            if (_isConductivityPainting && e.ActionType == SKTouchAction.Moved && e.InContact)
             {
-                _viewModel.PushState();
-                el.IsWall = !el.IsWall;
-                if (el.IsWall) el.IsElectrode = false;
+                conductivityChanged |= TryApplyConductivity(el.Id, () => el.Conductivity = _viewModel.InhomogenityValue);
+            }
+
+            if ((e.ActionType == SKTouchAction.Released || e.ActionType == SKTouchAction.Cancelled) && _isConductivityPainting)
+            {
+                EndConductivityPainting();
             }
 
             if (e.ActionType == SKTouchAction.Moved || e.ActionType == SKTouchAction.Entered)
                 _viewModel.HoveredElementInfo = $"ID: {el.Id} \u03C3: {el.Conductivity:F2}, Wall: {el.IsWall}, Electrode: {el.IsElectrode}";
 
-            MeshCanvas.InvalidateSurface();
+            if (conductivityChanged)
+                MeshCanvas.InvalidateSurface();
         }
 
         else if (mesh is FEMMesh fem)
         {
             if (_draggedFemVertex != null)
             {
+                EndConductivityPainting();
                 if (e.ActionType == SKTouchAction.Moved)
                 {
                     var target = FindNearestBoundaryVertex(e.Location, fem);
                     if (target != null && target != _draggedFemVertex)
                     {
                         _draggedFemVertex.IsElectrode = false;
+                        _draggedFemVertex.ElectrodeId = -1;
                         target.IsElectrode = true;
+                        target.ElectrodeId = _draggedFemElectrodeId ?? -1;
                         _draggedFemVertex = target;
                         _viewModel.RefreshFemElectrodes();
                         MeshCanvas.InvalidateSurface();
@@ -353,6 +481,7 @@ public partial class MeshingPage : ContentPage
                 else if (e.ActionType == SKTouchAction.Released)
                 {
                     _draggedFemVertex = null;
+                    _draggedFemElectrodeId = null;
                 }
                 e.Handled = true;
                 return;
@@ -360,10 +489,12 @@ public partial class MeshingPage : ContentPage
 
             if (e.ActionType == SKTouchAction.Pressed && e.MouseButton == SKMouseButton.Left)
             {
+                EndConductivityPainting();
                 var hit = FindElectrodeAt(e.Location, fem);
                 if (hit != null)
                 {
                     _draggedFemVertex = hit;
+                    _draggedFemElectrodeId = hit.ElectrodeId;
                     e.Handled = true;
                     return;
                 }
@@ -371,6 +502,7 @@ public partial class MeshingPage : ContentPage
 
             var pt = e.Location;
             bool found = false;
+            bool conductivityChanged = false;
             foreach (var el in fem.ElementsTyped)
             {
                 var a = ToCanvas(el.Vertices[0]);
@@ -379,12 +511,21 @@ public partial class MeshingPage : ContentPage
                 if (PointInTriangle(pt, a, b, c))
                 {
                     found = true;
-                    if (_viewModel.InhomogenityEditing && e.MouseButton == SKMouseButton.Left && e.ActionType == SKTouchAction.Pressed)
+                    if (_viewModel.InhomogenityEditing && e.MouseButton == SKMouseButton.Left)
                     {
-                        _viewModel.PushState();
-                        el.Conductivity = _viewModel.InhomogenityValue;
-                        _viewModel.RefreshConductivity();
-                        MeshCanvas.InvalidateSurface();
+                        if (e.ActionType == SKTouchAction.Pressed)
+                        {
+                            BeginConductivityPainting();
+                            conductivityChanged = TryApplyConductivity(el.Id, () => el.Conductivity = _viewModel.InhomogenityValue);
+                        }
+                        else if (_isConductivityPainting && e.ActionType == SKTouchAction.Moved && e.InContact)
+                        {
+                            conductivityChanged |= TryApplyConductivity(el.Id, () => el.Conductivity = _viewModel.InhomogenityValue);
+                        }
+                        else if ((e.ActionType == SKTouchAction.Released || e.ActionType == SKTouchAction.Cancelled) && _isConductivityPainting)
+                        {
+                            EndConductivityPainting();
+                        }
                     }
                     else if (e.ActionType == SKTouchAction.Moved || e.ActionType == SKTouchAction.Entered)
                     {
@@ -393,6 +534,8 @@ public partial class MeshingPage : ContentPage
                     break;
                 }
             }
+            if (conductivityChanged)
+                MeshCanvas.InvalidateSurface();
             if (!found)
                 _viewModel.HoveredElementInfo = string.Empty;
         }
@@ -401,6 +544,33 @@ public partial class MeshingPage : ContentPage
             _viewModel.HoveredElementInfo = string.Empty;
         }
         e.Handled = true;
+    }
+
+    private void BeginConductivityPainting()
+    {
+        if (_isConductivityPainting)
+            return;
+
+        _viewModel.PushState();
+        _isConductivityPainting = true;
+        _lastPaintedElementId = null;
+    }
+
+    private void EndConductivityPainting()
+    {
+        _isConductivityPainting = false;
+        _lastPaintedElementId = null;
+    }
+
+    private bool TryApplyConductivity(int elementId, Action apply)
+    {
+        if (_lastPaintedElementId == elementId)
+            return false;
+
+        apply();
+        _lastPaintedElementId = elementId;
+        _viewModel.RefreshConductivity();
+        return true;
     }
 
     private void ApplySelectionConductivity()
@@ -625,5 +795,61 @@ public partial class MeshingPage : ContentPage
         _viewModel.GenerateMesh();
         _viewModel.InvokeMeshChanged();
         MeshCanvas.InvalidateSurface();
+    }
+
+    private async void OnMatlabExportClicked(object sender, EventArgs e)
+    {
+        if (sender is VisualElement v) await ShrinkViewAsync(v);
+
+        if (_viewModel.GetCurrentMesh() is not FEMMesh)
+        {
+            await DisplayAlert("Matlab Export", "Matlab export is only available for FEM meshes.", "OK");
+            return;
+        }
+
+        var exportName = await DisplayPromptAsync("Matlab Export", "Export name", initialValue: _viewModel.Name);
+        if (string.IsNullOrWhiteSpace(exportName))
+            return;
+
+        _viewModel.Name = exportName;
+
+        var modelTypes = _viewModel.MatlabModelTypes;
+        if (modelTypes.Count == 0)
+        {
+            await DisplayAlert("Matlab Export", "No Matlab model types are configured.", "OK");
+            return;
+        }
+
+        string? selectedModelType;
+        if (modelTypes.Count == 1)
+        {
+            selectedModelType = modelTypes[0];
+        }
+        else
+        {
+            var title = $"Select Matlab model type (default: {_viewModel.SelectedMatlabModelType})";
+            selectedModelType = await DisplayActionSheet(title, "Cancel", null, modelTypes.ToArray());
+            if (string.IsNullOrWhiteSpace(selectedModelType) || string.Equals(selectedModelType, "Cancel", StringComparison.Ordinal))
+                return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(selectedModelType))
+            _viewModel.SelectedMatlabModelType = selectedModelType;
+
+        try
+        {
+            var result = _viewModel.ExportCurrentMeshForMatlab();
+            if (result == null)
+            {
+                await DisplayAlert("Matlab Export", "No FEM mesh available for export.", "OK");
+                return;
+            }
+
+            await DisplayAlert("Matlab Export", $"STL saved to:\n{result.StlFilePath}\n\nJSON saved to:\n{result.JsonFilePath}", "OK");
+        }
+        catch (Exception ex)
+        {
+            await DisplayAlert("Matlab Export Failed", ex.Message, "OK");
+        }
     }
 }

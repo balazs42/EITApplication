@@ -29,8 +29,7 @@ namespace Utility.Tests
             Assert.Equal(new[] { -0.5, 1.0, 0.0, 0.0 }, adj, new DoubleArrayComparer(1e-12));
         }
 
-        // Optional: W2 is an integration test because it needs LBMGrid + OR-Tools.
-        // You can enable this on CI runners that have the dependency available.
+        // W2 is an integration test because it needs LBMGrid + OR-Tools.
         [Fact]
         public void Wasserstein2_LBM_Includes_Excitation_Electrodes()
         {
@@ -78,11 +77,38 @@ namespace Utility.Tests
         }
 
         [Fact]
+        public void Wasserstein2_FEM_Allows_More_Boundary_Vertices_Than_Electrodes()
+        {
+            var mesh = MeshFactory.CreateCircularFEMMesh(layers: 2, boundaryFEMVertexCount: 64, electrodeCount: 16, inhomogeneityValue: 1.0, nodesPerElectrode: 1, electrodeLengthHint: 0.3);
+
+            var electrodes = mesh.GetElectrodes();
+            Assert.Equal(16, electrodes.Count);
+
+            var meas = new double[electrodes.Count];
+            var sim = new double[electrodes.Count];
+            meas[0] = 1.0;
+            sim[1] = 1.0;
+
+            var metric = new Wasserstein2ErrorMetric();
+            double value = metric.Evaluate(mesh, meas, sim);
+
+            Assert.True(value >= 0.0);
+        }
+
+        [Fact]
         public void ErrorMetricFactory_Returns_ConductivityAwareW2Metric()
         {
             var metric = ErrorMetricFactory.Create(ErrorMetric.ConductivityAwareW2);
 
             Assert.IsType<ConductivityAwareW2Metric>(metric);
+        }
+
+        [Fact]
+        public void ErrorMetricFactory_Returns_EnergyBasedWasserstein2Metric()
+        {
+            var metric = ErrorMetricFactory.Create(ErrorMetric.EnergyBasedWasserstein2);
+
+            Assert.IsType<EnergyBasedWasserstein2Metric>(metric);
         }
 
         private static FEMMesh TinyFEM()
