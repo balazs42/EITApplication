@@ -784,28 +784,21 @@ namespace BusinessLayer
                     if (!adjointGradientsByBlock.TryGetValue(errorMetricId, out var adjointGradient))
                         continue;
 
-                    // Get the solver→errorMetric weight
-                    if (!_errorMetricMap.TryGetValue(errorMetricId, out var descriptor))
-                        continue;
-
-                    // Combined weight: (solver→errorMetric) × (errorMetric→optimizer connection)
-                    double weight = descriptor.weight * connection.Weight;
-
                     // Compute gradient contribution for each element in parallel
                     Parallel.ForEach(elements, element =>
                     {
                         // Get forward gradient ∇φ at this element
                         var gradPhi = forwardGradient.GetVector(element.Id);
-                        
+
                         // Get adjoint gradient ∇μ at this element
                         var gradMu = adjointGradient.GetVector(element.Id);
-                        
+
                         // Compute dot product weighted by element area: -(∇φ · ∇μ) * A
                         // This approximates the integral ∫_Ω_e ∇φ · ∇μ dΩ
                         double dotProduct = -(gradPhi.X * gradMu.X + gradPhi.Y * gradMu.Y) * element.Area;
-                        
-                        // Apply connection weight
-                        double weighted = weight * dotProduct;
+
+                        // Apply only the ErrorMetric→Optimizer weight in a dedicated helper.
+                        double weighted = ApplyErrorMetricToOptimizerWeight(errorMetricId, optimizerId, dotProduct, connection.Weight);
 
                         // Accumulate into this optimizer's gradient
                         lock (gradientAccumulator)
@@ -856,16 +849,9 @@ namespace BusinessLayer
             // Evaluate each regularizer in parallel
             Parallel.ForEach(_regularizerMap, kvp =>
             {
-                // Compute ∂R/∂σ for this regularizer
+                // Compute ∂R/∂σ for this regularizer. Regularizer→Optimizer weights are applied later
+                // during assembly to avoid scaling more than once.
                 var weighted = kvp.Value.regulizer.EvaluateGradient(_mesh, currentDistribution);
-
-                // Apply solver→regularizer connection weight
-                // This weight controls the relative importance of this regularizer
-                foreach (var elementId in weighted.IdValuePairs.Keys.ToList())
-                {
-                    double value = weighted.GetValue(elementId);
-                    weighted.SetValue(elementId, kvp.Value.weight * value);
-                }
 
                 lock (regularizations)
                 {
@@ -921,14 +907,14 @@ namespace BusinessLayer
                 {
                     var regId = connection.SourceId;
 
-                    // Get the pre-computed regularization gradient (already weighted by solver→regularizer)
+                    // Get the pre-computed regularization gradient (unweighted; connection scaling applied below)
                     if (!regularizerGradients.TryGetValue(regId, out var reg))
                         continue;
 
                     // Weight by regularizer→optimizer connection and accumulate
                     foreach (var kvp in reg.IdValuePairs)
                     {
-                        double weighted = connection.Weight * kvp.Value;
+                        double weighted = ApplyRegularizerToOptimizerWeight(regId, optimizerId, kvp.Value, connection.Weight);
 
                         if (accumulator.ContainsKey(kvp.Key))
                             accumulator[kvp.Key] += weighted;
@@ -970,19 +956,16 @@ namespace BusinessLayer
             // Accumulate weighted gradients
             foreach (var kvp in optimizerGradients)
             {
-                // Get optimizer→model weight
-                if (!_optimizerMap.TryGetValue(kvp.Key, out var optimizerDescriptor))
-                    continue;
-
-                totalWeight += optimizerDescriptor.weight;
+                var weight = GetOptimizerToModelWeight(kvp.Key);
+                totalWeight += weight;
 
                 // Add weighted contribution from this optimizer
                 foreach (var value in kvp.Value.IdValuePairs)
                 {
                     if (combined.ContainsKey(value.Key))
-                        combined[value.Key] += value.Value;
+                        combined[value.Key] += weight * value.Value;
                     else
-                        combined[value.Key] = value.Value;
+                        combined[value.Key] = weight * value.Value;
                 }
             }
 
@@ -1015,19 +998,16 @@ namespace BusinessLayer
             // Accumulate weighted regularizations
             foreach (var kvp in optimizerRegularizations)
             {
-                // Get optimizer→model weight
-                if (!_optimizerMap.TryGetValue(kvp.Key, out var optimizerDescriptor))
-                    continue;
-
-                totalWeight += optimizerDescriptor.weight;
+                var weight = GetOptimizerToModelWeight(kvp.Key);
+                totalWeight += weight;
 
                 // Add weighted contribution from this optimizer's regularization
                 foreach (var value in kvp.Value.IdValuePairs)
                 {
                     if (combined.ContainsKey(value.Key))
-                        combined[value.Key] += optimizerDescriptor.weight * value.Value;
+                        combined[value.Key] += weight * value.Value;
                     else
-                        combined[value.Key] = optimizerDescriptor.weight * value.Value;
+                        combined[value.Key] = weight * value.Value;
                 }
             }
 
@@ -1039,6 +1019,56 @@ namespace BusinessLayer
             }
 
             return new ConductivityDistribution(combined);
+        }
+
+        /// <summary>
+        /// Applies the configured ErrorMetric→Optimizer weight to a raw gradient contribution.
+        /// </summary>
+        private double ApplyErrorMetricToOptimizerWeight(string errorMetricId, string optimizerId, double value, double fallbackWeight = 1.0)
+        {
+            double weight = GetConnectionWeight(errorMetricId, optimizerId, BlockType.ErrorMetric, BlockType.Optimizer, fallbackWeight);
+            return weight * value;
+        }
+
+        /// <summary>
+        /// Applies the configured Regularizer→Optimizer weight to a regularization term.
+        /// </summary>
+        private double ApplyRegularizerToOptimizerWeight(string regularizerId, string optimizerId, double value, double fallbackWeight = 1.0)
+        {
+            double weight = GetConnectionWeight(regularizerId, optimizerId, BlockType.Regularizer, BlockType.Optimizer, fallbackWeight);
+            return weight * value;
+        }
+
+        /// <summary>
+        /// Retrieves the Optimizer→Model weight for the given optimizer block.
+        /// </summary>
+        private double GetOptimizerToModelWeight(string optimizerId)
+        {
+            var connectionWeight = _connections?
+                                        .FirstOrDefault(c => c.SourceId == optimizerId &&
+                                                             c.SourceType == BlockType.Optimizer &&
+                                                             c.TargetType == BlockType.Model)?.Weight;
+
+            if (connectionWeight.HasValue)
+                return connectionWeight.Value;
+
+            return _optimizerMap.TryGetValue(optimizerId, out var optimizerDescriptor)
+                ? optimizerDescriptor.weight
+                : 1.0;
+        }
+
+        /// <summary>
+        /// Looks up a connection weight between two block ids. Defaults to 1.0 when absent to avoid
+        /// accidental double-scaling and to keep legacy configurations functional.
+        /// </summary>
+        private double GetConnectionWeight(string sourceId, string targetId, BlockType sourceType, BlockType targetType, double fallbackWeight = 1.0)
+        {
+            return _connections?
+                       .FirstOrDefault(c => c.SourceId == sourceId &&
+                                            c.TargetId == targetId &&
+                                            c.SourceType == sourceType &&
+                                            c.TargetType == targetType)?.Weight
+                   ?? fallbackWeight;
         }
 
         /// <summary>

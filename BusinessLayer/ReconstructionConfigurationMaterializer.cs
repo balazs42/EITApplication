@@ -73,10 +73,9 @@ namespace BusinessLayer
                 .Where(b => b.Type == BlockType.ErrorMetric)
                 .Select(block =>
                 {
-                    double weight = configuration.SolverToErrorMetricWeights
-                        .Where(c => c.TargetId == block.Id)
-                        .Sum(c => c.Weight);
-                    weight = weight == 0 ? 1.0 : weight;
+                    // Solver→ErrorMetric weights are no longer supported. Error metrics always contribute
+                    // with unit weight and are scaled exclusively by ErrorMetric→Optimizer connections.
+                    const double weight = 1.0;
                     return (block.Id, weight, ErrorMetricFactory.Create(ParseEnum<ErrorMetric>(GetParameterValue(block, "metric_type"))));
                 })
                 .ToList();
@@ -85,10 +84,9 @@ namespace BusinessLayer
                 .Where(b => b.Type == BlockType.Regularizer)
                 .Select(block =>
                 {
-                    double weight = configuration.SolverToRegularizerWeights
-                        .Where(c => c.TargetId == block.Id)
-                        .Sum(c => c.Weight);
-                    weight = weight == 0 ? 1.0 : weight;
+                    // Solver→Regularizer weights are deprecated. Regularizers are scaled exclusively
+                    // through their connections into optimizers.
+                    const double weight = 1.0;
                     var technique = ParseEnum<RegularizationTechnique>(GetParameterValue(block, "reg_tech"));
                     return (block.Id, weight, RegularizationFactory.Create(technique, mesh));
                 })
