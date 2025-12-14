@@ -394,20 +394,21 @@ namespace BusinessLayer
                 var optimizerId = optimizer.Key;
                 var connectedErrorMetrics = _connections?
                     .Where(c => c.TargetId == optimizerId && c.SourceType == BlockType.ErrorMetric)
-                    .Select(c => c.SourceId)
-                    .ToList() ?? new List<string>();
+                    .ToList() ?? new List<WeightedConnectionSnapshot>();
 
                 var gradientAccumulator = new Dictionary<int, double>();
 
-                foreach (var errorMetricId in connectedErrorMetrics)
+                foreach (var connection in connectedErrorMetrics)
                 {
+                    var errorMetricId = connection.SourceId;
+
                     if (!adjointGradientsByBlock.TryGetValue(errorMetricId, out var adjointGradient))
                         continue;
 
                     if (!_errorMetricMap.TryGetValue(errorMetricId, out var descriptor))
                         continue;
 
-                    double weight = descriptor.weight;
+                    double weight = descriptor.weight * connection.Weight;
 
                     Parallel.ForEach(elements, element =>
                     {
@@ -468,22 +469,25 @@ namespace BusinessLayer
                 var optimizerId = optimizer.Key;
                 var connectedRegularizers = _connections?
                     .Where(c => c.TargetId == optimizerId && c.SourceType == BlockType.Regularizer)
-                    .Select(c => c.SourceId)
-                    .ToList() ?? new List<string>();
+                    .ToList() ?? new List<WeightedConnectionSnapshot>();
 
                 var accumulator = new Dictionary<int, double>();
 
-                foreach (var regId in connectedRegularizers)
+                foreach (var connection in connectedRegularizers)
                 {
+                    var regId = connection.SourceId;
+
                     if (!regularizerGradients.TryGetValue(regId, out var reg))
                         continue;
 
                     foreach (var kvp in reg.IdValuePairs)
                     {
+                        double weighted = connection.Weight * kvp.Value;
+
                         if (accumulator.ContainsKey(kvp.Key))
-                            accumulator[kvp.Key] += kvp.Value;
+                            accumulator[kvp.Key] += weighted;
                         else
-                            accumulator[kvp.Key] = kvp.Value;
+                            accumulator[kvp.Key] = weighted;
                     }
                 }
 
