@@ -586,8 +586,8 @@ namespace ElectricalImpedanceTomography.ViewModels
         }
 
         /// <summary>
-        /// Normalizes solver->error, error->regularizer, optimizer input, and optimizer->model weights so each compatible set sums to one.
-        /// Connections that are not meant to be weighted (e.g., measurement->error) are forced back to unity and disabled in the UI.
+        /// Normalizes error->optimizer, regularizer->optimizer, and optimizer->model weights so each compatible set sums to one.
+        /// Connections that are not meant to be weighted (e.g., measurement->error, solver->error, model->regularizer) are forced back to unity and disabled in the UI.
         /// </summary>
         private void NormalizeConnectionWeights(bool redistributeGroups = true)
         {
@@ -602,10 +602,16 @@ namespace ElectricalImpedanceTomography.ViewModels
 
                 foreach (var connection in Connections)
                     connection.RequiresWeight = false;
-                
+
                 foreach (var connection in Connections.Where(c => c.Source.Type == BlockType.Measurement && c.Target.Type == BlockType.ErrorMetric))
                     connection.Weight = 1.0;
-                
+
+                foreach (var connection in Connections.Where(c => c.Source.Type == BlockType.Solver && c.Target.Type == BlockType.ErrorMetric))
+                    connection.Weight = 1.0;
+
+                foreach (var connection in Connections.Where(c => c.Source.Type == BlockType.Model && c.Target.Type == BlockType.Regularizer))
+                    connection.Weight = 1.0;
+
                 foreach (var group in GetWeightedConnectionGroups())
                 {
                     foreach (var connection in group)
@@ -690,26 +696,19 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         private List<ReconstructionConnection> FindWeightedGroupForConnection(ReconstructionConnection connection)
         {
-            if (connection.Source.Type == BlockType.Solver && connection.Target.Type == BlockType.ErrorMetric)
-            {
-                return Connections
-                    .Where(c => c.Source == connection.Source && c.Target.Type == BlockType.ErrorMetric)
-                    .ToList();
-            }
-
-            if (connection.Source.Type == BlockType.Model && connection.Target.Type == BlockType.Regularizer)
-            {
-                return Connections
-                    .Where(c => c.Source == connection.Source && c.Target.Type == BlockType.Regularizer)
-                    .ToList();
-            }
-
             if (connection.Target.Type == BlockType.Optimizer &&
-                (connection.Source.Type == BlockType.ErrorMetric || connection.Source.Type == BlockType.Regularizer))
+                connection.Source.Type == BlockType.ErrorMetric)
             {
                 return Connections
                     .Where(c => c.Target == connection.Target &&
-                                (c.Source.Type == BlockType.ErrorMetric || c.Source.Type == BlockType.Regularizer))
+                                c.Source.Type == BlockType.ErrorMetric)
+                    .ToList();
+            }
+
+            if (connection.Target.Type == BlockType.Optimizer && connection.Source.Type == BlockType.Regularizer)
+            {
+                return Connections
+                    .Where(c => c.Target == connection.Target && c.Source.Type == BlockType.Regularizer)
                     .ToList();
             }
 
@@ -725,19 +724,13 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         private IEnumerable<IReadOnlyCollection<ReconstructionConnection>> GetWeightedConnectionGroups()
         {
-            var solverToError = Connections
-                .Where(c => c.Source.Type == BlockType.Solver && c.Target.Type == BlockType.ErrorMetric)
-                .GroupBy(c => c.Source)
+            var errorToOptimizer = Connections
+                .Where(c => c.Target.Type == BlockType.Optimizer && c.Source.Type == BlockType.ErrorMetric)
+                .GroupBy(c => c.Target)
                 .Select(g => (IReadOnlyCollection<ReconstructionConnection>)g.ToList());
 
-            var modelToRegularizer = Connections
-                .Where(c => c.Source.Type == BlockType.Model && c.Target.Type == BlockType.Regularizer)
-                .GroupBy(c => c.Source)
-                .Select(g => (IReadOnlyCollection<ReconstructionConnection>)g.ToList());
-
-            var optimizerInputs = Connections
-                .Where(c => c.Target.Type == BlockType.Optimizer &&
-                            (c.Source.Type == BlockType.ErrorMetric || c.Source.Type == BlockType.Regularizer))
+            var regularizerToOptimizer = Connections
+                .Where(c => c.Target.Type == BlockType.Optimizer && c.Source.Type == BlockType.Regularizer)
                 .GroupBy(c => c.Target)
                 .Select(g => (IReadOnlyCollection<ReconstructionConnection>)g.ToList());
 
@@ -746,9 +739,8 @@ namespace ElectricalImpedanceTomography.ViewModels
                 .GroupBy(c => c.Target)
                 .Select(g => (IReadOnlyCollection<ReconstructionConnection>)g.ToList());
 
-            return solverToError
-                .Concat(modelToRegularizer)
-                .Concat(optimizerInputs)
+            return errorToOptimizer
+                .Concat(regularizerToOptimizer)
                 .Concat(optimizerToModel);
         }
 
