@@ -1825,42 +1825,6 @@ public partial class ReconstructionPage : ContentPage
         PlaybackFrameLabel.Text = $"{current} / {total}";
     }
 
-    private async void OnSolveForwardClicked(object sender, EventArgs e)
-    {
-        if (GetDiscretization() == null)
-        {
-            await DisplayAlert("No Mesh", "You should create or load a mesh to start reconstrucion!", "Ok");
-            return;
-        }
-
-        if (!_viewModel.CheckReconstructionMethodAgainstDiscretization())
-        {
-            await DisplayAlert("Bad Differential Equation Solver", "You should select the same type of DE solver what your mesh is made for.", "Ok");
-            return;
-        }
-
-        await AnimateButtonAsync(sender);
-        //_viewModel?.OnSolveForwardClicked(this, e);
-    }
-
-    private async void OnSolveInverseClicked(object sender, EventArgs e)
-    {
-        if (GetDiscretization() == null)
-        {
-            await DisplayAlert("No Mesh", "You should create or load a mesh to start reconstrucion!", "Ok");
-            return;
-        }
-
-        if (!_viewModel.CheckReconstructionMethodAgainstDiscretization())
-        {
-            await DisplayAlert("Bad Differential Equation Solver", "You should select the same type of DE solver what your discretization is made for.", "Ok");
-            return;
-        }
-
-        await AnimateButtonAsync(sender);
-        //_viewModel?.OnSolveInverseClicked(this, e);
-    }
-
     private async void OnEditBoundaryConditionsClicked(object sender, EventArgs e)
     {
         await AnimateButtonAsync(sender);
