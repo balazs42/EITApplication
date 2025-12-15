@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Linq;
 using System.Numerics;
 using Utility.Classes;
 using Utility.Classes.Configurations.ReconstructionConfiguration;
@@ -412,34 +411,6 @@ namespace BusinessLayer
             }
 
             return frames;
-        }
-
-        /// <summary>
-        /// Executes a full reconstruction cycle for the provided measurements by delegating frame computation
-        /// to <see cref="Step(EITMeasurement,int)"/>, aggregating gradients, applying optimizers, and returning
-        /// the updated discretization alongside all intermediate frames.
-        /// </summary>
-        /// <param name="measurement">Prepared measurement set representing a full drive-pattern cycle.</param>
-        /// <param name="stepSize">Optimizer step size.</param>
-        /// <param name="regularizationWeight">Weight applied to regularization gradients.</param>
-        /// <returns>Reconstruction result containing the updated conductivity and all frames.</returns>
-        public ReconstructionResult RunCycle(EITMeasurement measurement, double stepSize, double regularizationWeight)
-        {
-            if (!_initialized || _mesh == null)
-                throw new InvalidOperationException("The Block FEM persistence must be initialised before running a cycle.");
-
-            var frames = Step(measurement);
-            var currentSigma = _mesh.GetConductivityDistribution();
-            var optimizerGradients = AggregateOptimizerGradients(frames, regularizationWeight);
-            var updated = ApplyOptimizers(currentSigma, optimizerGradients, stepSize);
-            updated = ConductivityClipper.Clip(updated);
-            UpdateCurrentDistribution(updated);
-
-            return new ReconstructionResult(_mesh.GetDiscretization(),
-                                            _originalDistribution,
-                                            currentSigma,
-                                            updated,
-                                            new List<ReconstructionFrame>(frames));
         }
 
         /// <summary>
@@ -1098,139 +1069,6 @@ namespace BusinessLayer
                                             c.SourceType == sourceType &&
                                             c.TargetType == targetType)?.Weight
                    ?? fallbackWeight;
-        }
-
-        /// <summary>
-        /// Aggregates optimizer gradients and regularization contributions across a full reconstruction cycle.
-        /// </summary>
-        private static Dictionary<string, ConductivityDistribution> AggregateOptimizerGradients(IReadOnlyList<ReconstructionFrame> frames,
-                                                                                                double regularizationWeight)
-        {
-            var gradientAccum = new Dictionary<string, Dictionary<int, double>>();
-            var regAccum = new Dictionary<string, Dictionary<int, double>>();
-
-            foreach (var frame in frames)
-            {
-                foreach (var gradientEntry in frame.OptimizerGradients)
-                {
-                    if (!gradientAccum.TryGetValue(gradientEntry.Key, out var dict))
-                    {
-                        dict = new Dictionary<int, double>();
-                        gradientAccum[gradientEntry.Key] = dict;
-                    }
-
-                    foreach (var kvp in gradientEntry.Value.Conductivities)
-                    {
-                        dict[kvp.Key] = dict.TryGetValue(kvp.Key, out var existing)
-                            ? existing + kvp.Value
-                            : kvp.Value;
-                    }
-                }
-
-                foreach (var regEntry in frame.OptimizerRegularizations)
-                {
-                    if (!regAccum.TryGetValue(regEntry.Key, out var dict))
-                    {
-                        dict = new Dictionary<int, double>();
-                        regAccum[regEntry.Key] = dict;
-                    }
-
-                    foreach (var kvp in regEntry.Value.Conductivities)
-                    {
-                        dict[kvp.Key] = dict.TryGetValue(kvp.Key, out var existing)
-                            ? existing + kvp.Value
-                            : kvp.Value;
-                    }
-                }
-            }
-
-            var result = new Dictionary<string, ConductivityDistribution>();
-            int frameCount = Math.Max(1, frames.Count);
-
-            foreach (var optimizerId in gradientAccum.Keys.Union(regAccum.Keys))
-            {
-                var gradDict = gradientAccum.TryGetValue(optimizerId, out var g) ? g : new Dictionary<int, double>();
-                var regDict = regAccum.TryGetValue(optimizerId, out var r) ? r : new Dictionary<int, double>();
-
-                var combined = new Dictionary<int, double>();
-                foreach (var kvp in gradDict)
-                {
-                    double reg = regDict.TryGetValue(kvp.Key, out var regVal) ? regVal : 0.0;
-                    combined[kvp.Key] = (kvp.Value - regularizationWeight * reg) / frameCount;
-                }
-
-                foreach (var kvp in regDict)
-                {
-                    if (combined.ContainsKey(kvp.Key))
-                        continue;
-                    combined[kvp.Key] = (-regularizationWeight * kvp.Value) / frameCount;
-                }
-
-                result[optimizerId] = new ConductivityDistribution(combined);
-            }
-
-            return result;
-        }
-
-        /// <summary>
-        /// Applies configured optimizers to the current conductivity estimate using the provided gradients.
-        /// Supports single or multiple optimizers with weighted blending.
-        /// </summary>
-        private ConductivityDistribution ApplyOptimizers(ConductivityDistribution currentSigma,
-                                                         IReadOnlyDictionary<string, ConductivityDistribution> optimizerGradients,
-                                                         double stepSize)
-        {
-            if (_numericOptimizers == null || _numericOptimizers.Count == 0)
-                return currentSigma;
-
-            if (_numericOptimizers.Count == 1)
-            {
-                var optimizer = _numericOptimizers[0];
-                var gradient = optimizerGradients.Values.FirstOrDefault() ?? new ConductivityDistribution(new Dictionary<int, double>());
-                var candidate = optimizer.numericOptimizer.OptimizationStep(currentSigma, gradient, stepSize);
-                return MergeWithBaseline(currentSigma, candidate);
-            }
-
-            var weightedSum = new Dictionary<int, double>();
-            double totalWeight = 0.0;
-
-            foreach (var (id, weight, optimizer) in _numericOptimizers)
-            {
-                var gradient = optimizerGradients.TryGetValue(id, out var specific)
-                    ? specific
-                    : optimizerGradients.Values.FirstOrDefault() ?? new ConductivityDistribution(new Dictionary<int, double>());
-
-                var candidate = optimizer.OptimizationStep(currentSigma, gradient, stepSize);
-                foreach (var kvp in candidate.Conductivities)
-                {
-                    weightedSum[kvp.Key] = weightedSum.TryGetValue(kvp.Key, out var existing)
-                        ? existing + weight * kvp.Value
-                        : weight * kvp.Value;
-                }
-
-                totalWeight += weight;
-            }
-
-            if (totalWeight <= 0)
-                return currentSigma;
-
-            var blended = weightedSum.ToDictionary(kvp => kvp.Key, kvp => kvp.Value / totalWeight);
-            var merged = new ConductivityDistribution(blended);
-            return MergeWithBaseline(currentSigma, merged);
-        }
-
-        /// <summary>
-        /// Merges updated conductivity values with the baseline to preserve elements that were not touched by optimizers.
-        /// </summary>
-        private static ConductivityDistribution MergeWithBaseline(ConductivityDistribution baseline, ConductivityDistribution candidate)
-        {
-            var merged = new Dictionary<int, double>(baseline.Conductivities);
-            foreach (var kvp in candidate.Conductivities)
-            {
-                merged[kvp.Key] = kvp.Value;
-            }
-
-            return new ConductivityDistribution(merged);
         }
 
         /// <summary>

@@ -14,9 +14,6 @@ namespace BusinessLayer
         public void InitializeReconstruction(IDiscretization discretization, ReconstructionRuntimeContext parameters, bool reinit);
 
         public ReconstructionFrame Step(double[] measurement, BoundaryCondition boundaryCondition, double gradientStepSize, double redularizationStepSize);
-        ReconstructionResult RunCycle(IEnumerable<(double[] Measurement, BoundaryCondition BoundaryCondition)> frames,
-                                      double gradientStepSize,
-                                      double regularizationStepSize);
         public void Run(int maxIterationCount, double gradientStepSize, double redularizationStepSize);
         public ReconstructionResult Stop();
 
