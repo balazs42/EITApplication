@@ -389,8 +389,7 @@ namespace ServiceLayer
             {
                 var optimizer = _runtimeContext.NumericOptimizers[0];
                 var gradient = optimizerGradients.Values.FirstOrDefault() ?? new ConductivityDistribution(new Dictionary<int, double>());
-                var candidate = optimizer.numericOptimizer.OptimizationStep(currentSigma, gradient, stepSize);
-                return MergeWithBaseline(currentSigma, candidate);
+                return optimizer.numericOptimizer.OptimizationStep(currentSigma, gradient, stepSize);
             }
 
             // Multiple optimizers case: compute each candidate update and form a weighted average by connection weight.
@@ -420,21 +419,7 @@ namespace ServiceLayer
 
             // Normalize by the total weight to get the final combined candidate.
             var combined = weightedSum.ToDictionary(kvp => kvp.Key, kvp => kvp.Value / totalWeight);
-            var combinedDistribution = new ConductivityDistribution(combined);
-            return MergeWithBaseline(currentSigma, combinedDistribution);
-        }
-
-        // Ensures that an updated conductivity distribution preserves any elements that were not explicitly
-        // produced by an optimizer (e.g., sparse updates). Missing keys would otherwise be interpreted as zero
-        // conductivity, causing the UI canvas to diverge from the solver state.
-        private static ConductivityDistribution MergeWithBaseline(ConductivityDistribution baseline,
-                                                                  ConductivityDistribution updated)
-        {
-            var merged = new Dictionary<int, double>(baseline.Conductivities);
-            foreach (var kvp in updated.Conductivities)
-                merged[kvp.Key] = kvp.Value;
-
-            return new ConductivityDistribution(merged);
+            return new ConductivityDistribution(combined);
         }
     }
 }
