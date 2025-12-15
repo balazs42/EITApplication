@@ -34,6 +34,8 @@ namespace ServiceLayer
         private bool _initialized;
         // Monotonically increasing index of frames emitted so far (across cycles)
         private int _frameIndex;
+        // Iteration counter used to throttle expensive error/metric calculations
+        private int _iterationCount;
         // Buffer to accumulate frames of the current drive-pattern cycle; flushed into a result when the cycle completes
         private readonly List<ReconstructionFrame> _cycleFrames = new();
 
@@ -104,6 +106,7 @@ namespace ServiceLayer
             Workspace.SetReconstructionResults(new List<ReconstructionResult>());
             _cycleFrames.Clear();
             _frameIndex = 0;
+            _iterationCount = 0;
             _initialized = true;
         }
 
@@ -191,9 +194,16 @@ namespace ServiceLayer
                 Workspace.AddReconstructionResultToWorkspace(result);
                 _cycleFrames.Clear();
 
-                // Notify listeners (e.g., view models) of the completed cycle.
-                ReconstructionUpdated?.Invoke(this, result);
-                return result;
+                // Only surface expensive error/metric calculations every 10th iteration
+                // to match the behaviour of the classic reconstruction pipeline.
+                _iterationCount++;
+                if (_iterationCount % 10 == 0)
+                {
+                    ReconstructionUpdated?.Invoke(this, result);
+                    return result;
+                }
+
+                return null;
             }
             catch (Exception ex)
             {
