@@ -236,6 +236,42 @@ namespace BusinessLayer
         }
 
         /// <summary>
+        /// Executes a full reconstruction cycle by iterating the provided measurement and boundary-condition pairs.
+        /// Each pair results in a reconstruction frame; the final conductivity distribution after all iterations
+        /// is returned together with the collected frames.
+        /// </summary>
+        /// <param name="frames">Sequence of measurement/boundary pairs for the active drive pattern.</param>
+        /// <param name="gradientStepSize">Optimizer step size applied to each iteration.</param>
+        /// <param name="regularizationStepSize">Weight of the regularization component for each iteration.</param>
+        /// <returns>Aggregated reconstruction result for the completed cycle.</returns>
+        /// <exception cref="InvalidOperationException">Thrown when reconstruction has not been initialised.</exception>
+        public ReconstructionResult RunCycle(IEnumerable<(double[] Measurement, BoundaryCondition BoundaryCondition)> frames,
+                                             double gradientStepSize,
+                                             double regularizationStepSize)
+        {
+            if (!_initialized || _discretization == null)
+                throw new InvalidOperationException("The ReconstructionPersistence has not been initialised.");
+
+            var previous = _discretization.GetConductivityDistribution();
+            var produced = new List<ReconstructionFrame>();
+
+            foreach (var (measurement, boundary) in frames)
+            {
+                var frame = Step(measurement, boundary, gradientStepSize, regularizationStepSize);
+                produced.Add(frame);
+            }
+
+            var updated = _discretization.GetConductivityDistribution();
+            _initialSigma = updated;
+
+            return new ReconstructionResult(_discretization.GetDiscretization(),
+                                            _originalSigma ?? previous,
+                                            previous,
+                                            updated,
+                                            produced);
+        }
+
+        /// <summary>
         /// Starts a background task that performs full reconstruction cycles on the active discretization.
         /// The loop runs until either the maximum iteration count is reached or <see cref="Stop"/> is called.
         /// Stores the user-provided step sizes so the task can update sigma without UI thread participation.
