@@ -1862,7 +1862,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         /// </summary>
         public Task<ReconstructionResult?> RunFullReconstructionCycleAsync()
         {
-            PrepareForNewReconstruction();
+            InitializeReconstruction();
             BeginReconstructionMetrics();
 
             if (ShouldUseBlockConfiguration)
@@ -1887,7 +1887,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         /// </summary>
         public async Task StepReconstructionAsync()
         {
-            PrepareForNewReconstruction();
+            InitializeReconstruction();
             BeginReconstructionMetrics();
 
             if (ShouldUseBlockConfiguration)
