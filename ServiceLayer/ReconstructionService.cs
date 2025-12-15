@@ -477,57 +477,6 @@ namespace ServiceLayer
         }
 
         /// <summary>
-        /// Applies an accumulated gradient-based conductivity update to the active discretization.
-        /// Averages gradients across all frames in the cycle, applies the update with the appropriate
-        /// sign convention (FEM uses addition, LBM uses subtraction), and clips negative values.
-        /// </summary>
-        /// <param name="useLbmConvention">If true, subtracts the gradient (LBM convention); otherwise adds it (FEM convention).</param>
-        /// <returns>Tuple containing the previous and newly computed conductivity distributions.</returns>
-        private (ConductivityDistribution PreviousSigma, ConductivityDistribution NewSigma) ApplyAccumulatedGradientUpdate(bool useLbmConvention = false)
-        {
-            var frameCount = _currentCycleFrames.Count;
-            var prevSigma = _discretization!.GetConductivityDistribution();
-
-            // Accumulate gradients from all frames in the cycle
-            var accumGrad = new Dictionary<int, double>();
-            foreach (var frame in _currentCycleFrames)
-            {
-                foreach (var kvp in frame.ConductivityGradient.Conductivities)
-                {
-                    accumGrad[kvp.Key] = accumGrad.TryGetValue(kvp.Key, out var g) ? g + kvp.Value : kvp.Value;
-                }
-            }
-
-            // Apply averaged gradient update with appropriate sign convention
-            var newSigmaDict = prevSigma.Conductivities.ToDictionary(
-                kvp => kvp.Key,
-                kvp =>
-                {
-                    var avgGradient = accumGrad.TryGetValue(kvp.Key, out var g) ? g / frameCount : 0.0;
-                    return useLbmConvention ? kvp.Value - avgGradient : kvp.Value + avgGradient;
-                });
-
-            // Clip conductivity values that would fall below 0.0 (FEM only applies clipping)
-            if (!useLbmConvention)
-            {
-                foreach (var kvp in newSigmaDict.ToList())
-                {
-                    if (kvp.Value < 0.0)
-                        newSigmaDict[kvp.Key] = 0.0;
-                }
-            }
-
-            var newSigma = new ConductivityDistribution(newSigmaDict);
-
-            // Update discretization and persistence state
-            _discretization.SetConductivityDistribution(newSigma);
-            _initialSigma = newSigma;
-            _reconstructionPersistence.SetConductivityDistributions(_originalSigma!, _initialSigma!);
-
-            return (prevSigma, newSigma);
-        }
-
-        /// <summary>
         /// Executes a full drive-pattern cycle by iterating over all measurement frames. For each step
         /// a boundary condition is built from the current excitation pair and the frame is mapped to the
         /// solver order; after all frames, gradients are accumulated and a conductivity update is applied.
@@ -579,8 +528,27 @@ namespace ServiceLayer
                         PublishFrame(frame);
                     }
 
-                    // Apply accumulated gradient update using FEM convention (addition with clipping)
-                    var (prevSigma, newSigma) = ApplyAccumulatedGradientUpdate(useLbmConvention: false);
+                    // Accumulate gradients across the cycle and apply a single update step to conductivities.
+                    var frameCount = _currentCycleFrames.Count;
+                    var prevSigma = _discretization!.GetConductivityDistribution();
+                    var accumGrad = new Dictionary<int, double>();
+                    foreach (var frame in _currentCycleFrames)
+                        foreach (var kvp in frame.ConductivityGradient.Conductivities)
+                            accumGrad[kvp.Key] = accumGrad.TryGetValue(kvp.Key, out var g) ? g + kvp.Value : kvp.Value;
+
+                    var newSigmaDict = prevSigma.Conductivities.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value + (accumGrad.TryGetValue(kvp.Key, out var g) ? g / frameCount : 0.0));
+
+                    // Clip conductivity values that would fall below 0.0
+                    foreach (var kvp in newSigmaDict)
+                        if (kvp.Value < 0.0)
+                            newSigmaDict[kvp.Key] = 0.0;
+
+                    var newSigma = new ConductivityDistribution(newSigmaDict);
+                    _discretization.SetConductivityDistribution(newSigma);
+                    _initialSigma = newSigma; // Next cycle starts from this estimate
+                    _reconstructionPersistence.SetConductivityDistributions(_originalSigma!, _initialSigma!);
 
                     var result = new ReconstructionResult(_discretization!.GetDiscretization(),
                                                           _originalSigma!,
@@ -616,8 +584,20 @@ namespace ServiceLayer
                         lbmGrid.ShiftExcitationElectrodes(_drivePattern);
                     }
 
-                    // Apply accumulated gradient update using LBM convention (subtraction, no clipping)
-                    var (prevSigma, newSigma) = ApplyAccumulatedGradientUpdate(useLbmConvention: true);
+                    var frameCount = _currentCycleFrames.Count;
+                    var prevSigma = _discretization!.GetConductivityDistribution();
+                    var accumGrad = new Dictionary<int, double>();
+                    foreach (var frame in _currentCycleFrames)
+                        foreach (var kvp in frame.ConductivityGradient.Conductivities)
+                            accumGrad[kvp.Key] = accumGrad.TryGetValue(kvp.Key, out var g) ? g + kvp.Value : kvp.Value;
+
+                    var newSigmaDict = prevSigma.Conductivities.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value - (accumGrad.TryGetValue(kvp.Key, out var g) ? g / frameCount : 0.0));
+                    var newSigma = new ConductivityDistribution(newSigmaDict);
+                    _discretization.SetConductivityDistribution(newSigma);
+                    _initialSigma = newSigma;
+                    _reconstructionPersistence.SetConductivityDistributions(_originalSigma!, _initialSigma!);
 
                     var result = new ReconstructionResult(_discretization!.GetDiscretization(), 
                                                           _originalSigma!,

@@ -165,8 +165,8 @@ namespace ServiceLayer
                 _frameIndex += frames.Count;
 
                 // 5) If the current cycle is not complete yet, we're done for this step (no aggregated result yet).
-                //if (_frameIndex % Math.Max(1, _measurementService.FramesPerCycle) != 0)
-                //    return null;
+                if (_frameIndex % Math.Max(1, _measurementService.FramesPerCycle) != 0)
+                    return null;
 
                 // 6) On cycle completion, assemble and apply a gradient-based conductivity update and publish a result.
                 var mesh = _runtimeContext.RuntimeMesh
