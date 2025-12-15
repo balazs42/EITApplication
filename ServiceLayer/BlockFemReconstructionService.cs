@@ -165,8 +165,13 @@ namespace ServiceLayer
                 _frameIndex += frames.Count;
 
                 // 5) If the current cycle is not complete yet, we're done for this step (no aggregated result yet).
-                //if (_frameIndex % Math.Max(1, _measurementService.FramesPerCycle) != 0)
-                //    return null;
+                //    We also align with the legacy FEM pipeline behaviour where expensive error/metric aggregation runs
+                //    only every 10th reconstruction step to reduce UI churn and computation overhead.
+                int cycleLength = Math.Max(1, _measurementService.FramesPerCycle);
+                bool cycleComplete = _frameIndex % cycleLength == 0;
+                bool shouldAggregate = cycleComplete && _frameIndex % 10 == 0;
+                if (!shouldAggregate)
+                    return null;
 
                 // 6) On cycle completion, assemble and apply a gradient-based conductivity update and publish a result.
                 var mesh = _runtimeContext.RuntimeMesh
