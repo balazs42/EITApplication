@@ -15,6 +15,7 @@ using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.PostProcessing;
+using Utility.Classes.Reconstruction.Metrics;
 using Utility.Rendering;
 
 namespace ElectricalImpedanceTomography.ViewModels
@@ -69,6 +70,21 @@ namespace ElectricalImpedanceTomography.ViewModels
         [ObservableProperty]
         private string _statAvg = "0.000";
 
+        [ObservableProperty]
+        private string _metricCorrelation = "N/A";
+
+        [ObservableProperty]
+        private string _metricMae = "N/A";
+
+        [ObservableProperty]
+        private string _metricRmse = "N/A";
+
+        [ObservableProperty]
+        private string _metricSsim = "N/A";
+
+        [ObservableProperty]
+        private string _metricPsnr = "N/A";
+
         // Collections
         public ObservableCollection<string> ConsoleLogs { get; } = new();
         public ObservableCollection<string> HistoryLog { get; } = new();
@@ -86,6 +102,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         // Events
         public event EventHandler? MeshUpdated;
+        public event EventHandler<PostProcessingImageSaveRequest>? ImageSaveRequested;
 
         // Internal state
         private IDiscretization? _discretization;
@@ -136,7 +153,9 @@ namespace ElectricalImpedanceTomography.ViewModels
                                                    Dictionary<int, double> Conductivities,
                                                    SavedFemMesh? Fem,
                                                    SavedLbmGrid? Lbm,
-                                                   string? Label);
+                                                   string? Label,
+                                                   List<string>? History,
+                                                   string? DisplayMode);
 
         public PostProcessingPageViewModel()
         {
@@ -299,6 +318,14 @@ namespace ElectricalImpedanceTomography.ViewModels
                 var json = JsonSerializer.Serialize(snapshot, options);
                 File.WriteAllText(jsonPath, json);
 
+                var historyPath = Path.Combine(exportDir, $"{name}_history.txt");
+                var historyLines = HistoryLog.Reverse().ToList();
+                if (historyLines.Count == 0)
+                {
+                    historyLines.Add("No post-processing steps recorded.");
+                }
+                File.WriteAllLines(historyPath, historyLines);
+
                 var csvPath = Path.Combine(exportDir, $"{name}.csv");
                 using (var writer = new StreamWriter(csvPath))
                 {
@@ -309,8 +336,11 @@ namespace ElectricalImpedanceTomography.ViewModels
                     }
                 }
 
+                var pngPath = Path.Combine(exportDir, $"{name}.png");
+                ImageSaveRequested?.Invoke(this, new PostProcessingImageSaveRequest(pngPath));
+
                 LastSavedPath = jsonPath;
-                Log($"Saved snapshot to {jsonPath} and CSV to {csvPath}.", "success");
+                Log($"Saved snapshot to {jsonPath}, CSV to {csvPath}, and history to {historyPath}.", "success");
                 AddToHistory($"Saved {name}");
             }
             catch (Exception ex)
@@ -322,7 +352,13 @@ namespace ElectricalImpedanceTomography.ViewModels
         private SavedPostProcessingSnapshot CreateSnapshot(string label)
         {
             if (_currentDistribution == null)
-                return new SavedPostProcessingSnapshot("None", new Dictionary<int, double>(), null, null, label);
+                return new SavedPostProcessingSnapshot("None",
+                                                       new Dictionary<int, double>(),
+                                                       null,
+                                                       null,
+                                                       label,
+                                                       HistoryLog.Reverse().ToList(),
+                                                       SelectedConductivityDisplayMode.ToString());
 
             SavedFemMesh? fem = null;
             SavedLbmGrid? lbm = null;
@@ -352,7 +388,13 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             var conductivities = new Dictionary<int, double>(_currentDistribution.Conductivities);
             var type = FemMesh != null ? "FEM" : (LbmGrid != null ? "LBM" : "Unknown");
-            return new SavedPostProcessingSnapshot(type, conductivities, fem, lbm, label);
+            return new SavedPostProcessingSnapshot(type,
+                                                   conductivities,
+                                                   fem,
+                                                   lbm,
+                                                   label,
+                                                   HistoryLog.Reverse().ToList(),
+                                                   SelectedConductivityDisplayMode.ToString());
         }
 
         public void LoadFromFile(string path)
@@ -506,6 +548,9 @@ namespace ElectricalImpedanceTomography.ViewModels
                 var distribution = BuildDistribution(mesh, snapshot.Conductivities);
                 mesh.SetConductivityDistribution(distribution);
                 LoadDiscretization(mesh, distribution, snapshot.Label ?? fallbackLabel);
+                RestoreHistory(snapshot.History);
+                if (snapshot.DisplayMode != null && Enum.TryParse(snapshot.DisplayMode, out ConductivityDisplayMode mode))
+                    SelectedConductivityDisplayMode = mode;
                 return;
             }
 
@@ -527,6 +572,9 @@ namespace ElectricalImpedanceTomography.ViewModels
                 var distribution = BuildDistribution(grid, snapshot.Conductivities);
                 grid.SetConductivityDistribution(distribution);
                 LoadDiscretization(grid, distribution, snapshot.Label ?? fallbackLabel);
+                RestoreHistory(snapshot.History);
+                if (snapshot.DisplayMode != null && Enum.TryParse(snapshot.DisplayMode, out ConductivityDisplayMode mode))
+                    SelectedConductivityDisplayMode = mode;
                 return;
             }
 
@@ -630,6 +678,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             StatMin = _dataMin.ToString("F3");
             StatMax = _dataMax.ToString("F3");
             StatAvg = _currentDistribution.Conductivities.Values.Average().ToString("F3");
+            UpdateComparisonMetrics();
 
             if (resetCutoffs || !_cutoffsInitialized)
             {
@@ -663,6 +712,8 @@ namespace ElectricalImpedanceTomography.ViewModels
             string time = DateTime.Now.ToString("HH:mm:ss");
             ConsoleLogs.Add($"[{time}] {msg}");
         }
+
+        public void LogExternal(string msg, string type = "normal") => Log(msg, type);
 
         private void AddToHistory(string action) => HistoryLog.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {action}");
 
@@ -702,6 +753,119 @@ namespace ElectricalImpedanceTomography.ViewModels
                 return string.Empty;
 
             return string.Join(", ", ParameterOptions.Select(p => $"{p.Name}={p.FormattedValue}"));
+        }
+
+        private void RestoreHistory(IReadOnlyList<string>? history)
+        {
+            if (history == null || history.Count == 0)
+                return;
+
+            HistoryLog.Clear();
+            foreach (var line in history.Reverse())
+            {
+                HistoryLog.Add(line);
+            }
+        }
+
+        private void UpdateComparisonMetrics()
+        {
+            if (_currentDistribution == null || _originalDistribution == null || _currentDistribution.Conductivities.Count == 0)
+            {
+                MetricCorrelation = "N/A";
+                MetricMae = "N/A";
+                MetricRmse = "N/A";
+                MetricSsim = "N/A";
+                MetricPsnr = "N/A";
+                return;
+            }
+
+            var reconstructed = _currentDistribution.Conductivities;
+            var original = _originalDistribution.Conductivities;
+
+            double sumSq = 0.0;
+            double sumAbs = 0.0;
+            double maxAbs = 0.0;
+
+            var reconValues = new double[reconstructed.Count];
+            var origValues = new double[reconstructed.Count];
+            int index = 0;
+            foreach (var kv in reconstructed)
+            {
+                original.TryGetValue(kv.Key, out var origVal);
+                reconValues[index] = kv.Value;
+                origValues[index] = origVal;
+
+                double diff = kv.Value - origVal;
+                sumSq += diff * diff;
+                sumAbs += Math.Abs(diff);
+                maxAbs = Math.Max(maxAbs, Math.Max(Math.Abs(origVal), Math.Abs(kv.Value)));
+                index++;
+            }
+
+            int count = Math.Max(reconstructed.Count, 1);
+            double mse = sumSq / count;
+            double rmse = Math.Sqrt(mse);
+            double mae = sumAbs / count;
+            double psnr = mse <= 1e-12
+                ? double.PositiveInfinity
+                : 20.0 * Math.Log10((maxAbs <= 1e-12 ? 1.0 : maxAbs) / Math.Sqrt(mse));
+
+            double ssim = ComputeSsim(origValues, reconValues);
+            double correlation = ReconstructionStatistics.CalculateCorrelation(_currentDistribution, _originalDistribution, true);
+
+            MetricCorrelation = FormatMetric(correlation);
+            MetricMae = FormatMetric(mae);
+            MetricRmse = FormatMetric(rmse);
+            MetricSsim = FormatMetric(ssim);
+            MetricPsnr = double.IsPositiveInfinity(psnr) ? "∞" : FormatMetric(psnr);
+        }
+
+        private static string FormatMetric(double value)
+            => double.IsNaN(value) ? "N/A" : value.ToString("0.####", CultureInfo.InvariantCulture);
+
+        private static double ComputeSsim(IReadOnlyList<double> reference, IReadOnlyList<double> test)
+        {
+            if (reference.Count == 0 || reference.Count != test.Count)
+                return double.NaN;
+
+            double meanRef = 0.0;
+            double meanTest = 0.0;
+            for (int i = 0; i < reference.Count; i++)
+            {
+                meanRef += reference[i];
+                meanTest += test[i];
+            }
+
+            int n = reference.Count;
+            meanRef /= n;
+            meanTest /= n;
+
+            double varianceRef = 0.0;
+            double varianceTest = 0.0;
+            double covariance = 0.0;
+            for (int i = 0; i < reference.Count; i++)
+            {
+                double centeredRef = reference[i] - meanRef;
+                double centeredTest = test[i] - meanTest;
+                varianceRef += centeredRef * centeredRef;
+                varianceTest += centeredTest * centeredTest;
+                covariance += centeredRef * centeredTest;
+            }
+
+            varianceRef /= n;
+            varianceTest /= n;
+            covariance /= n;
+
+            const double c1 = 0.01 * 0.01;
+            const double c2 = 0.03 * 0.03;
+
+            double numerator = (2 * meanRef * meanTest + c1) * (2 * covariance + c2);
+            double denominator = (meanRef * meanRef + meanTest * meanTest + c1) * (varianceRef + varianceTest + c2);
+
+            if (denominator <= 1e-12)
+                return double.NaN;
+
+            return numerator / denominator;
         }
     }
 
@@ -775,4 +939,6 @@ namespace ElectricalImpedanceTomography.ViewModels
             double step = 1.0)
             => new(name, description, 0, 100, step, initialPercent, apply, isPercentage: true);
     }
+
+    public readonly record struct PostProcessingImageSaveRequest(string Path);
 }
