@@ -175,6 +175,8 @@
                                     <skia:SKCanvasView Grid.Column="0" x:Name="PostProcessingCanvas"
                                                        PaintSurface="OnCanvasViewPaintSurface"
                                                        IgnorePixelScaling="True"
+                                                       EnableTouchEvents="True"
+                                                       Touch="OnPostProcessingCanvasTouch"
                                                        HorizontalOptions="Fill"
                                                        VerticalOptions="Fill" />
 
@@ -240,9 +242,9 @@
                                 <VerticalStackLayout Spacing="8">
                                     <Label Text="Method Parameters" Style="{StaticResource HeaderLabel}" Margin="0,0,0,6"/>
                                     <Label Text="{Binding SelectedPostProcessor.Name}" TextColor="{StaticResource TextPrimary}" FontAttributes="Bold" FontSize="14"/>
-                                    <CollectionView ItemsSource="{Binding ParameterOptions}" IsVisible="{Binding HasParameterOptions}" SelectionMode="None" ItemsLayout="VerticalList" HeightRequest="190">
+                                        <CollectionView ItemsSource="{Binding ParameterOptions}" IsVisible="{Binding HasParameterOptions}" SelectionMode="None" ItemsLayout="VerticalList" HeightRequest="190">
                                         <CollectionView.ItemTemplate>
-                                            <DataTemplate x:DataType="post:IPostProcessing">
+                                            <DataTemplate x:DataType="viewmodels:PostProcessingParameterOption">
                                                 <VerticalStackLayout Spacing="6">
                                                     <Label Text="{Binding Name}" TextColor="{StaticResource TextSecondary}" FontAttributes="Bold" FontSize="12"/>
                                                     <Label Text="{Binding Description}" TextColor="{StaticResource TextMuted}" FontSize="11" LineBreakMode="WordWrap"/>
@@ -291,6 +293,44 @@
                                         </CollectionView.EmptyView>
                                     </CollectionView>
                                     <Button Text="Export" Command="{Binding ExportDataCommand}" Style="{StaticResource ToolbarBtn}"/>
+                                </VerticalStackLayout>
+                            </Border>
+
+                            <Border BackgroundColor="#0b0e12" Stroke="{StaticResource BorderColor}" StrokeShape="RoundRectangle 8" Padding="12">
+                                <VerticalStackLayout Spacing="8">
+                                    <Label Text="Comparison to Original" Style="{StaticResource HeaderLabel}" Margin="0,0,0,6"/>
+                                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="8">
+                                        <Border Style="{StaticResource StatCard}">
+                                            <VerticalStackLayout>
+                                                <Label Text="Pearson" TextColor="{StaticResource TextSecondary}" FontSize="10"/>
+                                                <Label Text="{Binding MetricCorrelation}" TextColor="{StaticResource TextPrimary}" FontAttributes="Bold" FontSize="14"/>
+                                            </VerticalStackLayout>
+                                        </Border>
+                                        <Border Grid.Column="1" Style="{StaticResource StatCard}">
+                                            <VerticalStackLayout>
+                                                <Label Text="MAE" TextColor="{StaticResource TextSecondary}" FontSize="10"/>
+                                                <Label Text="{Binding MetricMae}" TextColor="{StaticResource TextPrimary}" FontAttributes="Bold" FontSize="14"/>
+                                            </VerticalStackLayout>
+                                        </Border>
+                                        <Border Grid.Row="1" Style="{StaticResource StatCard}">
+                                            <VerticalStackLayout>
+                                                <Label Text="RMSE" TextColor="{StaticResource TextSecondary}" FontSize="10"/>
+                                                <Label Text="{Binding MetricRmse}" TextColor="{StaticResource TextPrimary}" FontAttributes="Bold" FontSize="14"/>
+                                            </VerticalStackLayout>
+                                        </Border>
+                                        <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource StatCard}">
+                                            <VerticalStackLayout>
+                                                <Label Text="SSIM" TextColor="{StaticResource TextSecondary}" FontSize="10"/>
+                                                <Label Text="{Binding MetricSsim}" TextColor="{StaticResource TextPrimary}" FontAttributes="Bold" FontSize="14"/>
+                                            </VerticalStackLayout>
+                                        </Border>
+                                        <Border Grid.Row="2" Grid.ColumnSpan="2" Style="{StaticResource StatCard}">
+                                            <VerticalStackLayout>
+                                                <Label Text="PSNR" TextColor="{StaticResource TextSecondary}" FontSize="10"/>
+                                                <Label Text="{Binding MetricPsnr}" TextColor="{StaticResource TextPrimary}" FontAttributes="Bold" FontSize="14"/>
+                                            </VerticalStackLayout>
+                                        </Border>
+                                    </Grid>
                                 </VerticalStackLayout>
                             </Border>
                         </VerticalStackLayout>
