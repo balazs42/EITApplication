@@ -1,6 +1,7 @@
 ﻿using Unity;
 using Unity.Injection;
 using Unity.Resolution;
+using Utility.Classes.Spotify;
 
 namespace Utility.Composition
 {
@@ -11,6 +12,9 @@ namespace Utility.Composition
         public static IUnityContainer InitializeContainer()
         {
             unityContainer = new UnityContainer();
+
+            unityContainer.RegisterSingleton<ISpotifyTokenStore, SpotifyTokenStore>(); 
+
             return unityContainer;
         }
 

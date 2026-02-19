@@ -1,0 +1,126 @@
+﻿<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="ElectricalImpedanceTomography.Views.SpotifyMiniPlayerPage"
+             BackgroundColor="#121212"
+             Title="Spotify Mini Player"
+             MinimumWidthRequest="300"
+             MinimumHeightRequest="300">
+
+    <!-- Resources for Spotify Brand Styling -->
+    <ContentPage.Resources>
+        <Color x:Key="SpotifyGreen">#1DB954</Color>
+        <Color x:Key="SpotifyBlack">#121212</Color>
+        <Color x:Key="SpotifyGrey">#282828</Color>
+        <Color x:Key="LightGrey">#B3B3B3</Color>
+
+        <Style TargetType="Button">
+            <Setter Property="BackgroundColor" Value="Transparent" />
+            <Setter Property="TextColor" Value="White" />
+            <Setter Property="FontSize" Value="18" />
+            <Setter Property="HeightRequest" Value="40" />
+            <Setter Property="WidthRequest" Value="40" />
+            <Setter Property="Padding" Value="0" />
+        </Style>
+
+        <Style x:Key="PlayButton" TargetType="Button">
+            <Setter Property="BackgroundColor" Value="White" />
+            <Setter Property="TextColor" Value="Black" />
+            <Setter Property="FontSize" Value="24" />
+            <Setter Property="WidthRequest" Value="50" />
+            <Setter Property="HeightRequest" Value="50" />
+            <Setter Property="CornerRadius" Value="25" />
+        </Style>
+
+        <Style x:Key="ActionBtn" TargetType="Button">
+            <Setter Property="BackgroundColor" Value="{StaticResource SpotifyGrey}" />
+            <Setter Property="TextColor" Value="White" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="HeightRequest" Value="28" />
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="Padding" Value="10,0" />
+        </Style>
+    </ContentPage.Resources>
+
+    <Grid ColumnDefinitions="*, Auto" Padding="15" ColumnSpacing="15">
+
+        <!-- Main Content Area -->
+        <VerticalStackLayout Grid.Column="0" Spacing="20" VerticalOptions="Center">
+
+            <!-- Centered Track Info -->
+            <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
+                <Label Text="{Binding Track}" 
+                   FontSize="18" 
+                   FontAttributes="Bold" 
+                   TextColor="White"
+                   HorizontalTextAlignment="Center"
+                   LineBreakMode="TailTruncation" />
+                <Label Text="{Binding Artist}" 
+                   FontSize="14" 
+                   TextColor="{StaticResource LightGrey}"
+                   HorizontalTextAlignment="Center"
+                   LineBreakMode="TailTruncation" />
+            </VerticalStackLayout>
+
+            <!-- Playback Controls -->
+            <VerticalStackLayout Spacing="10">
+                <HorizontalStackLayout Spacing="20" HorizontalOptions="Center" VerticalOptions="Center">
+                    <Label Text="⇄" FontSize="20" TextColor="{StaticResource SpotifyGreen}" VerticalTextAlignment="Center" />
+
+                    <!-- Using Unicode symbols that mimic Spotify's Thin Icons -->
+                    <Button Text="⇤" Command="{Binding PrevCommand}" BorderColor="Transparent"/>
+
+                    <Button Text="▶" 
+                            Command="{Binding PlayPauseCommand}" 
+                            BorderColor="Transparent"/>
+
+                    <Button Text="⇥" Command="{Binding NextCommand}" BorderColor="Transparent"/>
+
+                    <Label Text="↻" FontSize="20" TextColor="{StaticResource SpotifyGreen}" VerticalTextAlignment="Center" />
+                </HorizontalStackLayout>
+
+                <!-- Progress Bar -->
+                <Grid ColumnDefinitions="Auto, *, Auto" ColumnSpacing="10">
+                    <Label Text="2:26" FontSize="10" TextColor="{StaticResource LightGrey}" VerticalTextAlignment="Center" />
+                    <ProgressBar Grid.Column="1" Progress="0.8" ProgressColor="White" BackgroundColor="#4d4d4d" HeightRequest="4" VerticalOptions="Center" />
+                    <Label Grid.Column="2" Text="2:48" FontSize="10" TextColor="{StaticResource LightGrey}" VerticalTextAlignment="Center" />
+                </Grid>
+            </VerticalStackLayout>
+
+            <!-- Footer Connectivity -->
+            <HorizontalStackLayout Spacing="10" HorizontalOptions="Center">
+                <Button Text="{Binding ConnectText}" 
+                        Command="{Binding ConnectCommand}" 
+                        WidthRequest="200"
+                    Style="{StaticResource ActionBtn}" />
+                <Label Text="{Binding Status}" 
+                       VerticalTextAlignment="Center" 
+                       TextColor="{StaticResource LightGrey}" 
+                       FontSize="11" />
+            </HorizontalStackLayout>
+        </VerticalStackLayout>
+
+        <!-- Right Side: Vertical Volume Bar -->
+        <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="35" WidthRequest="50">
+            <Label Text="{Binding VolumePercent}" 
+                   TextColor="White" 
+                   FontSize="10" 
+                   HorizontalTextAlignment="Center" />
+            <Slider x:Name="VolSlider"
+                    Margin="20"
+                    IsEnabled="True"
+                    Rotation="-90"                 
+                    WidthRequest="150"
+                    Minimum="0" Maximum="100" 
+                    Value="{Binding VolumePercent, Mode=TwoWay}"
+                    ThumbColor="White"
+                    MinimumTrackColor="{StaticResource SpotifyGreen}"
+                    MaximumTrackColor="{StaticResource SpotifyGrey}" />
+            <Label Text="Vol" 
+                   TextColor="{StaticResource LightGrey}"
+                   FontSize="10" 
+                   HorizontalTextAlignment="Center" />
+        </VerticalStackLayout>
+    </Grid>
+
+
+</ContentPage>

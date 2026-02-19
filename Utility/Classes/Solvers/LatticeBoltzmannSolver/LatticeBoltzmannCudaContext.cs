@@ -2,6 +2,8 @@ using ILGPU;
 using ILGPU.Runtime;
 using ILGPU.Runtime.Cuda;
 
+using Accelerator = ILGPU.Runtime.Accelerator;
+
 namespace Utility.Classes.Solvers.LatticeBoltzmannSolver
 {
     /// <summary>

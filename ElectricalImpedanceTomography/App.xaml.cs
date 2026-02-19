@@ -33,5 +33,40 @@ namespace ElectricalImpedanceTomography
         {
             return new Window(new AppShell());
         }
+
+//        protected override Window CreateWindow(IActivationState activationState)
+//        {
+//            var mainPage = Utility.Composition.Container.ResolveObject<MainPage>();
+//            var window = new Window(mainPage)
+//            {
+//                Title = "EITApplication"
+//            };
+
+//#if WINDOWS
+//            var spotifyWindowSvc = Utility.Composition.Container.ResolveObject<SpotifyMiniPlayerWindowService>();
+
+//            var openSpotifyBtn = new ImageButton
+//            {
+//                Source = "spotify_icon.png",
+//                BackgroundColor = Colors.Transparent,
+//                HeightRequest = 28,
+//                WidthRequest = 28,
+//                Padding = 6,
+//                Command = new Command(() => spotifyWindowSvc.ShowOrActivate())
+//            };
+
+//            window.TitleBar = new TitleBar
+//            {
+//                Title = "EITApplication",
+//                HeightRequest = 32,
+//                TrailingContent = openSpotifyBtn
+//            };
+
+//            // Keeps the button clickable while preserving title-bar dragging elsewhere
+//            window.TitleBar.PassthroughElements.Add(openSpotifyBtn);
+//#endif
+
+//            return window;
+//        }
     }
 }
