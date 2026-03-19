@@ -152,6 +152,19 @@ namespace ElectricalImpedanceTomography.ViewModels
         /// <summary>True when a block configuration with multiple blocks per category is in effect.</summary>
         private bool ShouldUseBlockConfiguration => UseBlockConfiguration && Workspace.GetCompleteReconstructionConfiguration() != null;
 
+        private IReconstructionService ActiveReconstructionService
+            => ShouldUseBlockConfiguration ? _blockReconstructionService : _reconstructionService;
+
+        public bool IsActiveReconstructionRunning => ActiveReconstructionService.IsRunning;
+
+        public bool IsActiveReconstructionPaused => ActiveReconstructionService.IsPaused;
+
+        public bool HasReconstructionProgress
+            => IterationCount > 0
+               || Workspace.GetReconstructionFrames().Count > 0
+               || Workspace.GetReconstructionResults().Count > 0
+               || ActiveReconstructionService.IsInitialized;
+
         /// <summary>
         /// Propagates the "use block configuration" toggle to the workspace and resets picker state.
         /// </summary>
@@ -618,7 +631,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
                 if (!_blockInitialized || !isSameBlockRun)
                 {
-                    _blockReconstructionService.Initialize();
+                    _blockReconstructionService.InitializeReconstruction(femMesh, ReconstructionParameters, true);
                     _blockInitialized = true;
                     _initializedDiscretization = femMesh;
                     IterationCount = 0;
@@ -1321,10 +1334,12 @@ namespace ElectricalImpedanceTomography.ViewModels
 
                 if (force || !_blockInitialized)
                 {
-                    _blockReconstructionService.Initialize();
+                    var blockMesh = Workspace.GetDiscretization()
+                                   ?? throw new NullReferenceException("Mesh was null during block reconstruction initialization, check calling code!");
+                    _blockReconstructionService.InitializeReconstruction(blockMesh, ReconstructionParameters, true);
                     _blockInitialized = true;
                     IterationCount = 0;
-                    _initializedDiscretization = Workspace.GetDiscretization();
+                    _initializedDiscretization = blockMesh;
                 }
 
                 return;
@@ -1767,13 +1782,14 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             if (ShouldUseBlockConfiguration)
             {
-                _ = _blockReconstructionService.RunFullReconstructionCycleAsync(StepSize,
-                                                                                 RegularizationWeight,
-                                                                                 ExcitationCurrentAmplitude);
+                _blockReconstructionService.Run(MaxIterationCount,
+                                                StepSize,
+                                                RegularizationWeight,
+                                                ExcitationCurrentAmplitude);
                 return;
             }
 
-            _reconstructionService.StartBackgroundReconstruction(MaxIterationCount, StepSize, RegularizationWeight, ExcitationCurrentAmplitude);
+            _reconstructionService.Run(MaxIterationCount, StepSize, RegularizationWeight, ExcitationCurrentAmplitude);
         }
 
         /// <summary>Pauses the background run (if any) and freezes metrics updates.</summary>
@@ -1781,11 +1797,12 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             if (ShouldUseBlockConfiguration)
             {
+                _blockReconstructionService.Pause();
                 PauseReconstructionMetrics();
                 return;
             }
 
-            _reconstructionService.PauseBackgroundReconstruction();
+            _reconstructionService.Pause();
             PauseReconstructionMetrics();
         }
 
@@ -1794,11 +1811,12 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             if (ShouldUseBlockConfiguration)
             {
+                _blockReconstructionService.Resume();
                 BeginReconstructionMetrics();
                 return;
             }
 
-            _reconstructionService.ResumeBackgroundReconstruction();
+            _reconstructionService.Resume();
             BeginReconstructionMetrics();
         }
 
@@ -1810,6 +1828,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             if (ShouldUseBlockConfiguration)
             {
+                _blockReconstructionService.Stop();
                 StopReconstructionMetrics();
                 _blockInitialized = false;
                 _initializedDiscretization = null;
@@ -1817,10 +1836,18 @@ namespace ElectricalImpedanceTomography.ViewModels
                 return;
             }
 
-            _reconstructionService.StopBackgroundReconstruction();
+            _reconstructionService.Stop();
             StopReconstructionMetrics();
             _initializedDiscretization = null;
             _lastRunSignature = null;
+        }
+
+        public void ResetReconstructionToStart()
+        {
+            ActiveReconstructionService.Stop();
+            StopReconstructionMetrics();
+            InitializeReconstruction(true);
+            FlushPendingTrendUpdates();
         }
 
         /// <summary>
@@ -1900,7 +1927,9 @@ namespace ElectricalImpedanceTomography.ViewModels
                 return;
             }
 
-            await _reconstructionService.StepReconstructionAsync();
+            await _reconstructionService.StepReconstructionAsync(StepSize,
+                                                                 RegularizationWeight,
+                                                                 ExcitationCurrentAmplitude);
             StopElapsedTimer();
             FlushPendingTrendUpdates();
         }

@@ -27,27 +27,20 @@ namespace ServiceLayer
     /// - Surface progress through <see cref="ReconstructionUpdated"/> and <see cref="ReconstructionFrameUpdated"/>
     ///
     /// Design:
-    /// - This service holds only orchestration/state; all numerics are performed by <see cref="IReconstructionPersistence"/>.
+    /// - This service holds only orchestration/state; all numerics are performed by <see cref="IAdjointReconstructionPersistence"/>.
     /// - The service is solver-agnostic, switching behavior based on <see cref="IDiscretization"/> runtime type.
     /// - Measurement source (real vs. simulated), measurement representation (amplitude vs. differences),
     ///   and whether driven electrodes are included (active vs. non-active) are inferred and mirrored to the workspace.
     /// </summary>
-    public class ReconstructionService : IReconstructionService
+    public class AdjointReconstructionService : ReconstructionServiceBase
     {
-        private readonly IReconstructionPersistence _reconstructionPersistence;
+        private readonly IAdjointReconstructionPersistence _reconstructionPersistence;
         private readonly IMeasurementService _measurementService;
         private readonly ILogger _logger;
 
         // Background reconstruction state
         private IDiscretization? _discretization;                           // Active discretization (FEM or LBM) used by the solver
-        private CancellationTokenSource? _cts;                              // Cancellation for background loop
-        private Task? _backgroundTask;                                      // Background reconstruction task
-        private bool _isPaused;                                             // Flag to pause the background loop without tearing it down
-        private int _maxIterationCount;                                     // Target iteration count for background loop
         private int _currentIteration;                                      // Current iteration index in background reconstruction
-        private double _stepSize;                                           // Optimizer step size for inverse steps
-        private double _regularizationWeight;                               // Regularization weight sent to the persistence layer
-        private double _excitationAmplitude = 10.0;                         // Current amplitude applied to the excitation electrode
         private int _simMeasurementIndex;                                   // Index of the current frame within a cycle
         private List<ReconstructionFrame> _currentCycleFrames = [];         // Frames accumulated within the active cycle
         private ConductivityDistribution? _originalSigma;                   // Ground-truth conductivities (for comparison)
@@ -58,26 +51,16 @@ namespace ServiceLayer
         private bool _useOmpParallelization;                                // Exposed from parameters to persistence (not used directly here)
         private bool _usePotentialDifferences;                              // Whether we use V(i) or V(i) - V(i+1) like differences
 
-        /// <summary>
-        /// Raised when a full reconstruction result is available (i.e., at the end of a cycle or batch).
-        /// </summary>
-        public event EventHandler<ReconstructionResult>? ReconstructionUpdated;
-        /// <summary>
-        /// Raised for each inverse step, providing the intermediate frame.
-        /// </summary>
-        public event EventHandler<ReconstructionFrame>? ReconstructionFrameUpdated;
-
-        /// <inheritdoc />
-        public bool VisualizeIterations { get; set; } = true;
+        public override bool IsInitialized => _reconstructionPersistence.IsInitialized && _discretization != null;
 
         /// <summary>
         /// Construct service with a persistence backend and logger.
         /// </summary>
         /// <param name="reconstructionPersistence">Persistence layer that executes forward/inverse computations.</param>
         /// <param name="logger">Logger used for diagnostics.</param>
-        public ReconstructionService(IReconstructionPersistence reconstructionPersistence,
-                                     IMeasurementService measurementService,
-                                     ILogger logger)
+        public AdjointReconstructionService(IAdjointReconstructionPersistence reconstructionPersistence,
+                                            IMeasurementService measurementService,
+                                            ILogger logger)
         {
             _reconstructionPersistence = reconstructionPersistence;
             _measurementService = measurementService;
@@ -95,7 +78,7 @@ namespace ServiceLayer
         /// <param name="discretization">Target discretization (FEM/LBM) to reconstruct on.</param>
         /// <param name="parameters">Reconstruction parameters selected by the user.</param>
         /// <param name="reinit">Whether to reinitialize persistence internal caches/state.</param>
-        public void InitializeReconstruction(IDiscretization discretization, ReconstructionRuntimeContext parameters, bool reinit)
+        public override void InitializeReconstruction(IDiscretization discretization, ReconstructionRuntimeContext parameters, bool reinit)
         {
             try
             {
@@ -112,6 +95,8 @@ namespace ServiceLayer
                 // 3) Clear workspace history so the UI reflects the new session.
                 Workspace.ClearReconstructionFrames();
                 Workspace.SetReconstructionResults(new List<ReconstructionResult>());
+                ClearPublishedResults();
+                _reconstructionPersistence.ResetResults();
 
                 // 4) Prepare conductivity references:
                 //    - _originalSigma: ground-truth for comparison/metrics (kept immutable)
@@ -178,7 +163,7 @@ namespace ServiceLayer
                 _measurementService.Initialize(measurementDiscretization,
                                                parameters,
                                                _drivePattern,
-                                               () => _reconstructionPersistence.GetDifferentialEquationSolver(),
+                                               () => _reconstructionPersistence.DifferentialEquationSolver,
                                                shareMeasurementGrid ? _originalSigma : null);
             }
             catch(Exception ex)
@@ -287,22 +272,20 @@ namespace ServiceLayer
         ///
         /// Returns null when no active discretization is available.
         /// </summary>
-        private ReconstructionFrame? PerformInverseStep(bool surfaceResults = true, Action<ReconstructionResult>? onResultProduced = null)
+        private ReconstructionFrame? PerformInverseStep(double stepSize,
+                                                        double regularizationWeight,
+                                                        double excitationAmplitude,
+                                                        Action<ReconstructionResult>? onResultProduced = null)
         {
             // Ensure measurement source (simulated/real) matches the workspace selection.
             _measurementService.SyncMeasurementSource();
 
-            // Prevent unbounded accumulation of reconstruction frames in the workspace. At the start
-            // of each drive-pattern cycle, clear the previous cycle's frames so long-running sessions
-            // (e.g., fine FEM meshes with W2 and no regularization) do not keep growing memory usage
-            // and slowing down over time.
-            if (_simMeasurementIndex % Math.Max(1, _measurementService.FramesPerCycle) == 0)
-                if (VisualizeIterations)
-                    Workspace.ClearReconstructionFrames();
+            // Keep all frames across all iterations so the reconstruction page can play back
+            // the full run, not only the most recent drive-pattern cycle.
 
             if (_discretization is FEMMesh femMesh)
             {
-                _measurementService.EnsureMeasurements(_excitationAmplitude);
+                _measurementService.EnsureMeasurements(excitationAmplitude);
 
                 // Select the measurement frame corresponding to the current
                 // excitation pair.  Electrode roles must be reconfigured for
@@ -316,7 +299,7 @@ namespace ServiceLayer
                 var measurement = _measurementService.GetMeasurementForStep(stepIndex);
 
                 // Apply electrode roles for this step and build boundary condition
-                double effectiveAmplitude = _excitationAmplitude; // Use configured amplitude
+                double effectiveAmplitude = excitationAmplitude; // Use configured amplitude
                 ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, stepIndex, null);
                 var bc = new FEMBoundaryCondition(electrodes);
 
@@ -324,12 +307,12 @@ namespace ServiceLayer
                 var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodeProjection, stepIndex);
 
                 // Delegate one optimization step to the persistence layer.
-                var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, _stepSize, _regularizationWeight);
+                var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, stepSize, regularizationWeight);
 
                 // Advance frame counters and notify observers.
                 _simMeasurementIndex++;
                 _currentCycleFrames.Add(frame);
-                PublishFrame(frame);
+                PublishFrameToWorkspace(frame);
 
                 // When the drive-pattern cycle ends, publish a reconstruction result and advance the iteration.
                 if (_simMeasurementIndex % Math.Max(1, _measurementService.FramesPerCycle) == 0)
@@ -339,14 +322,8 @@ namespace ServiceLayer
                                                           _initialSigma!,
                                                           _discretization!.GetConductivityDistribution(),
                                                           [.. _currentCycleFrames]);
-                    if (surfaceResults)
-                    {
-                        PublishResult(result);
-                    }
-                    else
-                    {
-                        onResultProduced?.Invoke(result);
-                    }
+                    PublishResultToWorkspace(result);
+                    onResultProduced?.Invoke(result);
 
                     // Use the freshly reconstructed field as the next cycle's initial state.
                     _initialSigma = result.ReconstructedConductivityDistribution;
@@ -360,7 +337,7 @@ namespace ServiceLayer
             }
             else if (_discretization is LBMGrid lbmGrid)
             {
-                _measurementService.EnsureMeasurements(_excitationAmplitude);
+                _measurementService.EnsureMeasurements(excitationAmplitude);
 
                 // Determine the current drive-pattern step and attach the boundary condition.
                 var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
@@ -368,18 +345,18 @@ namespace ServiceLayer
                 int driveElectrodeCount = GetDriveElectrodeCount(electrodeProjection);
                 int cycleLength = Math.Max(1, _drivePatternStrategy.GetCycleLength(driveElectrodeCount));
                 int stepIndex = _simMeasurementIndex % cycleLength;
-                double effectiveAmplitude = _excitationAmplitude;
+                double effectiveAmplitude = excitationAmplitude;
                 var measurement = _measurementService.GetMeasurementForStep(stepIndex);
 
                 ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, stepIndex, null);
 
                 var bc = new LBMBoundaryCondition(electrodes);
                 var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodeProjection, stepIndex);
-                var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, _stepSize, _regularizationWeight);
+                var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, stepSize, regularizationWeight);
 
                 _simMeasurementIndex++;
                 _currentCycleFrames.Add(frame);
-                PublishFrame(frame);
+                PublishFrameToWorkspace(frame);
 
                 if (_simMeasurementIndex % Math.Max(1, _measurementService.FramesPerCycle) == 0)
                 {
@@ -388,14 +365,8 @@ namespace ServiceLayer
                                                           _initialSigma!, 
                                                           _discretization!.GetConductivityDistribution(),
                                                           [.. _currentCycleFrames]);
-                    if (surfaceResults)
-                    {
-                        PublishResult(result);
-                    }
-                    else
-                    {
-                        onResultProduced?.Invoke(result);
-                    }
+                    PublishResultToWorkspace(result);
+                    onResultProduced?.Invoke(result);
                     _currentCycleFrames.Clear();
                     _currentIteration++;
                 }
@@ -410,75 +381,36 @@ namespace ServiceLayer
         /// Background reconstruction loop honoring pause/cancel requests and iteration limits.
         /// Performs one inverse step per iteration and yields to keep the UI responsive.
         /// </summary>
-        private async Task RunLoop(CancellationToken token)
+        protected override async Task RunCoreAsync(int maxIterationCount,
+                                                   double stepSize,
+                                                   double regularizationWeight,
+                                                   double excitationAmplitude,
+                                                   CancellationToken cancellationToken)
         {
-            ReconstructionResult? lastBufferedResult = null;
-
-            while (!token.IsCancellationRequested && _currentIteration < _maxIterationCount)
-            {
-                if (_isPaused)
-                {
-                    await Task.Delay(100, token); // Sleep briefly while paused to avoid busy-wait
-                    continue;
-                }
-
-                PerformInverseStep(VisualizeIterations, result => lastBufferedResult = result);
-                if (VisualizeIterations)
-                    await Task.Yield(); // Allow UI message pumping between steps when live visuals are enabled
-            }
-
-            if (!VisualizeIterations && lastBufferedResult != null)
-                PublishResult(lastBufferedResult);
-        }
-
-        /// <summary>
-        /// Starts a background reconstruction that iterates up to <paramref name="maxIterationCount"/>, 
-        /// using the provided optimizer/regularization settings and excitation amplitude.
-        /// </summary>
-        public void StartBackgroundReconstruction(int maxIterationCount, double stepSize, double regularizationWeight, double excitationAmplitude)
-        {
-            // Capture run targets and settings for the loop.
-            _maxIterationCount = maxIterationCount;
-            _stepSize = stepSize;
-            _regularizationWeight = regularizationWeight;
-            _excitationAmplitude = excitationAmplitude;
             _currentIteration = 0;
-            _isPaused = false;
 
-            // Start the loop on a background thread with cancellation support.
-            _cts = new CancellationTokenSource();
-            _backgroundTask = Task.Run(() => RunLoop(_cts.Token));
+            while (!cancellationToken.IsCancellationRequested && _currentIteration < maxIterationCount)
+            {
+                await WaitWhilePausedAsync(cancellationToken);
+                if (cancellationToken.IsCancellationRequested)
+                    break;
+
+                PerformInverseStep(stepSize, regularizationWeight, excitationAmplitude);
+                if (VisualizeIterations)
+                    await Task.Yield();
+            }
         }
 
-        /// <summary>
-        /// Pauses the background reconstruction loop.
-        /// </summary>
-        public void PauseBackgroundReconstruction() => _isPaused = true;
-
-        /// <summary>
-        /// Resumes the background reconstruction loop.
-        /// </summary>
-        public void ResumeBackgroundReconstruction() => _isPaused = false;
-
-        /// <summary>
-        /// Stops the background reconstruction loop and resets its task/cancellation state.
-        /// Safe to call multiple times.
-        /// </summary>
-        public void StopBackgroundReconstruction()
+        protected override async Task<ReconstructionResult?> StepCoreAsync(double stepSize,
+                                                                           double regularizationWeight,
+                                                                           double excitationAmplitude)
         {
-            _cts?.Cancel();
-            _backgroundTask = null;
-            _isPaused = false;
-        }
-
-        /// <summary>
-        /// Performs a single reconstruction step on a thread-pool thread and returns the computed frame.
-        /// Useful for UI commands that want a one-off iteration without background state.
-        /// </summary>
-        public async Task<ReconstructionFrame?> StepReconstructionAsync()
-        {
-            var frame = await Task.Run(() => PerformInverseStep(VisualizeIterations));
-            return frame;
+            return await Task.Run(() =>
+            {
+                ReconstructionResult? result = null;
+                PerformInverseStep(stepSize, regularizationWeight, excitationAmplitude, produced => result = produced);
+                return result;
+            });
         }
 
         /// <summary>
@@ -493,14 +425,10 @@ namespace ServiceLayer
         /// <param name="regularizationWeight">Regularization weight.</param>
         /// <param name="excitationAmplitude">Excitation current amplitude.</param>
         /// <returns>Reconstruction result for the completed cycle, or null if no active discretization.</returns>
-        public async Task<ReconstructionResult?> RunFullReconstructionCycleAsync(double stepSize,
-                                                                               double regularizationWeight,
-                                                                               double excitationAmplitude)
+        public override async Task<ReconstructionResult?> RunFullReconstructionCycleAsync(double stepSize,
+                                                                                           double regularizationWeight,
+                                                                                           double excitationAmplitude)
         {
-            // Record settings for the cycle and reset frame accumulator.
-            _stepSize = stepSize;
-            _regularizationWeight = regularizationWeight;
-            _excitationAmplitude = excitationAmplitude;
             _currentCycleFrames.Clear();
 
             return await Task.Run(() =>
@@ -510,7 +438,7 @@ namespace ServiceLayer
 
                 if (_discretization is FEMMesh femMesh)
                 {
-                    _measurementService.EnsureMeasurements(_excitationAmplitude);
+                    _measurementService.EnsureMeasurements(excitationAmplitude);
 
                     var electrodes = femMesh.GetElectrodes().Cast<FEMElectrode>().ToList();
                     var electrodeProjection = electrodes.Cast<Electrode>().ToList();
@@ -519,7 +447,7 @@ namespace ServiceLayer
                     var measurements = _measurementService.GetAllMeasurements();
                     for (int i = 0; i < measurements.Count; i++)
                     {
-                        double effectiveAmplitude = _excitationAmplitude;
+                        double effectiveAmplitude = excitationAmplitude;
                         ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, i, null);
 
                         var bc = new FEMBoundaryCondition(electrodes);
@@ -527,11 +455,11 @@ namespace ServiceLayer
                         // Convert the measurement snapshot to the solver layout for the current electrode roles.
                         var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodeProjection, i);
 
-                        var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, _stepSize, _regularizationWeight);
+                        var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, stepSize, regularizationWeight);
 
                         // Persist frame for UI and later aggregation/inspection.
                         _currentCycleFrames.Add(frame);
-                        PublishFrame(frame);
+                        PublishFrameToWorkspace(frame);
                     }
 
                     // Accumulate gradients across the cycle and apply a single update step to conductivities.
@@ -561,31 +489,30 @@ namespace ServiceLayer
                                                           prevSigma,
                                                           newSigma,
                                                           [.. _currentCycleFrames]);
-                    Workspace.AddReconstructionResultToWorkspace(result);
-                    ReconstructionUpdated?.Invoke(this, result);
+                    PublishResultToWorkspace(result);
                     _currentCycleFrames.Clear();
                     _currentIteration++;
                     return result;
                 }
                 else if (_discretization is LBMGrid lbmGrid)
                 {
-                    _measurementService.EnsureMeasurements(_excitationAmplitude);
+                    _measurementService.EnsureMeasurements(excitationAmplitude);
 
                     var measurements = _measurementService.GetAllMeasurements();
                     var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
                     var electrodeProjection = electrodes.Cast<Electrode>().ToList();
                     for (int i = 0; i < measurements.Count; i++)
                     {
-                        double effectiveAmplitude = _excitationAmplitude;
+                        double effectiveAmplitude = excitationAmplitude;
                         ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, i, null);
                         var bc = new LBMBoundaryCondition(electrodes);
 
                         var measurement = measurements[i];
                         var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodeProjection, i);
-                        var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, _stepSize, _regularizationWeight);
+                        var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, stepSize, regularizationWeight);
 
                         _currentCycleFrames.Add(frame);
-                        PublishFrame(frame);
+                        PublishFrameToWorkspace(frame);
 
                         // Some LBM workflows advance excitation markers on the grid for visualization.
                         lbmGrid.ShiftExcitationElectrodes(_drivePattern, _drivePatternSkip);
@@ -611,7 +538,7 @@ namespace ServiceLayer
                                                           prevSigma,
                                                           newSigma,
                                                           [.. _currentCycleFrames]);
-                    PublishResult(result);
+                    PublishResultToWorkspace(result);
                     _currentCycleFrames.Clear();
                     return result;
                 }
@@ -624,23 +551,23 @@ namespace ServiceLayer
         /// Adds a reconstruction frame to the workspace and optionally notifies listeners for live visualisation.
         /// </summary>
         /// <param name="frame">Frame to surface.</param>
-        private void PublishFrame(ReconstructionFrame frame)
+        private void PublishFrameToWorkspace(ReconstructionFrame frame)
         {
             if (!VisualizeIterations)
                 return;
 
             Workspace.AddReconstructionFrameToWorkspace(frame);
-            ReconstructionFrameUpdated?.Invoke(this, frame);
+            base.PublishFrame(frame);
         }
 
         /// <summary>
         /// Adds a completed reconstruction result to the workspace and notifies subscribers.
         /// </summary>
         /// <param name="result">Result to surface.</param>
-        private void PublishResult(ReconstructionResult result)
+        private void PublishResultToWorkspace(ReconstructionResult result)
         {
             Workspace.AddReconstructionResultToWorkspace(result);
-            ReconstructionUpdated?.Invoke(this, result);
+            base.PublishResult(result);
         }
 
 
@@ -648,7 +575,7 @@ namespace ServiceLayer
         /// <summary>
         /// Persists a reconstruction to storage using the underlying persistence implementation.
         /// </summary>
-        public void SaveReconstruction(List<ReconstructionResult> frames, string name, ReconstructionRuntimeContext parameters)
+        public override void SaveReconstruction(List<ReconstructionResult> frames, string name, ReconstructionRuntimeContext parameters)
         {
             try
             {
@@ -666,7 +593,7 @@ namespace ServiceLayer
         /// <summary>
         /// Enumerates available reconstructions from storage.
         /// </summary>
-        public IEnumerable<ReconstructionInfo> GetReconstructions()
+        public override IEnumerable<ReconstructionInfo> GetReconstructions()
         {
             try
             {
@@ -685,7 +612,7 @@ namespace ServiceLayer
         /// Loads a reconstruction from storage and mirrors frames/results to the workspace for UI access.
         /// Sets the initial conductivity distribution to the one from the first result for consistency.
         /// </summary>
-        public List<ReconstructionResult> LoadReconstruction(string filePath)
+        public override List<ReconstructionResult> LoadReconstruction(string filePath)
         {
             try
             {

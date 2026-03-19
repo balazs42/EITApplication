@@ -9,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Utility.Classes;
 using Utility.Classes.Measurement;
@@ -51,6 +52,7 @@ public partial class ReconstructionPage : ContentPage
 
     private bool _isPaused = false;
     private bool _sliderChanging = false;
+    private CancellationTokenSource? _runMonitorCts;
 
     private static readonly SKColor DistributionCanvasBackgroundColor = SKColor.Parse("#1A2436");
     private static readonly SKColor ChartGradientTopColor = SKColor.Parse("#23354D");
@@ -132,11 +134,7 @@ public partial class ReconstructionPage : ContentPage
         _viewModel.GradientInspectionRequested += OnGradientInspectionRequested;
         _viewModel.GradientSelectionChanged += OnGradientSelectionChanged;
 
-        StepButton.IsEnabled = false;
-        PlayButton.IsVisible = true;
-        PauseButton.IsVisible = false;
-        PlayerBackButton.IsEnabled = false;
-        PlayerForwardButton.IsEnabled = false;
+        SetReconstructionControlsReady();
 
         ConductivityModePicker.SelectedIndex = (int)_conductivityMode;
 
@@ -161,6 +159,7 @@ public partial class ReconstructionPage : ContentPage
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
+        StopRunMonitor();
         this.StopBackgroundPulse();
     }
 
@@ -187,6 +186,114 @@ public partial class ReconstructionPage : ContentPage
     private void UpdateExportButtonState()
         => ExportVideoButton.IsEnabled = Workspace.GetReconstructionFrames().Count > 0;
 
+    private void SetReconstructionControlsRunning()
+    {
+        StepButton.IsEnabled = false;
+        PlayerBackButton.IsEnabled = false;
+        PlayerForwardButton.IsEnabled = false;
+        PlayButton.IsEnabled = false;
+        PlayButton.IsVisible = false;
+        PauseButton.IsVisible = true;
+        PauseButton.IsEnabled = true;
+        _isPaused = false;
+    }
+
+    private void SetReconstructionControlsHalted(bool allowStepNavigation = true)
+    {
+        _isPaused = true;
+        StepButton.IsEnabled = allowStepNavigation;
+        PlayerBackButton.IsEnabled = allowStepNavigation;
+        PlayerForwardButton.IsEnabled = allowStepNavigation;
+        PlayButton.IsEnabled = true;
+        PlayButton.IsVisible = true;
+        PauseButton.IsVisible = false;
+    }
+
+    private void SetReconstructionControlsReady()
+    {
+        _isPaused = false;
+        StepButton.IsEnabled = false;
+        PlayerBackButton.IsEnabled = false;
+        PlayerForwardButton.IsEnabled = false;
+        PlayButton.IsEnabled = true;
+        PlayButton.IsVisible = true;
+        PauseButton.IsVisible = false;
+    }
+
+    private void StartRunMonitor()
+    {
+        _runMonitorCts?.Cancel();
+        _runMonitorCts?.Dispose();
+
+        var cts = new CancellationTokenSource();
+        _runMonitorCts = cts;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                while (!cts.Token.IsCancellationRequested && _viewModel.IsActiveReconstructionRunning)
+                    await Task.Delay(100, cts.Token);
+
+                if (cts.Token.IsCancellationRequested)
+                    return;
+
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    _viewModel.PauseReconstructionMetrics();
+                    SetReconstructionControlsHalted();
+                    UpdateExportButtonState();
+                });
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }, cts.Token);
+    }
+
+    private void StopRunMonitor()
+    {
+        _runMonitorCts?.Cancel();
+        _runMonitorCts?.Dispose();
+        _runMonitorCts = null;
+    }
+
+    private void ResetPlaybackState()
+    {
+        _currentResult = null;
+        _currentFrame = null;
+        _sliderChanging = true;
+        PlaybackSlider.Maximum = 0;
+        PlaybackSlider.Value = 0;
+        _sliderChanging = false;
+        UpdatePlaybackLabel();
+        InvalidateAll();
+        UpdateExportButtonState();
+    }
+
+    private void SyncPlaybackSliderToFrames(bool snapToLatest = false)
+    {
+        var frames = Workspace.GetReconstructionFrames();
+
+        _sliderChanging = true;
+        PlaybackSlider.Maximum = frames.Count > 0 ? frames.Count - 1 : 0;
+
+        if (frames.Count == 0)
+        {
+            PlaybackSlider.Value = 0;
+        }
+        else if (snapToLatest)
+        {
+            PlaybackSlider.Value = PlaybackSlider.Maximum;
+        }
+        else if (PlaybackSlider.Value > PlaybackSlider.Maximum)
+        {
+            PlaybackSlider.Value = PlaybackSlider.Maximum;
+        }
+
+        _sliderChanging = false;
+    }
+
     private void OnInitialDistributionEdited(object? sender, EventArgs e)
     {
         _viewModel.AcknowledgeInitialDistributionUpdate();
@@ -205,51 +312,28 @@ public partial class ReconstructionPage : ContentPage
     #region Simulation control
     private async void OnPlayButtonClicked(object sender, EventArgs e)
     {
-        if(GetDiscretization() == null)
+        if (GetDiscretization() == null)
         {
             await DisplayAlert("No Mesh", "You should create or load a mesh to start reconstrucion!", "Ok");
             return;
         }
 
-        if(!_viewModel.CheckReconstructionMethodAgainstDiscretization())
+        if (!_viewModel.CheckReconstructionMethodAgainstDiscretization())
         {
             await DisplayAlert("Bad Differential Equation Solver", "You should select the same type of DE solver that your discretization is made for!", "Ok");
             return;
         }
 
         await AnimateButtonAsync(sender);
-        StepButton.IsEnabled = false;
-        PlayerBackButton.IsEnabled = false;
-        PlayerForwardButton.IsEnabled = false;
-        PlayButton.IsEnabled = false;
-        PlayButton.IsVisible = false;
-        PauseButton.IsVisible = true;
-        PauseButton.IsEnabled = true;
-        _isPaused = false;
 
-        _viewModel.PrepareForNewReconstruction();
+        if (_viewModel.IsActiveReconstructionRunning && _viewModel.IsActiveReconstructionPaused)
+            _viewModel.ResumeReconstruction();
+        else
+            _viewModel.StartBackgroundReconstruction();
+
+        SetReconstructionControlsRunning();
         UpdateExportButtonState();
-        _viewModel.BeginReconstructionMetrics();
-
-        int iterations = _viewModel.MaxIterationCount;
-        try
-        {
-            for (int i = 0; i < iterations; i++)
-            {
-                await _viewModel.RunFullReconstructionCycleAsync();
-            }
-        }
-        finally
-        {
-            _viewModel.PauseReconstructionMetrics();
-            _isPaused = true;
-            StepButton.IsEnabled = true;
-            PlayerBackButton.IsEnabled = true;
-            PlayerForwardButton.IsEnabled = true;
-            PlayButton.IsEnabled = true;
-            PlayButton.IsVisible = true;
-            PauseButton.IsVisible = false;
-        }
+        StartRunMonitor();
     }
 
     private async void OnEditInitialDistributionClicked(object sender, EventArgs e)
@@ -281,13 +365,12 @@ public partial class ReconstructionPage : ContentPage
     private async void OnPauseButtonClicked(object sender, EventArgs e)
     {
         await AnimateButtonAsync(sender);
+        if (!_viewModel.IsActiveReconstructionRunning)
+            return;
+
+        StopRunMonitor();
         _viewModel.PauseReconstruction();
-        _isPaused = true;
-        StepButton.IsEnabled = true;
-        PlayerBackButton.IsEnabled = true;
-        PlayerForwardButton.IsEnabled = true;
-        PlayButton.IsVisible = true;
-        PauseButton.IsVisible = false;
+        SetReconstructionControlsHalted();
     }
 
     private async void OnStepButtonClicked(object sender, EventArgs e)
@@ -297,20 +380,33 @@ public partial class ReconstructionPage : ContentPage
             return;
 
         await _viewModel.StepReconstructionAsync();
+        _viewModel.PauseReconstructionMetrics();
+        SyncPlaybackSliderToFrames(true);
+        UpdatePlaybackLabel();
+        InvalidateAll();
+        SetReconstructionControlsHalted();
+        UpdateExportButtonState();
     }
 
     private async void OnStopButtonClicked(object sender, EventArgs e)
     {
         await AnimateButtonAsync(sender);
-        _viewModel.StopReconstruction();
-        _isPaused = false;
-        StepButton.IsEnabled = false;
-        PlayerBackButton.IsEnabled = false;
-        PlayerForwardButton.IsEnabled = false;
-        PlayButton.IsEnabled = true;
-        PlayButton.IsVisible = true;
-        PauseButton.IsVisible = false;
-        UpdateExportButtonState();
+
+        if (_viewModel.IsActiveReconstructionRunning && !_viewModel.IsActiveReconstructionPaused)
+        {
+            StopRunMonitor();
+            _viewModel.PauseReconstruction();
+            SetReconstructionControlsHalted();
+            return;
+        }
+
+        if (!_viewModel.HasReconstructionProgress)
+            return;
+
+        StopRunMonitor();
+        _viewModel.ResetReconstructionToStart();
+        SetReconstructionControlsReady();
+        ResetPlaybackState();
     }
     #endregion
 
@@ -343,16 +439,10 @@ public partial class ReconstructionPage : ContentPage
     {
         _currentResult = result;
         _currentFrame = result.Frames.LastOrDefault();
-        var frames = Workspace.GetReconstructionFrames();
         Dispatcher.Dispatch(() =>
         {
-            _sliderChanging = true;
-            if (frames.Count > 0)
-            {
-                PlaybackSlider.Maximum = frames.Count - 1;
-                PlaybackSlider.Value = PlaybackSlider.Maximum;
-            }
-            _sliderChanging = false;
+            bool snapToLatest = _viewModel.IsActiveReconstructionRunning && !_viewModel.IsActiveReconstructionPaused;
+            SyncPlaybackSliderToFrames(snapToLatest);
             InvalidateAll();
             UpdatePlaybackLabel();
             UpdateExportButtonState();
@@ -362,16 +452,10 @@ public partial class ReconstructionPage : ContentPage
     private void OnReconstructionFrameUpdated(object? sender, ReconstructionFrame frame)
     {
         _currentFrame = frame;
-        var frames = Workspace.GetReconstructionFrames();
         Dispatcher.Dispatch(() =>
         {
-            _sliderChanging = true;
-            if (frames.Count > 0)
-            {
-                PlaybackSlider.Maximum = frames.Count - 1;
-                PlaybackSlider.Value = PlaybackSlider.Maximum;
-            }
-            _sliderChanging = false;
+            bool snapToLatest = _viewModel.IsActiveReconstructionRunning && !_viewModel.IsActiveReconstructionPaused;
+            SyncPlaybackSliderToFrames(snapToLatest);
 
             PotentialDistributionCanvas.InvalidateSurface();
             AdjointDistributionCanvas.InvalidateSurface();
@@ -1408,6 +1492,12 @@ public partial class ReconstructionPage : ContentPage
 
     private void UpdatePlaybackLabel()
     {
+        if (Workspace.GetReconstructionFrames().Count == 0)
+        {
+            PlaybackFrameLabel.Text = "0 / 0";
+            return;
+        }
+
         int total = (int)Math.Round(PlaybackSlider.Maximum) + 1;
         int current = (int)Math.Round(PlaybackSlider.Value) + 1;
         PlaybackFrameLabel.Text = $"{current} / {total}";

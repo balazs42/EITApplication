@@ -19,7 +19,7 @@ namespace ServiceLayer
     /// Responsible for preparing measurements, executing the block persistence step and
     /// emitting intermediate frames and aggregated results for UI consumption.
     /// </summary>
-    public class BlockFemReconstructionService : IBlockFemReconstructionService
+    public class BlockFemReconstructionService : ReconstructionServiceBase, IBlockFemReconstructionService
     {
         // Backing persistence that implements the actual FEM reconstruction step logic
         private readonly BlockFemReconstructionPersistence _persistence;
@@ -32,19 +32,13 @@ namespace ServiceLayer
         private ReconstructionRuntimeContext? _runtimeContext;
         // Tracks service-level initialization to avoid redundant setup work
         private bool _initialized;
+        private int _currentIteration;
         // Monotonically increasing index of frames emitted so far (across cycles)
         private int _frameIndex;
         // Buffer to accumulate frames of the current drive-pattern cycle; flushed into a result when the cycle completes
         private readonly List<ReconstructionFrame> _cycleFrames = new();
 
-        /// <inheritdoc />
-        public event EventHandler<ReconstructionResult>? ReconstructionUpdated;
-
-        /// <inheritdoc />
-        public event EventHandler<ReconstructionFrame>? ReconstructionFrameUpdated;
-
-        /// <inheritdoc />
-        public bool VisualizeIterations { get; set; } = true;
+        public override bool IsInitialized => _initialized && _runtimeContext != null;
 
         public BlockFemReconstructionService(BlockFemReconstructionPersistence persistence,
                                              IMeasurementService measurementService,
@@ -56,7 +50,7 @@ namespace ServiceLayer
         }
 
         /// <inheritdoc />
-        public void Initialize()
+        public override void InitializeReconstruction(IDiscretization discretization, ReconstructionRuntimeContext parameters, bool reinit)
         {
             // 1) Pull the full block-based reconstruction configuration from the workspace.
             //    The service depends on this configuration to construct runtime components in the persistence layer.
@@ -65,7 +59,7 @@ namespace ServiceLayer
 
             // 2) Initialize the persistence with the configuration which materializes runtime objects
             //    (mesh, solvers, optimizers, regularizers, etc.) and exposes them via the runtime context.
-            _persistence.Initialize(configuration);
+            _persistence.Initialize(configuration, reinit);
             _runtimeContext = _persistence.RuntimeContext
                               ?? throw new InvalidOperationException("Failed to materialize reconstruction runtime context.");
 
@@ -89,7 +83,7 @@ namespace ServiceLayer
 
             // 7) Prepare the measurement service with the mesh and reconstruction parameters.
             //    We pass an accessor to the DE solver so the measurement pipeline can reuse it if needed.
-            var parameters = Workspace.GetReconstructionParameters();
+            parameters = Workspace.GetReconstructionParameters();
             _measurementService.Initialize(runtimeMesh,
                                            parameters,
                                            parameters.DrivePattern,
@@ -102,15 +96,18 @@ namespace ServiceLayer
             // 9) Reset UI-facing collections and internal buffers for a fresh session.
             Workspace.SetReconstructionFrames(new List<ReconstructionFrame>());
             Workspace.SetReconstructionResults(new List<ReconstructionResult>());
+            ClearPublishedResults();
+            _persistence.ResetResults();
             _cycleFrames.Clear();
             _frameIndex = 0;
+            _currentIteration = 0;
             _initialized = true;
         }
 
         /// <inheritdoc />
-        public Task<ReconstructionResult?> RunFullReconstructionCycleAsync(double stepSize,
-                                                                           double regularizationWeight,
-                                                                           double excitationAmplitude)
+        public override Task<ReconstructionResult?> RunFullReconstructionCycleAsync(double stepSize,
+                                                                                     double regularizationWeight,
+                                                                                     double excitationAmplitude)
             => Task.Run(() =>
             {
                 // Execute exactly one complete drive-pattern cycle of reconstruction.
@@ -126,21 +123,57 @@ namespace ServiceLayer
                 return result;
             });
 
-        /// <inheritdoc />
-        public Task<ReconstructionResult?> StepReconstructionAsync(double stepSize,
-                                                                    double regularizationWeight,
-                                                                    double excitationAmplitude)
+        protected override Task<ReconstructionResult?> StepCoreAsync(double stepSize,
+                                                                     double regularizationWeight,
+                                                                     double excitationAmplitude)
             => Task.Run(() => ExecuteReconstructionStep(stepSize, regularizationWeight, excitationAmplitude));
+
+        protected override async Task RunCoreAsync(int maxIterationCount,
+                                                   double stepSize,
+                                                   double regularizationWeight,
+                                                   double excitationAmplitude,
+                                                   CancellationToken cancellationToken)
+        {
+            _currentIteration = 0;
+
+            while (!cancellationToken.IsCancellationRequested && _currentIteration < maxIterationCount)
+            {
+                await WaitWhilePausedAsync(cancellationToken);
+                if (cancellationToken.IsCancellationRequested)
+                    break;
+
+                ReconstructionResult? result = null;
+                int cycleLength = Math.Max(1, _measurementService.FramesPerCycle);
+                for (int i = 0; i < cycleLength && !cancellationToken.IsCancellationRequested; i++)
+                {
+                    await WaitWhilePausedAsync(cancellationToken);
+                    if (cancellationToken.IsCancellationRequested)
+                        break;
+
+                    result = ExecuteReconstructionStep(stepSize, regularizationWeight, excitationAmplitude);
+                    if (VisualizeIterations)
+                        await Task.Yield();
+                }
+
+                if (result != null)
+                    _currentIteration++;
+            }
+        }
 
         // Processes a single frame worth of reconstruction work. Emits intermediate frames immediately via event
         // and returns a ReconstructionResult only when a full cycle worth of frames have been accumulated.
         private ReconstructionResult? ExecuteReconstructionStep(double stepSize,
-                                                                  double regularizationWeight,
-                                                                  double excitationAmplitude)
+                                                                double regularizationWeight,
+                                                                double excitationAmplitude)
         {
             // Lazy-initialize to honor runtime edits in the UI without forcing a restart.
             if (!_initialized)
-                Initialize();
+            {
+                var discretization = Workspace.GetDiscretization()
+                                    ?? throw new InvalidOperationException("Block reconstruction requires an initialized discretization.");
+                var parameters = Workspace.GetReconstructionParameters();
+                InitializeReconstruction(discretization, parameters, false);
+            }
             if (_runtimeContext == null)
                 throw new InvalidOperationException("Reconstruction runtime context is not available.");
 
@@ -158,7 +191,7 @@ namespace ServiceLayer
                 foreach (var frame in frames)
                 {
                     _cycleFrames.Add(frame);
-                    PublishFrame(frame);
+                    PublishFrameToWorkspace(frame);
                 }
 
                 // 4) Advance the global frame counter by the number of frames produced.
@@ -188,11 +221,9 @@ namespace ServiceLayer
                                                       new List<ReconstructionFrame>(_cycleFrames));
 
                 // Persist for UI consumption and clear the buffer for the next cycle.
-                Workspace.AddReconstructionResultToWorkspace(result);
+                PublishResultToWorkspace(result);
                 _cycleFrames.Clear();
 
-                // Notify listeners (e.g., view models) of the completed cycle.
-                ReconstructionUpdated?.Invoke(this, result);
                 return result;
             }
             catch (Exception ex)
@@ -207,12 +238,16 @@ namespace ServiceLayer
         /// Adds a reconstruction frame to the workspace and optionally notifies listeners for live visualisation.
         /// </summary>
         /// <param name="frame">Frame to surface.</param>
-        private void PublishFrame(ReconstructionFrame frame)
+        private void PublishFrameToWorkspace(ReconstructionFrame frame)
         {
             Workspace.AddReconstructionFrameToWorkspace(frame);
+            base.PublishFrame(frame);
+        }
 
-            if (VisualizeIterations)
-                ReconstructionFrameUpdated?.Invoke(this, frame);
+        private void PublishResultToWorkspace(ReconstructionResult result)
+        {
+            Workspace.AddReconstructionResultToWorkspace(result);
+            base.PublishResult(result);
         }
 
         // Creates an EITMeasurement representing the next frame to process, aligned with electrodes and
@@ -436,5 +471,14 @@ namespace ServiceLayer
 
             return new ConductivityDistribution(merged);
         }
+
+        public override void SaveReconstruction(List<ReconstructionResult> frames, string name, ReconstructionRuntimeContext parameters)
+            => throw new NotSupportedException("Block FEM reconstruction persistence export will be refactored separately.");
+
+        public override IEnumerable<Utility.Exports.ReconstructionInfo> GetReconstructions()
+            => throw new NotSupportedException("Block FEM reconstruction persistence export will be refactored separately.");
+
+        public override List<ReconstructionResult> LoadReconstruction(string filePath)
+            => throw new NotSupportedException("Block FEM reconstruction persistence import will be refactored separately.");
     }
 }

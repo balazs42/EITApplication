@@ -9,7 +9,8 @@ namespace BusinessLayer
             return DataAccessLayer.Settings.ApplyContainerRegistration()
                 .RegisterType<IDAQPersistence, DAQPersistence>()
                 .RegisterType<IMeasurementPersistence, MeasurementPersistence>()
-                .RegisterType<IReconstructionPersistence, ReconstructionPersistence>()
+                .RegisterType<IReconstructionPersistence, AdjointReconstructionPersistence>()
+                .RegisterType<IAdjointReconstructionPersistence, AdjointReconstructionPersistence>()
                 .RegisterType<BlockFemReconstructionPersistence, BlockFemReconstructionPersistence>();
         }
     }

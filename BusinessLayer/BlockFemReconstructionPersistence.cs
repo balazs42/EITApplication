@@ -27,7 +27,7 @@ namespace BusinessLayer
     /// by connecting blocks (error metrics, regularizers, optimizers) with weighted connections.
     /// This class materializes that visual configuration into executable reconstruction logic.
     /// </summary>
-    public class BlockFemReconstructionPersistence
+    public class BlockFemReconstructionPersistence : ReconstructionPersistenceBase
     {
         // ==================== CORE FEM COMPONENTS ====================
         
@@ -162,7 +162,8 @@ namespace BusinessLayer
         /// Exposes the active differential equation solver so services can share it with
         /// measurement preparation pipelines (e.g., simulating reference measurements).
         /// </summary>
-        public IDifferentialEquationSolver? DifferentialEquationSolver => _differentialEquationSolver;
+        public override bool IsInitialized => _initialized;
+        public override IDifferentialEquationSolver? DifferentialEquationSolver => _differentialEquationSolver;
 
         /// <summary>
         /// Initializes the reconstruction persistence from a complete block configuration.
@@ -178,11 +179,29 @@ namespace BusinessLayer
         /// <param name="configuration">Complete block-based configuration from the canvas</param>
         /// <exception cref="ArgumentNullException">If configuration is null</exception>
         /// <exception cref="InvalidOperationException">If materialization fails or required components are missing</exception>
-        public void Initialize(CompleteReconstructionConfiguration configuration)
+        public void Initialize(CompleteReconstructionConfiguration configuration, bool reinit = false)
         {
             // Guard: prevent re-initialization which could corrupt state
-            if(_initialized)
+            if (_initialized && !reinit)
                 return;
+
+            if (reinit)
+            {
+                RuntimeContext = null;
+                _mesh = null;
+                _differentialEquationSolver = null;
+                _numericSolver = null;
+                _regularizers = null;
+                _errorMetrics = null;
+                _numericOptimizers = null;
+                _completeReconstructionConfiguration = null;
+                _connections = null;
+                _regularizerMap = new();
+                _errorMetricMap = new();
+                _optimizerMap = new();
+                _initialized = false;
+                ResetResults();
+            }
 
             _completeReconstructionConfiguration = configuration ?? throw new ArgumentNullException(nameof(configuration));
 

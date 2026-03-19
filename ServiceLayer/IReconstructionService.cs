@@ -7,28 +7,29 @@ namespace ServiceLayer
 {
     public interface IReconstructionService
     {
-        void InitializeReconstruction(IDiscretization discretization, ReconstructionRuntimeContext parameters, bool reinit);
-
-        // --- Background reconstruction control ---
         event EventHandler<ReconstructionResult> ReconstructionUpdated;
         event EventHandler<ReconstructionFrame> ReconstructionFrameUpdated;
 
-        /// <summary>
-        /// Determines whether intermediate reconstruction frames should be surfaced to listeners
-        /// during iterative runs.
-        /// </summary>
         bool VisualizeIterations { get; set; }
-        void StartBackgroundReconstruction(int maxIterationCount, double stepSize, double regularizationWeight, double excitationAmplitude);
-        void PauseBackgroundReconstruction();
-        void ResumeBackgroundReconstruction();
-        void StopBackgroundReconstruction();
-        Task<ReconstructionFrame?> StepReconstructionAsync();
+        bool IsInitialized { get; }
+        bool IsRunning { get; }
+        bool IsPaused { get; }
+        IReadOnlyList<ReconstructionResult> ReconstructionResults { get; }
+
+        void InitializeReconstruction(IDiscretization discretization, ReconstructionRuntimeContext parameters, bool reinit);
+        void Run(int maxIterationCount, double stepSize, double regularizationWeight, double excitationAmplitude);
+        void Pause();
+        void Resume();
+        void Stop();
+
+        Task<ReconstructionResult?> StepReconstructionAsync(double stepSize,
+                                                            double regularizationWeight,
+                                                            double excitationAmplitude);
 
         Task<ReconstructionResult?> RunFullReconstructionCycleAsync(double stepSize,
                                                                     double regularizationWeight,
                                                                     double excitationAmplitude);
 
-        // --- Persistence ---
         void SaveReconstruction(List<ReconstructionResult> frames, string name, ReconstructionRuntimeContext parameters);
         IEnumerable<ReconstructionInfo> GetReconstructions();
         List<ReconstructionResult> LoadReconstruction(string filePath);

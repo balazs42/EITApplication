@@ -29,7 +29,7 @@ namespace BusinessLayer
     /// This class does not own meshes; it operates on the provided discretizations.
     /// It also supports an optional background task mode with Run()/Stop() controlling the lifecycle.
     /// </summary>
-    public class ReconstructionPersistence : IReconstructionPersistence
+    public class AdjointReconstructionPersistence : ReconstructionPersistenceBase, IAdjointReconstructionPersistence
     {
         // --- Persistence / repositories ---
         private readonly IDAQRepository _daqRepository;
@@ -79,9 +79,12 @@ namespace BusinessLayer
         // reconstruction result.
         private bool _stopRequested = false;
 
-        public ReconstructionPersistence(IDAQRepository daqRepository,
-                                         IReconstructionRepository reconstructionRepository,
-                                         IMeasurementPersistence measurementPersistence)
+        public override bool IsInitialized => _initialized;
+        public override IDifferentialEquationSolver? DifferentialEquationSolver => _differentialEquationSolver;
+
+        public AdjointReconstructionPersistence(IDAQRepository daqRepository,
+                                                IReconstructionRepository reconstructionRepository,
+                                                IMeasurementPersistence measurementPersistence)
         {
             _daqRepository = daqRepository;
             _reconstructionRepository = reconstructionRepository;
@@ -120,13 +123,13 @@ namespace BusinessLayer
                 _useCudaParallelization = parameters.UseCudaAcceleration;
 
                 // Inform user about assembly/solver mode
-                if (parameters.DifferentialEquationSolver == DifferentialEquationSolver.FEM)
+                if (parameters.DifferentialEquationSolver is FiniteElementDESolver)
                 {
                     Workspace.AddLogMessage("Reconstruction", _useOmpParallelization
                         ? "Using OMP-accelerated finite element assembly."
                         : "Using standard finite element assembly.");
                 }
-                else if (parameters.DifferentialEquationSolver == DifferentialEquationSolver.LBM)
+                else if (parameters.DifferentialEquationSolver is LatticeBoltzmannDESolver)
                 {
                     Workspace.AddLogMessage("Reconstruction", _useCudaParallelization
                         ? "Using CUDA-accelerated Lattice Boltzmann solver."
