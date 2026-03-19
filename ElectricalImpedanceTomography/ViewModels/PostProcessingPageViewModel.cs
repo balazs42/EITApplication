@@ -114,6 +114,8 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         public FEMMesh? FemMesh => _discretization as FEMMesh;
         public LBMGrid? LbmGrid => _discretization as LBMGrid;
+        public IDiscretization? Discretization => _discretization;
+        public ConductivityDistribution? CurrentDistribution => _currentDistribution;
 
         public IEnumerable<double> ElementConductivities()
         {

@@ -1,5 +1,6 @@
 using CommunityToolkit.Maui.Views;
 using ElectricalImpedanceTomography.Extensions;
+using ElectricalImpedanceTomography.Controls;
 using ElectricalImpedanceTomography.ViewModels;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
@@ -27,6 +28,7 @@ namespace ElectricalImpedanceTomography.Views;
 public partial class ReconstructionPage : ContentPage
 {
     private readonly ReconstructionPageViewModel _viewModel;
+    private readonly DiscretizationCanvasRenderer _renderer = new();
     public event EventHandler<int>? PotentialModeChanged;
 
     private ReconstructionResult? _currentResult;
@@ -57,91 +59,6 @@ public partial class ReconstructionPage : ContentPage
     private static readonly SKColor ChartGridColor = new SKColor(255, 255, 255, 50);
     private static readonly SKColor ChartPrimaryTextColor = new SKColor(198, 212, 245);
     private static readonly SKColor ChartSecondaryTextColor = new SKColor(157, 170, 211);
-
-    private static readonly (double Position, SKColor Color)[] EnhancedDivergingPalette =
-    {
-        (0.0, SKColor.Parse("#2B83BA")),
-        (0.17, SKColor.Parse("#74ADD1")),
-        (0.33, SKColor.Parse("#E0F3F8")),
-        (0.5, SKColor.Parse("#FFFFBF")),
-        (0.67, SKColor.Parse("#FEE08B")),
-        (0.83, SKColor.Parse("#FC8D59")),
-        (1.0, SKColor.Parse("#D53E4F"))
-    };
-
-    private static readonly (double Position, SKColor Color)[] MatlabJetPalette =
-    {
-        (0.0, SKColor.Parse("#00007F")),
-        (0.125, SKColor.Parse("#0000FF")),
-        (0.375, SKColor.Parse("#00FFFF")),
-        (0.625, SKColor.Parse("#FFFF00")),
-        (0.875, SKColor.Parse("#FF0000")),
-        (1.0, SKColor.Parse("#7F0000"))
-    };
-
-    private static readonly (double Position, SKColor Color)[] ParulaPalette =
-    {
-        (0.0, SKColor.Parse("#352A87")),
-        (0.16, SKColor.Parse("#2462BE")),
-        (0.33, SKColor.Parse("#1F9AD6")),
-        (0.5, SKColor.Parse("#3BB6A5")),
-        (0.66, SKColor.Parse("#74C476")),
-        (0.83, SKColor.Parse("#B6D051")),
-        (1.0, SKColor.Parse("#FDE724"))
-    };
-
-    private static readonly (double Position, SKColor Color)[] ViridisPalette =
-    {
-        (0.0, SKColor.Parse("#440154")),
-        (0.2, SKColor.Parse("#414487")),
-        (0.4, SKColor.Parse("#2A788E")),
-        (0.6, SKColor.Parse("#22A884")),
-        (0.8, SKColor.Parse("#7AD151")),
-        (1.0, SKColor.Parse("#FDE725"))
-    };
-
-    private static readonly (double Position, SKColor Color)[] PlasmaPalette =
-    {
-        (0.0, SKColor.Parse("#0D0887")),
-        (0.16, SKColor.Parse("#5B02A3")),
-        (0.33, SKColor.Parse("#9A179B")),
-        (0.5, SKColor.Parse("#CB4679")),
-        (0.66, SKColor.Parse("#ED7953")),
-        (0.83, SKColor.Parse("#FDB42F")),
-        (1.0, SKColor.Parse("#F0F921"))
-    };
-
-    private static readonly (double Position, SKColor Color)[] MagmaPalette =
-    {
-        (0.0, SKColor.Parse("#000004")),
-        (0.16, SKColor.Parse("#1C1044")),
-        (0.33, SKColor.Parse("#4F0C6B")),
-        (0.5, SKColor.Parse("#822681")),
-        (0.66, SKColor.Parse("#B73779")),
-        (0.83, SKColor.Parse("#F1605D")),
-        (1.0, SKColor.Parse("#FCFDBF"))
-    };
-
-    private static readonly (double Position, SKColor Color)[] CividisPalette =
-    {
-        (0.0, SKColor.Parse("#00204C")),
-        (0.2, SKColor.Parse("#00366F")),
-        (0.4, SKColor.Parse("#39558C")),
-        (0.6, SKColor.Parse("#7B7B78")),
-        (0.8, SKColor.Parse("#B8B972")),
-        (1.0, SKColor.Parse("#FAF976"))
-    };
-
-    private static readonly (double Position, SKColor Color)[] CoolWarmPalette =
-    {
-        (0.0, SKColor.Parse("#3B4CC0")),
-        (0.16, SKColor.Parse("#5C86C5")),
-        (0.33, SKColor.Parse("#93B5D7")),
-        (0.5, SKColor.Parse("#E6E6E6")),
-        (0.66, SKColor.Parse("#E5B08A")),
-        (0.83, SKColor.Parse("#D25C4D")),
-        (1.0, SKColor.Parse("#8B1A1A"))
-    };
 
     // For FEM, which node do we use as "visual ground"?
     private const int VisualReferenceNodeId = 1;
@@ -552,89 +469,6 @@ public partial class ReconstructionPage : ContentPage
         return (u >= 0) && (v >= 0) && (w >= 0);
     }
 
-    private SKColor ColorForValue(double val, double min, double max)
-    {
-        double mid = (min + max) * 0.5;
-        if (val >= mid)
-        {
-            float t = (float)((val - mid) / (max - mid));
-            t = Math.Clamp(t, 0f, 1f);
-            byte r = (byte)(255 * t);
-            return new SKColor(r, 0, 0);
-        }
-        else
-        {
-            float t = (float)((mid - val) / (mid - min));
-            t = Math.Clamp(t, 0f, 1f);
-            byte b = (byte)(255 * t);
-            return new SKColor(0, 0, b);
-        }
-    }
-
-    private static SKColor Lerp(SKColor a, SKColor b, double t)
-    {
-        byte r = (byte)Math.Round(a.Red + (b.Red - a.Red) * t);
-        byte g = (byte)Math.Round(a.Green + (b.Green - a.Green) * t);
-        byte bl = (byte)Math.Round(a.Blue + (b.Blue - a.Blue) * t);
-        byte al = (byte)Math.Round(a.Alpha + (b.Alpha - a.Alpha) * t);
-        return new SKColor(r, g, bl, al);
-    }
-
-    private static SKColor InterpolatePalette((double Position, SKColor Color)[] palette, double t)
-    {
-        t = Math.Clamp(t, 0.0, 1.0);
-        for (int i = 0; i < palette.Length - 1; i++)
-        {
-            var (p0, c0) = palette[i];
-            var (p1, c1) = palette[i + 1];
-            if (t >= p0 && t <= p1)
-            {
-                double localT = (t - p0) / (p1 - p0);
-                return Lerp(c0, c1, localT);
-            }
-        }
-        return palette[^1].Color;
-    }
-
-    private SKColor GetConductivityColor(double val, double min, double max)
-    {
-        double norm = (val - min) / (max - min);
-        norm = double.IsNaN(norm) ? 0.0 : Math.Clamp(norm, 0.0, 1.0);
-
-        return _conductivityMode switch
-        {
-            ConductivityDisplayMode.Classic => ColorForValue(val, min, max),
-            ConductivityDisplayMode.EnhancedDiverging => InterpolatePalette(EnhancedDivergingPalette, norm),
-            ConductivityDisplayMode.Rainbow => SKColor.FromHsv((float)(240.0 * (1.0 - norm)), 90f, 100f),
-            ConductivityDisplayMode.MatlabJet => InterpolatePalette(MatlabJetPalette, norm),
-            ConductivityDisplayMode.Parula => InterpolatePalette(ParulaPalette, norm),
-            ConductivityDisplayMode.Viridis => InterpolatePalette(ViridisPalette, norm),
-            ConductivityDisplayMode.Plasma => InterpolatePalette(PlasmaPalette, norm),
-            ConductivityDisplayMode.Magma => InterpolatePalette(MagmaPalette, norm),
-            ConductivityDisplayMode.Cividis => InterpolatePalette(CividisPalette, norm),
-            ConductivityDisplayMode.CoolWarm => InterpolatePalette(CoolWarmPalette, norm),
-            _ => ColorForValue(val, min, max)
-        };
-    }
-
-    private SKColor GetPotentialColor(double val, double min, double max, PotentialDisplayMode? modeOverride = null)
-    {
-        var mode = modeOverride ?? _potMode;
-        var norm = (float)((val - min) / (max - min));
-        norm = Math.Clamp(norm, 0f, 1f);
-        return mode switch
-        {
-            PotentialDisplayMode.Grayscale => new SKColor((byte)(norm * 255), (byte)(norm * 255), (byte)(norm * 255)),
-            PotentialDisplayMode.Inverted =>
-                new SKColor((byte)(255 - ColorForValue(val, min, max).Red),
-                            (byte)(255 - ColorForValue(val, min, max).Green),
-                            (byte)(255 - ColorForValue(val, min, max).Blue)),
-            PotentialDisplayMode.Heatmap => new SKColor(255, (byte)(255 * (1 - norm)), 0),
-            PotentialDisplayMode.Rainbow => SKColor.FromHsv(norm * 360f, 100f, 100f),
-            _ => ColorForValue(val, min, max),
-        };
-    }
-
     private void DrawHoverInfo(SKCanvas canvas, SKImageInfo info, string[]? lines, SKPoint? pt)
     {
         if (lines == null || !pt.HasValue) return;
@@ -658,213 +492,28 @@ public partial class ReconstructionPage : ContentPage
         }
     }
 
-    private void DrawFemConductivity(SKCanvas canvas,
-                                     SKImageInfo info,
-                                     FEMMesh mesh,
-                                     ConductivityDistribution cd,
-                                     string[]? lines,
-                                     SKPoint? pt)
-    {
-        canvas.Clear(DistributionCanvasBackgroundColor);
-        ComputeFemTransform(mesh, info);
-        using var fill = new SKPaint { Style = SKPaintStyle.Fill, IsAntialias = true };
-        using var stroke = new SKPaint { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1, IsAntialias = true };
-        double minVal = cd.Conductivities.Values.Min();
-        double maxVal = cd.Conductivities.Values.Max();
-        if (Math.Abs(maxVal - minVal) < 1e-12) maxVal = minVal + 1e-12;
-        foreach (var elem in mesh.GetElements().Cast<FEMElement>())
+    private DiscretizationCanvasRenderOptions CreateConductivityRenderOptions()
+        => new()
         {
-            double val = cd.GetConductivity(elem.Id);
-            fill.Color = GetConductivityColor(val, minVal, maxVal);
-            using var path = new SKPath();
-            path.MoveTo(ToCanvas(elem.Vertices[0]));
-            path.LineTo(ToCanvas(elem.Vertices[1]));
-            path.LineTo(ToCanvas(elem.Vertices[2]));
-            path.Close();
-            canvas.DrawPath(path, fill);
-            canvas.DrawPath(path, stroke);
-        }
-        DrawHoverInfo(canvas, info, lines, pt);
-    }
-
-
-    private void DrawFemPotential(SKCanvas canvas,
-                              SKImageInfo info,
-                              FEMMesh mesh,
-                              PotentialDistribution pd,
-                              string[]? lines,
-                              SKPoint? pt,
-                              PotentialDisplayMode? modeOverride = null)
-    {
-        canvas.Clear(DistributionCanvasBackgroundColor);
-        ComputeFemTransform(mesh, info);
-        using var fill = new SKPaint { Style = SKPaintStyle.Fill, IsAntialias = true };
-        using var stroke = new SKPaint { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1, IsAntialias = true };
-
-        // --- 1) determine visual reference potential (EIDORS-style ground) ---
-        double refPotential = 0.0;
-        if (pd.Potentials.TryGetValue(VisualReferenceNodeId, out double rawRef))
-        {
-            refPotential = rawRef;
-        }
-        // If the key doesn't exist (e.g. different numbering), refPotential stays 0 and no shift is applied.
-
-        // --- 2) compute shifted min/max for color scaling ---
-        // We don't mutate pd; we compute shifted values on the fly.
-        double minVal = double.PositiveInfinity;
-        double maxVal = double.NegativeInfinity;
-        foreach (var val in pd.Potentials.Values)
-        {
-            double shifted = val - refPotential;
-            if (shifted < minVal) minVal = shifted;
-            if (shifted > maxVal) maxVal = shifted;
-        }
-        if (double.IsInfinity(minVal) || double.IsInfinity(maxVal))
-        {
-            minVal = 0.0;
-            maxVal = 1e-12;
-        }
-        if (Math.Abs(maxVal - minVal) < 1e-12)
-            maxVal = minVal + 1e-12;
-
-        // --- 3) draw each element using shifted average potential ---
-        foreach (var elem in mesh.GetElements().Cast<FEMElement>())
-        {
-            double avgRaw = elem.Vertices.Average(v => pd.GetPotential(v.GlobalId));
-            double avgShifted = avgRaw - refPotential;
-            fill.Color = GetPotentialColor(avgShifted, minVal, maxVal, modeOverride);
-
-            using var path = new SKPath();
-            path.MoveTo(ToCanvas(elem.Vertices[0]));
-            path.LineTo(ToCanvas(elem.Vertices[1]));
-            path.LineTo(ToCanvas(elem.Vertices[2]));
-            path.Close();
-            canvas.DrawPath(path, fill);
-            canvas.DrawPath(path, stroke);
-        }
-
-        DrawHoverInfo(canvas, info, lines, pt);
-    }
-
-
-    private void DrawLbmField(SKCanvas canvas,
-                              SKImageInfo info,
-                              LBMGrid mesh,
-                              Dictionary<int, double> values,
-                              bool isPotential,
-                              string[]? lines,
-                              SKPoint? pt,
-                              PotentialDisplayMode? modeOverride = null)
-    {
-        canvas.Clear(DistributionCanvasBackgroundColor);
-        float cw = info.Width / mesh.Nx;
-        float ch = info.Height / mesh.Ny;
-        var (minVal, maxVal) = GetLbmValueRange(mesh, values);
-        using var ghostOverlay = new SKPaint { Style = SKPaintStyle.Stroke, Color = SKColors.WhiteSmoke, StrokeWidth = 0.75f };
-
-        for (int y = 0; y < mesh.Ny; y++)
-        {
-            for (int x = 0; x < mesh.Nx; x++)
-            {
-                var el = mesh.GetElementAt(x, y);
-                double val = values.TryGetValue(el.Id, out double v) ? v : minVal;
-                SKColor col = el.GhostElement
-                    ? SKColor.Parse("#546E7A")
-                    : el.IsWall
-                        ? SKColors.Black
-                        : isPotential
-                            ? GetPotentialColor(val, minVal, maxVal, modeOverride)
-                            : GetConductivityColor(val, minVal, maxVal);
-                using var paint = new SKPaint { Style = SKPaintStyle.Fill, Color = col };
-                var r = SKRect.Create(x * cw, y * ch, cw, ch);
-                canvas.DrawRect(r, paint);
-                canvas.DrawRect(r, new SKPaint { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1 });
-                if (el.GhostElement)
-                {
-                    canvas.DrawLine(r.Left, r.Top, r.Right, r.Bottom, ghostOverlay);
-                    canvas.DrawLine(r.Left, r.Bottom, r.Right, r.Top, ghostOverlay);
-                }
-            }
-        }
-        DrawHoverInfo(canvas, info, lines, pt);
-    }
-
-    private static (double Min, double Max) GetLbmValueRange(LBMGrid mesh, IReadOnlyDictionary<int, double> values)
-    {
-        bool hasValue = false;
-        double min = 0.0;
-        double max = 0.0;
-
-        foreach (var element in mesh.GetElements().Cast<LBMElement>())
-        {
-            if (element.IsWall)
-                continue;
-
-            if (!values.TryGetValue(element.Id, out double value))
-                continue;
-
-            if (double.IsNaN(value) || double.IsInfinity(value))
-                continue;
-
-            if (!hasValue)
-            {
-                min = max = value;
-                hasValue = true;
-            }
-            else
-            {
-                if (value < min) min = value;
-                if (value > max) max = value;
-            }
-        }
-
-        if (!hasValue)
-            return (0.0, 1e-12);
-
-        if (Math.Abs(max - min) < 1e-12)
-            max = min + 1e-12;
-
-        return (min, max);
-    }
-
-    [Obsolete]
-    private void DrawColorBar(SKCanvas canvas,
-                              SKImageInfo info,
-                              double min,
-                              double max,
-                              bool isPotential,
-                              PotentialDisplayMode? modeOverride = null)
-    {
-        canvas.Clear(DistributionCanvasBackgroundColor);
-        var rect = new SKRect(0, 0, info.Width, info.Height);
-        int steps = 256;
-        var colors = new SKColor[steps];
-        var positions = new float[steps];
-        for (int i = 0; i < steps; i++)
-        {
-            double t = i / (double)(steps - 1);
-            double val = min + (max - min) * t;
-            colors[i] = isPotential
-                ? GetPotentialColor(val, min, max, modeOverride)
-                : GetConductivityColor(val, min, max);
-            positions[i] = (float)t;
-        }
-        using var paint = new SKPaint
-        {
-            Shader = SKShader.CreateLinearGradient(new SKPoint(rect.Left, rect.Bottom),
-                                                   new SKPoint(rect.Right, rect.Bottom),
-                                                   colors,
-                                                   positions,
-                                                   SKShaderTileMode.Clamp)
+            BackgroundColor = DistributionCanvasBackgroundColor,
+            ConductivityDisplayMode = _conductivityMode
         };
-        canvas.DrawRect(rect, paint);
-        using var border = new SKPaint { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1 };
-        canvas.DrawRect(rect, border);
-        using var text = new SKPaint { Color = SKColors.White, TextSize = 14, IsAntialias = true };
-        canvas.DrawText(min.ToString("F2"), rect.Left, rect.Bottom - 2, text);
-        float w = text.MeasureText(max.ToString("F2"));
-        canvas.DrawText(max.ToString("F2"), rect.Right - w, rect.Bottom - 2, text);
-    }
+
+    private DiscretizationCanvasRenderOptions CreatePotentialRenderOptions()
+        => new()
+        {
+            BackgroundColor = DistributionCanvasBackgroundColor,
+            PotentialDisplayMode = _potMode,
+            VisualReferenceNodeId = VisualReferenceNodeId
+        };
+
+    private DiscretizationColorBarOptions CreateHorizontalColorBarOptions()
+        => new()
+        {
+            BackgroundColor = DistributionCanvasBackgroundColor,
+            Orientation = ColorBarOrientation.Horizontal,
+            TextColor = SKColors.White
+        };
     #endregion
 
     #region Canvas paint
@@ -1170,86 +819,83 @@ public partial class ReconstructionPage : ContentPage
     {
         _currentResult ??= Workspace.GetReconstructionResults().LastOrDefault();
         var discretization = GetDiscretization();
-        if (discretization is FEMMesh fem)
-        {
-            var cd = Workspace.GetOriginalConductivityDistribution() ?? fem.GetConductivityDistribution();
-            DrawFemConductivity(e.Surface.Canvas, e.Info, fem, cd, _hoverOriginalLines, _hoverOriginalPt);
-        }
-        else if (discretization is LBMGrid lbm)
-        {
-            var cd = Workspace.GetOriginalConductivityDistribution() ?? lbm.GetConductivityDistribution();
-            DrawLbmField(e.Surface.Canvas, e.Info, lbm, cd.Conductivities, false, _hoverOriginalLines, _hoverOriginalPt);
-        }
+        var cd = _currentResult?.OriginalConductivityDistribution
+                 ?? Workspace.GetOriginalConductivityDistribution()
+                 ?? discretization?.GetConductivityDistribution();
+        _renderer.Draw(e.Surface.Canvas,
+                       e.Info,
+                       new DiscretizationRenderRequest(discretization, DiscretizationRenderMode.Conductivity, cd),
+                       CreateConductivityRenderOptions());
+        DrawHoverInfo(e.Surface.Canvas, e.Info, _hoverOriginalLines, _hoverOriginalPt);
     }
 
     private void OnPotentialCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
         var discretization = GetDiscretization();
         var pd = _currentFrame?.CalculatedPotentialDistribution ?? discretization?.GetPotentialDistribution();
-        if (discretization is FEMMesh fem && pd != null)
-            DrawFemPotential(e.Surface.Canvas, e.Info, fem, pd, _hoverPotentialLines, _hoverPotentialPt);
-        else if (discretization is LBMGrid lbm && pd != null)
-            DrawLbmField(e.Surface.Canvas, e.Info, lbm, pd.Potentials, true, _hoverPotentialLines, _hoverPotentialPt);
+        _renderer.Draw(e.Surface.Canvas,
+                       e.Info,
+                       new DiscretizationRenderRequest(discretization, DiscretizationRenderMode.Potential, PotentialDistribution: pd),
+                       CreatePotentialRenderOptions());
+        DrawHoverInfo(e.Surface.Canvas, e.Info, _hoverPotentialLines, _hoverPotentialPt);
     }
 
     private void OnReconstructedCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
         var discretization = GetDiscretization();
         var cd = _currentResult?.ReconstructedConductivityDistribution ?? discretization?.GetConductivityDistribution();
-        if (discretization is FEMMesh fem && cd != null)
-            DrawFemConductivity(e.Surface.Canvas, e.Info, fem, cd, _hoverReconstructedLines, _hoverReconstructedPt);
-        else if (discretization is LBMGrid lbm && cd != null)
-            DrawLbmField(e.Surface.Canvas, e.Info, lbm, cd.Conductivities, false, _hoverReconstructedLines, _hoverReconstructedPt);
+        _renderer.Draw(e.Surface.Canvas,
+                       e.Info,
+                       new DiscretizationRenderRequest(discretization, DiscretizationRenderMode.Conductivity, cd),
+                       CreateConductivityRenderOptions());
+        DrawHoverInfo(e.Surface.Canvas, e.Info, _hoverReconstructedLines, _hoverReconstructedPt);
     }
 
     private void OnAdjointCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
         var discretization = GetDiscretization();
         var pd = _currentFrame?.CalculatedAdjointDistribution ?? discretization?.GetPotentialDistribution();
-        if (discretization is FEMMesh fem && pd != null)
-            DrawFemPotential(e.Surface.Canvas, e.Info, fem, pd, _hoverAdjointLines, _hoverAdjointPt);
-        else if (discretization is LBMGrid lbm && pd != null)
-            DrawLbmField(e.Surface.Canvas, e.Info, lbm, pd.Potentials, true, _hoverAdjointLines, _hoverAdjointPt);
+        _renderer.Draw(e.Surface.Canvas,
+                       e.Info,
+                       new DiscretizationRenderRequest(discretization, DiscretizationRenderMode.Potential, PotentialDistribution: pd),
+                       CreatePotentialRenderOptions());
+        DrawHoverInfo(e.Surface.Canvas, e.Info, _hoverAdjointLines, _hoverAdjointPt);
     }
 
     private void OnInitialCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
         var discretization = GetDiscretization();
         var cd = _currentResult?.InitialConductivitiyDistribution ?? discretization?.GetConductivityDistribution();
-        if (discretization is FEMMesh fem && cd != null)
-            DrawFemConductivity(e.Surface.Canvas, e.Info, fem, cd, _hoverInitialLines, _hoverInitialPt);
-        else if (discretization is LBMGrid lbm && cd != null)
-            DrawLbmField(e.Surface.Canvas, e.Info, lbm, cd.Conductivities, false, _hoverInitialLines, _hoverInitialPt);
+        _renderer.Draw(e.Surface.Canvas,
+                       e.Info,
+                       new DiscretizationRenderRequest(discretization, DiscretizationRenderMode.Conductivity, cd),
+                       CreateConductivityRenderOptions());
+        DrawHoverInfo(e.Surface.Canvas, e.Info, _hoverInitialLines, _hoverInitialPt);
     }
 
     private void OnGradientCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
         var discretization = GetDiscretization();
         var cd = _currentFrame?.ConductivityGradient;
-        if (discretization is FEMMesh fem && cd != null)
-            DrawFemConductivity(e.Surface.Canvas, e.Info, fem, cd, _hoverGradientLines, _hoverGradientPt);
-        else if (discretization is LBMGrid lbm && cd != null)
-            DrawLbmField(e.Surface.Canvas, e.Info, lbm, cd.Conductivities, false, _hoverGradientLines, _hoverGradientPt);
+        _renderer.Draw(e.Surface.Canvas,
+                       e.Info,
+                       new DiscretizationRenderRequest(discretization, DiscretizationRenderMode.Conductivity, cd),
+                       CreateConductivityRenderOptions());
+        DrawHoverInfo(e.Surface.Canvas, e.Info, _hoverGradientLines, _hoverGradientPt);
     }
 
     private void OnOriginalColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
         _currentResult ??= Workspace.GetReconstructionResults().LastOrDefault();
         var discretization = GetDiscretization();
-        if (discretization is FEMMesh fem)
-        {
-            var cd = _currentResult?.OriginalConductivityDistribution ?? Workspace.GetOriginalConductivityDistribution() ?? fem.GetConductivityDistribution();
-            double min = cd.Conductivities.Values.Min();
-            double max = cd.Conductivities.Values.Max();
-            if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
-            DrawColorBar(e.Surface.Canvas, e.Info, min, max, false);
-        }
-        else if (discretization is LBMGrid lbm)
-        {
-            var cd = _currentResult?.OriginalConductivityDistribution ?? Workspace.GetOriginalConductivityDistribution() ?? lbm.GetConductivityDistribution();
-            var (min, max) = GetLbmValueRange(lbm, cd.Conductivities);
-            DrawColorBar(e.Surface.Canvas, e.Info, min, max, false);
-        }
+        var cd = _currentResult?.OriginalConductivityDistribution
+                 ?? Workspace.GetOriginalConductivityDistribution()
+                 ?? discretization?.GetConductivityDistribution();
+        _renderer.DrawColorBar(e.Surface.Canvas,
+                               e.Info,
+                               new DiscretizationRenderRequest(discretization, DiscretizationRenderMode.Conductivity, cd),
+                               CreateConductivityRenderOptions(),
+                               CreateHorizontalColorBarOptions());
     }
 
 
@@ -1257,113 +903,55 @@ public partial class ReconstructionPage : ContentPage
     {
         var discretization = GetDiscretization();
         var pd = _currentFrame?.CalculatedPotentialDistribution ?? discretization?.GetPotentialDistribution();
-
-        if (discretization is LBMGrid lbm && pd != null)
-        {
-            var (min, max) = GetLbmValueRange(lbm, pd.Potentials);
-            DrawColorBar(e.Surface.Canvas, e.Info, min, max, true);
-        }
-        else if (discretization is FEMMesh && pd != null)
-        {
-            double refPotential = 0.0;
-            if (pd.Potentials.TryGetValue(VisualReferenceNodeId, out double rawRef))
-                refPotential = rawRef;
-
-            double min = double.PositiveInfinity;
-            double max = double.NegativeInfinity;
-            foreach (var val in pd.Potentials.Values)
-            {
-                double shifted = val - refPotential;
-                if (shifted < min) min = shifted;
-                if (shifted > max) max = shifted;
-            }
-            if (double.IsInfinity(min) || double.IsInfinity(max))
-            {
-                min = 0.0;
-                max = 1e-12;
-            }
-            if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
-
-            DrawColorBar(e.Surface.Canvas, e.Info, min, max, true);
-        }
+        _renderer.DrawColorBar(e.Surface.Canvas,
+                               e.Info,
+                               new DiscretizationRenderRequest(discretization, DiscretizationRenderMode.Potential, PotentialDistribution: pd),
+                               CreatePotentialRenderOptions(),
+                               CreateHorizontalColorBarOptions());
     }
 
 
     private void OnReconstructedColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
         var discretization = GetDiscretization();
-        if (discretization is FEMMesh fem)
-        {
-            var cd = _currentResult?.ReconstructedConductivityDistribution ?? fem.GetConductivityDistribution();
-            double min = cd.Conductivities.Values.Min();
-            double max = cd.Conductivities.Values.Max();
-            if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
-            DrawColorBar(e.Surface.Canvas, e.Info, min, max, false);
-        }
-        else if (discretization is LBMGrid lbm)
-        {
-            var cd = _currentResult?.ReconstructedConductivityDistribution ?? lbm.GetConductivityDistribution();
-            var (min, max) = GetLbmValueRange(lbm, cd.Conductivities);
-            DrawColorBar(e.Surface.Canvas, e.Info, min, max, false);
-        }
+        var cd = _currentResult?.ReconstructedConductivityDistribution ?? discretization?.GetConductivityDistribution();
+        _renderer.DrawColorBar(e.Surface.Canvas,
+                               e.Info,
+                               new DiscretizationRenderRequest(discretization, DiscretizationRenderMode.Conductivity, cd),
+                               CreateConductivityRenderOptions(),
+                               CreateHorizontalColorBarOptions());
     }
 
     private void OnAdjointColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
         var discretization = GetDiscretization();
         var pd = _currentFrame?.CalculatedAdjointDistribution ?? discretization?.GetPotentialDistribution();
-        if (discretization is LBMGrid lbm && pd != null)
-        {
-            var (min, max) = GetLbmValueRange(lbm, pd.Potentials);
-            DrawColorBar(e.Surface.Canvas, e.Info, min, max, true);
-        }
-        else if (pd != null)
-        {
-            double min = pd.Potentials.Values.Min();
-            double max = pd.Potentials.Values.Max();
-            if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
-            DrawColorBar(e.Surface.Canvas, e.Info, min, max, true);
-        }
+        _renderer.DrawColorBar(e.Surface.Canvas,
+                               e.Info,
+                               new DiscretizationRenderRequest(discretization, DiscretizationRenderMode.Potential, PotentialDistribution: pd),
+                               CreatePotentialRenderOptions(),
+                               CreateHorizontalColorBarOptions());
     }
 
     private void OnInitialColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
         var discretization = GetDiscretization();
-        if (discretization is FEMMesh fem)
-        {
-            var cd = _currentResult?.InitialConductivitiyDistribution ?? fem.GetConductivityDistribution();
-            double min = cd.Conductivities.Values.Min();
-            double max = cd.Conductivities.Values.Max();
-            if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
-            DrawColorBar(e.Surface.Canvas, e.Info, min, max, false);
-        }
-        else if (discretization is LBMGrid lbm)
-        {
-            var cd = _currentResult?.InitialConductivitiyDistribution ?? lbm.GetConductivityDistribution();
-            var (min, max) = GetLbmValueRange(lbm, cd.Conductivities);
-            DrawColorBar(e.Surface.Canvas, e.Info, min, max, false);
-        }
+        var cd = _currentResult?.InitialConductivitiyDistribution ?? discretization?.GetConductivityDistribution();
+        _renderer.DrawColorBar(e.Surface.Canvas,
+                               e.Info,
+                               new DiscretizationRenderRequest(discretization, DiscretizationRenderMode.Conductivity, cd),
+                               CreateConductivityRenderOptions(),
+                               CreateHorizontalColorBarOptions());
     }
 
     private void OnGradientColorbarPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
         var cd = _currentFrame?.ConductivityGradient;
-        if (cd != null)
-        {
-            var discretization = GetDiscretization();
-            if (discretization is LBMGrid lbm)
-            {
-                var (min, max) = GetLbmValueRange(lbm, cd.Conductivities);
-                DrawColorBar(e.Surface.Canvas, e.Info, min, max, false);
-            }
-            else
-            {
-                double min = cd.Conductivities.Values.Min();
-                double max = cd.Conductivities.Values.Max();
-                if (Math.Abs(max - min) < 1e-12) max = min + 1e-12;
-                DrawColorBar(e.Surface.Canvas, e.Info, min, max, false);
-            }
-        }
+        _renderer.DrawColorBar(e.Surface.Canvas,
+                               e.Info,
+                               new DiscretizationRenderRequest(GetDiscretization(), DiscretizationRenderMode.Conductivity, cd),
+                               CreateConductivityRenderOptions(),
+                               CreateHorizontalColorBarOptions());
     }
     #endregion
 

@@ -1,4 +1,5 @@
 using ElectricalImpedanceTomography.Extensions;
+using ElectricalImpedanceTomography.Controls;
 using ElectricalImpedanceTomography.ViewModels;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
@@ -6,38 +7,21 @@ using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Discretizer;
 using System.Linq;
+using Utility.Rendering;
 
 namespace ElectricalImpedanceTomography.Views;
 
 public partial class MeshingPage : ContentPage
 {
     private readonly MeshingPageViewModel _viewModel;
+    private readonly DiscretizationCanvasRenderer _meshRenderer = new();
 
-    private readonly SKPaint _gridPaintMajor = new() { Style = SKPaintStyle.Stroke, Color = SKColor.Parse("#253045"), StrokeWidth = 1 };
-    private readonly SKPaint _gridPaintMinor = new() { Style = SKPaintStyle.Stroke, Color = SKColor.Parse("#1A2332"), StrokeWidth = 1 };
-
-    // paints for LBM drawing
-    private readonly SKPaint _lbmDefault = new() { Style = SKPaintStyle.Fill, Color = SKColors.White };
-    private readonly SKPaint _lbmWall = new() { Style = SKPaintStyle.Fill, Color = SKColors.Black };
-    private readonly SKPaint _lbmGhost = new() { Style = SKPaintStyle.Fill, Color = SKColor.Parse("#546E7A") };
-    private readonly SKPaint _lbmGhostOverlay = new() { Style = SKPaintStyle.Stroke, Color = SKColors.WhiteSmoke, StrokeWidth = 0.75f };
-    private readonly SKPaint _lbmElectrode = new() { Style = SKPaintStyle.Fill, Color = SKColors.Orange };
-    private readonly SKPaint _lbmVirtualElectrode = new() { Style = SKPaintStyle.Fill, Color = SKColor.Parse("#AA00FF") };
-    private readonly SKPaint _lbmStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.LightGray, StrokeWidth = 1 };
-    private readonly SKPaint _lbmSelected = new() { Style = SKPaintStyle.Fill, Color = SKColors.LimeGreen };
-    private readonly SKPaint _lbmGradientFill = new() { Style = SKPaintStyle.Fill };
-
-    // stroke for FEM
     private readonly SKPaint _femStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1 };
-    private readonly SKPaint _femFill = new() { Style = SKPaintStyle.Fill };
-    private readonly SKPaint _electrodeFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.Yellow };
-    private readonly SKPaint _virtualElectrodeFill = new() { Style = SKPaintStyle.Fill, Color = SKColor.Parse("#AA00FF") };
-    private readonly SKPaint _electrodeSegmentStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Gold, StrokeWidth = 3, IsAntialias = true };
     private readonly SKPaint _pointFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.SkyBlue };
 
     // caching values for coordinate transforms
     private float _cellW, _cellH;
-    private float _scale, _marginX, _marginY, _minX, _minY, _meshWidth, _meshHeight;
+    private float _scale, _marginX, _marginY, _minX, _minY;
 
     // drawing state for custom FEM meshes
     private readonly List<SKPoint> _outlinePoints = [];
@@ -98,50 +82,6 @@ public partial class MeshingPage : ContentPage
             : (Color.FromArgb("#D4EFE7"), Color.FromArgb("#C2E3DA"));
     }
 
-    private static readonly SKColor LowerHighlight = SKColor.Parse("#1E88E5");
-    private static readonly SKColor NeutralHighlight = SKColor.Parse("#F5F5F5");
-    private static readonly SKColor UpperHighlight = SKColor.Parse("#E53935");
-
-    private SKColor ColorForValue(double val, double min, double max)
-    {
-        const double baseline = 1.0;
-
-        double clampedMin = Math.Min(min, baseline);
-        double clampedMax = Math.Max(max, baseline);
-
-        double lowerRange = baseline - clampedMin;
-        double upperRange = clampedMax - baseline;
-
-        if (lowerRange < 1e-9 && upperRange < 1e-9)
-            return NeutralHighlight;
-
-        if (val <= baseline && lowerRange > 1e-9)
-        {
-            double t = (baseline - val) / lowerRange;
-            t = Math.Clamp(t, 0.0, 1.0);
-            return LerpColor(NeutralHighlight, LowerHighlight, t);
-        }
-
-        if (val >= baseline && upperRange > 1e-9)
-        {
-            double t = (val - baseline) / upperRange;
-            t = Math.Clamp(t, 0.0, 1.0);
-            return LerpColor(NeutralHighlight, UpperHighlight, t);
-        }
-
-        return NeutralHighlight;
-    }
-
-    private static SKColor LerpColor(SKColor from, SKColor to, double t)
-    {
-        t = Math.Clamp(t, 0.0, 1.0);
-        byte r = (byte)Math.Round(from.Red + (to.Red - from.Red) * t);
-        byte g = (byte)Math.Round(from.Green + (to.Green - from.Green) * t);
-        byte b = (byte)Math.Round(from.Blue + (to.Blue - from.Blue) * t);
-        byte a = (byte)Math.Round(from.Alpha + (to.Alpha - from.Alpha) * t);
-        return new SKColor(r, g, b, a);
-    }
-
     private static async Task ShrinkViewAsync(VisualElement element)
     {
         await element.ScaleTo(0.9, 40);
@@ -152,155 +92,62 @@ public partial class MeshingPage : ContentPage
     {
         var canvas = e.Surface.Canvas;
         var info = e.Info;
-
-        // 1. Draw Background (Dark Blue/Black)
-        canvas.Clear(SKColor.Parse("#13161C"));
-
-        // 2. Draw Checkerboard/Grid Pattern
-        float gridSize = 40.0f;
-
-        // Draw Vertical Lines
-        for (float x = 0; x < info.Width; x += gridSize)
-        {
-            canvas.DrawLine(x, 0, x, info.Height, (x % (gridSize * 5) == 0) ? _gridPaintMajor : _gridPaintMinor);
-        }
-
-        // Draw Horizontal Lines
-        for (float y = 0; y < info.Height; y += gridSize)
-        {
-            canvas.DrawLine(0, y, info.Width, y, (y % (gridSize * 5) == 0) ? _gridPaintMajor : _gridPaintMinor);
-        }
-
-        // 3. Draw Mesh Content
         var mesh = _viewModel.GetCurrentMesh();
         if (mesh is null)
         {
+            canvas.Clear(SKColor.Parse("#13161C"));
             if (_outlinePoints.Count > 0)
                 DrawPolygonPreview(canvas);
             return;
         }
 
         if (mesh is LBMGrid lbm)
-            DrawLBMGrid(canvas, e.Info, lbm);
+        {
+            var viewport = DiscretizationCanvasRenderer.ComputeLbmViewport(lbm, e.Info);
+            _cellW = viewport.CellWidth;
+            _cellH = viewport.CellHeight;
+        }
         else if (mesh is FEMMesh fem)
-            DrawFEMMesh(canvas, e.Info, fem);
-    }
-
-    private void DrawLBMGrid(SKCanvas canvas, SKImageInfo info, LBMGrid grid)
-    {
-        _cellW = (float)info.Width / grid.Nx;
-        _cellH = (float)info.Height / grid.Ny;
-        const double defaultConductivity = 1.0;
-        var conductiveElements = grid.ElementsTyped
-            .Where(el => !el.IsWall && !el.IsElectrode)
-            .ToList();
-        double maxConductivity = defaultConductivity;
-        double minConductivity = defaultConductivity;
-        if (conductiveElements.Count > 0)
         {
-            maxConductivity = Math.Max(defaultConductivity, conductiveElements.Max(el => el.Conductivity));
-            minConductivity = Math.Min(defaultConductivity, conductiveElements.Min(el => el.Conductivity));
+            var viewport = DiscretizationCanvasRenderer.ComputeFemViewport(fem, e.Info, 10f);
+            _scale = viewport.Scale;
+            _marginX = viewport.MarginX;
+            _marginY = viewport.MarginY;
+            _minX = viewport.MinX;
+            _minY = viewport.MinY;
         }
 
-        var electrodeLookup = grid.ElectrodesTyped.Cast<LBMElectrode>()
-            .ToDictionary(e => e.Id, e => e.IsVirtual);
-
-        for (int y = 0; y < grid.Ny; y++)
-        {
-            for (int x = 0; x < grid.Nx; x++)
+        _meshRenderer.Draw(
+            canvas,
+            info,
+            new DiscretizationRenderRequest(mesh, DiscretizationRenderMode.Geometry),
+            new DiscretizationCanvasRenderOptions
             {
-                var el = grid.GetElementAt(x, y);
-                SKPaint fill;
-                if (_selectedCells.Contains(el.Id))
-                    fill = _lbmSelected;
-                else if (el.IsElectrode)
-                {
-                    bool isVirtual = el.ElectrodeId >= 0 && electrodeLookup.TryGetValue(el.ElectrodeId, out bool value) && value;
-                    fill = isVirtual ? _lbmVirtualElectrode : _lbmElectrode;
-                }
-                else if (el.GhostElement)
-                    fill = _lbmGhost;
-                else if (el.IsWall)
-                    fill = _lbmWall;
-                else if (Math.Abs(el.Conductivity - defaultConductivity) > 1e-6)
-                {
-                    _lbmGradientFill.Color = ColorForValue(el.Conductivity, minConductivity, maxConductivity);
-                    fill = _lbmGradientFill;
-                }
-                else
-                    fill = _lbmDefault;
-                var r = SKRect.Create(x * _cellW, y * _cellH, _cellW, _cellH);
-                canvas.DrawRect(r, fill);
-                canvas.DrawRect(r, _lbmStroke);
-                if (el.GhostElement)
-                {
-                    canvas.DrawLine(r.Left, r.Top, r.Right, r.Bottom, _lbmGhostOverlay);
-                    canvas.DrawLine(r.Left, r.Bottom, r.Right, r.Top, _lbmGhostOverlay);
-                }
-            }
-        }
+                BackgroundColor = SKColor.Parse("#13161C"),
+                ShowGuideGrid = true,
+                GuideGridSize = 40f,
+                GuideGridMajorEvery = 5,
+                GuideGridMajorColor = SKColor.Parse("#253045"),
+                GuideGridMinorColor = SKColor.Parse("#1A2332"),
+                ConductivityDisplayMode = ConductivityDisplayMode.Classic,
+                HighlightedElementIds = _selectedCells,
+                HighlightColor = SKColors.LimeGreen,
+                LbmDefaultColor = SKColors.White,
+                LbmWallColor = SKColors.Black,
+                LbmGhostColor = SKColor.Parse("#546E7A"),
+                LbmGhostOverlayColor = SKColors.WhiteSmoke,
+                LbmElectrodeColor = SKColors.Orange,
+                VirtualElectrodeColor = SKColor.Parse("#AA00FF"),
+                LbmStrokeColor = SKColors.LightGray,
+                ElectrodePointColor = SKColors.Yellow,
+                ElectrodeSegmentColor = SKColors.Gold,
+                FemStrokeColor = SKColors.Black
+            });
     }
 
     private SKPoint ToCanvas(FEMVertex v)
         => new SKPoint((float)(v.X - _minX) * _scale + _marginX,
                        MeshCanvas.CanvasSize.Height - ((float)(v.Y - _minY) * _scale + _marginY));
-
-    private void DrawFEMMesh(SKCanvas canvas, SKImageInfo info, FEMMesh mesh)
-    {
-        const float pad = 10f;
-        float availW = info.Width - 2 * pad;
-        float availH = info.Height - 2 * pad;
-        var verts = mesh.Vertices;
-        _minX = (float)verts.Min(v => v.X);
-        _minY = (float)verts.Min(v => v.Y);
-        var maxX = (float)verts.Max(v => v.X);
-        var maxY = (float)verts.Max(v => v.Y);
-        _meshWidth = maxX - _minX;
-        _meshHeight = maxY - _minY;
-        _scale = Math.Min(availW / _meshWidth, availH / _meshHeight);
-        float usedW = _meshWidth * _scale;
-        float usedH = _meshHeight * _scale;
-        _marginX = pad + (availW - usedW) / 2f;
-        _marginY = pad + (availH - usedH) / 2f;
-
-        var elements = mesh.ElementsTyped;
-        double max = 1.0;
-        double min = 1.0;
-        if (elements.Count > 0)
-        {
-            max = Math.Max(1.0, elements.Max(el => el.Conductivity));
-            min = Math.Min(1.0, elements.Min(el => el.Conductivity));
-        }
-
-        using var path = new SKPath();
-        foreach (var el in elements)
-        {
-            var p1 = ToCanvas(el.Vertices[0]);
-            var p2 = ToCanvas(el.Vertices[1]);
-            var p3 = ToCanvas(el.Vertices[2]);
-            path.Reset();
-            path.MoveTo(p1); path.LineTo(p2); path.LineTo(p3); path.Close();
-            _femFill.Color = ColorForValue(el.Conductivity, min, max);
-            canvas.DrawPath(path, _femFill);
-            canvas.DrawPath(path, _femStroke);
-        }
-
-        foreach (var segment in mesh.GetElectrodeSegments())
-        {
-            var start = ToCanvas(segment.Start);
-            var end = ToCanvas(segment.End);
-            canvas.DrawLine(start, end, _electrodeSegmentStroke);
-        }
-
-        var femElectrodes = mesh.ElectrodesTyped.Cast<FEMElectrode>().ToDictionary(e => e.Id);
-        foreach (var v in mesh.Vertices.Where(v => v.IsElectrode))
-        {
-            var fill = _electrodeFill;
-            if (v.ElectrodeId >= 0 && femElectrodes.TryGetValue(v.ElectrodeId, out var electrode) && electrode.IsVirtual)
-                fill = _virtualElectrodeFill;
-            canvas.DrawCircle(ToCanvas(v), 4f, fill);
-        }
-    }
 
     private async void OnClearClicked(object sender, EventArgs e)
     {

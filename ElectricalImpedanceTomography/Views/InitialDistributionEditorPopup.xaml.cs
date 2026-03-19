@@ -1,19 +1,22 @@
 using CommunityToolkit.Maui.Core;
 using CommunityToolkit.Maui.Views;
-using ElectricalImpedanceTomography.Helpers;
+using ElectricalImpedanceTomography.Controls;
 using ElectricalImpedanceTomography.ViewModels;
 using Microsoft.Maui.ApplicationModel;
+using SkiaSharp;
 using SkiaSharp.Views.Maui;
 using System;
 using Utility.Classes;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Factories;
+using Utility.Rendering;
 
 namespace ElectricalImpedanceTomography.Views;
 
 public partial class InitialDistributionEditorPopup : Popup
 {
     private readonly InitialDistributionEditorViewModel _viewModel;
+    private readonly DiscretizationCanvasRenderer _renderer = new();
 
     public event EventHandler? DistributionChanged;
 
@@ -43,18 +46,32 @@ public partial class InitialDistributionEditorPopup : Popup
 
     private void OnPreviewCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
-        DistributionRenderingHelper.DrawConductivity(e.Surface.Canvas,
-                                                    e.Info,
-                                                    _viewModel.Discretization,
-                                                    _viewModel.CurrentDistribution);
+        _renderer.Draw(
+            e.Surface.Canvas,
+            e.Info,
+            new DiscretizationRenderRequest(_viewModel.Discretization,
+                                            DiscretizationRenderMode.Conductivity,
+                                            _viewModel.CurrentDistribution),
+            new DiscretizationCanvasRenderOptions
+            {
+                BackgroundColor = SKColor.Parse("#1A2436"),
+                ConductivityDisplayMode = ConductivityDisplayMode.Classic
+            });
     }
 
     private void OnColorbarCanvasPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
-        DistributionRenderingHelper.DrawColorBar(e.Surface.Canvas,
-                                                 e.Info,
-                                                 _viewModel.Discretization,
-                                                 _viewModel.CurrentDistribution);
+        _renderer.DrawColorBar(
+            e.Surface.Canvas,
+            e.Info,
+            new DiscretizationRenderRequest(_viewModel.Discretization,
+                                            DiscretizationRenderMode.Conductivity,
+                                            _viewModel.CurrentDistribution),
+            new DiscretizationCanvasRenderOptions
+            {
+                BackgroundColor = SKColor.Parse("#1A2436"),
+                ConductivityDisplayMode = ConductivityDisplayMode.Classic
+            });
     }
 
     private void OnCloseClicked(object sender, EventArgs e)

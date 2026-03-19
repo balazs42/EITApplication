@@ -1,11 +1,11 @@
 ﻿using ElectricalImpedanceTomography.ViewModels;
+using ElectricalImpedanceTomography.Controls;
 using ElectricalImpedanceTomography.Extensions;
-using SkiaSharp;
 using Microsoft.Maui.Graphics;
-using Utility.Classes.Application;
-using Utility.Classes.Discretizer.FiniteElementMesh;
-using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
+using SkiaSharp;
 using System.Collections.Specialized;
+using Utility.Classes.Application;
+using Utility.Rendering;
 
 namespace ElectricalImpedanceTomography.Views
 {
@@ -13,17 +13,7 @@ namespace ElectricalImpedanceTomography.Views
     {
         private readonly MainPageViewModel _viewModel;
 
-        // Paints for Mesh (Stylized)
-        private readonly SKPaint _lbmFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.Black, IsAntialias = true };
-        private readonly SKPaint _lbmWall = new() { Style = SKPaintStyle.Fill, Color = SKColors.White, IsAntialias = true };
-        private readonly SKPaint _lbmElectrode = new() { Style = SKPaintStyle.Fill, Color = SKColors.Orange, IsAntialias = true };
-        private readonly SKPaint _lbmStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.LightGray, StrokeWidth = 1, IsAntialias = true };
-
-        // FEM: Thinner strokes, Anti-aliased, Vibrant fill
-        private readonly SKPaint _femStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 0.5f, IsAntialias = true };
-        private readonly SKPaint _femFill = new() { Style = SKPaintStyle.Fill, IsAntialias = true };
-        private readonly SKPaint _electrodeFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.Yellow, IsAntialias = true };
-        private readonly SKPaint _electrodeSegmentStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Gold, StrokeWidth = 3, IsAntialias = true };
+        private readonly DiscretizationCanvasRenderer _meshRenderer = new();
 
         // Paints for HEADER Text
         private readonly SKPaint _textPaint = new()
@@ -33,8 +23,6 @@ namespace ElectricalImpedanceTomography.Views
             Typeface = SKTypeface.FromFamilyName("Arial", SKFontStyleWeight.Bold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright),
             TextAlign = SKTextAlign.Center
         };
-
-        private float _scale, _marginX, _marginY, _minX, _minY, _meshWidth, _meshHeight;
 
         public MainPage()
         {
@@ -136,102 +124,23 @@ namespace ElectricalImpedanceTomography.Views
 
         private void OnCanvasViewPaintSurface(object? sender, SkiaSharp.Views.Maui.SKPaintSurfaceEventArgs e)
         {
-            var canvas = e.Surface.Canvas;
-            var info = e.Info;
-            canvas.Clear(SKColors.Transparent);
-
             var discretization = Workspace.GetDiscretization();
-            if (discretization is LBMGrid lbm) DrawLBMGrid(canvas, info, lbm);
-            else if (discretization is FEMMesh fem) DrawFEMMesh(canvas, info, fem);
-        }
-
-        // NEW: Vibrant Red-Blue Color Mapping for Style
-        private static SKColor ColorForValue(double val, double min, double max)
-        {
-            if (max == min) return SKColors.Red; // Avoid division by zero
-
-            // Normalize to 0..1
-            float t = (float)((val - min) / (max - min));
-            t = Math.Clamp(t, 0f, 1f);
-
-            // Simple "Heatmap" style: Blue (low) -> Red (high)
-            // Interpolate Red and Blue components
-            byte r = (byte)(255 * t);
-            byte b = (byte)(255 * (1 - t));
-
-            // Ensure colors are vibrant (0 Green)
-            return new SKColor(r, 0, b, 255);
-        }
-
-        private void DrawLBMGrid(SKCanvas canvas, SKImageInfo info, LBMGrid grid)
-        {
-            float cellW = (float)info.Width / grid.Nx;
-            float cellH = (float)info.Height / grid.Ny;
-
-            for (int y = 0; y < grid.Ny; y++)
-            {
-                for (int x = 0; x < grid.Nx; x++)
+            _meshRenderer.Draw(
+                e.Surface.Canvas,
+                e.Info,
+                new DiscretizationRenderRequest(discretization, DiscretizationRenderMode.Geometry),
+                new DiscretizationCanvasRenderOptions
                 {
-                    var el = grid.GetElementAt(x, y);
-                    SKPaint fill = el.IsElectrode ? _lbmElectrode : el.IsWall ? _lbmWall : _lbmFill;
-                    var r = SKRect.Create(x * cellW, y * cellH, cellW, cellH);
-                    canvas.DrawRect(r, fill);
-                    canvas.DrawRect(r, _lbmStroke);
-                }
-            }
-        }
-
-        private SKPoint ToCanvas(FEMVertex v) => new((float)(v.X - _minX) * _scale + _marginX, MeshCanvasView.CanvasSize.Height - ((float)(v.Y - _minY) * _scale + _marginY));
-
-        private void DrawFEMMesh(SKCanvas canvas, SKImageInfo info, FEMMesh mesh)
-        {
-            const float pad = 10f;
-            float availW = info.Width - 2 * pad;
-            float availH = info.Height - 2 * pad;
-            var verts = mesh.Vertices;
-            _minX = (float)verts.Min(v => v.X);
-            _minY = (float)verts.Min(v => v.Y);
-            var maxX = (float)verts.Max(v => v.X);
-            var maxY = (float)verts.Max(v => v.Y);
-            _meshWidth = maxX - _minX;
-            _meshHeight = maxY - _minY;
-            _scale = Math.Min(availW / _meshWidth, availH / _meshHeight);
-            float usedW = _meshWidth * _scale;
-            float usedH = _meshHeight * _scale;
-            _marginX = pad + (availW - usedW) / 2f;
-            _marginY = pad + (availH - usedH) / 2f;
-
-            var elements = mesh.ElementsTyped;
-            double min = elements.Min(el => el.Conductivity);
-            double max = elements.Max(el => el.Conductivity);
-
-            using var path = new SKPath();
-
-            // Draw Elements (Fill + Thin Stroke)
-            foreach (var el in elements)
-            {
-                var p1 = ToCanvas(el.Vertices[0]);
-                var p2 = ToCanvas(el.Vertices[1]);
-                var p3 = ToCanvas(el.Vertices[2]);
-                path.Reset();
-                path.MoveTo(p1); path.LineTo(p2); path.LineTo(p3); path.Close();
-
-                _femFill.Color = ColorForValue(el.Conductivity, min, max);
-                canvas.DrawPath(path, _femFill);
-                canvas.DrawPath(path, _femStroke);
-            }
-
-            // Draw Electrode Segments
-            foreach (var segment in mesh.GetElectrodeSegments())
-            {
-                var start = ToCanvas(segment.Start);
-                var end = ToCanvas(segment.End);
-                canvas.DrawLine(start, end, _electrodeSegmentStroke);
-            }
-
-            // Draw Electrode Points
-            foreach (var v in mesh.Vertices.Where(v => v.IsElectrode))
-                canvas.DrawCircle(ToCanvas(v), 4f, _electrodeFill);
+                    BackgroundColor = SKColors.Transparent,
+                    ConductivityDisplayMode = ConductivityDisplayMode.Classic,
+                    FemStrokeWidth = 0.5f,
+                    LbmDefaultColor = SKColors.Black,
+                    LbmWallColor = SKColors.White,
+                    LbmElectrodeColor = SKColors.Orange,
+                    LbmStrokeColor = SKColors.LightGray,
+                    ElectrodePointColor = SKColors.Yellow,
+                    ElectrodeSegmentColor = SKColors.Gold
+                });
         }
     }
 }

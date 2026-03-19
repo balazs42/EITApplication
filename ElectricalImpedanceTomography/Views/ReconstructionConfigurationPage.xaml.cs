@@ -1,6 +1,7 @@
 /// \file ReconstructionConfigurationPage.xaml.cs
 /// \brief Interactive canvas and control logic for the reconstruction configuration editor UI.
 using CommunityToolkit.Maui.Views;
+using ElectricalImpedanceTomography.Controls;
 using ElectricalImpedanceTomography.ViewModels;
 using Microsoft.Maui.Controls.Shapes;
 using Microsoft.Maui.ApplicationModel;
@@ -14,6 +15,7 @@ using Utility.Classes.Configurations.ReconstructionConfiguration;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Configurations.ReconstructionConfiguration.Rules;
+using Utility.Rendering;
 
 namespace ElectricalImpedanceTomography.Views
 {
@@ -21,6 +23,7 @@ namespace ElectricalImpedanceTomography.Views
     {
         // ViewModel backing this page
         private readonly ReconstructionConfigurationPageViewModel _viewModel;
+        private readonly DiscretizationCanvasRenderer _meshRenderer = new();
 
         // Tracks initial positions of blocks at the start of a drag (for multi-move)
         private readonly Dictionary<ReconstructionConfigurationBlock, Point> _dragStartPositions = new();
@@ -42,22 +45,6 @@ namespace ElectricalImpedanceTomography.Views
         private bool _isCanvasPanning;
         private Point _canvasPanStart;
         private Point _canvasScrollStart;
-
-        // LBM preview drawing brushes (aligned with Meshing page visualisation)
-        private readonly SKPaint _lbmDefault = new() { Style = SKPaintStyle.Fill, Color = SKColors.White };
-        private readonly SKPaint _lbmWall = new() { Style = SKPaintStyle.Fill, Color = SKColors.Black };
-        private readonly SKPaint _lbmGhost = new() { Style = SKPaintStyle.Fill, Color = SKColor.Parse("#546E7A") };
-        private readonly SKPaint _lbmGhostOverlay = new() { Style = SKPaintStyle.Stroke, Color = SKColors.WhiteSmoke, StrokeWidth = 0.75f };
-        private readonly SKPaint _lbmElectrode = new() { Style = SKPaintStyle.Fill, Color = SKColors.Orange };
-        private readonly SKPaint _lbmVirtualElectrode = new() { Style = SKPaintStyle.Fill, Color = SKColor.Parse("#AA00FF") };
-        private readonly SKPaint _lbmStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.LightGray, StrokeWidth = 1 };
-        private readonly SKPaint _lbmGradientFill = new() { Style = SKPaintStyle.Fill };
-
-        // FEM preview drawing brushes
-        private readonly SKPaint _femStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Black, StrokeWidth = 1 };
-        private readonly SKPaint _femFill = new() { Style = SKPaintStyle.Fill };
-        private readonly SKPaint _electrodeFill = new() { Style = SKPaintStyle.Fill, Color = SKColors.Yellow };
-        private readonly SKPaint _electrodeSegmentStroke = new() { Style = SKPaintStyle.Stroke, Color = SKColors.Gold, StrokeWidth = 3, IsAntialias = true };
 
         // Enlarged hit-targets for connection interactions to make drawing easier
         private const double OutputPortHitRadius = 40;   // was 16
@@ -1348,161 +1335,31 @@ namespace ElectricalImpedanceTomography.Views
         /// </summary>
         private void OnMeshPreviewPaintSurface(object sender, SKPaintSurfaceEventArgs e)
         {
-            var canvas = e.Surface.Canvas;
-            var info = e.Info;
-            canvas.Clear(SKColors.Black.WithAlpha(20));
-
             var discretization = Workspace.GetDiscretization();
             MeshPreviewPlaceholder.IsVisible = discretization == null;
             if (discretization == null)
                 return;
 
-            if (discretization is LBMGrid lbm)
-            {
-                DrawLbmPreview(canvas, info, lbm);
-            }
-            else if (discretization is FEMMesh fem)
-            {
-                DrawFemPreview(canvas, info, fem);
-            }
-        }
-
-        /// <summary>
-        /// LBM preview aligned with Meshing page visuals: supports walls, ghost cells, electrodes (real/virtual)
-        /// and conductivity gradients.
-        /// </summary>
-        private void DrawLbmPreview(SKCanvas canvas, SKImageInfo info, LBMGrid grid)
-        {
-            float cellW = (float)info.Width / grid.Nx;
-            float cellH = (float)info.Height / grid.Ny;
-            const double defaultConductivity = 1.0;
-
-            var conductiveElements = grid.ElementsTyped
-                .Where(el => !el.IsWall && !el.IsElectrode)
-                .ToList();
-            double maxConductivity = defaultConductivity;
-            double minConductivity = defaultConductivity;
-            if (conductiveElements.Count > 0)
-            {
-                maxConductivity = Math.Max(defaultConductivity, conductiveElements.Max(el => el.Conductivity));
-                minConductivity = Math.Min(defaultConductivity, conductiveElements.Min(el => el.Conductivity));
-            }
-
-            var electrodeLookup = grid.ElectrodesTyped.Cast<LBMElectrode>()
-                .ToDictionary(e => e.Id, e => e.IsVirtual);
-
-            for (int y = 0; y < grid.Ny; y++)
-            {
-                for (int x = 0; x < grid.Nx; x++)
+            _meshRenderer.Draw(
+                e.Surface.Canvas,
+                e.Info,
+                new DiscretizationRenderRequest(discretization, DiscretizationRenderMode.Geometry),
+                new DiscretizationCanvasRenderOptions
                 {
-                    var el = grid.GetElementAt(x, y);
-                    SKPaint fill;
-                    if (el.IsElectrode)
-                    {
-                        bool isVirtual = el.ElectrodeId >= 0 && electrodeLookup.TryGetValue(el.ElectrodeId, out bool value) && value;
-                        fill = isVirtual ? _lbmVirtualElectrode : _lbmElectrode;
-                    }
-                    else if (el.GhostElement)
-                        fill = _lbmGhost;
-                    else if (el.IsWall)
-                        fill = _lbmWall;
-                    else if (Math.Abs(el.Conductivity - defaultConductivity) > 1e-6)
-                    {
-                        _lbmGradientFill.Color = ColorForValue(el.Conductivity, minConductivity, maxConductivity);
-                        fill = _lbmGradientFill;
-                    }
-                    else
-                        fill = _lbmDefault;
-
-                    var r = SKRect.Create(x * cellW, y * cellH, cellW, cellH);
-                    canvas.DrawRect(r, fill);
-                    canvas.DrawRect(r, _lbmStroke);
-                    if (el.GhostElement)
-                    {
-                        canvas.DrawLine(r.Left, r.Top, r.Right, r.Bottom, _lbmGhostOverlay);
-                        canvas.DrawLine(r.Left, r.Bottom, r.Right, r.Top, _lbmGhostOverlay);
-                    }
-                }
-            }
-        }
-
-        /// <summary>
-        /// Maps element conductivity to a red/blue diverging color scale centered at the mid.
-        /// </summary>
-        private static SKColor ColorForValue(double val, double min, double max)
-        {
-            double mid = (min + max) * 0.5;
-            if (val >= mid)
-            {
-                float t = (float)((val - mid) / (max - mid));
-                t = Math.Clamp(t, 0f, 1f);
-                byte r = (byte)(255 * t);
-                return new SKColor(r, 0, 0);
-            }
-            else
-            {
-                float t = (float)((mid - val) / (mid - min));
-                t = Math.Clamp(t, 0f, 1f);
-                byte b = (byte)(255 * t);
-                return new SKColor(0, 0, b);
-            }
-        }
-
-        /// <summary>
-        /// FEM preview: draw filled triangles colored by conductivity, outline, and electrode overlays.
-        /// </summary>
-        private void DrawFemPreview(SKCanvas canvas, SKImageInfo info, FEMMesh mesh)
-        {
-            const float pad = 6f;
-            float availW = info.Width - 2 * pad;
-            float availH = info.Height - 2 * pad;
-            var verts = mesh.Vertices;
-            float minX = (float)verts.Min(v => v.X);
-            float minY = (float)verts.Min(v => v.Y);
-            var maxX = (float)verts.Max(v => v.X);
-            var maxY = (float)verts.Max(v => v.Y);
-            float meshWidth = maxX - minX;
-            float meshHeight = maxY - minY;
-            float scale = Math.Min(availW / meshWidth, availH / meshHeight);
-            float usedW = meshWidth * scale;
-            float usedH = meshHeight * scale;
-            float marginX = pad + (availW - usedW) / 2f;
-            float marginY = pad + (availH - usedH) / 2f;
-
-            // Local function mapping FEM vertex to canvas coordinates (Y-up to Y-down conversion applied)
-            SKPoint ToCanvas(Utility.Classes.Discretizer.FiniteElementMesh.FEMVertex v)
-                => new((float)(v.X - minX) * scale + marginX,
-                        info.Height - ((float)(v.Y - minY) * scale + marginY));
-
-            var elements = mesh.ElementsTyped;
-            double min = elements.Min(el => el.Conductivity);
-            double max = elements.Max(el => el.Conductivity);
-
-            using var path = new SKPath();
-            foreach (var el in elements)
-            {
-                // Fill each triangle by conductivity color, then stroke outline
-                var p1 = ToCanvas(el.Vertices[0]);
-                var p2 = ToCanvas(el.Vertices[1]);
-                var p3 = ToCanvas(el.Vertices[2]);
-                path.Reset();
-                path.MoveTo(p1); path.LineTo(p2); path.LineTo(p3); path.Close();
-                _femFill.Color = ColorForValue(el.Conductivity, min, max);
-                canvas.DrawPath(path, _femFill);
-                canvas.DrawPath(path, _femStroke);
-            }
-
-            // Stroke electrode line segments along the boundary
-            foreach (var segment in mesh.GetElectrodeSegments())
-            {
-                var start = ToCanvas(segment.Start);
-                var end = ToCanvas(segment.End);
-                canvas.DrawLine(start, end, _electrodeSegmentStroke);
-            }
-
-            // Draw point electrodes as small yellow circles
-            foreach (var v in mesh.Vertices.Where(v => v.IsElectrode))
-                canvas.DrawCircle(ToCanvas(v), 3f, _electrodeFill);
+                    BackgroundColor = SKColors.Black.WithAlpha(20),
+                    ConductivityDisplayMode = ConductivityDisplayMode.Classic,
+                    FemPadding = 6f,
+                    LbmDefaultColor = SKColors.White,
+                    LbmWallColor = SKColors.Black,
+                    LbmGhostColor = SKColor.Parse("#546E7A"),
+                    LbmGhostOverlayColor = SKColors.WhiteSmoke,
+                    LbmElectrodeColor = SKColors.Orange,
+                    VirtualElectrodeColor = SKColor.Parse("#AA00FF"),
+                    LbmStrokeColor = SKColors.LightGray,
+                    ElectrodePointColor = SKColors.Yellow,
+                    ElectrodePointRadius = 3f,
+                    ElectrodeSegmentColor = SKColors.Gold
+                });
         }
 
         /// <summary>
