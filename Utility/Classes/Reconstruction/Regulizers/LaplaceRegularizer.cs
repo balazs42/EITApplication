@@ -5,6 +5,7 @@ using Utility.Classes.ReconstructionParameters;
 using Utility.Classes.Solvers;
 using Utility.Classes.Solvers.FiniteElementSolver;
 using Utility.Classes.Solvers.LatticeBoltzmannSolver;
+using Workspace = Utility.Classes.Application.Workspace;
 
 namespace Utility.Classes.Reconstruction.Regulizers
 {
@@ -18,9 +19,10 @@ namespace Utility.Classes.Reconstruction.Regulizers
 
         public double EvaluateTerm(IDiscretization discretization, ConductivityDistribution sigma)
         {
+            bool useParallelFem = Workspace.GetReconstructionParameters()?.UseOmpParallelization == true;
             ScalarField laplacian;
             if (discretization is FEMMesh femMesh)
-                laplacian = FiniteElementOperators.CalculateLaplacian(femMesh, sigma.ToPotentialDistribution());
+                laplacian = FiniteElementOperators.CalculateLaplacian(femMesh, sigma.ToPotentialDistribution(), useParallelFem);
             else if (discretization is LBMGrid lbmGrid)
                 laplacian = LatticeBoltzmannOperators.CalculateLaplacian(lbmGrid, sigma.ToPotentialDistribution());
             else
@@ -35,11 +37,12 @@ namespace Utility.Classes.Reconstruction.Regulizers
         {
             // Gradient is λ * Δ^2 σ (bi-Laplacian).
             // This is achieved by applying the Laplacian operator twice.
+            bool useParallelFem = Workspace.GetReconstructionParameters()?.UseOmpParallelization == true;
             if (discretization is FEMMesh femMesh)
             {
-                var laplacian1 = FiniteElementOperators.CalculateLaplacian(femMesh, sigma.ToPotentialDistribution());
-                var laplacian2 = FiniteElementOperators.CalculateLaplacian(femMesh, laplacian1); // Δ(Δγ)
-                var projected = FiniteElementOperators.ProjectVertexFieldToElements(femMesh, laplacian2);
+                var laplacian1 = FiniteElementOperators.CalculateLaplacian(femMesh, sigma.ToPotentialDistribution(), useParallelFem);
+                var laplacian2 = FiniteElementOperators.CalculateLaplacian(femMesh, laplacian1, useParallelFem); // Δ(Δγ)
+                var projected = FiniteElementOperators.ProjectVertexFieldToElements(femMesh, laplacian2, useParallelFem);
                 var gradientDict = projected.ToDictionary(
                     kvp => kvp.Key,
                     kvp => _lambda * kvp.Value);

@@ -50,6 +50,10 @@ namespace ServiceLayer
         private int _drivePatternSkip;                                      // Number of skipped electrodes for adjacent/skip-x drive mode
         private bool _useOmpParallelization;                                // Exposed from parameters to persistence (not used directly here)
         private bool _usePotentialDifferences;                              // Whether we use V(i) or V(i) - V(i+1) like differences
+        private long _lastLiveFramePublishTick;
+        private bool _yieldRequested;
+
+        private const int LiveFramePublishIntervalMs = 50;
 
         public override bool IsInitialized => _reconstructionPersistence.IsInitialized && _discretization != null;
 
@@ -91,6 +95,8 @@ namespace ServiceLayer
                 // 2) Reset per-run counters/collections.
                 _simMeasurementIndex = 0;
                 _currentCycleFrames.Clear();
+                _lastLiveFramePublishTick = 0;
+                _yieldRequested = false;
 
                 // 3) Clear workspace history so the UI reflects the new session.
                 Workspace.ClearReconstructionFrames();
@@ -275,6 +281,7 @@ namespace ServiceLayer
         private ReconstructionFrame? PerformInverseStep(double stepSize,
                                                         double regularizationWeight,
                                                         double excitationAmplitude,
+                                                        bool forceFrameNotification = false,
                                                         Action<ReconstructionResult>? onResultProduced = null)
         {
             // Ensure measurement source (simulated/real) matches the workspace selection.
@@ -307,26 +314,27 @@ namespace ServiceLayer
                 var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodeProjection, stepIndex);
 
                 // Delegate one optimization step to the persistence layer.
-                var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, stepSize, regularizationWeight);
+                var frame = CreateHistoryFrame(_reconstructionPersistence.Step(preparedMeasurement, bc, stepSize, regularizationWeight));
 
                 // Advance frame counters and notify observers.
                 _simMeasurementIndex++;
                 _currentCycleFrames.Add(frame);
-                PublishFrameToWorkspace(frame);
+                PublishFrameToWorkspace(frame, forceFrameNotification);
 
                 // When the drive-pattern cycle ends, publish a reconstruction result and advance the iteration.
                 if (_simMeasurementIndex % Math.Max(1, _measurementService.FramesPerCycle) == 0)
                 {
+                    var reconstructedSigma = _discretization!.GetConductivityDistribution();
                     var result = new ReconstructionResult(_discretization!.GetDiscretization(),
                                                           _originalSigma!,
-                                                          _initialSigma!,
-                                                          _discretization!.GetConductivityDistribution(),
+                                                          _initialSigma!.CreateCompactHistoryClone(),
+                                                          reconstructedSigma.CreateCompactHistoryClone(),
                                                           [.. _currentCycleFrames]);
                     PublishResultToWorkspace(result);
                     onResultProduced?.Invoke(result);
 
                     // Use the freshly reconstructed field as the next cycle's initial state.
-                    _initialSigma = result.ReconstructedConductivityDistribution;
+                    _initialSigma = reconstructedSigma;
                     _reconstructionPersistence.SetConductivityDistributions(_originalSigma!, _initialSigma!);
 
                     _currentCycleFrames.Clear();
@@ -352,18 +360,19 @@ namespace ServiceLayer
 
                 var bc = new LBMBoundaryCondition(electrodes);
                 var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodeProjection, stepIndex);
-                var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, stepSize, regularizationWeight);
+                var frame = CreateHistoryFrame(_reconstructionPersistence.Step(preparedMeasurement, bc, stepSize, regularizationWeight));
 
                 _simMeasurementIndex++;
                 _currentCycleFrames.Add(frame);
-                PublishFrameToWorkspace(frame);
+                PublishFrameToWorkspace(frame, forceFrameNotification);
 
                 if (_simMeasurementIndex % Math.Max(1, _measurementService.FramesPerCycle) == 0)
                 {
+                    var reconstructedSigma = _discretization!.GetConductivityDistribution();
                     var result = new ReconstructionResult(_discretization!.GetDiscretization(),
                                                           _originalSigma!,
-                                                          _initialSigma!, 
-                                                          _discretization!.GetConductivityDistribution(),
+                                                          _initialSigma!.CreateCompactHistoryClone(), 
+                                                          reconstructedSigma.CreateCompactHistoryClone(),
                                                           [.. _currentCycleFrames]);
                     PublishResultToWorkspace(result);
                     onResultProduced?.Invoke(result);
@@ -388,6 +397,7 @@ namespace ServiceLayer
                                                    CancellationToken cancellationToken)
         {
             _currentIteration = 0;
+            _yieldRequested = false;
 
             while (!cancellationToken.IsCancellationRequested && _currentIteration < maxIterationCount)
             {
@@ -396,8 +406,11 @@ namespace ServiceLayer
                     break;
 
                 PerformInverseStep(stepSize, regularizationWeight, excitationAmplitude);
-                if (VisualizeIterations)
+                if (VisualizeIterations && _yieldRequested)
+                {
+                    _yieldRequested = false;
                     await Task.Yield();
+                }
             }
         }
 
@@ -408,7 +421,8 @@ namespace ServiceLayer
             return await Task.Run(() =>
             {
                 ReconstructionResult? result = null;
-                PerformInverseStep(stepSize, regularizationWeight, excitationAmplitude, produced => result = produced);
+                PerformInverseStep(stepSize, regularizationWeight, excitationAmplitude, true, produced => result = produced);
+                _yieldRequested = false;
                 return result;
             });
         }
@@ -430,6 +444,7 @@ namespace ServiceLayer
                                                                                            double excitationAmplitude)
         {
             _currentCycleFrames.Clear();
+            _yieldRequested = false;
 
             return await Task.Run(() =>
             {
@@ -455,7 +470,7 @@ namespace ServiceLayer
                         // Convert the measurement snapshot to the solver layout for the current electrode roles.
                         var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodeProjection, i);
 
-                        var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, stepSize, regularizationWeight);
+                        var frame = CreateHistoryFrame(_reconstructionPersistence.Step(preparedMeasurement, bc, stepSize, regularizationWeight));
 
                         // Persist frame for UI and later aggregation/inspection.
                         _currentCycleFrames.Add(frame);
@@ -486,12 +501,13 @@ namespace ServiceLayer
 
                     var result = new ReconstructionResult(_discretization!.GetDiscretization(),
                                                           _originalSigma!,
-                                                          prevSigma,
-                                                          newSigma,
+                                                          prevSigma.CreateCompactHistoryClone(),
+                                                          newSigma.CreateCompactHistoryClone(),
                                                           [.. _currentCycleFrames]);
                     PublishResultToWorkspace(result);
                     _currentCycleFrames.Clear();
                     _currentIteration++;
+                    _yieldRequested = false;
                     return result;
                 }
                 else if (_discretization is LBMGrid lbmGrid)
@@ -509,7 +525,7 @@ namespace ServiceLayer
 
                         var measurement = measurements[i];
                         var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodeProjection, i);
-                        var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, stepSize, regularizationWeight);
+                        var frame = CreateHistoryFrame(_reconstructionPersistence.Step(preparedMeasurement, bc, stepSize, regularizationWeight));
 
                         _currentCycleFrames.Add(frame);
                         PublishFrameToWorkspace(frame);
@@ -535,11 +551,12 @@ namespace ServiceLayer
 
                     var result = new ReconstructionResult(_discretization!.GetDiscretization(),
                                                           _originalSigma!,
-                                                          prevSigma,
-                                                          newSigma,
+                                                          prevSigma.CreateCompactHistoryClone(),
+                                                          newSigma.CreateCompactHistoryClone(),
                                                           [.. _currentCycleFrames]);
                     PublishResultToWorkspace(result);
                     _currentCycleFrames.Clear();
+                    _yieldRequested = false;
                     return result;
                 }
 
@@ -551,12 +568,17 @@ namespace ServiceLayer
         /// Adds a reconstruction frame to the workspace and optionally notifies listeners for live visualisation.
         /// </summary>
         /// <param name="frame">Frame to surface.</param>
-        private void PublishFrameToWorkspace(ReconstructionFrame frame)
+        private void PublishFrameToWorkspace(ReconstructionFrame frame, bool forceNotify = false)
         {
             if (!VisualizeIterations)
                 return;
 
             Workspace.AddReconstructionFrameToWorkspace(frame);
+
+            if (!forceNotify && !ShouldPublishLiveFrame())
+                return;
+
+            _yieldRequested = true;
             base.PublishFrame(frame);
         }
 
@@ -567,7 +589,31 @@ namespace ServiceLayer
         private void PublishResultToWorkspace(ReconstructionResult result)
         {
             Workspace.AddReconstructionResultToWorkspace(result);
+            _yieldRequested = true;
             base.PublishResult(result);
+        }
+
+        private bool ShouldPublishLiveFrame()
+        {
+            long now = Environment.TickCount64;
+            long elapsed = unchecked(now - _lastLiveFramePublishTick);
+            if (elapsed >= LiveFramePublishIntervalMs || elapsed < 0)
+            {
+                _lastLiveFramePublishTick = now;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static ReconstructionFrame CreateHistoryFrame(ReconstructionFrame frame)
+        {
+            return new ReconstructionFrame(frame.ConductivityGradient.CreateCompactHistoryClone(),
+                                           frame.CalculatedPotentialDistribution.CreateCompactHistoryClone(),
+                                           frame.CalculatedAdjointDistribution.CreateCompactHistoryClone(),
+                                           new ConductivityDistribution([]),
+                                           frame.MeasuredElectrodeValues,
+                                           frame.SimulatedElectrodeValues);
         }
 
 

@@ -319,8 +319,7 @@ namespace BusinessLayer
             var boundaryConditions = new FEMBoundaryCondition(electrodes);
             Workspace.SetCurrentGlobalFemBoundaryCondition(boundaryConditions);
 
-            var potential = _differentialEquationSolver.Solve(mesh, boundaryConditions, null);
-            return PotentialClipper.Clip(potential);
+            return _differentialEquationSolver.Solve(mesh, boundaryConditions, null);
         }
 
         /// <summary>
@@ -615,7 +614,7 @@ namespace BusinessLayer
             }
 
             // Forward solve: ?
-            PotentialDistribution phi = PotentialClipper.Clip(solver.Solve(mesh, bc, null));
+            PotentialDistribution phi = solver.Solve(mesh, bc, null);
             double[] simulatedPotentials = PotentialClipper.Clip(mesh.GetElectrodePotentials());
 
             var measurementSetup = Workspace.GetElectrodeMeasurementSetup();
@@ -645,19 +644,36 @@ namespace BusinessLayer
             if (updateWorkspace)
                 Workspace.SetCurrentGlobalFemBoundaryCondition(adjointBoundaryCondition);
 
-            PotentialDistribution mu = PotentialClipper.Clip(solver.Solve(mesh, adjointBoundaryCondition, adjointSource));
+            PotentialDistribution mu = solver.Solve(mesh, adjointBoundaryCondition, adjointSource);
 
             // Compute ?? and ?µ on elements
-            var phiGradient = FiniteElementOperators.CalculateElementWiseGradient(mesh, phi);
-            var muGradient = FiniteElementOperators.CalculateElementWiseGradient(mesh, mu);
+            var phiGradient = FiniteElementOperators.CalculateElementWiseGradient(mesh, phi, _useOmpParallelization);
+            var muGradient = FiniteElementOperators.CalculateElementWiseGradient(mesh, mu, _useOmpParallelization);
 
             // Data gradient: -(?µ·??)·Area per element
             var dataGradientValues = new Dictionary<int, double>(elements.Count);
-            foreach (var element in elements)
+            if (_useOmpParallelization && elements.Count > 1)
             {
-                var gPhi = phiGradient.GetVector(element.Id);
-                var gMu = muGradient.GetVector(element.Id);
-                dataGradientValues[element.Id] = -(gMu.X * gPhi.X + gMu.Y * gPhi.Y) * element.Area;
+                var entries = new KeyValuePair<int, double>[elements.Count];
+                Parallel.For(0, elements.Count, index =>
+                {
+                    var element = elements[index];
+                    var gPhi = phiGradient.GetVector(element.Id);
+                    var gMu = muGradient.GetVector(element.Id);
+                    entries[index] = new KeyValuePair<int, double>(element.Id, -(gMu.X * gPhi.X + gMu.Y * gPhi.Y) * element.Area);
+                });
+
+                for (int i = 0; i < entries.Length; i++)
+                    dataGradientValues[entries[i].Key] = entries[i].Value;
+            }
+            else
+            {
+                foreach (var element in elements)
+                {
+                    var gPhi = phiGradient.GetVector(element.Id);
+                    var gMu = muGradient.GetVector(element.Id);
+                    dataGradientValues[element.Id] = -(gMu.X * gPhi.X + gMu.Y * gPhi.Y) * element.Area;
+                }
             }
             ConductivityDistribution dataGrad = new ConductivityDistribution(dataGradientValues);
 
@@ -1540,9 +1556,7 @@ namespace BusinessLayer
             var boundaryConditions = new FEMBoundaryCondition(electrodes);
             Workspace.SetCurrentGlobalFemBoundaryCondition(boundaryConditions);
 
-            PotentialDistribution potentialDistribution = PotentialClipper.Clip(_differentialEquationSolver.Solve(mesh, boundaryConditions, null));
-            mesh.SetPotentialDistribution(potentialDistribution);
-
+            _ = _differentialEquationSolver.Solve(mesh, boundaryConditions, null);
             return mesh;
         }
 
@@ -1798,7 +1812,7 @@ namespace BusinessLayer
             var electrodes = Workspace.GetCurrentGlobalFemElectrodes();
             var bc = new FEMBoundaryCondition(electrodes);
             Workspace.SetCurrentGlobalFemBoundaryCondition(bc);
-            var pd = PotentialClipper.Clip(_differentialEquationSolver.Solve(mesh, bc, null));
+            var pd = _differentialEquationSolver.Solve(mesh, bc, null);
             mesh.SetPotentialDistribution(pd);
             return mesh;
         }

@@ -5,6 +5,7 @@ using Utility.Classes.ReconstructionParameters;
 using Utility.Classes.Solvers;
 using Utility.Classes.Solvers.FiniteElementSolver;
 using Utility.Classes.Solvers.LatticeBoltzmannSolver;
+using Workspace = Utility.Classes.Application.Workspace;
 
 namespace Utility.Classes.Reconstruction.Regulizers
 {
@@ -18,11 +19,12 @@ namespace Utility.Classes.Reconstruction.Regulizers
 
         public double EvaluateTerm(IDiscretization discretization, ConductivityDistribution sigma)
         {
+            bool useParallelFem = Workspace.GetReconstructionParameters()?.UseOmpParallelization == true;
             VectorField gradientField;
             if (discretization is FEMMesh femMesh)
             {
                 // For FEM, gradient is constant per element.
-                gradientField = FiniteElementOperators.CalculateElementWiseGradient(femMesh, sigma.ToPotentialDistribution());
+                gradientField = FiniteElementOperators.CalculateElementWiseGradient(femMesh, sigma.ToPotentialDistribution(), useParallelFem);
                 double integral = 0;
                 var elements = femMesh.GetElements().Cast<FEMElement>();
 
@@ -47,10 +49,11 @@ namespace Utility.Classes.Reconstruction.Regulizers
         public ConductivityDistribution EvaluateGradient(IDiscretization discretization, ConductivityDistribution sigma)
         {
             // Gradient is -λ * Δσ.
+            bool useParallelFem = Workspace.GetReconstructionParameters()?.UseOmpParallelization == true;
             if (discretization is FEMMesh femMesh)
             {
-                var laplacian = FiniteElementOperators.CalculateLaplacian(femMesh, sigma.ToPotentialDistribution());
-                var projected = FiniteElementOperators.ProjectVertexFieldToElements(femMesh, laplacian);
+                var laplacian = FiniteElementOperators.CalculateLaplacian(femMesh, sigma.ToPotentialDistribution(), useParallelFem);
+                var projected = FiniteElementOperators.ProjectVertexFieldToElements(femMesh, laplacian, useParallelFem);
                 var gradientDict = projected.ToDictionary(
                     kvp => kvp.Key,
                     kvp => -_lambda * kvp.Value);

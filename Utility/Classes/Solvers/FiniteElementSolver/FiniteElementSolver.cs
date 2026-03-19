@@ -5,6 +5,7 @@ using MathNet.Numerics.LinearAlgebra.Double;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Measurement;
+using Utility.Classes.Reconstruction;
 using Utility.Classes.ReconstructionParameters;
 
 using Vector = MathNet.Numerics.LinearAlgebra.Vector<double>;
@@ -145,31 +146,35 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
                     $"Reference node id {_referenceNodeId} out of range [0, {N_phi - 1}]");
 
             double referencePotential = solution[_referenceNodeId];
+            _ = referencePotential;
 
             // --- 2) build node potentials shifted so that φ(referenceNode) = 0 ---
-            var nodePotentials = new Dictionary<int, double>(N_phi);
+            var nodePotentials = new double[N_phi];
             for (int i = 0; i < N_phi; i++)
-                nodePotentials[i] = solution[i];// - referencePotential;
+                nodePotentials[i] = Sanitize(solution[i]);// - referencePotential;
 
-            var potentialDistribution = new PotentialDistribution(nodePotentials);
-            mesh.SetPotentialDistribution(potentialDistribution);
+            var potentialDistribution = PotentialDistribution.FromDense(nodePotentials, 0, takeOwnership: true);
+            mesh.ApplySolvedPotentialDistribution(potentialDistribution);
 
-            void UpdateElectrodePotentials(IEnumerable<FEMElectrode> list)
+            void UpdateElectrodePotentials(IReadOnlyList<FEMElectrode> list)
             {
-                foreach (var el in list)
+                for (int i = 0; i < list.Count; i++)
                 {
+                    var el = list[i];
                     double potential = (L <= 1 || el.Id == _groundElectrodeId)
                         ? 0.0
                         : solution[ElectrodeColumn(el.Id)];
-                    el.Potential = potential;
+                    el.Potential = Sanitize(potential);
                 }
             }
 
             UpdateElectrodePotentials(electrodes);
-            UpdateElectrodePotentials(mesh.GetElectrodes().Cast<FEMElectrode>());
+            UpdateElectrodePotentials(mesh.ElectrodesTyped);
 
             return potentialDistribution;
         }
+
+        private static double Sanitize(double value) => double.IsFinite(value) ? value : 0.0;
 
 
 #region Assembly
@@ -216,31 +221,38 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         private void BuildStiffnessMatrix(FEMMesh mesh)
         {
             var sigma = mesh.GetConductivityDistribution();
-            var elements = mesh.GetElements().Cast<FEMElement>();
+            var elements = mesh.ElementsTyped;
+            int elementCount = elements.Count;
+            int estimatedContributionCount = Math.Max(elementCount * 9, 16);
 
             Dictionary<long, double> contributions;
 
-            if (_useOmpParallelization)
+            if (_useOmpParallelization && elementCount > 1)
             {
                 var bag = new ConcurrentBag<Dictionary<long, double>>();
-                Parallel.ForEach(elements,
-                    () => new Dictionary<long, double>(9),
-                    (elem, _, local) =>
+                int workerCount = Math.Min(Environment.ProcessorCount, elementCount);
+                int localCapacity = Math.Max(estimatedContributionCount / Math.Max(workerCount, 1), 32);
+
+                Parallel.ForEach(Partitioner.Create(0, elementCount),
+                    new ParallelOptions { MaxDegreeOfParallelism = workerCount },
+                    () => new Dictionary<long, double>(localCapacity),
+                    (range, _, local) =>
                     {
-                        AccumulateElementStiffness(elem, sigma, local);
+                        for (int i = range.Item1; i < range.Item2; i++)
+                            AccumulateElementStiffness(elements[i], sigma, local);
                         return local;
                     },
                     local => bag.Add(local));
 
-                contributions = new Dictionary<long, double>();
+                contributions = new Dictionary<long, double>(estimatedContributionCount);
                 foreach (var local in bag)
                     MergeContributions(contributions, local);
             }
             else
             {
-                contributions = new Dictionary<long, double>();
-                foreach (var elem in elements)
-                    AccumulateElementStiffness(elem, sigma, contributions);
+                contributions = new Dictionary<long, double>(estimatedContributionCount);
+                for (int i = 0; i < elementCount; i++)
+                    AccumulateElementStiffness(elements[i], sigma, contributions);
             }
 
             _stiffnessMatrix = SparseMatrix.OfIndexed(N_phi, N_phi, EnumerateContributions(contributions));
@@ -262,8 +274,8 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             if (!needsRebuild)
                 return;
 
-            var massContrib = new Dictionary<long, double>();
-            var coupContrib = new Dictionary<long, double>();
+            var massContrib = new Dictionary<long, double>(Math.Max(16, electrodes.Count * 8));
+            var coupContrib = new Dictionary<long, double>(Math.Max(16, electrodes.Count * 4));
             var diag = new double[electrodes.Count];
 
             for (int ell = 0; ell < electrodes.Count; ell++)
@@ -278,20 +290,13 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         private void BuildSystemMatrix(List<FEMElectrode> electrodes)
         {
             int systemSize = N_phi + Math.Max(0, L - 1);
-            _systemMatrix = SparseMatrix.Create(systemSize, systemSize, 0.0);
-
-            void Add(int row, int col, double value)
-            {
-                if (Math.Abs(value) < 1e-30)
-                    return;
-                _systemMatrix[row, col] = _systemMatrix[row, col] + value;
-            }
+            var contributions = new Dictionary<long, double>();
 
             foreach (var (row, col, value) in _stiffnessMatrix.EnumerateIndexed(Zeros.AllowSkip))
-                Add(row, col, value);
+                AddContribution(contributions, row, col, value);
 
             foreach (var (row, col, value) in _robinMassMatrix.EnumerateIndexed(Zeros.AllowSkip))
-                Add(row, col, value);
+                AddContribution(contributions, row, col, value);
 
             foreach (var (row, col, value) in _couplingMatrix.EnumerateIndexed(Zeros.AllowSkip))
             {
@@ -299,8 +304,8 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
                     continue;
 
                 int c = ElectrodeColumn(col);
-                Add(row, c, -value);
-                Add(c, row, -value);
+                AddContribution(contributions, row, c, -value);
+                AddContribution(contributions, c, row, -value);
             }
 
             for (int ell = 0; ell < L; ell++)
@@ -309,8 +314,10 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
                     continue;
 
                 int c = ElectrodeColumn(ell);
-                Add(c, c, _electrodeDiagonal[ell]);
+                AddContribution(contributions, c, c, _electrodeDiagonal[ell]);
             }
+
+            _systemMatrix = SparseMatrix.OfIndexed(systemSize, systemSize, EnumerateContributions(contributions));
         }
 
         private void BuildRhsVector(List<FEMElectrode> electrodes)

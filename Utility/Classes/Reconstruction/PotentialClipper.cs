@@ -19,6 +19,21 @@ namespace Utility.Classes.Reconstruction
             if (distribution == null)
                 throw new ArgumentNullException(nameof(distribution));
 
+            if (distribution.TryGetDenseStorage(out var densePotentials, out var densePotentialsCompact, out _))
+            {
+                if (densePotentials != null)
+                {
+                    ClipDense(densePotentials, useParallel, parallelOptions);
+                    return distribution;
+                }
+
+                if (densePotentialsCompact != null)
+                {
+                    ClipDense(densePotentialsCompact, useParallel, parallelOptions);
+                    return distribution;
+                }
+            }
+
             Dictionary<int, double> potentials = distribution.Potentials;
             if (potentials.Count == 0)
                 return distribution;
@@ -87,11 +102,64 @@ namespace Utility.Classes.Reconstruction
             return potentials;
         }
 
+        private static void ClipDense(
+            double[] potentials,
+            bool useParallel,
+            ParallelOptions? parallelOptions)
+        {
+            if (potentials.Length == 0)
+                return;
+
+            bool shouldParallel = (useParallel || parallelOptions != null) && potentials.Length > 1;
+            if (shouldParallel)
+            {
+                var options = parallelOptions ?? DefaultParallelOptions;
+                Parallel.For(0, potentials.Length, options, i =>
+                {
+                    potentials[i] = Sanitize(potentials[i]);
+                });
+            }
+            else
+            {
+                for (int i = 0; i < potentials.Length; i++)
+                    potentials[i] = Sanitize(potentials[i]);
+            }
+        }
+
+        private static void ClipDense(
+            float[] potentials,
+            bool useParallel,
+            ParallelOptions? parallelOptions)
+        {
+            if (potentials.Length == 0)
+                return;
+
+            bool shouldParallel = (useParallel || parallelOptions != null) && potentials.Length > 1;
+            if (shouldParallel)
+            {
+                var options = parallelOptions ?? DefaultParallelOptions;
+                Parallel.For(0, potentials.Length, options, i =>
+                {
+                    potentials[i] = Sanitize(potentials[i]);
+                });
+            }
+            else
+            {
+                for (int i = 0; i < potentials.Length; i++)
+                    potentials[i] = Sanitize(potentials[i]);
+            }
+        }
+
         private static double Sanitize(double value)
         {
             double retVal = double.IsFinite(value) ? value : 0.0;
 
             return retVal;
+        }
+
+        private static float Sanitize(float value)
+        {
+            return !float.IsNaN(value) && !float.IsInfinity(value) ? value : 0.0f;
         }
     }
 }

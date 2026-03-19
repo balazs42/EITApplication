@@ -208,8 +208,7 @@ namespace BusinessLayer
         private static FEMMesh SolveFemForward(FEMMesh mesh, IDifferentialEquationSolver solver)
         {
             var boundaryCondition = new FEMBoundaryCondition(mesh.GetElectrodes().Cast<FEMElectrode>().ToList());
-            var potentialDistribution = solver.Solve(mesh, boundaryCondition, null);
-            mesh.SetPotentialDistribution(PotentialClipper.Clip(potentialDistribution));
+            _ = solver.Solve(mesh, boundaryCondition, null);
             return mesh;
         }
 

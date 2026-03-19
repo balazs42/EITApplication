@@ -492,6 +492,9 @@ namespace ElectricalImpedanceTomography.ViewModels
         private CancellationTokenSource? _statisticsUpdateCts;
         private ReconstructionResult? _latestResult;
         private ReconstructionFrame? _latestFrame;
+        private long _lastFrameMetricRequestTick;
+
+        private const int LiveFrameMetricUpdateIntervalMs = 100;
 
         // ------------------------ Simplified gradient metrics ------------------------
         // A single list of norm/angle pairs with minimal metadata. No locking.
@@ -508,10 +511,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         public event EventHandler? GradientInspectionRequested;
         
         /// <summary>Snapshot of the previous gradient used for angle calculation across steps.</summary>
-        private Dictionary<int, double>? _previousGradientSnapshot; // used only to calculate angle
-
-        private IErrorMetric? _cachedErrorMetric;
-        private ErrorMetric _cachedErrorMetricChoice;
+        private IReadOnlyDictionary<int, double>? _previousGradientSnapshot; // used only to calculate angle
 
         /// <summary>Raised when the selected trend metric history changed and charts need refresh.</summary>
         public event EventHandler? SelectedTrendMetricHistoryChanged;
@@ -525,8 +525,6 @@ namespace ElectricalImpedanceTomography.ViewModels
         private SKSizeI _videoExportResidualSize;
         private SKSizeI _videoExportFrameSize;
         private int _videoExportFrameCount;
-        private object _errorMetricLock = new object();
-
         /// <summary>Updates estimated size/time when the selected export format changes.</summary>
         partial void OnSelectedVideoExportFormatChanged(VideoExportFormatOption? value)
         {
@@ -1046,23 +1044,6 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
         }
 
-        /// <summary>
-        /// Returns a cached error metric instance for the given choice to avoid repeated factory allocations.
-        /// </summary>
-        private IErrorMetric GetErrorMetric(ErrorMetric choice)
-        {
-            lock (_errorMetricLock)
-            {
-                if (_cachedErrorMetric == null || _cachedErrorMetricChoice != choice)
-                {
-                    _cachedErrorMetric = ErrorMetricFactory.Create(choice);
-                    _cachedErrorMetricChoice = choice;
-                }
-
-                return _cachedErrorMetric;
-            }
-        }
-
         /// <summary>Resets dynamic metric values and clears trend series.</summary>
         public void ResetReconstructionMetrics()
         {
@@ -1133,6 +1114,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 _metricUpdateCts = null;
                 _latestResult = null;
                 _latestFrame = null;
+                _lastFrameMetricRequestTick = 0;
             }
 
             _previousGradientSnapshot = null;
@@ -1395,6 +1377,16 @@ namespace ElectricalImpedanceTomography.ViewModels
                 if (snapshotResult is null && snapshotFrame is null)
                     return;
 
+                if (result == null && frame != null && IsActiveReconstructionRunning && !IsActiveReconstructionPaused)
+                {
+                    long now = Environment.TickCount64;
+                    long elapsed = unchecked(now - _lastFrameMetricRequestTick);
+                    if (elapsed >= 0 && elapsed < LiveFrameMetricUpdateIntervalMs)
+                        return;
+
+                    _lastFrameMetricRequestTick = now;
+                }
+
                 _metricUpdateCts?.Cancel();
                 _metricUpdateCts = new CancellationTokenSource();
                 var token = _metricUpdateCts.Token;
@@ -1415,10 +1407,6 @@ namespace ElectricalImpedanceTomography.ViewModels
                 if (result != null)
                     distributionMetrics = ReconstructionStatistics.ComputeDistributionMetrics(result, token, true);
                 
-                token.ThrowIfCancellationRequested();
-
-                var measurementMetrics = ComputeElectrodeMetrics(token);
-
                 token.ThrowIfCancellationRequested();
 
                 frame ??= result?.Frames.LastOrDefault();
@@ -1481,56 +1469,6 @@ namespace ElectricalImpedanceTomography.ViewModels
         }
 
         /// <summary>
-        /// Computes per‑electrode error statistics against the current original distribution (if available).
-        /// </summary>
-        private MeasurementMetrics? ComputeElectrodeMetrics(CancellationToken token)
-        {
-            var discretization = Workspace.GetDiscretization();
-            var original = Workspace.GetOriginalDiscretization();
-
-            if (discretization == null || original == null)
-                return null;
-
-            var simulated = discretization.GetElectrodePotentials();
-            var measured = original.GetElectrodePotentials();
-
-            if (simulated.Length == 0 || measured.Length == 0 || simulated.Length != measured.Length)
-                return null;
-
-            double sumSq = 0.0;
-            double sumAbs = 0.0;
-            double sumPct = 0.0;
-
-            for (int i = 0; i < simulated.Length; i++)
-            {
-                token.ThrowIfCancellationRequested();
-
-                double diff = simulated[i] - measured[i];
-                sumSq += diff * diff;
-                sumAbs += Math.Abs(diff);
-                sumPct += Math.Abs(diff) / Math.Max(Math.Abs(measured[i]), 1e-6);
-            }
-
-            int n = simulated.Length;
-            double rmse = Math.Sqrt(sumSq / Math.Max(n, 1));
-            double mae = sumAbs / Math.Max(n, 1);
-            double mape = sumPct / Math.Max(n, 1);
-
-            double? misfit = null;
-            try
-            {
-                var metric = GetErrorMetric(ReconstructionParameters.ErrorMetric);
-                misfit = metric.Evaluate(discretization, measured, simulated);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Misfit evaluation failed: {ex.Message}");
-            }
-
-            return new MeasurementMetrics(rmse, mae, mape, misfit);
-        }
-
-        /// <summary>
         /// Computes field‑level diagnostics (gradient norm/angle, potential/adjoint ranges) for a frame.
         /// </summary>
         private FieldMetrics ComputeFieldMetrics(ReconstructionFrame? frame, CancellationToken token)
@@ -1552,24 +1490,18 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             if (previous != null && previous.Count > 0 && gradient.Count > 0)
             {
-                gradientAngle = ReconstructionStatistics.ComputeGradientAngle(previous, gradient);
+                gradientAngle = ReconstructionStatistics.ComputeGradientAngle(previous.ToDictionary(), gradient);
             }
 
             var potentialRange = ComputeRange(frame.CalculatedPotentialDistribution?.Potentials);
             var adjointRange = ComputeRange(frame.CalculatedAdjointDistribution?.Potentials);
-            var regularizationRange = ComputeRange(frame.CalculatedRegularization?.Conductivities);
-            double regularizationEnergy = ComputeRegularizationEnergy(frame.CalculatedRegularization?.Conductivities, token);
-
-            var gradientSnapshot = new Dictionary<int, double>(gradient);
 
             return new FieldMetrics(true,
                                     gradientNorm,
                                     gradientAngle,
                                     potentialRange,
                                     adjointRange,
-                                    regularizationRange,
-                                    regularizationEnergy,
-                                    gradientSnapshot);
+                                    gradient);
         }
 
         /// <summary>
@@ -1598,24 +1530,6 @@ namespace ElectricalImpedanceTomography.ViewModels
                 return RangeMetrics.Empty;
 
             return new RangeMetrics(min, max);
-        }
-
-        /// <summary>
-        /// Computes the L2 energy of the provided regularization vector.
-        /// </summary>
-        private static double ComputeRegularizationEnergy(IReadOnlyDictionary<int, double>? values, CancellationToken token)
-        {
-            if (values == null || values.Count == 0)
-                return double.NaN;
-
-            double sum = 0.0;
-            foreach (var kv in values)
-            {
-                token.ThrowIfCancellationRequested();
-                sum += kv.Value * kv.Value;
-            }
-
-            return Math.Sqrt(sum);
         }
 
         /// <summary>Formats a number according to the default or provided format string.</summary>
@@ -1694,23 +1608,6 @@ namespace ElectricalImpedanceTomography.ViewModels
             public const string AdjointRange = "adjointRange";
         }
 
-        /// <summary>Composite of RMSE/MAE/MAPE on electrode signals and optional metric value.</summary>
-        private readonly struct MeasurementMetrics
-        {
-            public MeasurementMetrics(double rmse, double mae, double mape, double? misfit)
-            {
-                Rmse = rmse;
-                Mae = mae;
-                Mape = mape;
-                Misfit = misfit;
-            }
-
-            public double Rmse { get; }
-            public double Mae { get; }
-            public double Mape { get; }
-            public double? Misfit { get; }
-        }
-
         /// <summary>Container for frame‑level diagnostics used by the UI.</summary>
         private readonly struct FieldMetrics
         {
@@ -1719,8 +1616,6 @@ namespace ElectricalImpedanceTomography.ViewModels
                                                               null,
                                                               RangeMetrics.Empty,
                                                               RangeMetrics.Empty,
-                                                              RangeMetrics.Empty,
-                                                              double.NaN,
                                                               null);
 
             public FieldMetrics(bool hasData,
@@ -1728,17 +1623,13 @@ namespace ElectricalImpedanceTomography.ViewModels
                                 double? gradientAngle,
                                 RangeMetrics potentialRange,
                                 RangeMetrics adjointRange,
-                                RangeMetrics regularizationRange,
-                                double regularizationEnergy,
-                                Dictionary<int, double>? gradientSnapshot)
+                                IReadOnlyDictionary<int, double>? gradientSnapshot)
             {
                 HasData = hasData;
                 GradientNorm = gradientNorm;
                 GradientAngle = gradientAngle;
                 PotentialRange = potentialRange;
                 AdjointRange = adjointRange;
-                RegularizationRange = regularizationRange;
-                RegularizationEnergy = regularizationEnergy;
                 GradientSnapshot = gradientSnapshot;
             }
 
@@ -1747,9 +1638,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             public double? GradientAngle { get; }
             public RangeMetrics PotentialRange { get; }
             public RangeMetrics AdjointRange { get; }
-            public RangeMetrics RegularizationRange { get; }
-            public double RegularizationEnergy { get; }
-            public Dictionary<int, double>? GradientSnapshot { get; }
+            public IReadOnlyDictionary<int, double>? GradientSnapshot { get; }
         }
 
         /// <summary>Simple min/max pair with presence flag used by range formatting.</summary>
@@ -1889,7 +1778,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         /// </summary>
         public Task<ReconstructionResult?> RunFullReconstructionCycleAsync()
         {
-            InitializeReconstruction();
+            PrepareForNewReconstruction();
             BeginReconstructionMetrics();
 
             if (ShouldUseBlockConfiguration)
@@ -1914,7 +1803,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         /// </summary>
         public async Task StepReconstructionAsync()
         {
-            InitializeReconstruction();
+            PrepareForNewReconstruction();
             BeginReconstructionMetrics();
 
             if (ShouldUseBlockConfiguration)

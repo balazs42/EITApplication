@@ -5,6 +5,7 @@ using Utility.Classes.ReconstructionParameters;
 using Utility.Classes.Solvers;
 using Utility.Classes.Solvers.FiniteElementSolver;
 using Utility.Classes.Solvers.LatticeBoltzmannSolver;
+using Workspace = Utility.Classes.Application.Workspace;
 
 namespace Utility.Classes.Reconstruction.Regulizers
 {
@@ -20,10 +21,11 @@ namespace Utility.Classes.Reconstruction.Regulizers
 
         public double EvaluateTerm(IDiscretization discretization, ConductivityDistribution sigma)
         {
+            bool useParallelFem = Workspace.GetReconstructionParameters()?.UseOmpParallelization == true;
             VectorField gradientField;
             if (discretization is FEMMesh femMesh)
             {
-                gradientField = FiniteElementOperators.CalculateElementWiseGradient(femMesh, sigma.ToPotentialDistribution());
+                gradientField = FiniteElementOperators.CalculateElementWiseGradient(femMesh, sigma.ToPotentialDistribution(), useParallelFem);
                 double integral = 0;
                 var elements = femMesh.GetElements().Cast<FEMElement>();
 
@@ -46,13 +48,14 @@ namespace Utility.Classes.Reconstruction.Regulizers
         public ConductivityDistribution EvaluateGradient(IDiscretization discretization, ConductivityDistribution sigma)
         {
             // Gradient is -λ * ∇·(∇σ / (||∇σ|| + ε)).
+            bool useParallelFem = Workspace.GetReconstructionParameters()?.UseOmpParallelization == true;
 
             // 1. Calculate the gradient field: ∇σ
             VectorField gradSigma;
             Dictionary<int, double> divergence;
             if (discretization is FEMMesh femMesh)
             {
-                gradSigma = FiniteElementOperators.CalculateElementWiseGradient(femMesh, sigma.ToPotentialDistribution());
+                gradSigma = FiniteElementOperators.CalculateElementWiseGradient(femMesh, sigma.ToPotentialDistribution(), useParallelFem);
                 var normalizedGradData = gradSigma.Data.ToDictionary(
                     kvp => kvp.Key,
                     kvp =>
@@ -62,7 +65,7 @@ namespace Utility.Classes.Reconstruction.Regulizers
                         return (kvp.Value.X / divisor, kvp.Value.Y / divisor);
                     });
                 var normalizedGradField = new VectorField(normalizedGradData);
-                divergence = FiniteElementOperators.CalculateElementWiseDivergence(femMesh, normalizedGradField);
+                divergence = FiniteElementOperators.CalculateElementWiseDivergence(femMesh, normalizedGradField, useParallelFem);
             }
             else if (discretization is LBMGrid grid)
             {

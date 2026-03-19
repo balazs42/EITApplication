@@ -80,7 +80,12 @@ namespace Utility.Classes.Discretizer
             => [.. _electrodes.Cast<Electrode>()];
 
         public sealed override double[] GetElectrodePotentials()
-            => [.. _electrodes.Select(ReadPotentialOf)];
+        {
+            var potentials = new double[_electrodes.Count];
+            for (int i = 0; i < _electrodes.Count; i++)
+                potentials[i] = ReadPotentialOf(_electrodes[i]);
+            return potentials;
+        }
 
         public sealed override void SetConductivityDistribution(ConductivityDistribution cd)
         {

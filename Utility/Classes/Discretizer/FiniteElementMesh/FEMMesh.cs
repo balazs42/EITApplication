@@ -30,6 +30,7 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
         private List<FEMVertex> _orderedBoundaryVertices = [];
         // Mapping from vertex id to its index in _orderedBoundaryVertices
         private Dictionary<int, int> _boundaryOrderLookup = [];
+        private bool _verticesAreSequentialFromZero;
 
         /// <summary>
         /// Creates a mesh from provided vertices/elements (and optional electrodes).
@@ -142,6 +143,15 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
         private void RebuildVertexLookup()
         {
             _vertexLookup = Vertices.ToDictionary(v => v.GlobalId);
+            _verticesAreSequentialFromZero = true;
+            for (int i = 0; i < Vertices.Count; i++)
+            {
+                if (Vertices[i].GlobalId != i)
+                {
+                    _verticesAreSequentialFromZero = false;
+                    break;
+                }
+            }
         }
 
         /// <summary>
@@ -317,8 +327,7 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
         /// </summary>
         protected override void ApplyPotentialToState(int stateKey, double potential)
         {
-            var v = Vertices.FirstOrDefault(x => x.GlobalId == stateKey)
-                    ?? throw new InvalidOperationException($"No FEMVertex.GlobalId = {stateKey}.");
+            var v = GetVertexById(stateKey);
             v.Potential = potential;
         }
 
@@ -330,16 +339,68 @@ namespace Utility.Classes.Discretizer.FiniteElementMesh
         {
             if (!e.PointElectrode && e.FEMVertexIds != null && e.FEMVertexIds.Count > 0)
             {
-                return e.FEMVertexIds
-                        .Select(id => Vertices.FirstOrDefault(v => v.GlobalId == id)
-                                      ?? throw new InvalidOperationException($"No FEMVertex.GlobalId = {id}."))
-                        .Select(v => v.Potential)
-                        .Average();
+                double sum = 0.0;
+                int count = 0;
+                foreach (int id in e.FEMVertexIds)
+                {
+                    sum += GetVertexById(id).Potential;
+                    count++;
+                }
+
+                return count > 0 ? sum / count : 0.0;
             }
 
-            var vv = Vertices.FirstOrDefault(v => v.GlobalId == e.MeshId)
-                     ?? throw new InvalidOperationException($"No FEMVertex.GlobalId = {e.MeshId} (FEMElectrode.MeshId).");
+            var vv = GetVertexById(e.MeshId);
             return vv.Potential;
+        }
+
+        public void ApplySolvedPotentialDistribution(PotentialDistribution distribution)
+        {
+            if (distribution == null)
+                throw new ArgumentNullException(nameof(distribution));
+
+            PotentialDistribution = distribution;
+
+            if (distribution.TryGetDenseStorage(out var densePotentials, out var densePotentialsCompact, out int denseMinKey))
+            {
+                if (densePotentials != null)
+                    ApplyDensePotentials(densePotentials, denseMinKey);
+                else if (densePotentialsCompact != null)
+                    ApplyDensePotentials(densePotentialsCompact, denseMinKey);
+            }
+            else
+            {
+                foreach (var kvp in distribution.Potentials)
+                    ApplyPotentialToState(kvp.Key, kvp.Value);
+            }
+
+            RefreshElectrodePotentialsFromState();
+        }
+
+        private void ApplyDensePotentials(double[] potentials, int denseMinKey)
+        {
+            if (_verticesAreSequentialFromZero && denseMinKey == 0 && potentials.Length == Vertices.Count)
+            {
+                for (int i = 0; i < potentials.Length; i++)
+                    Vertices[i].Potential = potentials[i];
+                return;
+            }
+
+            for (int i = 0; i < potentials.Length; i++)
+                GetVertexById(denseMinKey + i).Potential = potentials[i];
+        }
+
+        private void ApplyDensePotentials(float[] potentials, int denseMinKey)
+        {
+            if (_verticesAreSequentialFromZero && denseMinKey == 0 && potentials.Length == Vertices.Count)
+            {
+                for (int i = 0; i < potentials.Length; i++)
+                    Vertices[i].Potential = potentials[i];
+                return;
+            }
+
+            for (int i = 0; i < potentials.Length; i++)
+                GetVertexById(denseMinKey + i).Potential = potentials[i];
         }
 
         /// <summary>
