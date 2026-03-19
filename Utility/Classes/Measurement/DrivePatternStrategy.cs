@@ -133,13 +133,29 @@ namespace Utility.Classes.Measurement
 
     internal sealed class AdjacentDrivePatternStrategy : DrivePatternStrategyBase
     {
+        private readonly int _skipCount;
+
+        public AdjacentDrivePatternStrategy(int skipCount = 0)
+        {
+            _skipCount = Math.Max(0, skipCount);
+        }
+
         public override (int Excitation, int Ground) GetElectrodePair(int electrodeCount, int stepIndex)
         {
             int cycleLength = GetCycleLength(electrodeCount);
             int normalizedStep = NormalizeStepIndex(stepIndex, cycleLength);
             int excitation = normalizedStep;
-            int ground = NormalizeElectrodeIndex(excitation + 1, electrodeCount);
+            int ground = NormalizeElectrodeIndex(excitation + GetOffset(electrodeCount), electrodeCount);
             return (excitation, ground);
+        }
+
+        private int GetOffset(int electrodeCount)
+        {
+            if (electrodeCount <= 1)
+                return 0;
+
+            int normalizedSkip = _skipCount % (electrodeCount - 1);
+            return normalizedSkip + 1;
         }
     }
 
@@ -200,6 +216,7 @@ namespace Utility.Classes.Measurement
     public static class DrivePatternStrategyProvider
     {
         private static readonly ConcurrentDictionary<DrivePattern, IDrivePatternStrategy> Strategies = new();
+        private static readonly ConcurrentDictionary<(DrivePattern Pattern, int SkipCount), IDrivePatternStrategy> ParameterizedStrategies = new();
 
         static DrivePatternStrategyProvider()
         {
@@ -207,6 +224,7 @@ namespace Utility.Classes.Measurement
             Strategies[DrivePattern.Opposite] = new OppositeDrivePatternStrategy();
             Strategies[DrivePattern.Trigonometric] = new TrigonometricDrivePatternStrategy();
             Strategies[DrivePattern.Fourier] = new FourierDrivePatternStrategy();
+            ParameterizedStrategies[(DrivePattern.Adjecent, 0)] = Strategies[DrivePattern.Adjecent];
         }
 
         public static void RegisterStrategy(DrivePattern pattern, IDrivePatternStrategy strategy, bool overwrite = false)
@@ -218,10 +236,22 @@ namespace Utility.Classes.Measurement
                 throw new ArgumentException($"A strategy for drive pattern '{pattern}' is already registered.", nameof(pattern));
 
             Strategies[pattern] = strategy;
+            if (pattern == DrivePattern.Adjecent)
+                ParameterizedStrategies[(pattern, 0)] = strategy;
         }
 
         public static IDrivePatternStrategy GetStrategy(DrivePattern pattern)
+            => GetStrategy(pattern, 0);
+
+        public static IDrivePatternStrategy GetStrategy(DrivePattern pattern, int skipCount)
         {
+            if (pattern == DrivePattern.Adjecent)
+            {
+                int normalizedSkip = Math.Max(0, skipCount);
+                return ParameterizedStrategies.GetOrAdd((pattern, normalizedSkip),
+                    key => new AdjacentDrivePatternStrategy(key.SkipCount));
+            }
+
             if (!Strategies.TryGetValue(pattern, out var strategy))
                 throw new NotSupportedException($"No drive pattern strategy registered for '{pattern}'.");
 

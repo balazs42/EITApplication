@@ -54,6 +54,7 @@ namespace ServiceLayer
         private ConductivityDistribution? _initialSigma;                    // Starting conductivities for the current iteration/cycle
         private DrivePattern _drivePattern = DrivePattern.Adjecent;         // Selected electrode drive pattern
         private IDrivePatternStrategy _drivePatternStrategy = DrivePatternStrategyProvider.GetStrategy(DrivePattern.Adjecent); // Drive pattern strategy implementation
+        private int _drivePatternSkip;                                      // Number of skipped electrodes for adjacent/skip-x drive mode
         private bool _useOmpParallelization;                                // Exposed from parameters to persistence (not used directly here)
         private bool _usePotentialDifferences;                              // Whether we use V(i) or V(i) - V(i+1) like differences
 
@@ -145,7 +146,8 @@ namespace ServiceLayer
 
                 // 7) Configure drive pattern strategy and parallelization flag (used down in persistence).
                 _drivePattern = parameters.DrivePattern;
-                _drivePatternStrategy = DrivePatternStrategyProvider.GetStrategy(_drivePattern);
+                _drivePatternSkip = Math.Max(0, parameters.DrivePatternSkip);
+                _drivePatternStrategy = DrivePatternStrategyProvider.GetStrategy(_drivePattern, _drivePatternSkip);
                 _useOmpParallelization = parameters.UseOmpParallelization;
                 _usePotentialDifferences = parameters.UsePotentialDifferences;
 
@@ -307,7 +309,8 @@ namespace ServiceLayer
                 // each frame so that the boundary condition reflects the
                 // rotating drive pattern.
                 var electrodes = femMesh.GetElectrodes().Cast<FEMElectrode>().ToList();
-                int driveElectrodeCount = GetDriveElectrodeCount(electrodes.Cast<Electrode>());
+                var electrodeProjection = electrodes.Cast<Electrode>().ToList();
+                int driveElectrodeCount = GetDriveElectrodeCount(electrodeProjection);
                 int cycleLength = Math.Max(1, _drivePatternStrategy.GetCycleLength(driveElectrodeCount));
                 int stepIndex = _simMeasurementIndex % cycleLength;
                 var measurement = _measurementService.GetMeasurementForStep(stepIndex);
@@ -318,7 +321,7 @@ namespace ServiceLayer
                 var bc = new FEMBoundaryCondition(electrodes);
 
                 // Map measurement into solver order
-                var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodes.Cast<Electrode>().ToList(), stepIndex);
+                var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodeProjection, stepIndex);
 
                 // Delegate one optimization step to the persistence layer.
                 var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, _stepSize, _regularizationWeight);
@@ -361,7 +364,8 @@ namespace ServiceLayer
 
                 // Determine the current drive-pattern step and attach the boundary condition.
                 var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
-                int driveElectrodeCount = GetDriveElectrodeCount(electrodes.Cast<Electrode>());
+                var electrodeProjection = electrodes.Cast<Electrode>().ToList();
+                int driveElectrodeCount = GetDriveElectrodeCount(electrodeProjection);
                 int cycleLength = Math.Max(1, _drivePatternStrategy.GetCycleLength(driveElectrodeCount));
                 int stepIndex = _simMeasurementIndex % cycleLength;
                 double effectiveAmplitude = _excitationAmplitude;
@@ -370,7 +374,7 @@ namespace ServiceLayer
                 ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, stepIndex, null);
 
                 var bc = new LBMBoundaryCondition(electrodes);
-                var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodes.Cast<Electrode>().ToList(), stepIndex);
+                var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodeProjection, stepIndex);
                 var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, _stepSize, _regularizationWeight);
 
                 _simMeasurementIndex++;
@@ -419,7 +423,8 @@ namespace ServiceLayer
                 }
 
                 PerformInverseStep(VisualizeIterations, result => lastBufferedResult = result);
-                await Task.Yield(); // Allow UI message pumping between steps
+                if (VisualizeIterations)
+                    await Task.Yield(); // Allow UI message pumping between steps when live visuals are enabled
             }
 
             if (!VisualizeIterations && lastBufferedResult != null)
@@ -508,6 +513,7 @@ namespace ServiceLayer
                     _measurementService.EnsureMeasurements(_excitationAmplitude);
 
                     var electrodes = femMesh.GetElectrodes().Cast<FEMElectrode>().ToList();
+                    var electrodeProjection = electrodes.Cast<Electrode>().ToList();
                     int electrodeCount = electrodes.Count;
 
                     var measurements = _measurementService.GetAllMeasurements();
@@ -519,7 +525,7 @@ namespace ServiceLayer
                         var bc = new FEMBoundaryCondition(electrodes);
                         var measurement = measurements[i];
                         // Convert the measurement snapshot to the solver layout for the current electrode roles.
-                        var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodes.Cast<Electrode>().ToList(), i);
+                        var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodeProjection, i);
 
                         var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, _stepSize, _regularizationWeight);
 
@@ -552,8 +558,8 @@ namespace ServiceLayer
 
                     var result = new ReconstructionResult(_discretization!.GetDiscretization(),
                                                           _originalSigma!,
-                                                          prevSigma, 
-                                                          newSigma, 
+                                                          prevSigma,
+                                                          newSigma,
                                                           [.. _currentCycleFrames]);
                     Workspace.AddReconstructionResultToWorkspace(result);
                     ReconstructionUpdated?.Invoke(this, result);
@@ -566,22 +572,23 @@ namespace ServiceLayer
                     _measurementService.EnsureMeasurements(_excitationAmplitude);
 
                     var measurements = _measurementService.GetAllMeasurements();
+                    var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
+                    var electrodeProjection = electrodes.Cast<Electrode>().ToList();
                     for (int i = 0; i < measurements.Count; i++)
                     {
-                        var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
                         double effectiveAmplitude = _excitationAmplitude;
                         ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, i, null);
                         var bc = new LBMBoundaryCondition(electrodes);
 
                         var measurement = measurements[i];
-                        var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodes.Cast<Electrode>().ToList(), i);
+                        var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodeProjection, i);
                         var frame = _reconstructionPersistence.Step(preparedMeasurement, bc, _stepSize, _regularizationWeight);
 
                         _currentCycleFrames.Add(frame);
                         PublishFrame(frame);
 
                         // Some LBM workflows advance excitation markers on the grid for visualization.
-                        lbmGrid.ShiftExcitationElectrodes(_drivePattern);
+                        lbmGrid.ShiftExcitationElectrodes(_drivePattern, _drivePatternSkip);
                     }
 
                     var frameCount = _currentCycleFrames.Count;
@@ -599,10 +606,10 @@ namespace ServiceLayer
                     _initialSigma = newSigma;
                     _reconstructionPersistence.SetConductivityDistributions(_originalSigma!, _initialSigma!);
 
-                    var result = new ReconstructionResult(_discretization!.GetDiscretization(), 
+                    var result = new ReconstructionResult(_discretization!.GetDiscretization(),
                                                           _originalSigma!,
-                                                          prevSigma, 
-                                                          newSigma, 
+                                                          prevSigma,
+                                                          newSigma,
                                                           [.. _currentCycleFrames]);
                     PublishResult(result);
                     _currentCycleFrames.Clear();
@@ -698,3 +705,4 @@ namespace ServiceLayer
         }
     }
 }
+

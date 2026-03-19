@@ -31,7 +31,8 @@ namespace BusinessLayer
                                                             bool usePotentialDifferences,
                                                             IDifferentialEquationSolver solver,
                                                             ElectrodeMeasurementSetup measurementSetup,
-                                                            VirtualElectrodeSettings virtualSettings);
+                                                            VirtualElectrodeSettings virtualSettings,
+                                                            int drivePatternSkip = 0);
 
         /// <summary>
         /// Simulates a full drive-pattern cycle on the provided LBM grid.
@@ -50,7 +51,8 @@ namespace BusinessLayer
                                                             bool usePotentialDifferences,
                                                             IDifferentialEquationSolver solver,
                                                             ElectrodeMeasurementSetup measurementSetup,
-                                                            VirtualElectrodeSettings virtualSettings);
+                                                            VirtualElectrodeSettings virtualSettings,
+                                                            int drivePatternSkip = 0);
     }
 
     /// <summary>

@@ -10,8 +10,9 @@ namespace Utility.Classes.Measurement
         public static DrivePatternDescription Adjacent(int electrodeCount,
                                                        MeasurementRepresentation representation,
                                                        ElectrodeMeasurementSetup measurementSetup,
-                                                       int measurementCount = 0)
-            => Build(DrivePattern.Adjecent, electrodeCount, representation, measurementSetup, measurementCount);
+                                                       int measurementCount = 0,
+                                                       int drivePatternSkip = 0)
+            => Build(DrivePattern.Adjecent, electrodeCount, representation, measurementSetup, measurementCount, drivePatternSkip);
 
         public static DrivePatternDescription Opposite(int electrodeCount,
                                                        MeasurementRepresentation representation,
@@ -41,9 +42,10 @@ namespace Utility.Classes.Measurement
                                                     int electrodeCount,
                                                     MeasurementRepresentation representation,
                                                     ElectrodeMeasurementSetup measurementSetup,
-                                                    int measurementCount = 0)
+                                                    int measurementCount = 0,
+                                                    int drivePatternSkip = 0)
         {
-            var strategy = DrivePatternStrategyProvider.GetStrategy(pattern);
+            var strategy = DrivePatternStrategyProvider.GetStrategy(pattern, drivePatternSkip);
             return strategy.BuildDescription(electrodeCount, representation, measurementSetup, measurementCount);
         }
     }

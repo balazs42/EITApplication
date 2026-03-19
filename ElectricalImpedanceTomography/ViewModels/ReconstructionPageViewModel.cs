@@ -217,7 +217,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         [ObservableProperty]
         private double correlation = 0.0;
 
-        /// <summary>Two‑state UI that mirrors the Adjacent drive pattern selection.</summary>
+        /// <summary>Two‑state UI that mirrors the adjacent/skip-x drive pattern selection.</summary>
         [ObservableProperty]
         private bool adjecentDrivePattern = true;
         /// <summary>Two‑state UI that mirrors the Opposite drive pattern selection.</summary>
@@ -683,7 +683,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         }
 
         /// <summary>
-        /// Synchronizes the two radio buttons for drive pattern based on current parameters.
+        /// Synchronizes the drive-pattern toggle state based on current parameters.
         /// </summary>
         private void SyncDrivePatternSelection()
         {
@@ -2200,6 +2200,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 ExcitationElectrodeId,
                 GroundElectrodeId,
                 parameters.DrivePattern,
+                parameters.DrivePatternSkip,
                 parameters.UsePotentialDifferences,
                 parameters.UseOmpParallelization,
                 parameters.UseCudaAcceleration);
@@ -2445,6 +2446,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             int ExcitationElectrodeId,
             int GroundElectrodeId,
             DrivePattern DrivePattern,
+            int DrivePatternSkip,
             bool UsePotentialDifferences,
             bool UseOmpParallelization,
             bool UseCudaAcceleration);

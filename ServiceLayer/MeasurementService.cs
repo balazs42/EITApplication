@@ -31,6 +31,7 @@ namespace ServiceLayer
         private IDiscretization? _discretization;
         private DrivePattern _drivePattern = DrivePattern.Adjecent;
         private IDrivePatternStrategy _drivePatternStrategy = DrivePatternStrategyProvider.GetStrategy(DrivePattern.Adjecent);
+        private int _drivePatternSkip;
         private MeasurementNoiseType _noiseType = MeasurementNoiseType.None;
         private double _noiseAmplitude;
         private readonly List<double[]> _measurements = [];
@@ -76,7 +77,8 @@ namespace ServiceLayer
             }
 
             _drivePattern = drivePattern;
-            _drivePatternStrategy = DrivePatternStrategyProvider.GetStrategy(drivePattern);
+            _drivePatternSkip = Math.Max(0, parameters.DrivePatternSkip);
+            _drivePatternStrategy = DrivePatternStrategyProvider.GetStrategy(drivePattern, _drivePatternSkip);
             _solverAccessor = solverAccessor ?? throw new ArgumentNullException(nameof(solverAccessor));
 
             _noiseType = parameters.MeasurementNoiseType;
@@ -188,14 +190,16 @@ namespace ServiceLayer
                                                                                    _usePotentialDifferences,
                                                                                    solver,
                                                                                    _measurementSetup,
-                                                                                   _virtualSettings),
+                                                                                   _virtualSettings,
+                                                                                   _drivePatternSkip),
                     LBMGrid lbm => _measurementPersistence.SimulateLbmMeasurements(lbm,
                                                                                    excitationAmplitude,
                                                                                    _drivePattern,
                                                                                    _usePotentialDifferences,
                                                                                    solver,
                                                                                    _measurementSetup,
-                                                                                   _virtualSettings),
+                                                                                   _virtualSettings,
+                                                                                   _drivePatternSkip),
                     _ => throw new InvalidOperationException($"Unsupported discretization type {_discretization.GetType().Name} for measurement simulation.")
                 };
             }

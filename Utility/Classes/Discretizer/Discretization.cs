@@ -152,7 +152,7 @@ namespace Utility.Classes.Discretizer
             }
         }
 
-        public void ShiftExcitationElectrodes(DrivePattern drivePattern)
+        public void ShiftExcitationElectrodes(DrivePattern drivePattern, int drivePatternSkip = 0)
         {
             var excitationElectrode = _electrodes.Find(x => x.IsExcitation);
             var groundElectrode = _electrodes.Find(x => x.IsGround);
@@ -170,7 +170,7 @@ namespace Utility.Classes.Discretizer
 
             ResetElectrodes();
 
-            var strategy = DrivePatternStrategyProvider.GetStrategy(drivePattern);
+            var strategy = DrivePatternStrategyProvider.GetStrategy(drivePattern, drivePatternSkip);
             int cycleLength = Math.Max(1, strategy.GetCycleLength(electrodeCount));
 
             int currentStep = 0;

@@ -102,6 +102,7 @@ public sealed class ReconstructionExportService : IReconstructionExportService
             parameters.NumericSolver.ToString(),
             parameters.NumericOptimizer.ToString(),
             parameters.DrivePattern.ToString(),
+            parameters.DrivePatternSkip,
             parameters.UsePotentialDifferences,
             parameters.UseOmpParallelization,
             parameters.UseCudaAcceleration,

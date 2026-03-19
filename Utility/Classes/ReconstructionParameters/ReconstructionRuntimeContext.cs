@@ -48,6 +48,9 @@ namespace Utility.Classes.ReconstructionParameters
         private DrivePattern drivePattern = DrivePattern.Adjecent;
 
         [ObservableProperty]
+        private int drivePatternSkip = 0;
+
+        [ObservableProperty]
         private bool usePotentialDifferences = false;
 
         [ObservableProperty]
@@ -122,6 +125,7 @@ namespace Utility.Classes.ReconstructionParameters
             MeasurementNoiseType = MeasurementNoiseType.None;
             MeasurementNoiseAmplitude = 0.0;
             DrivePattern = DrivePattern.Adjecent;
+            DrivePatternSkip = 0;
             UsePotentialDifferences = false;
             UseOmpParallelization = false;
             UseCudaAcceleration = false;
@@ -137,11 +141,12 @@ namespace Utility.Classes.ReconstructionParameters
                                            ErrorMetric errorMetric,
                                            NumericSolver numericSolver,
                                            NumericOptimizer numericOptimizer,
-                                           InitialDistributionTypes initialDistributionType = InitialDistributionTypes.SlightlyDiffering,
-                                           MeasurementNoiseType measurementNoiseType = MeasurementNoiseType.None,
-                                           double measurementNoiseAmplitude = 0.0,
-                                           DrivePattern drivePattern = DrivePattern.Adjecent,
-                                           bool usePotentialDifferences = false)
+                                            InitialDistributionTypes initialDistributionType = InitialDistributionTypes.SlightlyDiffering,
+                                            MeasurementNoiseType measurementNoiseType = MeasurementNoiseType.None,
+                                            double measurementNoiseAmplitude = 0.0,
+                                            DrivePattern drivePattern = DrivePattern.Adjecent,
+                                            int drivePatternSkip = 0,
+                                            bool usePotentialDifferences = false)
         {
             DifferentialEquationSolver = differentialEquationSolver;
             RegularizationTechnique = regularizationTechnique;
@@ -152,11 +157,18 @@ namespace Utility.Classes.ReconstructionParameters
             MeasurementNoiseType = measurementNoiseType;
             MeasurementNoiseAmplitude = measurementNoiseAmplitude;
             DrivePattern = drivePattern;
+            DrivePatternSkip = drivePatternSkip;
             UsePotentialDifferences = usePotentialDifferences;
             UseOmpParallelization = false;
             UseCudaAcceleration = false;
 
             Mesh = (differentialEquationSolver == DifferentialEquationSolver.FEM) ? DiscretizationType.FEM : DiscretizationType.LBM;
+        }
+
+        partial void OnDrivePatternSkipChanged(int value)
+        {
+            if (value < 0)
+                DrivePatternSkip = 0;
         }
     }
 }

@@ -30,7 +30,8 @@ namespace BusinessLayer
                                                                     bool usePotentialDifferences,
                                                                     IDifferentialEquationSolver solver,
                                                                     ElectrodeMeasurementSetup measurementSetup,
-                                                                    VirtualElectrodeSettings virtualSettings)
+                                                                    VirtualElectrodeSettings virtualSettings,
+                                                                    int drivePatternSkip = 0)
         {
             if (mesh == null)
                 throw new ArgumentNullException(nameof(mesh));
@@ -43,7 +44,7 @@ namespace BusinessLayer
             var realElectrodes = electrodes.Where(e => !e.IsVirtual).ToList();
             int electrodeCount = realElectrodes.Count;
 
-            var strategy = DrivePatternStrategyProvider.GetStrategy(drivePattern);
+            var strategy = DrivePatternStrategyProvider.GetStrategy(drivePattern, drivePatternSkip);
             var patternDescription = strategy.BuildDescription(electrodeCount,
                                                                usePotentialDifferences
                                                                    ? MeasurementRepresentation.PotentialDifference
@@ -106,7 +107,8 @@ namespace BusinessLayer
                                                                     bool usePotentialDifferences,
                                                                     IDifferentialEquationSolver solver,
                                                                     ElectrodeMeasurementSetup measurementSetup,
-                                                                    VirtualElectrodeSettings virtualSettings)
+                                                                    VirtualElectrodeSettings virtualSettings,
+                                                                    int drivePatternSkip = 0)
         {
             if (grid == null)
                 throw new ArgumentNullException(nameof(grid));
@@ -129,7 +131,7 @@ namespace BusinessLayer
             var realElectrodes = electrodes.Where(e => !e.IsVirtual).ToList();
             int electrodeCount = realElectrodes.Count;
 
-            var strategy = DrivePatternStrategyProvider.GetStrategy(drivePattern);
+            var strategy = DrivePatternStrategyProvider.GetStrategy(drivePattern, drivePatternSkip);
             var patternDescription = strategy.BuildDescription(electrodeCount,
                                                                usePotentialDifferences
                                                                    ? MeasurementRepresentation.PotentialDifference

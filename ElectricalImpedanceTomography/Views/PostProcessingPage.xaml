@@ -242,7 +242,7 @@
                                 <VerticalStackLayout Spacing="8">
                                     <Label Text="Method Parameters" Style="{StaticResource HeaderLabel}" Margin="0,0,0,6"/>
                                     <Label Text="{Binding SelectedPostProcessor.Name}" TextColor="{StaticResource TextPrimary}" FontAttributes="Bold" FontSize="14"/>
-                                        <CollectionView ItemsSource="{Binding ParameterOptions}" IsVisible="{Binding HasParameterOptions}" SelectionMode="None" ItemsLayout="VerticalList" HeightRequest="190">
+                                        <CollectionView ItemsSource="{Binding ParameterOptions}" IsVisible="{Binding HasParameterOptions}" SelectionMode="None" ItemsLayout="VerticalList">
                                         <CollectionView.ItemTemplate>
                                             <DataTemplate x:DataType="viewmodels:PostProcessingParameterOption">
                                                 <VerticalStackLayout Spacing="6">
@@ -283,9 +283,7 @@
                                     <CollectionView ItemsSource="{Binding HistoryLog}" HeightRequest="140" ItemsLayout="VerticalList" SelectionMode="None" BackgroundColor="#0b121d" Margin="0,4,0,0">
                                         <CollectionView.ItemTemplate>
                                             <DataTemplate>
-                                                <Border Stroke="{StaticResource BorderColor}" StrokeThickness="0" Padding="6,4" BackgroundColor="#0f172a">
-                                                    <Label Text="{Binding .}" TextColor="{StaticResource TextPrimary}" FontSize="12" LineBreakMode="WordWrap"/>
-                                                </Border>
+                                                <Label Text="{Binding .}" TextColor="{StaticResource TextPrimary}" FontSize="12" LineBreakMode="WordWrap"/>
                                             </DataTemplate>
                                         </CollectionView.ItemTemplate>
                                         <CollectionView.EmptyView>

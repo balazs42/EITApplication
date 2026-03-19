@@ -352,7 +352,7 @@
                             <VerticalStackLayout Grid.Row="4">
                                 <Label Text="Drive Pattern:" FontAttributes="None" FontSize="Micro" VerticalOptions="Center"/>
                                 <Grid ColumnDefinitions="Auto, Auto, Auto, Auto" ColumnSpacing="0" HorizontalOptions="Center">
-                                    <Label Grid.Column="0" Margin="5" Text="Adjacent" VerticalOptions="Center" HorizontalOptions="Start" FontAttributes="None"/>
+                                    <Label Grid.Column="0" Margin="5" Text="Adjacent / Skip-x" VerticalOptions="Center" HorizontalOptions="Start" FontAttributes="None"/>
                                     <CheckBox Grid.Column="1"
                                               VerticalOptions="Center"
                                               IsChecked="{Binding AdjecentDrivePattern}"
@@ -364,6 +364,14 @@
                                               IsChecked="{Binding OppositeDrivePattern}"
                                               CheckedChanged="OnOppositeDrivePatternChecked"/>
                                 </Grid>
+                                <HorizontalStackLayout Spacing="10" HorizontalOptions="Center">
+                                    <Label Text="Skip Count" VerticalOptions="Center" FontAttributes="None"/>
+                                    <Entry WidthRequest="60"
+                                           Keyboard="Numeric"
+                                           HorizontalOptions="Start"
+                                           Text="{Binding ReconstructionParameters.DrivePatternSkip}"/>
+                                    <Label Text="(used by Adjacent / Skip-x)" VerticalOptions="Center" FontSize="Micro"/>
+                                </HorizontalStackLayout>
                             </VerticalStackLayout>
 
                             <BoxView Grid.Row="5" Color="#BBBBBB" HeightRequest="1"/>

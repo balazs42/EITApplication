@@ -20,6 +20,7 @@ public sealed record ReconstructionParameterSection(
     string NumericSolver,
     string NumericOptimizer,
     string DrivePattern,
+    int DrivePatternSkip,
     bool UsePotentialDifferences,
     bool UseOmpParallelization,
     bool UseCudaAcceleration,
