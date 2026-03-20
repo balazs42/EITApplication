@@ -18,6 +18,7 @@ namespace ServiceLayer
         double[] GetMeasurementForStep(int stepIndex);
         IReadOnlyList<double[]> GetAllMeasurements();
         double[] PrepareMeasurementFrame(double[] measurement, IList<Electrode> electrodes, int stepIndex = 0);
+        MeasurementStepContext BuildStepContext(IList<Electrode> electrodes, double[] frame, int stepIndex);
 
         int FramesPerCycle { get; }
         double? RealMeasurementAmplitude { get; }

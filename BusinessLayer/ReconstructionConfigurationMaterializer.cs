@@ -19,7 +19,7 @@ namespace BusinessLayer
             if (configuration == null)
                 throw new ArgumentNullException(nameof(configuration));
 
-            var parameters = new ReconstructionRuntimeContext();
+            var parameters = CreateSeedParameters(Workspace.GetReconstructionParameters());
 
             // Extract block parameters
             foreach (var block in configuration.Blocks)
@@ -192,6 +192,46 @@ namespace BusinessLayer
 
         private static bool ParseBool(string value)
             => bool.TryParse(value, out var parsed) && parsed;
+
+        private static ReconstructionRuntimeContext CreateSeedParameters(ReconstructionRuntimeContext? source)
+        {
+            if (source == null)
+                return new ReconstructionRuntimeContext();
+
+            return new ReconstructionRuntimeContext
+            {
+                DifferentialEquationSolver = source.DifferentialEquationSolver,
+                RegularizationTechnique = source.RegularizationTechnique,
+                ErrorMetric = source.ErrorMetric,
+                NumericSolver = source.NumericSolver,
+                NumericOptimizer = source.NumericOptimizer,
+                InitialDistributionType = source.InitialDistributionType,
+                MeasurementNoiseType = source.MeasurementNoiseType,
+                MeasurementNoiseAmplitude = source.MeasurementNoiseAmplitude,
+                ContactImpedanceOhms = source.ContactImpedanceOhms,
+                ContactImpedanceVariation = source.ContactImpedanceVariation,
+                DrivePattern = source.DrivePattern,
+                DrivePatternSkip = source.DrivePatternSkip,
+                UsePotentialDifferences = source.UsePotentialDifferences,
+                UseOmpParallelization = source.UseOmpParallelization,
+                UseCudaAcceleration = source.UseCudaAcceleration,
+                UseLbmGaussianFilter = source.UseLbmGaussianFilter,
+                UseLbmConductivityFilter = source.UseLbmConductivityFilter,
+                LbmGaussianFilterSize = source.LbmGaussianFilterSize,
+                LbmConductivityFilterInterval = source.LbmConductivityFilterInterval,
+                ConductivityMinimumBound = source.ConductivityMinimumBound,
+                ConductivityMaximumBound = source.ConductivityMaximumBound,
+                VirtualElectrodeSettings = source.VirtualElectrodeSettings,
+                Mesh = source.Mesh,
+                UseCurtisImigranMorrowPresolve = source.UseCurtisImigranMorrowPresolve,
+                InitializationCurrentAmplitude = source.InitializationCurrentAmplitude,
+                SolveInitializationInComplexDomain = source.SolveInitializationInComplexDomain,
+                LbmPhysicalDomainSize = source.LbmPhysicalDomainSize,
+                LbmRelaxationModel = source.LbmRelaxationModel,
+                ConvexificationOptions = source.ConvexificationOptions,
+                MeasurementSetup = source.MeasurementSetup
+            };
+        }
 
         private static T ParseEnum<T>(string value) where T : struct, Enum
         {

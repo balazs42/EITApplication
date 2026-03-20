@@ -301,13 +301,18 @@ namespace ServiceLayer
             int cycleLength = Math.Max(1, _measurementService.FramesPerCycle);
             int stepIndex = _frameIndex % cycleLength;
 
-            // Reorder/prepare a single measurement frame for the solver using mesh electrodes and annotate with step index.
-            var preparedFrame = _measurementService.PrepareMeasurementFrame(allMeasurements[stepIndex], electrodes, stepIndex);
-            var preparedFrames = new List<double[]> { preparedFrame };
-            var stepIndices = new List<int> { stepIndex };
+            // Build the full step context so the block persistence receives both the
+            // prepared frame and the drive-pattern metadata that determines the
+            // excitation/ground electrodes for this step.
+            var stepContext = _measurementService.BuildStepContext(electrodes, allMeasurements[stepIndex], stepIndex);
+            var preparedFrames = new List<double[]> { stepContext.PreparedFrame };
+            var stepIndices = new List<int> { stepContext.NormalizedStepIndex };
 
             // Prefer real measurement amplitude if available; otherwise fall back to the requested excitation amplitude.
-            var measurement = new EITMeasurement(preparedFrames, _measurementService.CurrentPattern, stepIndices: stepIndices)
+            var measurement = new EITMeasurement(preparedFrames,
+                                                 stepContext.Pattern,
+                                                 stepContext.PatternDescription,
+                                                 stepIndices)
             {
                 CurrentAmplitude = _measurementService.RealMeasurementAmplitude ?? excitationAmplitude
             };

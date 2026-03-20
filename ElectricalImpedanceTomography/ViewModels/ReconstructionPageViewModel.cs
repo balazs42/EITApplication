@@ -111,6 +111,22 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         private const string MixedPickerLabel = "Mixed";
 
+        /// <summary>Available drive-pattern choices surfaced in the measurement block.</summary>
+        public IReadOnlyList<DrivePatternOptionViewModel> DrivePatternOptions { get; } =
+        [
+            new(DrivePattern.Adjecent, "Adjacent / Skip-x"),
+            new(DrivePattern.Opposite, "Opposite"),
+            new(DrivePattern.Trigonometric, "Trigonometric"),
+            new(DrivePattern.Fourier, "Fourier")
+        ];
+
+        /// <summary>The currently selected drive-pattern option shown in the picker.</summary>
+        [ObservableProperty]
+        private DrivePatternOptionViewModel? selectedDrivePatternOption;
+
+        /// <summary>Only adjacent/skip-x uses the explicit skip-count parameter.</summary>
+        public bool IsDrivePatternSkipVisible => SelectedDrivePatternOption?.Pattern == DrivePattern.Adjecent;
+
         /// <summary>
         /// Whether the view should honour the block configuration canvas for method selection.
         /// When enabled and a configuration is present, pickers are synced to the configured blocks.
@@ -229,13 +245,6 @@ namespace ElectricalImpedanceTomography.ViewModels
         /// <summary>Latest Pearson correlation between reconstructed and original distributions.</summary>
         [ObservableProperty]
         private double correlation = 0.0;
-
-        /// <summary>Two‑state UI that mirrors the adjacent/skip-x drive pattern selection.</summary>
-        [ObservableProperty]
-        private bool adjecentDrivePattern = true;
-        /// <summary>Two‑state UI that mirrors the Opposite drive pattern selection.</summary>
-        [ObservableProperty]
-        private bool oppositeDrivePattern = false;
 
         /// <summary>Text shown next to the parallelisation toggle, dynamically reflecting the solver.</summary>
         [ObservableProperty]
@@ -937,14 +946,25 @@ namespace ElectricalImpedanceTomography.ViewModels
             try
             {
                 _updatingDrivePatternSelection = true;
-                AdjecentDrivePattern = pattern == DrivePattern.Adjecent;
-                OppositeDrivePattern = pattern == DrivePattern.Opposite;
+                SelectedDrivePatternOption = DrivePatternOptions.FirstOrDefault(option => option.Pattern == pattern)
+                                             ?? DrivePatternOptions.FirstOrDefault();
                 ReconstructionParameters.DrivePattern = pattern;
+                OnPropertyChanged(nameof(IsDrivePatternSkipVisible));
             }
             finally
             {
                 _updatingDrivePatternSelection = false;
             }
+        }
+
+        partial void OnSelectedDrivePatternOptionChanged(DrivePatternOptionViewModel? value)
+        {
+            OnPropertyChanged(nameof(IsDrivePatternSkipVisible));
+
+            if (value == null || ReconstructionParameters == null || _updatingDrivePatternSelection)
+                return;
+
+            ReconstructionParameters.DrivePattern = value.Pattern;
         }
         #region Metrics and gradient history
         /// <summary>
@@ -2459,6 +2479,20 @@ namespace ElectricalImpedanceTomography.ViewModels
             bool UseCudaAcceleration);
 
         private record ReconstructionRunSignature(IDiscretization Mesh, ReconstructionParametersSnapshot Parameters);
+    }
+
+    /// <summary>Display item for the drive-pattern picker in the measurement block.</summary>
+    public sealed class DrivePatternOptionViewModel
+    {
+        public DrivePatternOptionViewModel(DrivePattern pattern, string displayName)
+        {
+            Pattern = pattern;
+            DisplayName = displayName;
+        }
+
+        public DrivePattern Pattern { get; }
+
+        public string DisplayName { get; }
     }
 
     /// <summary>Logical group of metric tiles shown on the Reconstruction page.</summary>
