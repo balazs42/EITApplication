@@ -17,6 +17,7 @@ using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
 using Utility.Classes.Reconstruction.Metrics;
+using Utility.Classes.ReconstructionParameters;
 using Utility.Rendering;
 
 using Workspace = Utility.Classes.Application.Workspace;
@@ -26,7 +27,7 @@ using Utility.Classes.Factories;
 
 namespace ElectricalImpedanceTomography.Views;
 
-public partial class ReconstructionPage : ContentPage
+public partial class ConvexificationPage : ContentPage
 {
     private readonly ReconstructionPageViewModel _viewModel;
     private readonly DiscretizationCanvasRenderer _renderer = new();
@@ -108,14 +109,17 @@ public partial class ReconstructionPage : ContentPage
             _ => ResidualTrendStyle
         };
 
-    protected ReconstructionPage(ReconstructionPageViewModel viewModel, string pageTitle = "Reconstruction")
+    private ConvexificationPageViewModel ConvexificationViewModel => (ConvexificationPageViewModel)_viewModel;
+
+    public ConvexificationPage()
     {
         InitializeComponent();
 
-        _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
+        _viewModel = Utility.Composition.Container.ResolveObject<ConvexificationPageViewModel>();
 
         BindingContext = _viewModel;
-        Title = pageTitle;
+        Title = "Convexification";
+        ApplyConvexificationDefaults();
 
         PotentialModePicker.SelectedIndexChanged += (s, e) =>
         {
@@ -144,28 +148,29 @@ public partial class ReconstructionPage : ContentPage
         MetricTrendCanvas.InvalidateSurface();
     }
 
-    public ReconstructionPage()
-        : this(Utility.Composition.Container.ResolveObject<ReconstructionPageViewModel>())
+    private void ApplyConvexificationDefaults()
     {
+        Workspace.SetUseBlockConfiguration(false);
+        Workspace.SetMeasurementSource(MeasurementSourceOption.Simulated);
+        ConvexificationViewModel.UseBlockConfiguration = false;
+        ConvexificationViewModel.ReconstructionParameters.DifferentialEquationSolver = DifferentialEquationSolver.FEM;
+        ConvexificationViewModel.ReconstructionParameters.UsePotentialDifferences = false;
+        ConvexificationViewModel.ReconstructionParameters.MeasurementNoiseType = MeasurementNoiseType.None;
+        ConvexificationViewModel.ReconstructionParameters.MeasurementNoiseAmplitude = 0.0;
     }
 
-    protected ReconstructionPageViewModel ViewModel => _viewModel;
-    protected VerticalStackLayout AdditionalParametersHost => AdditionalParameterHost;
-    protected Picker SolverPicker => DifferentialEquationSolverPicker;
-    protected Border MethodSelectionPanel => MethodSelectionSection;
-
-        protected override void OnAppearing()
-        {
-            base.OnAppearing();
-            var (startColor, endColor) = GetBackgroundPulseColors();
-            this.StartBackgroundPulse(startColor, endColor);
-            _viewModel.RefreshMeasurementSourceOptions();
-            _viewModel.LoadAvailableReconstructions();
-            _viewModel.RefreshMethodPickerOptions();
-            _viewModel.SyncInitialDistribution();
-            InitialDistributionCanvas.InvalidateSurface();
-            InitialColorbarCanvas.InvalidateSurface();
-        }
+    protected override void OnAppearing()
+    {
+        ApplyConvexificationDefaults();
+        base.OnAppearing();
+        var (startColor, endColor) = GetBackgroundPulseColors();
+        this.StartBackgroundPulse(startColor, endColor);
+        _viewModel.RefreshMeasurementSourceOptions();
+        _viewModel.LoadAvailableReconstructions();
+        _viewModel.SyncInitialDistribution();
+        InitialDistributionCanvas.InvalidateSurface();
+        InitialColorbarCanvas.InvalidateSurface();
+    }
 
     protected override void OnDisappearing()
     {

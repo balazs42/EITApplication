@@ -144,6 +144,7 @@
                     <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="14" RowSpacing="0">
                         <!-- Method Selection -->
                         <Border Grid.Column="0"
+                                x:Name="MethodSelectionSection"
                                 Style="{StaticResource PanelSectionBorderStyle}"
                                 BackgroundColor="{AppThemeBinding Light=#27344D, Dark=#27344D}">
                             <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowSpacing="8">
@@ -172,7 +173,11 @@
                                         SelectedIndexChanged="OnInitialDistributionPickerChanged"
                                         MaximumWidthRequest="150"/>
                                 <Label Grid.Row="3" HorizontalOptions="Start" Text="DE Solver" FontFamily="SF Pro Text" FontAttributes="None"/>
-                                <Picker Grid.Row="4" ItemsSource="{Binding DifferentialEquationSolverOptions}" SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}" WidthRequest="150"/>
+                                <Picker Grid.Row="4"
+                                        x:Name="DifferentialEquationSolverPicker"
+                                        ItemsSource="{Binding DifferentialEquationSolverOptions}"
+                                        SelectedItem="{Binding ReconstructionParameters.DifferentialEquationSolver}"
+                                        WidthRequest="150"/>
                                 <Label Grid.Row="5" HorizontalOptions="Start" Text="Error Metric" FontFamily="SF Pro Text" FontAttributes="None"/>
                                 <Picker Grid.Row="6" HorizontalOptions="Start" ItemsSource="{Binding ErrorMetricPickerOptions}" SelectedItem="{Binding SelectedErrorMetricDisplay}" WidthRequest="150" IsEnabled="{Binding IsErrorMetricPickerEnabled}"/>
                                 <Label Grid.Row="7" HorizontalOptions="Start" Text="Regularization" FontFamily="SF Pro Text" FontAttributes="None"/>
@@ -190,6 +195,7 @@
                                 MaximumWidthRequest="180"
                                 Style="{StaticResource PanelSectionBorderStyle}"
                                 BackgroundColor="{AppThemeBinding Light=#25324A, Dark=#25324A}">
+                            <VerticalStackLayout Spacing="10">
                             <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto,
                                                   Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto,
                                                   Auto, Auto, Auto" RowSpacing="8">
@@ -311,6 +317,9 @@
                                            HorizontalTextAlignment="End"/>
                                 </Grid>
                             </Grid>
+                            <VerticalStackLayout x:Name="AdditionalParameterHost"
+                                                 Spacing="10"/>
+                            </VerticalStackLayout>
                         </Border>
                     </Grid>
 

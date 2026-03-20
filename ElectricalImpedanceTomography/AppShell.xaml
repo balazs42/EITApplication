@@ -24,6 +24,9 @@
         <ShellContent Title="Reconstruction" Route="ReconstructionPage">
             <views:ReconstructionPage />
         </ShellContent>
+        <ShellContent Title="Convexification" Route="ConvexificationPage">
+            <views:ConvexificationPage />
+        </ShellContent>
         <ShellContent Title="Post Processing" Route="PostProcessingPage">
             <views:PostProcessingPage />
         </ShellContent>

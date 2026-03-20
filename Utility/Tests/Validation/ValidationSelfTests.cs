@@ -26,6 +26,8 @@ public static class ValidationSelfTests
         Try("Inverse layered relative L2 error", TestInverseLayered, failures);
         Try("Inverse inclusion relative L∞ error", TestInverseInclusion, failures);
         Try("Homogeneous CEM matrix comparison", TestHomogeneousCem, failures);
+        Try("Convexification periodic derivative consistency", ConvexificationValidationSelfTests.TestPeriodicDerivativeConsistency, failures);
+        Try("Convexification positivity-shift safety", ConvexificationValidationSelfTests.TestPositivityShiftSafety, failures);
 
         if (failures.Count > 0)
         {

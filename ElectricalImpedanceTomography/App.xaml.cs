@@ -2,6 +2,7 @@
 using Utility.Tests;
 using Utility.Tests.Validation;
 using Utility.Composition;
+using ServiceLayer;
 
 namespace ElectricalImpedanceTomography
 {
@@ -14,8 +15,7 @@ namespace ElectricalImpedanceTomography
             // Initialize Unity container, which will resolve DI objects
             Container.InitializeContainer();
 
-            // Apply registrations will resolve the necessary objects
-            Settings.ApplyContainerRegistration();
+            // Apply registrations will resolve the necessary objects            
             ServiceLayer.Settings.ApplyContainerRegistration();
 
             // Run built-in self-tests
@@ -27,6 +27,7 @@ namespace ElectricalImpedanceTomography
 
             // Workspace initialization
             Workspace.Initialize(new DefaultUser(1, "Test1", "Test1@factroymail.com"), null, null);
+            ConvexificationReconstructionSelfTests.RunAll();
         }
 
         protected override Window CreateWindow(IActivationState? activationState)

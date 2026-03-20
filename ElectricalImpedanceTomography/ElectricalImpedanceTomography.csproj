@@ -92,6 +92,9 @@
           <Compile Update="Views\ThemeGalleryPage.xaml.cs">
             <DependentUpon>ThemeGalleryPage.xaml</DependentUpon>
           </Compile>
+          <Compile Update="Views\ConvexificationPage.xaml.cs">
+            <DependentUpon>ConvexificationPage.xaml</DependentUpon>
+          </Compile>
         </ItemGroup>
 
         <ItemGroup>
@@ -126,6 +129,9 @@
             <Generator>MSBuild:Compile</Generator>
           </MauiXaml>
           <MauiXaml Update="Views\ReconstructionPage.xaml">
+            <Generator>MSBuild:Compile</Generator>
+          </MauiXaml>
+          <MauiXaml Update="Views\ConvexificationPage.xaml">
             <Generator>MSBuild:Compile</Generator>
           </MauiXaml>
           <MauiXaml Update="Views\VideoExportProgressPopup.xaml">

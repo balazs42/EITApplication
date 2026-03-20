@@ -3,6 +3,7 @@ using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Factories;
 using Utility.Classes.Measurement;
 using Utility.Classes.Reconstruction;
+using Utility.Classes.Reconstruction.Convexification;
 using Utility.Classes.Reconstruction.VirtualElectrodes;
 using Utility.Classes.Solvers;
 using Utility.Classes.Solvers.FiniteElementSolver;
@@ -96,6 +97,13 @@ namespace Utility.Classes.ReconstructionParameters
 
         [ObservableProperty]
         private LatticeBoltzmannRelaxationModel lbmRelaxationModel = LatticeBoltzmannRelaxationModel.BGK;
+
+        /// <summary>
+        /// Reconstruction-specific tuning parameters for the convexification path.
+        /// Stored alongside the legacy runtime context so services can reuse the
+        /// existing workspace, measurement and FEM initialization pipeline.
+        /// </summary>
+        public ConvexificationOptions ConvexificationOptions { get; set; } = new();
 
         /// <summary>
         /// Runtime references constructed from the block-based pipeline when available.

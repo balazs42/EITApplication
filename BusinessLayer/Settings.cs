@@ -11,7 +11,8 @@ namespace BusinessLayer
                 .RegisterType<IMeasurementPersistence, MeasurementPersistence>()
                 .RegisterType<IReconstructionPersistence, AdjointReconstructionPersistence>()
                 .RegisterType<IAdjointReconstructionPersistence, AdjointReconstructionPersistence>()
-                .RegisterType<BlockFemReconstructionPersistence, BlockFemReconstructionPersistence>();
+                .RegisterType<BlockFemReconstructionPersistence, BlockFemReconstructionPersistence>()
+                .RegisterType<ConvexificationReconstructionPersistence, ConvexificationReconstructionPersistence>();
         }
     }
 }
