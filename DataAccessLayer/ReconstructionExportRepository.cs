@@ -550,7 +550,7 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
         string representation = pattern.Representation == MeasurementRepresentation.PotentialDifference
             ? "Potential difference"
             : "Amplitude";
-        string setup = pattern.MeasurementSetup == ElectrodeMeasurementSetup.NonActive
+        string setup = pattern.MeasurementSetup == ElectrodeMeasurementSetup.Passive
             ? "Non-active electrodes"
             : "Active electrodes";
 

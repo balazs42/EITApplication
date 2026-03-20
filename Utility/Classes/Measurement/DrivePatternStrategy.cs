@@ -1,6 +1,4 @@
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 
 namespace Utility.Classes.Measurement
 {
@@ -76,7 +74,7 @@ namespace Utility.Classes.Measurement
                 return pairs;
 
             var excluded = new HashSet<int>();
-            if (measurementSetup == ElectrodeMeasurementSetup.NonActive)
+            if (measurementSetup == ElectrodeMeasurementSetup.Passive)
             {
                 excluded.Add(excitation);
                 excluded.Add(ground);
@@ -102,7 +100,7 @@ namespace Utility.Classes.Measurement
                         continue;
 
                     int next = NormalizeElectrodeIndex(i + 1, electrodeCount);
-                    if (measurementSetup == ElectrodeMeasurementSetup.NonActive && excluded.Contains(next))
+                    if (measurementSetup == ElectrodeMeasurementSetup.Passive && excluded.Contains(next))
                         continue;
 
                     pairs.Add(new ElectrodePair(i, next));

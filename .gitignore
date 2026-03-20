@@ -39,6 +39,8 @@ obj/Debug/net9.0-android/    # ignore Android debug build outputs
 *.dylib
 *.jar
 *.class
+.dotnet/
+.dotnet-cli-home
 .dotnet/.workloadAdvertisingManifestSentinel10.0.100
 .dotnet/10.0.103.aspNetCertificateSentinel
 .dotnet/10.0.103.dotnetFirstUseSentinel

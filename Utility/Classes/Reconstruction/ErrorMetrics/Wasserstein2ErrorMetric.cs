@@ -110,7 +110,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
                 b[j] /= sumB;
 
             int m = a.Length, n = b.Length;
-            var solver = Solver.CreateSolver("GLOP") ?? throw new InvalidOperationException("OR-Tools LP solver 'GLOP' not available.");
+            using var solver = Solver.CreateSolver("GLOP") ?? throw new InvalidOperationException("OR-Tools LP solver 'GLOP' not available.");
 
             var plan = new Variable[m, n];
             var row = new Constraint[m];

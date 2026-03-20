@@ -90,8 +90,8 @@ namespace ElectricalImpedanceTomography.ViewModels
         private bool visualizeIterations = true;
 
         /// <summary>Current potential render mode for video export.</summary>
-    private PotentialDisplayMode _selectedPotentialDisplayMode = PotentialDisplayMode.Default;
-    private ConductivityDisplayMode _selectedConductivityDisplayMode = ConductivityDisplayMode.Classic;
+        private PotentialDisplayMode _selectedPotentialDisplayMode = PotentialDisplayMode.Default;
+        private ConductivityDisplayMode _selectedConductivityDisplayMode = ConductivityDisplayMode.Classic;
 
         /// <summary>Shortcut to virtual electrode settings from the global parameters.</summary>
         public VirtualElectrodeSettings VirtualElectrodeSettings => ReconstructionParameters.VirtualElectrodeSettings;
@@ -493,6 +493,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         private ReconstructionResult? _latestResult;
         private ReconstructionFrame? _latestFrame;
         private long _lastFrameMetricRequestTick;
+        private bool _isApplicationShuttingDown;
 
         private const int LiveFrameMetricUpdateIntervalMs = 100;
 
@@ -568,7 +569,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 if (!_reconstructionStopwatch.IsRunning)
                     return;
 
-                MainThread.BeginInvokeOnMainThread(() => ElapsedTime = _reconstructionStopwatch.Elapsed);
+                TryBeginOnMainThread(() => ElapsedTime = _reconstructionStopwatch.Elapsed);
             };
 
             // Use global reconstruction parameters stored in the workspace
@@ -597,6 +598,94 @@ namespace ElectricalImpedanceTomography.ViewModels
             RefreshMethodPickerOptions();
 
             _lastAppliedInitialDistributionType = ReconstructionParameters.InitialDistributionType;
+        }
+
+        /// <summary>
+        /// Cancels background reconstruction and suppresses further UI-thread work
+        /// when the application is shutting down.
+        /// </summary>
+        public void ShutdownForApplicationExit()
+        {
+            if (_isApplicationShuttingDown)
+                return;
+
+            _isApplicationShuttingDown = true;
+            StopReconstruction();
+        }
+
+        /// <summary>
+        /// Returns true while page-bound UI updates are still valid.
+        /// </summary>
+        protected bool CanDispatchToUi => !_isApplicationShuttingDown && !Workspace.IsApplicationShuttingDown;
+
+        /// <summary>
+        /// Tries to queue an action onto the MAUI main thread. Returns false when
+        /// the application is closing or the dispatcher is already gone.
+        /// </summary>
+        protected bool TryBeginOnMainThread(Action action)
+        {
+            if (!CanDispatchToUi)
+                return false;
+
+            try
+            {
+                if (MainThread.IsMainThread)
+                {
+                    if (!CanDispatchToUi)
+                        return false;
+
+                    action();
+                    return true;
+                }
+
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    if (CanDispatchToUi)
+                        action();
+                });
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Main-thread dispatch skipped during shutdown: {ex}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Async variant of <see cref="TryBeginOnMainThread(Action)"/> used by the
+        /// background metric/statistics tasks.
+        /// </summary>
+        protected async Task<bool> TryInvokeOnMainThreadAsync(Action action)
+        {
+            if (!CanDispatchToUi)
+                return false;
+
+            try
+            {
+                if (MainThread.IsMainThread)
+                {
+                    if (!CanDispatchToUi)
+                        return false;
+
+                    action();
+                    return true;
+                }
+
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    if (CanDispatchToUi)
+                        action();
+                });
+
+                return CanDispatchToUi;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Main-thread invoke skipped during shutdown: {ex}");
+                return false;
+            }
         }
 
         /// <summary>

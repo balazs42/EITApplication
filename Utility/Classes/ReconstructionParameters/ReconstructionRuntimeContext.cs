@@ -102,6 +102,8 @@ namespace Utility.Classes.ReconstructionParameters
         /// Reconstruction-specific tuning parameters for the convexification path.
         /// Stored alongside the legacy runtime context so services can reuse the
         /// existing workspace, measurement and FEM initialization pipeline.
+        /// These options are authoritative for the convexification solver and
+        /// must not be overwritten by legacy page-level step-size settings.
         /// </summary>
         public ConvexificationOptions ConvexificationOptions { get; set; } = new();
 

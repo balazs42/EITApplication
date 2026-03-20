@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using BusinessLayer;
 using Utility.Classes;
 using Utility.Classes.Application;
@@ -346,31 +343,6 @@ namespace ServiceLayer
                                                                           _measurementSetup);
         }
 
-        private MeasurementPattern ResolvePatternForStep(IList<Electrode> electrodes, int stepIndex)
-        {
-            if (electrodes == null)
-                throw new ArgumentNullException(nameof(electrodes));
-
-            int driveElectrodeCount = GetDriveElectrodeCount(electrodes);
-            RefreshPatternDescription(driveElectrodeCount);
-
-            if (_patternDescription == null)
-            {
-                var fallback = MeasurementPatternBuilder.Build(electrodes,
-                                                               Workspace.GetElectrodeMeasurementSetup(),
-                                                               _usePotentialDifferences);
-                _measurementPattern = fallback;
-                Workspace.SetMeasurementPattern(fallback);
-                return fallback;
-            }
-
-            var step = _patternDescription.GetStep(stepIndex);
-            var pattern = MeasurementPatternBuilder.BuildFromStep(electrodes, step);
-            _measurementPattern = pattern;
-            Workspace.SetMeasurementPattern(pattern);
-            return pattern;
-        }
-
         private static int GetDriveElectrodeCount(IEnumerable<Electrode> electrodes)
         {
             if (electrodes == null)
@@ -479,7 +451,7 @@ namespace ServiceLayer
             bool looksActive = frameLength == electrodeCount || totalMeasurements == expectedActiveTotal;
             bool looksNonActive = !looksActive && (frameLength == nonActiveAmplitudeLength || totalMeasurements == expectedNonActiveTotal);
 
-            _measurementSetup = looksActive ? ElectrodeMeasurementSetup.Active : ElectrodeMeasurementSetup.NonActive;
+            _measurementSetup = looksActive ? ElectrodeMeasurementSetup.Active : ElectrodeMeasurementSetup.Passive;
 
             if (!looksActive && !looksNonActive)
             {
@@ -504,7 +476,7 @@ namespace ServiceLayer
             int nonActiveAmplitudeLength = Math.Max(0, electrodeCount - 2);
             int nonActiveDifferenceLength = Math.Max(0, electrodeCount - 3);
 
-            if (_measurementSetup == ElectrodeMeasurementSetup.NonActive)
+            if (_measurementSetup == ElectrodeMeasurementSetup.Passive)
             {
                 if (frameLength == nonActiveDifferenceLength)
                     return true;
@@ -512,9 +484,7 @@ namespace ServiceLayer
                     return false;
             }
             else if (frameLength == nonActiveDifferenceLength)
-            {
                 return true;
-            }
 
             if (frameLength != electrodeCount)
                 return _usePotentialDifferences;

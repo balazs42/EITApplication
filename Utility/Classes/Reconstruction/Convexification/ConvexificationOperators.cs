@@ -1136,6 +1136,128 @@ namespace Utility.Classes.Reconstruction.Convexification
         }
 
         /// <summary>
+        /// Normalizes the line-search parameters so the inner convexification
+        /// descent always starts from a meaningful damping and never uses an
+        /// invalid minimum-step/decay combination.
+        /// </summary>
+        public static (double StepSize, double MinimumStepSize, double LineSearchDecay) NormalizeLineSearchParameters(ConvexificationOptions options)
+        {
+            if (options == null)
+                throw new ArgumentNullException(nameof(options));
+
+            double stepSize = double.IsFinite(options.StepSize) && options.StepSize > 0.0
+                ? options.StepSize
+                : 0.65;
+            stepSize = Math.Clamp(stepSize, SmallDenominator, 1.0);
+
+            double minimumStepSize = double.IsFinite(options.MinimumStepSize) && options.MinimumStepSize > 0.0
+                ? options.MinimumStepSize
+                : Math.Min(1e-2, stepSize);
+            minimumStepSize = Math.Clamp(minimumStepSize, SmallDenominator, stepSize);
+
+            double decay = double.IsFinite(options.LineSearchDecay)
+                           && options.LineSearchDecay > SmallDenominator
+                           && options.LineSearchDecay < 1.0
+                ? options.LineSearchDecay
+                : 0.5;
+
+            return (stepSize, minimumStepSize, decay);
+        }
+
+        /// <summary>
+        /// Checks whether a candidate objective value should be accepted by the
+        /// backtracking line search, allowing a small roundoff tolerance.
+        /// </summary>
+        public static (bool Accepted, string Reason) EvaluateObjectiveAcceptance(double previousObjective,
+                                                                                 double candidateObjective,
+                                                                                 ConvexificationOptions options)
+        {
+            if (options == null)
+                throw new ArgumentNullException(nameof(options));
+
+            if (!double.IsFinite(candidateObjective))
+                return (false, "candidate objective is NaN/Inf");
+
+            if (!double.IsFinite(previousObjective))
+                return (true, "accepted first finite objective after non-finite state");
+
+            double absoluteTolerance = Math.Max(0.0, options.ObjectiveAcceptanceTolerance);
+            double tolerance = Math.Max(absoluteTolerance,
+                                        absoluteTolerance * Math.Max(1.0, Math.Abs(previousObjective)));
+            if (candidateObjective <= previousObjective + tolerance)
+            {
+                return candidateObjective <= previousObjective
+                    ? (true, "objective decreased")
+                    : (true, $"objective accepted within tolerance {tolerance:G6}");
+            }
+
+            double relativeIncrease = (candidateObjective - previousObjective) / Math.Max(1.0, Math.Abs(previousObjective));
+            double relativeTolerance = Math.Max(0.0, options.LineSearchRelativeTolerance);
+            if (relativeIncrease <= relativeTolerance)
+                return (true, $"objective accepted within relative line-search tolerance {relativeTolerance:G6}");
+
+            return (false, $"objective increased by {candidateObjective - previousObjective:G6} which exceeds tolerance {tolerance:G6}");
+        }
+
+        /// <summary>
+        /// Resolves a consistent lower bound for V = sqrt(sigma). Because
+        /// sigma = V^2, the scale floor must not be smaller than the square
+        /// root of the conductivity lower bound.
+        /// </summary>
+        public static double ResolveMinimumScale(ConvexificationOptions options, double conductivityMinimumBound)
+        {
+            if (options == null)
+                throw new ArgumentNullException(nameof(options));
+
+            double requested = double.IsFinite(options.MinimumScale) ? Math.Abs(options.MinimumScale) : 0.0;
+            double conductivityFloor = double.IsFinite(conductivityMinimumBound)
+                ? Math.Max(0.0, conductivityMinimumBound)
+                : 0.0;
+            double scaleFloor = Math.Sqrt(conductivityFloor);
+            return Math.Max(requested, scaleFloor);
+        }
+
+        /// <summary>
+        /// Computes the min/max range of a finite scalar sequence for diagnostics.
+        /// Non-finite values are ignored.
+        /// </summary>
+        public static (double Minimum, double Maximum) ComputeFiniteRange(IEnumerable<double> values)
+        {
+            if (values == null)
+                throw new ArgumentNullException(nameof(values));
+
+            var finite = values.Where(double.IsFinite).ToList();
+            if (finite.Count == 0)
+                return (double.NaN, double.NaN);
+
+            return (finite.Min(), finite.Max());
+        }
+
+        /// <summary>
+        /// Summarizes raw conductivity values against the active clipping bounds.
+        /// This is used before clipping so boundary-shell collapse can be spotted.
+        /// </summary>
+        public static (double Minimum, double Maximum, double BelowFraction, double AboveFraction) SummarizeConductivity(
+            ConductivityDistribution conductivity,
+            double minimumBound,
+            double maximumBound)
+        {
+            if (conductivity == null)
+                throw new ArgumentNullException(nameof(conductivity));
+
+            var finite = conductivity.Conductivities.Values.Where(double.IsFinite).ToList();
+            if (finite.Count == 0)
+                return (double.NaN, double.NaN, 1.0, 0.0);
+
+            double below = finite.Count(value => value < minimumBound);
+            double above = finite.Count(value => value > maximumBound);
+            return (finite.Min(),
+                    finite.Max(),
+                    below / finite.Count,
+                    above / finite.Count);
+        }
+
+        /// <summary>
         /// Recovers the scale field V from Delta V + aV = 0 using a practical
         /// quasi-reversibility least-squares surrogate. Both V = 1 and d_n V = 0
         /// are enforced through penalty terms because the current P1 FEM basis is
@@ -1146,7 +1268,8 @@ namespace Utility.Classes.Reconstruction.Convexification
                                                               PotentialDistribution coefficientField,
                                                               IReadOnlyList<FEMElectrode> electrodes,
                                                               INumericSolver numericSolver,
-                                                              ConvexificationOptions options)
+                                                              ConvexificationOptions options,
+                                                              double conductivityMinimumBound)
         {
             if (mesh == null)
                 throw new ArgumentNullException(nameof(mesh));
@@ -1158,11 +1281,13 @@ namespace Utility.Classes.Reconstruction.Convexification
                 throw new ArgumentNullException(nameof(electrodes));
             if (numericSolver == null)
                 throw new ArgumentNullException(nameof(numericSolver));
+
             int vertexCount = mesh.Vertices.Count;
             var identity = DenseMatrix.CreateIdentity(vertexCount);
             var pdeOperator = DenseMatrix.Create(vertexCount,
                                                  vertexCount,
                                                  (row, column) => laplacian[row, column]);
+            double effectiveMinimumScale = ResolveMinimumScale(options, conductivityMinimumBound);
 
             for (int index = 0; index < vertexCount; index++)
             {
@@ -1184,9 +1309,10 @@ namespace Utility.Classes.Reconstruction.Convexification
 
             double massWeight = Math.Max(0.0, options.VRecoveryMassWeight);
             double regularization = Math.Max(0.0, options.SigmaRecoveryRegularization);
-            if (massWeight > 0.0 || regularization > 0.0)
+            double stabilization = Math.Max(0.0, options.VRecoveryStabilizationWeight);
+            if (massWeight > 0.0 || regularization > 0.0 || stabilization > 0.0)
             {
-                double diagonal = massWeight + regularization;
+                double diagonal = massWeight + regularization + stabilization;
                 normalMatrix += identity * diagonal;
                 if (massWeight > 0.0)
                 {
@@ -1214,14 +1340,26 @@ namespace Utility.Classes.Reconstruction.Convexification
             var solution = numericSolver.SolveLinearSystem(normalMatrix, rhs);
             var values = new Dictionary<int, double>(vertexCount);
             for (int index = 0; index < vertexCount; index++)
-                values[mesh.Vertices[index].GlobalId] = Math.Max(options.MinimumScale, solution[index]);
+            {
+                double recovered = solution[index];
+                if (!double.IsFinite(recovered))
+                    recovered = effectiveMinimumScale;
+
+                // The transformed scale V is theoretically positive. The practical
+                // least-squares solve may flip sign locally on a P1 basis, so the
+                // recovered field is projected back to the positive branch before
+                // sigma = V^2 is formed.
+                values[mesh.Vertices[index].GlobalId] = Math.Max(effectiveMinimumScale, Math.Abs(recovered));
+            }
 
             return new PotentialDistribution(values);
         }
 
         /// <summary>
         /// Converts a recovered scale field into an element-wise conductivity
-        /// distribution sigma = V^2 by averaging vertex values on each element.
+        /// distribution sigma = V^2 by projecting the positive quantity V^2 to
+        /// each element. This uses avg(V^2) rather than (avg V)^2 so oscillatory
+        /// nodal fields do not collapse the conductivity artificially.
         /// </summary>
         public static ConductivityDistribution RecoverConductivity(FEMMesh mesh, PotentialDistribution scaleField)
         {
@@ -1233,8 +1371,11 @@ namespace Utility.Classes.Reconstruction.Convexification
             var sigma = new Dictionary<int, double>(mesh.ElementsTyped.Count);
             foreach (var element in mesh.ElementsTyped.Cast<FEMElement>())
             {
-                double average = element.Vertices.Average(vertex => scaleField.GetPotential(vertex.GlobalId));
-                sigma[element.Id] = average * average;
+                sigma[element.Id] = element.Vertices.Average(vertex =>
+                {
+                    double value = scaleField.GetPotential(vertex.GlobalId);
+                    return value * value;
+                });
             }
 
             return new ConductivityDistribution(sigma);

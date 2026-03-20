@@ -33,7 +33,7 @@ namespace Utility.Tests
         {
             var description = MeasurementPatterns.Adjacent(16,
                                                            MeasurementRepresentation.Amplitude,
-                                                           ElectrodeMeasurementSetup.NonActive,
+                                                           ElectrodeMeasurementSetup.Passive,
                                                            drivePatternSkip: 3);
 
             var firstStep = description.GetStep(0);

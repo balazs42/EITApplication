@@ -23,20 +23,26 @@ namespace ServiceLayer
     {
         // Backing persistence that implements the actual FEM reconstruction step logic
         private readonly BlockFemReconstructionPersistence _persistence;
+
         // Provides measurement frame acquisition, preparation and pattern handling
         private readonly IMeasurementService _measurementService;
+
         // Cross-cutting logging
         private readonly ILogger _logger;
 
         // Materialized runtime context (mesh, optimizers, etc.) produced by persistence initialization
         private ReconstructionRuntimeContext? _runtimeContext;
+
         // Tracks service-level initialization to avoid redundant setup work
         private bool _initialized;
         private int _currentIteration;
+
         // Monotonically increasing index of frames emitted so far (across cycles)
         private int _frameIndex;
+
         // Buffer to accumulate frames of the current drive-pattern cycle; flushed into a result when the cycle completes
         private readonly List<ReconstructionFrame> _cycleFrames = new();
+        private ConductivityDistribution? _cycleInitialSigma;
 
         public override bool IsInitialized => _initialized && _runtimeContext != null;
 
@@ -99,6 +105,7 @@ namespace ServiceLayer
             ClearPublishedResults();
             _persistence.ResetResults();
             _cycleFrames.Clear();
+            _cycleInitialSigma = null;
             _frameIndex = 0;
             _currentIteration = 0;
             _initialized = true;
@@ -160,8 +167,10 @@ namespace ServiceLayer
             }
         }
 
-        // Processes a single frame worth of reconstruction work. Emits intermediate frames immediately via event
-        // and returns a ReconstructionResult only when a full cycle worth of frames have been accumulated.
+        // Processes a single frame worth of reconstruction work. The persistence layer computes the
+        // frame gradients, and the service applies the configured optimizer immediately so the
+        // block-based path matches the plain adjoint pipeline's step-wise conductivity updates.
+        // A ReconstructionResult is still published only when a full cycle worth of frames has been accumulated.
         private ReconstructionResult? ExecuteReconstructionStep(double stepSize,
                                                                 double regularizationWeight,
                                                                 double excitationAmplitude)
@@ -179,6 +188,12 @@ namespace ServiceLayer
 
             try
             {
+                var mesh = _runtimeContext.RuntimeMesh
+                          ?? throw new InvalidOperationException("Runtime mesh missing from reconstruction context.");
+
+                if (_cycleFrames.Count == 0)
+                    _cycleInitialSigma = mesh.GetConductivityDistribution().CreateCompactHistoryClone();
+
                 // 1) Build an EITMeasurement that aligns the measurement frame(s) to the solver ordering
                 //    and stores the drive-pattern step index for downstream boundary condition reconstruction.
                 var measurement = PrepareMeasurement(excitationAmplitude);
@@ -187,11 +202,20 @@ namespace ServiceLayer
                 //    ReconstructionFrame per provided measurement frame (usually 1 here).
                 var frames = _persistence.Step(measurement, _frameIndex);
 
-                // 3) Surface each frame to the workspace and UI, and buffer them for the current cycle.
+                // 3) Surface each frame to the workspace/UI, buffer it for the current cycle, and
+                //    immediately update the conductivity estimate. This keeps the per-frame FEM
+                //    evolution consistent with the non-block adjoint service.
                 foreach (var frame in frames)
                 {
                     _cycleFrames.Add(frame);
                     PublishFrameToWorkspace(frame);
+
+                    var frameUpdated = ApplyGradientUpdate([frame],
+                                                           mesh.GetConductivityDistribution(),
+                                                           stepSize,
+                                                           regularizationWeight);
+                    if (frameUpdated == null)
+                        throw new InvalidOperationException("Failed to apply block FEM optimizer update.");
                 }
 
                 // 4) Advance the global frame counter by the number of frames produced.
@@ -201,17 +225,10 @@ namespace ServiceLayer
                 if (_frameIndex % Math.Max(1, _measurementService.FramesPerCycle) != 0)
                     return null;
 
-                // 6) On cycle completion, assemble and apply a gradient-based conductivity update and publish a result.
-                var mesh = _runtimeContext.RuntimeMesh
-                          ?? throw new InvalidOperationException("Runtime mesh missing from reconstruction context.");
-
-                // Snapshot the previous estimate to include it in the result payload.
-                var previous = mesh.GetConductivityDistribution();
-
-                // Apply optimizer(s) with regularization to get the updated conductivity.
-                var updated = ApplyGradientUpdate(_cycleFrames, previous, stepSize, regularizationWeight);
-                if (updated == null)
-                    return null;
+                // 6) On cycle completion, publish the cycle result using the cycle-start conductivity
+                //    as the "initial" field and the latest conductivity as the reconstructed field.
+                var previous = _cycleInitialSigma ?? mesh.GetConductivityDistribution().CreateCompactHistoryClone();
+                var updated = mesh.GetConductivityDistribution().CreateCompactHistoryClone();
 
                 // Build a result that captures the discretization and the cycle's frames for UI/export.
                 var result = new ReconstructionResult(mesh.GetDiscretization(),
@@ -223,6 +240,7 @@ namespace ServiceLayer
                 // Persist for UI consumption and clear the buffer for the next cycle.
                 PublishResultToWorkspace(result);
                 _cycleFrames.Clear();
+                _cycleInitialSigma = null;
 
                 return result;
             }
@@ -297,8 +315,8 @@ namespace ServiceLayer
             return measurement;
         }
 
-        // Applies an optimization update over the accumulated frames of the current cycle.
-        // 1) Aggregate optimizer gradients and regularizations across frames.
+        // Applies an optimization update over one or more already-computed reconstruction frames.
+        // 1) Aggregate optimizer gradients and regularizations across the provided frames.
         // 2) Apply configured numeric optimizer(s) to produce an updated conductivity.
         // 3) Clip the conductivity to physically plausible bounds.
         // 4) Inform persistence and workspace of the new baseline for the next cycle.
@@ -321,10 +339,11 @@ namespace ServiceLayer
             // Keep the estimate in reasonable bounds (implementation-specific policy in the clipper).
             updated = ConductivityClipper.Clip(updated);
 
-            // Synchronize the internal state in persistence and workspace so that subsequent
-            // steps compute regularization/gradients with respect to the latest estimate.
+            // Synchronize the internal state in persistence so that subsequent steps compute
+            // regularization/gradients with respect to the latest estimate. The workspace's
+            // initial conductivity snapshot is intentionally left unchanged so UI/export code
+            // keeps the original cycle baseline instead of drifting with every inner update.
             _persistence.UpdateCurrentDistribution(updated);
-            Workspace.SetInitialConductivityDistribution(updated);
             return updated;
         }
 
@@ -423,7 +442,9 @@ namespace ServiceLayer
             if (_runtimeContext.NumericOptimizers.Count == 1)
             {
                 var optimizer = _runtimeContext.NumericOptimizers[0];
-                var gradient = optimizerGradients.Values.FirstOrDefault() ?? new ConductivityDistribution(new Dictionary<int, double>());
+                var gradient = optimizerGradients.TryGetValue(optimizer.id, out var specific)
+                    ? specific
+                    : optimizerGradients.Values.FirstOrDefault() ?? new ConductivityDistribution(new Dictionary<int, double>());
                 var candidate = optimizer.numericOptimizer.OptimizationStep(currentSigma, gradient, stepSize);
                 return MergeWithBaseline(currentSigma, candidate);
             }

@@ -127,6 +127,27 @@ namespace ElectricalImpedanceTomography.ViewModels
         }
 
         /// <summary>
+        /// Numerical tolerance used when accepting a line-search candidate whose
+        /// objective value differs only by roundoff.
+        /// </summary>
+        public double ConvexificationObjectiveAcceptanceTolerance
+        {
+            get => Options.ObjectiveAcceptanceTolerance;
+            set => SetDoubleOption(value, Options.ObjectiveAcceptanceTolerance, v => Options.ObjectiveAcceptanceTolerance = v);
+        }
+
+        /// <summary>
+        /// Relative line-search tolerance used when the practical preconditioned
+        /// descent produces a numerically stable but not strictly decreasing
+        /// objective on the current surrogate basis.
+        /// </summary>
+        public double ConvexificationLineSearchRelativeTolerance
+        {
+            get => Options.LineSearchRelativeTolerance;
+            set => SetDoubleOption(value, Options.LineSearchRelativeTolerance, v => Options.LineSearchRelativeTolerance = v);
+        }
+
+        /// <summary>
         /// Stationarity threshold for the preconditioned inner descent field.
         /// </summary>
         public double ConvexificationInnerGradientTolerance
@@ -200,7 +221,9 @@ namespace ElectricalImpedanceTomography.ViewModels
         }
 
         /// <summary>
-        /// Positive floor enforced on the recovered scale field V.
+        /// Positive floor enforced on the recovered scale field V. Because
+        /// sigma = V^2, the effective floor is tied to the conductivity clip
+        /// bound during the recovery stage.
         /// </summary>
         public double ConvexificationMinimumScale
         {
@@ -251,6 +274,15 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             get => Options.VRecoveryGradientWeight;
             set => SetDoubleOption(value, Options.VRecoveryGradientWeight, v => Options.VRecoveryGradientWeight = v);
+        }
+
+        /// <summary>
+        /// Diagonal stabilization used in the V-stage quasi-reversibility system.
+        /// </summary>
+        public double ConvexificationVRecoveryStabilizationWeight
+        {
+            get => Options.VRecoveryStabilizationWeight;
+            set => SetDoubleOption(value, Options.VRecoveryStabilizationWeight, v => Options.VRecoveryStabilizationWeight = v);
         }
 
         /// <summary>
@@ -332,6 +364,15 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             get => Options.AverageRecoveredCoefficientAcrossCycle;
             set => SetBoolOption(value, Options.AverageRecoveredCoefficientAcrossCycle, v => Options.AverageRecoveredCoefficientAcrossCycle = v);
+        }
+
+        /// <summary>
+        /// Enables detailed convexification diagnostics in the workspace/logger stream.
+        /// </summary>
+        public bool ConvexificationEnableDiagnostics
+        {
+            get => Options.EnableDiagnostics;
+            set => SetBoolOption(value, Options.EnableDiagnostics, v => Options.EnableDiagnostics = v);
         }
 
         /// <summary>
@@ -443,6 +484,8 @@ namespace ElectricalImpedanceTomography.ViewModels
             OnPropertyChanged(nameof(ConvexificationStepSize));
             OnPropertyChanged(nameof(ConvexificationInnerIterations));
             OnPropertyChanged(nameof(ConvexificationTolerance));
+            OnPropertyChanged(nameof(ConvexificationObjectiveAcceptanceTolerance));
+            OnPropertyChanged(nameof(ConvexificationLineSearchRelativeTolerance));
             OnPropertyChanged(nameof(ConvexificationInnerGradientTolerance));
             OnPropertyChanged(nameof(ConvexificationOuterIterations));
             OnPropertyChanged(nameof(ConvexificationOuterTolerance));
@@ -457,6 +500,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             OnPropertyChanged(nameof(ConvexificationVRecoveryDirichletWeight));
             OnPropertyChanged(nameof(ConvexificationVRecoveryNeumannWeight));
             OnPropertyChanged(nameof(ConvexificationVRecoveryGradientWeight));
+            OnPropertyChanged(nameof(ConvexificationVRecoveryStabilizationWeight));
             OnPropertyChanged(nameof(ConvexificationVRecoveryMassWeight));
             OnPropertyChanged(nameof(ConvexificationOmegaX));
             OnPropertyChanged(nameof(ConvexificationOmegaY));
@@ -466,6 +510,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             OnPropertyChanged(nameof(ConvexificationUsePeriodicDerivativeSmoothing));
             OnPropertyChanged(nameof(ConvexificationUseAllElectrodesForNeumannPenalty));
             OnPropertyChanged(nameof(ConvexificationAverageRecoveredCoefficientAcrossCycle));
+            OnPropertyChanged(nameof(ConvexificationEnableDiagnostics));
             OnPropertyChanged(nameof(ConvexificationParameterNote));
         }
     }

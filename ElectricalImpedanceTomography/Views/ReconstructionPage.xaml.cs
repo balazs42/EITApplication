@@ -7,6 +7,7 @@ using SkiaSharp.Views.Maui;
 using SkiaSharp.Views.Maui.Controls;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
@@ -53,6 +54,9 @@ public partial class ReconstructionPage : ContentPage
     private bool _isPaused = false;
     private bool _sliderChanging = false;
     private CancellationTokenSource? _runMonitorCts;
+    private bool _viewModelEventsAttached;
+    private bool _isPageActive;
+    private bool _isShuttingDown;
 
     private static readonly SKColor DistributionCanvasBackgroundColor = SKColor.Parse("#1A2436");
     private static readonly SKColor ChartGradientTopColor = SKColor.Parse("#23354D");
@@ -129,11 +133,7 @@ public partial class ReconstructionPage : ContentPage
             OnConductivityModeChanged(this, ConductivityModePicker.SelectedIndex);
         };
 
-        _viewModel.ReconstructionUpdated += OnReconstructionUpdated;
-        _viewModel.ReconstructionFrameUpdated += OnReconstructionFrameUpdated;
-        _viewModel.SelectedTrendMetricHistoryChanged += OnSelectedTrendMetricHistoryChanged;
-        _viewModel.GradientInspectionRequested += OnGradientInspectionRequested;
-        _viewModel.GradientSelectionChanged += OnGradientSelectionChanged;
+        AttachViewModelEvents();
 
         SetReconstructionControlsReady();
 
@@ -157,6 +157,10 @@ public partial class ReconstructionPage : ContentPage
         protected override void OnAppearing()
         {
             base.OnAppearing();
+            _isShuttingDown = Workspace.IsApplicationShuttingDown;
+            _isPageActive = true;
+            Workspace.ApplicationShutdownStarted += OnApplicationShutdownStarted;
+            AttachViewModelEvents();
             var (startColor, endColor) = GetBackgroundPulseColors();
             this.StartBackgroundPulse(startColor, endColor);
             _viewModel.RefreshMeasurementSourceOptions();
@@ -165,13 +169,109 @@ public partial class ReconstructionPage : ContentPage
             _viewModel.SyncInitialDistribution();
             InitialDistributionCanvas.InvalidateSurface();
             InitialColorbarCanvas.InvalidateSurface();
+            SyncWorkspaceStateToUi();
         }
 
     protected override void OnDisappearing()
     {
+        _isPageActive = false;
+        Workspace.ApplicationShutdownStarted -= OnApplicationShutdownStarted;
+        DetachViewModelEvents();
         base.OnDisappearing();
         StopRunMonitor();
         this.StopBackgroundPulse();
+    }
+
+    private void AttachViewModelEvents()
+    {
+        if (_viewModelEventsAttached)
+            return;
+
+        _viewModel.ReconstructionUpdated += OnReconstructionUpdated;
+        _viewModel.ReconstructionFrameUpdated += OnReconstructionFrameUpdated;
+        _viewModel.SelectedTrendMetricHistoryChanged += OnSelectedTrendMetricHistoryChanged;
+        _viewModel.GradientInspectionRequested += OnGradientInspectionRequested;
+        _viewModel.GradientSelectionChanged += OnGradientSelectionChanged;
+        _viewModelEventsAttached = true;
+    }
+
+    private void DetachViewModelEvents()
+    {
+        if (!_viewModelEventsAttached)
+            return;
+
+        _viewModel.ReconstructionUpdated -= OnReconstructionUpdated;
+        _viewModel.ReconstructionFrameUpdated -= OnReconstructionFrameUpdated;
+        _viewModel.SelectedTrendMetricHistoryChanged -= OnSelectedTrendMetricHistoryChanged;
+        _viewModel.GradientInspectionRequested -= OnGradientInspectionRequested;
+        _viewModel.GradientSelectionChanged -= OnGradientSelectionChanged;
+        _viewModelEventsAttached = false;
+    }
+
+    private void OnApplicationShutdownStarted()
+    {
+        _isShuttingDown = true;
+        _isPageActive = false;
+        StopRunMonitor();
+        DetachViewModelEvents();
+        _viewModel.ShutdownForApplicationExit();
+    }
+
+    private bool CanAccessPageUi()
+        => !_isShuttingDown
+           && !Workspace.IsApplicationShuttingDown
+           && _isPageActive
+           && Handler is not null
+           && Dispatcher is not null;
+
+    private bool CanAccessPlaybackUi()
+        => CanAccessPageUi()
+           && PlaybackSlider?.Handler is not null
+           && PlaybackFrameLabel?.Handler is not null;
+
+    private void TryDispatchUi(Action action)
+    {
+        if (!CanAccessPageUi())
+            return;
+
+        try
+        {
+            var dispatcher = Dispatcher;
+            if (dispatcher == null)
+                return;
+
+            if (dispatcher.IsDispatchRequired)
+            {
+                dispatcher.Dispatch(() =>
+                {
+                    if (CanAccessPageUi())
+                        action();
+                });
+            }
+            else if (CanAccessPageUi())
+            {
+                action();
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"ReconstructionPage UI dispatch skipped during shutdown: {ex}");
+        }
+    }
+
+    private void SyncWorkspaceStateToUi()
+    {
+        _currentResult = Workspace.GetReconstructionResults().LastOrDefault();
+        _currentFrame = Workspace.GetReconstructionFrames().LastOrDefault();
+
+        TryDispatchUi(() =>
+        {
+            bool snapToLatest = _viewModel.IsActiveReconstructionRunning && !_viewModel.IsActiveReconstructionPaused;
+            SyncPlaybackSliderToFrames(snapToLatest);
+            UpdatePlaybackLabel();
+            InvalidateAll();
+            UpdateExportButtonState();
+        });
     }
 
     private static (Color Start, Color End) GetBackgroundPulseColors()
@@ -233,6 +333,9 @@ public partial class ReconstructionPage : ContentPage
 
     private void StartRunMonitor()
     {
+        if (_isShuttingDown || Workspace.IsApplicationShuttingDown)
+            return;
+
         _runMonitorCts?.Cancel();
         _runMonitorCts?.Dispose();
 
@@ -249,7 +352,7 @@ public partial class ReconstructionPage : ContentPage
                 if (cts.Token.IsCancellationRequested)
                     return;
 
-                await MainThread.InvokeOnMainThreadAsync(() =>
+                TryDispatchUi(() =>
                 {
                     _viewModel.PauseReconstructionMetrics();
                     SetReconstructionControlsHalted();
@@ -271,6 +374,9 @@ public partial class ReconstructionPage : ContentPage
 
     private void ResetPlaybackState()
     {
+        if (!CanAccessPlaybackUi())
+            return;
+
         _currentResult = null;
         _currentFrame = null;
         _sliderChanging = true;
@@ -284,23 +390,20 @@ public partial class ReconstructionPage : ContentPage
 
     private void SyncPlaybackSliderToFrames(bool snapToLatest = false)
     {
+        if (!CanAccessPlaybackUi())
+            return;
+
         var frames = Workspace.GetReconstructionFrames();
 
         _sliderChanging = true;
         PlaybackSlider.Maximum = frames.Count > 0 ? frames.Count - 1 : 0;
 
         if (frames.Count == 0)
-        {
             PlaybackSlider.Value = 0;
-        }
         else if (snapToLatest)
-        {
             PlaybackSlider.Value = PlaybackSlider.Maximum;
-        }
         else if (PlaybackSlider.Value > PlaybackSlider.Maximum)
-        {
-            PlaybackSlider.Value = PlaybackSlider.Maximum;
-        }
+            PlaybackSlider.Value = PlaybackSlider.Maximum;        
 
         _sliderChanging = false;
     }
@@ -448,9 +551,12 @@ public partial class ReconstructionPage : ContentPage
 
     private void OnReconstructionUpdated(object? sender, ReconstructionResult result)
     {
+        if (_isShuttingDown || Workspace.IsApplicationShuttingDown)
+            return;
+
         _currentResult = result;
         _currentFrame = result.Frames.LastOrDefault();
-        Dispatcher.Dispatch(() =>
+        TryDispatchUi(() =>
         {
             bool snapToLatest = _viewModel.IsActiveReconstructionRunning && !_viewModel.IsActiveReconstructionPaused;
             SyncPlaybackSliderToFrames(snapToLatest);
@@ -462,8 +568,11 @@ public partial class ReconstructionPage : ContentPage
 
     private void OnReconstructionFrameUpdated(object? sender, ReconstructionFrame frame)
     {
+        if (_isShuttingDown || Workspace.IsApplicationShuttingDown)
+            return;
+
         _currentFrame = frame;
-        Dispatcher.Dispatch(() =>
+        TryDispatchUi(() =>
         {
             bool snapToLatest = _viewModel.IsActiveReconstructionRunning && !_viewModel.IsActiveReconstructionPaused;
             SyncPlaybackSliderToFrames(snapToLatest);
@@ -481,10 +590,13 @@ public partial class ReconstructionPage : ContentPage
     }
 
     private void OnSelectedTrendMetricHistoryChanged(object? sender, EventArgs e)
-        => MainThread.BeginInvokeOnMainThread(() => MetricTrendCanvas.InvalidateSurface());
+        => TryDispatchUi(() => MetricTrendCanvas.InvalidateSurface());
 
     private async void OnGradientInspectionRequested(object? sender, EventArgs e)
     {
+        if (!CanAccessPageUi())
+            return;
+
         if (_gradientPopup != null)
             return;
 
@@ -505,6 +617,9 @@ public partial class ReconstructionPage : ContentPage
 
     private void OnGradientSelectionChanged(object? sender, int index)
     {
+        if (_isShuttingDown || Workspace.IsApplicationShuttingDown)
+            return;
+
         if (index < 0)
             return;
 
@@ -512,7 +627,7 @@ public partial class ReconstructionPage : ContentPage
         if (sample is null)
             return;
 
-        Dispatcher.Dispatch(() =>
+        TryDispatchUi(() =>
         {
             double target = sample.FrameIndex;
             if (Math.Abs(PlaybackSlider.Value - target) < 0.01)
@@ -1315,6 +1430,9 @@ public partial class ReconstructionPage : ContentPage
 
     private void InvalidateAll()
     {
+        if (!CanAccessPageUi())
+            return;
+
         OriginalDistributionCanvas.InvalidateSurface();
         InitialDistributionCanvas.InvalidateSurface();
         ReconstructedDistributionCanvas.InvalidateSurface();
@@ -1331,6 +1449,9 @@ public partial class ReconstructionPage : ContentPage
 
     private void InvalidateConductivityDisplays()
     {
+        if (!CanAccessPageUi())
+            return;
+
         OriginalDistributionCanvas.InvalidateSurface();
         InitialDistributionCanvas.InvalidateSurface();
         ReconstructedDistributionCanvas.InvalidateSurface();
@@ -1440,7 +1561,7 @@ public partial class ReconstructionPage : ContentPage
                 _viewModel.IterationCount = results.Count;
                 _viewModel.Residual = ReconstructionStatistics.CalculateResidual(_currentResult);
             }
-            Dispatcher.Dispatch(() =>
+            TryDispatchUi(() =>
             {
                 InvalidateAll();
                 UpdatePlaybackLabel();
@@ -1495,7 +1616,7 @@ public partial class ReconstructionPage : ContentPage
                 _viewModel.IterationCount = iter;
                 _viewModel.Residual = ReconstructionStatistics.CalculateResidual(res);
             }
-            Dispatcher.Dispatch(() => { InvalidateAll(); UpdatePlaybackLabel(); });
+            TryDispatchUi(() => { InvalidateAll(); UpdatePlaybackLabel(); });
 
             _viewModel.SnapGradientSelectionToFrame(index);
         }
@@ -1503,6 +1624,9 @@ public partial class ReconstructionPage : ContentPage
 
     private void UpdatePlaybackLabel()
     {
+        if (!CanAccessPlaybackUi())
+            return;
+
         if (Workspace.GetReconstructionFrames().Count == 0)
         {
             PlaybackFrameLabel.Text = "0 / 0";
@@ -1512,42 +1636,6 @@ public partial class ReconstructionPage : ContentPage
         int total = (int)Math.Round(PlaybackSlider.Maximum) + 1;
         int current = (int)Math.Round(PlaybackSlider.Value) + 1;
         PlaybackFrameLabel.Text = $"{current} / {total}";
-    }
-
-    private async void OnSolveForwardClicked(object sender, EventArgs e)
-    {
-        if (GetDiscretization() == null)
-        {
-            await DisplayAlert("No Mesh", "You should create or load a mesh to start reconstrucion!", "Ok");
-            return;
-        }
-
-        if (!_viewModel.CheckReconstructionMethodAgainstDiscretization())
-        {
-            await DisplayAlert("Bad Differential Equation Solver", "You should select the same type of DE solver what your mesh is made for.", "Ok");
-            return;
-        }
-
-        await AnimateButtonAsync(sender);
-        //_viewModel?.OnSolveForwardClicked(this, e);
-    }
-
-    private async void OnSolveInverseClicked(object sender, EventArgs e)
-    {
-        if (GetDiscretization() == null)
-        {
-            await DisplayAlert("No Mesh", "You should create or load a mesh to start reconstrucion!", "Ok");
-            return;
-        }
-
-        if (!_viewModel.CheckReconstructionMethodAgainstDiscretization())
-        {
-            await DisplayAlert("Bad Differential Equation Solver", "You should select the same type of DE solver what your discretization is made for.", "Ok");
-            return;
-        }
-
-        await AnimateButtonAsync(sender);
-        //_viewModel?.OnSolveInverseClicked(this, e);
     }
 
     private async void OnEditBoundaryConditionsClicked(object sender, EventArgs e)

@@ -115,4 +115,53 @@ public static class ConvexificationValidationSelfTests
                 throw new Exception("Derivative of a constant smoothed drive signal was not zero.");
         }
     }
+
+    /// <summary>
+    /// Verifies that the recovered V floor is kept consistent with the
+    /// conductivity floor because sigma = V^2.
+    /// </summary>
+    public static void TestMinimumScaleRespectsConductivityFloor()
+    {
+        var options = new ConvexificationOptions
+        {
+            MinimumScale = 0.05
+        };
+
+        double effectiveMinimumScale = ConvexificationOperators.ResolveMinimumScale(options, conductivityMinimumBound: 0.1);
+        if (effectiveMinimumScale + 1e-12 < Math.Sqrt(0.1))
+            throw new Exception("Resolved minimum scale fell below sqrt(conductivity minimum bound).");
+    }
+
+    /// <summary>
+    /// Verifies that the line-search acceptance helper tolerates pure roundoff
+    /// differences rather than rejecting a numerically identical objective.
+    /// </summary>
+    public static void TestObjectiveAcceptanceToleranceAllowsRoundoff()
+    {
+        var options = new ConvexificationOptions
+        {
+            ObjectiveAcceptanceTolerance = 1e-6
+        };
+
+        var result = ConvexificationOperators.EvaluateObjectiveAcceptance(10.0, 10.0 + 5e-7, options);
+        if (!result.Accepted)
+            throw new Exception("Objective acceptance helper rejected a candidate within the configured tolerance.");
+    }
+
+    /// <summary>
+    /// Verifies that the practical line-search relative tolerance can accept a
+    /// tiny surrogate-model increase without stalling the inner descent.
+    /// </summary>
+    public static void TestLineSearchRelativeToleranceAllowsStableCandidate()
+    {
+        var options = new ConvexificationOptions
+        {
+            ObjectiveAcceptanceTolerance = 0.0,
+            LineSearchRelativeTolerance = 5e-5
+        };
+
+        var result = ConvexificationOperators.EvaluateObjectiveAcceptance(100.0, 100.003, options);
+        if (!result.Accepted)
+            throw new Exception("Line-search relative tolerance rejected a numerically stable surrogate candidate.");
+    }
 }

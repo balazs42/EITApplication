@@ -974,7 +974,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
 
             int m = a.Length, n = b.Length;
 
-            var solver = Solver.CreateSolver("GLOP") ?? throw new InvalidOperationException("OR-Tools LP solver 'GLOP' not available.");
+            using var solver = Solver.CreateSolver("GLOP") ?? throw new InvalidOperationException("OR-Tools LP solver 'GLOP' not available.");
 
             var plan = new Variable[m, n];
             var row = new Constraint[m];
@@ -1072,7 +1072,7 @@ namespace Utility.Classes.Reconstruction.ErrorMetrics
             for (int j = 0; j < b.Length; j++) b[j] /= sumB;
 
             int m = a.Length, n = b.Length;
-            var solver = Solver.CreateSolver("GLOP") ?? throw new InvalidOperationException("OR-Tools LP solver 'GLOP' not available.");
+            using var solver = Solver.CreateSolver("GLOP") ?? throw new InvalidOperationException("OR-Tools LP solver 'GLOP' not available.");
 
             var plan = new Variable[m, n];
             var row = new Constraint[m];

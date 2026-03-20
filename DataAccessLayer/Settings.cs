@@ -11,7 +11,6 @@ namespace DataAccessLayer
                 .RegisterType<IMeshRepository, MeshRepository>()
                 .RegisterType<IReconstructionRepository, ReconstructionRepository>()
                 .RegisterType<IReconstructionExportRepository, ReconstructionExportRepository>();
-
         }
     }
 }

@@ -428,12 +428,12 @@ namespace ServiceLayer
         }
 
         /// <summary>
-        /// Executes a full drive-pattern cycle by iterating over all measurement frames. For each step
-        /// a boundary condition is built from the current excitation pair and the frame is mapped to the
-        /// solver order; after all frames, gradients are accumulated and a conductivity update is applied.
+        /// Executes one complete drive-pattern cycle by repeatedly invoking the same per-frame
+        /// inverse step used by the interactive/background reconstruction flow.
         ///
-        /// FEM: maintains step-wise frames and aggregates gradient for a single conductivity update.
-        /// LBM: performs similar steps; some grids shift visual excitation markers for display.
+        /// This keeps the "run full cycle" path numerically identical to the standard adjoint
+        /// pipeline: the configured optimizer, step size, regularization weight, clipping policy,
+        /// and per-frame conductivity updates are all respected.
         /// </summary>
         /// <param name="stepSize">Gradient step size.</param>
         /// <param name="regularizationWeight">Regularization weight.</param>
@@ -448,119 +448,26 @@ namespace ServiceLayer
 
             return await Task.Run(() =>
             {
+                if (_discretization == null)
+                    return null;
+
                 // Ensure we are using the correct frame source (real/simulated) and that frames are present.
                 _measurementService.SyncMeasurementSource();
+                _measurementService.EnsureMeasurements(excitationAmplitude);
 
-                if (_discretization is FEMMesh femMesh)
+                ReconstructionResult? result = null;
+                int cycleLength = Math.Max(1, _measurementService.FramesPerCycle);
+                for (int i = 0; i < cycleLength; i++)
                 {
-                    _measurementService.EnsureMeasurements(excitationAmplitude);
-
-                    var electrodes = femMesh.GetElectrodes().Cast<FEMElectrode>().ToList();
-                    var electrodeProjection = electrodes.Cast<Electrode>().ToList();
-                    int electrodeCount = electrodes.Count;
-
-                    var measurements = _measurementService.GetAllMeasurements();
-                    for (int i = 0; i < measurements.Count; i++)
-                    {
-                        double effectiveAmplitude = excitationAmplitude;
-                        ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, i, null);
-
-                        var bc = new FEMBoundaryCondition(electrodes);
-                        var measurement = measurements[i];
-                        // Convert the measurement snapshot to the solver layout for the current electrode roles.
-                        var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodeProjection, i);
-
-                        var frame = CreateHistoryFrame(_reconstructionPersistence.Step(preparedMeasurement, bc, stepSize, regularizationWeight));
-
-                        // Persist frame for UI and later aggregation/inspection.
-                        _currentCycleFrames.Add(frame);
-                        PublishFrameToWorkspace(frame);
-                    }
-
-                    // Accumulate gradients across the cycle and apply a single update step to conductivities.
-                    var frameCount = _currentCycleFrames.Count;
-                    var prevSigma = _discretization!.GetConductivityDistribution();
-                    var accumGrad = new Dictionary<int, double>();
-                    foreach (var frame in _currentCycleFrames)
-                        foreach (var kvp in frame.ConductivityGradient.Conductivities)
-                            accumGrad[kvp.Key] = accumGrad.TryGetValue(kvp.Key, out var g) ? g + kvp.Value : kvp.Value;
-
-                    var newSigmaDict = prevSigma.Conductivities.ToDictionary(
-                        kvp => kvp.Key,
-                        kvp => kvp.Value + (accumGrad.TryGetValue(kvp.Key, out var g) ? g / frameCount : 0.0));
-
-                    // Clip conductivity values that would fall below 0.0
-                    foreach (var kvp in newSigmaDict)
-                        if (kvp.Value < 0.0)
-                            newSigmaDict[kvp.Key] = 0.0;
-
-                    var newSigma = new ConductivityDistribution(newSigmaDict);
-                    _discretization.SetConductivityDistribution(newSigma);
-                    _initialSigma = newSigma; // Next cycle starts from this estimate
-                    _reconstructionPersistence.SetConductivityDistributions(_originalSigma!, _initialSigma!);
-
-                    var result = new ReconstructionResult(_discretization!.GetDiscretization(),
-                                                          _originalSigma!,
-                                                          prevSigma.CreateCompactHistoryClone(),
-                                                          newSigma.CreateCompactHistoryClone(),
-                                                          [.. _currentCycleFrames]);
-                    PublishResultToWorkspace(result);
-                    _currentCycleFrames.Clear();
-                    _currentIteration++;
-                    _yieldRequested = false;
-                    return result;
-                }
-                else if (_discretization is LBMGrid lbmGrid)
-                {
-                    _measurementService.EnsureMeasurements(excitationAmplitude);
-
-                    var measurements = _measurementService.GetAllMeasurements();
-                    var electrodes = lbmGrid.GetElectrodes().Cast<LBMElectrode>().ToList();
-                    var electrodeProjection = electrodes.Cast<Electrode>().ToList();
-                    for (int i = 0; i < measurements.Count; i++)
-                    {
-                        double effectiveAmplitude = excitationAmplitude;
-                        ApplyDrivePatternToElectrodes(electrodes, effectiveAmplitude, i, null);
-                        var bc = new LBMBoundaryCondition(electrodes);
-
-                        var measurement = measurements[i];
-                        var preparedMeasurement = _measurementService.PrepareMeasurementFrame(measurement, electrodeProjection, i);
-                        var frame = CreateHistoryFrame(_reconstructionPersistence.Step(preparedMeasurement, bc, stepSize, regularizationWeight));
-
-                        _currentCycleFrames.Add(frame);
-                        PublishFrameToWorkspace(frame);
-
-                        // Some LBM workflows advance excitation markers on the grid for visualization.
-                        lbmGrid.ShiftExcitationElectrodes(_drivePattern, _drivePatternSkip);
-                    }
-
-                    var frameCount = _currentCycleFrames.Count;
-                    var prevSigma = _discretization!.GetConductivityDistribution();
-                    var accumGrad = new Dictionary<int, double>();
-                    foreach (var frame in _currentCycleFrames)
-                        foreach (var kvp in frame.ConductivityGradient.Conductivities)
-                            accumGrad[kvp.Key] = accumGrad.TryGetValue(kvp.Key, out var g) ? g + kvp.Value : kvp.Value;
-
-                    var newSigmaDict = prevSigma.Conductivities.ToDictionary(
-                        kvp => kvp.Key,
-                        kvp => kvp.Value - (accumGrad.TryGetValue(kvp.Key, out var g) ? g / frameCount : 0.0));
-                    var newSigma = new ConductivityDistribution(newSigmaDict);
-                    _discretization.SetConductivityDistribution(newSigma);
-                    _initialSigma = newSigma;
-                    _reconstructionPersistence.SetConductivityDistributions(_originalSigma!, _initialSigma!);
-
-                    var result = new ReconstructionResult(_discretization!.GetDiscretization(),
-                                                          _originalSigma!,
-                                                          prevSigma.CreateCompactHistoryClone(),
-                                                          newSigma.CreateCompactHistoryClone(),
-                                                          [.. _currentCycleFrames]);
-                    PublishResultToWorkspace(result);
-                    _currentCycleFrames.Clear();
-                    _yieldRequested = false;
-                    return result;
+                    PerformInverseStep(stepSize,
+                                       regularizationWeight,
+                                       excitationAmplitude,
+                                       true,
+                                       produced => result = produced);
                 }
 
-                return null;
+                _yieldRequested = false;
+                return result;
             });
         }
 

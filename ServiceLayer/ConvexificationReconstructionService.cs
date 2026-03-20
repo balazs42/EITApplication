@@ -135,6 +135,11 @@ namespace ServiceLayer
                 bool objectiveStable = double.IsFinite(previousObjective)
                                        && Math.Abs(previousObjective - state.ObjectiveValue) / Math.Max(1.0, Math.Abs(previousObjective)) < outerTolerance;
                 bool conductivityStable = state.RelativeConductivityChange < outerTolerance;
+                if (_runtimeContext?.ConvexificationOptions.EnableDiagnostics == true)
+                {
+                    _logger.LogInfo($"Convexification outer cycle {completedOuterIterations}/{targetOuterIterations}: objective={state.ObjectiveValue:G6}, relativeSigmaChange={state.RelativeConductivityChange:G6}, converged={state.Converged}, objectiveStable={objectiveStable}, conductivityStable={conductivityStable}.");
+                }
+
                 previousObjective = state.ObjectiveValue;
 
                 if (state.Converged && objectiveStable && conductivityStable)
@@ -150,7 +155,6 @@ namespace ServiceLayer
                                                        double excitationAmplitude)
         {
             EnsureInitialized();
-            ApplyTuning(stepSize, regularizationWeight);
 
             _measurementService.SyncMeasurementSource();
             _measurementService.EnsureMeasurements(excitationAmplitude);
@@ -180,6 +184,11 @@ namespace ServiceLayer
             _lastCycleState = state;
             foreach (var warning in state.Warnings)
                 _logger.LogWarning(warning);
+            if (_runtimeContext.ConvexificationOptions.EnableDiagnostics)
+            {
+                foreach (var diagnostic in state.Diagnostics)
+                    _logger.LogInfo(diagnostic);
+            }
 
             var updated = new ConductivityDistribution(state.ReconstructedConductivity.Conductivities);
             _currentSigma = updated;
@@ -223,17 +232,6 @@ namespace ServiceLayer
             {
                 CurrentAmplitude = _measurementService.RealMeasurementAmplitude ?? excitationAmplitude
             };
-        }
-
-        private void ApplyTuning(double stepSize, double regularizationWeight)
-        {
-            if (_runtimeContext == null)
-                return;
-
-            if (stepSize > 0.0)
-                _runtimeContext.ConvexificationOptions.StepSize = stepSize;
-            if (regularizationWeight > 0.0)
-                _runtimeContext.ConvexificationOptions.Beta = regularizationWeight;
         }
 
         private int ResolveOuterIterationCount(int maxIterationCount)

@@ -29,6 +29,9 @@ public static class ValidationSelfTests
         Try("Convexification periodic derivative consistency", ConvexificationValidationSelfTests.TestPeriodicDerivativeConsistency, failures);
         Try("Convexification positivity-shift safety", ConvexificationValidationSelfTests.TestPositivityShiftSafety, failures);
         Try("Convexification derivative smoothing preserves constant signal", ConvexificationValidationSelfTests.TestDerivativeSmoothingPreservesConstantSignal, failures);
+        Try("Convexification minimum scale respects conductivity floor", ConvexificationValidationSelfTests.TestMinimumScaleRespectsConductivityFloor, failures);
+        Try("Convexification objective acceptance tolerance handles roundoff", ConvexificationValidationSelfTests.TestObjectiveAcceptanceToleranceAllowsRoundoff, failures);
+        Try("Convexification line-search relative tolerance handles stable surrogate updates", ConvexificationValidationSelfTests.TestLineSearchRelativeToleranceAllowsStableCandidate, failures);
 
         if (failures.Count > 0)
         {

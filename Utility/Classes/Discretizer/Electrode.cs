@@ -2,7 +2,7 @@
 {
     public abstract class Electrode
     {
-        public int Id { get; set; } // Logical id associated to the electrode. Goes from 0-15.
+        public int Id { get; set; } // Logical id associated to the electrode.
 
         // Injected current in ampere (positive: leaving domain).</summary>
         public double Current { get; set; }

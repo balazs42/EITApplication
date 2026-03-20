@@ -2,6 +2,7 @@ using Utility.Classes;
 using Utility.Classes.Discretizer;
 using Utility.Classes.ReconstructionParameters;
 using Utility.Exports;
+using Workspace = Utility.Classes.Application.Workspace;
 
 namespace ServiceLayer
 {
@@ -25,6 +26,9 @@ namespace ServiceLayer
 
         public void Run(int maxIterationCount, double stepSize, double regularizationWeight, double excitationAmplitude)
         {
+            if (Workspace.IsApplicationShuttingDown)
+                return;
+
             Stop();
             _isPaused = false;
             _backgroundCts = new CancellationTokenSource();
@@ -88,12 +92,18 @@ namespace ServiceLayer
 
         protected void PublishFrame(ReconstructionFrame frame)
         {
+            if (Workspace.IsApplicationShuttingDown)
+                return;
+
             if (VisualizeIterations)
                 ReconstructionFrameUpdated?.Invoke(this, frame);
         }
 
         protected ReconstructionResult PublishResult(ReconstructionResult result)
         {
+            if (Workspace.IsApplicationShuttingDown)
+                return result;
+
             _reconstructionResults.Add(result);
             ReconstructionUpdated?.Invoke(this, result);
             return result;

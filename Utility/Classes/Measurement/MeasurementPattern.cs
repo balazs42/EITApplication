@@ -267,7 +267,7 @@ namespace Utility.Classes.Measurement
             var channels = new List<MeasurementChannel>(electrodeCount);
             var skipped = new HashSet<int>();
 
-            if (setup == ElectrodeMeasurementSetup.NonActive)
+            if (setup == ElectrodeMeasurementSetup.Passive)
             {
                 for (int i = 0; i < electrodeCount; i++)
                 {

@@ -7,6 +7,6 @@ namespace Utility.Classes.Measurement
     public enum ElectrodeMeasurementSetup
     {
         Active,
-        NonActive
+        Passive
     }
 }

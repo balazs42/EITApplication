@@ -816,8 +816,12 @@ namespace BusinessLayer
                         // This approximates the integral ∫_Ω_e ∇φ · ∇μ dΩ
                         double dotProduct = -(gradPhi.X * gradMu.X + gradPhi.Y * gradMu.Y) * element.Area;
 
-                        // Apply only the ErrorMetric→Optimizer weight in a dedicated helper.
-                        double weighted = ApplyErrorMetricToOptimizerWeight(errorMetricId, optimizerId, dotProduct, connection.Weight);
+                        // Apply both the Solver→ErrorMetric weight and the ErrorMetric→Optimizer
+                        // weight so the executable gradient matches the canvas wiring.
+                        double weighted = ApplyErrorMetricToOptimizerWeight(errorMetricId,
+                                                                            optimizerId,
+                                                                            GetSolverToErrorMetricWeight(errorMetricId) * dotProduct,
+                                                                            connection.Weight);
 
                         // Accumulate into this optimizer's gradient
                         lock (gradientAccumulator)
@@ -868,9 +872,10 @@ namespace BusinessLayer
             // Evaluate each regularizer in parallel
             Parallel.ForEach(_regularizerMap, kvp =>
             {
-                // Compute ∂R/∂σ for this regularizer. Regularizer→Optimizer weights are applied later
-                // during assembly to avoid scaling more than once.
-                var weighted = kvp.Value.regulizer.EvaluateGradient(_mesh, currentDistribution);
+                // Compute ∂R/∂σ for this regularizer and apply the Solver→Regularizer weight here.
+                // The Regularizer→Optimizer connection weight is applied later during assembly.
+                var weighted = ScaleDistribution(kvp.Value.regulizer.EvaluateGradient(_mesh, currentDistribution),
+                                                 kvp.Value.weight);
 
                 lock (regularizations)
                 {
@@ -1056,6 +1061,30 @@ namespace BusinessLayer
         {
             double weight = GetConnectionWeight(regularizerId, optimizerId, BlockType.Regularizer, BlockType.Optimizer, fallbackWeight);
             return weight * value;
+        }
+
+        /// <summary>
+        /// Retrieves the configured Solver→ErrorMetric weight for the given error-metric block.
+        /// Defaults to 1.0 to preserve legacy single-metric behavior when no explicit weight exists.
+        /// </summary>
+        private double GetSolverToErrorMetricWeight(string errorMetricId)
+        {
+            return _errorMetricMap.TryGetValue(errorMetricId, out var descriptor)
+                ? descriptor.weight
+                : 1.0;
+        }
+
+        /// <summary>
+        /// Scales an element-wise conductivity field by a scalar weight while preserving its sparsity pattern.
+        /// Used to apply Solver→Regularizer weights once, before routing regularization terms to optimizers.
+        /// </summary>
+        private static ConductivityDistribution ScaleDistribution(ConductivityDistribution distribution, double scale)
+        {
+            if (Math.Abs(scale - 1.0) <= 1e-12)
+                return distribution;
+
+            var scaled = distribution.Conductivities.ToDictionary(kvp => kvp.Key, kvp => kvp.Value * scale);
+            return new ConductivityDistribution(scaled);
         }
 
         /// <summary>

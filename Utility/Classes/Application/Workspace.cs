@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
@@ -55,8 +56,10 @@ namespace Utility.Classes.Application
         private static MeasurementSourceOption _measurementSource = MeasurementSourceOption.Simulated;
         private static ElectrodeMeasurementSetup _electrodeMeasurementSetup = ElectrodeMeasurementSetup.Active;
         private static MeasurementPattern? _measurementPattern;
+        private static bool _isApplicationShuttingDown;
 
         public static event Action<ElectrodeMeasurementSetup>? ElectrodeMeasurementSetupChanged;
+        public static event Action? ApplicationShutdownStarted;
 
         public static void Initialize(User user, ReconstructionRuntimeContext? eITReconstructionParameters, IDiscretization? discretization)
         {
@@ -73,6 +76,46 @@ namespace Utility.Classes.Application
             _initialized = true;
 
             AddMessage("Workspace initialized!");
+        }
+
+        /// <summary>
+        /// Indicates that the UI/application lifetime is winding down and no further
+        /// page-bound dispatch should be attempted.
+        /// </summary>
+        public static bool IsApplicationShuttingDown => _isApplicationShuttingDown;
+
+        /// <summary>
+        /// Resets the application shutdown flag at startup so a new window can
+        /// safely schedule UI work again.
+        /// </summary>
+        public static void ResetApplicationLifetimeState() => _isApplicationShuttingDown = false;
+
+        /// <summary>
+        /// Marks the workspace as shutting down and notifies listeners so active
+        /// reconstruction work can cancel itself before the UI disappears.
+        /// </summary>
+        public static void BeginApplicationShutdown()
+        {
+            if (_isApplicationShuttingDown)
+                return;
+
+            _isApplicationShuttingDown = true;
+
+            var handlers = ApplicationShutdownStarted;
+            if (handlers == null)
+                return;
+
+            foreach (Action handler in handlers.GetInvocationList())
+            {
+                try
+                {
+                    handler();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Application shutdown callback failed: {ex}");
+                }
+            }
         }
 
         public static void SetUser(User user) => _user = user;

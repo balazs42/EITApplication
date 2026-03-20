@@ -106,6 +106,7 @@ namespace BusinessLayer
 
             _runtimeContext = parameters;
             _options = parameters.ConvexificationOptions;
+            ConductivityClipper.UpdateBounds(parameters.ConductivityMinimumBound, parameters.ConductivityMaximumBound);
             _drivePatternStrategy = DrivePatternStrategyProvider.GetStrategy(parameters.DrivePattern, parameters.DrivePatternSkip);
             _initialized = true;
         }
@@ -153,10 +154,14 @@ namespace BusinessLayer
                 throw new InvalidOperationException("Convexification reconstruction requires at least one measurement frame.");
 
             var warnings = new List<string>();
+            var diagnostics = new List<string>();
             var realElectrodes = GetRealElectrodes();
             int cycleLength = Math.Max(1, _drivePatternStrategy.GetCycleLength(realElectrodes.Count));
+            NormalizeConvexificationOptions(warnings, diagnostics);
+            AppendEffectiveParameterDiagnostics(diagnostics, cycleLength);
 
             var boundaryData = BuildBoundaryData(measurement, realElectrodes, cycleLength, warnings);
+            AppendBoundaryDataDiagnostics(boundaryData, diagnostics);
             var laplacian = ConvexificationOperators.BuildCotangentLaplacianMatrix(_mesh);
             var carlemanWeights = ConvexificationOperators.ComputeCarlemanWeights(_mesh, _options.Lambda, _options.Omega);
             var iterationFrames = new List<ReconstructionFrame>();
@@ -171,20 +176,30 @@ namespace BusinessLayer
                  objectiveHistory,
                  relativeConductivityChange,
                  iterationCount,
-                 converged) = OptimizeFields(boundaryData,
-                                             realElectrodes,
-                                             laplacian,
-                                             carlemanWeights,
-                                             rFields,
-                                             sFields,
-                                             initialDistribution,
-                                             iterationFrames,
-                                             warnings);
-            var (wFields, coefficientField, scaleField, reconstructedConductivity) = RecoverConductivityEstimate(laplacian,
-                                                                                                                 realElectrodes,
-                                                                                                                 optimizedR,
-                                                                                                                 optimizedS,
-                                                                                                                 warnings);
+                 converged,
+                 acceptedDampingHistory) = OptimizeFields(boundaryData,
+                                                          realElectrodes,
+                                                          laplacian,
+                                                          carlemanWeights,
+                                                          rFields,
+                                                          sFields,
+                                                          initialDistribution,
+                                                          iterationFrames,
+                                                          warnings,
+                                                          diagnostics);
+            var (wFields,
+                 coefficientField,
+                 scaleField,
+                 rawConductivity,
+                 reconstructedConductivity,
+                 rawSigmaBelowMinimumFraction,
+                 rawSigmaAboveMaximumFraction) = RecoverConductivityEstimate(laplacian,
+                                                                             realElectrodes,
+                                                                             optimizedR,
+                                                                             optimizedS,
+                                                                             warnings,
+                                                                             diagnostics,
+                                                                             "final");
             UpdateCurrentDistribution(reconstructedConductivity);
 
             if (iterationFrames.Count == 0)
@@ -220,8 +235,13 @@ namespace BusinessLayer
                 IterationCount = iterationCount,
                 Converged = converged,
                 ObjectiveHistory = objectiveHistory,
+                AcceptedDampingHistory = acceptedDampingHistory,
                 RelativeConductivityChange = relativeConductivityChange,
-                Warnings = warnings
+                RawRecoveredConductivity = rawConductivity,
+                RawSigmaBelowMinimumFraction = rawSigmaBelowMinimumFraction,
+                RawSigmaAboveMaximumFraction = rawSigmaAboveMaximumFraction,
+                Warnings = warnings,
+                Diagnostics = diagnostics
             };
         }
 
@@ -237,6 +257,214 @@ namespace BusinessLayer
             _options = new ConvexificationOptions();
             _initialized = false;
             ResetResults();
+        }
+
+        private void NormalizeConvexificationOptions(IList<string> warnings, IList<string> diagnostics)
+        {
+            if (_runtimeContext == null)
+                return;
+
+            ConductivityClipper.UpdateBounds(_runtimeContext.ConductivityMinimumBound, _runtimeContext.ConductivityMaximumBound);
+            var (conductivityMinimumBound, _) = ResolveConductivityBounds();
+            var (normalizedStepSize, normalizedMinimumStepSize, normalizedDecay) = ConvexificationOperators.NormalizeLineSearchParameters(_options);
+            double normalizedMinimumScale = ConvexificationOperators.ResolveMinimumScale(_options, conductivityMinimumBound);
+
+            NormalizeOption(_options.StepSize,
+                            normalizedStepSize,
+                            "inner step size",
+                            value => _options.StepSize = value,
+                            warnings,
+                            diagnostics);
+            NormalizeOption(_options.MinimumStepSize,
+                            normalizedMinimumStepSize,
+                            "minimum inner step size",
+                            value => _options.MinimumStepSize = value,
+                            warnings,
+                            diagnostics);
+            NormalizeOption(_options.LineSearchDecay,
+                            normalizedDecay,
+                            "line-search decay",
+                            value => _options.LineSearchDecay = value,
+                            warnings,
+                            diagnostics);
+            NormalizeOption(_options.ObjectiveAcceptanceTolerance,
+                            Math.Max(0.0, double.IsFinite(_options.ObjectiveAcceptanceTolerance) ? _options.ObjectiveAcceptanceTolerance : 1e-6),
+                            "objective acceptance tolerance",
+                            value => _options.ObjectiveAcceptanceTolerance = value,
+                            warnings,
+                            diagnostics);
+            NormalizeOption(_options.LineSearchRelativeTolerance,
+                            Math.Max(0.0, double.IsFinite(_options.LineSearchRelativeTolerance) ? _options.LineSearchRelativeTolerance : 5e-5),
+                            "line-search relative tolerance",
+                            value => _options.LineSearchRelativeTolerance = value,
+                            warnings,
+                            diagnostics);
+            NormalizeOption(_options.Beta,
+                            Math.Max(0.0, double.IsFinite(_options.Beta) ? _options.Beta : 2e-4),
+                            "residual regularization beta",
+                            value => _options.Beta = value,
+                            warnings,
+                            diagnostics);
+            NormalizeOption(_options.MinimumScale,
+                            normalizedMinimumScale,
+                            "minimum scale floor",
+                            value => _options.MinimumScale = value,
+                            warnings,
+                            diagnostics);
+
+            if (!double.IsFinite(_options.Lambda) || _options.Lambda <= 0.0)
+            {
+                warnings.Add($"Invalid convexification lambda {_options.Lambda:G6} was reset to 1.25.");
+                _options.Lambda = 1.25;
+            }
+
+            if (!double.IsFinite(_options.Epsilon) || Math.Abs(_options.Epsilon) < 1e-8)
+            {
+                warnings.Add($"Invalid convexification epsilon {_options.Epsilon:G6} was reset to 0.5.");
+                _options.Epsilon = 0.5;
+            }
+
+            if (_options.MaxIterations < 1)
+            {
+                warnings.Add($"Invalid convexification inner iteration count {_options.MaxIterations} was reset to 1.");
+                _options.MaxIterations = 1;
+            }
+        }
+
+        private void NormalizeOption(double currentValue,
+                                     double normalized,
+                                     string name,
+                                     Action<double> setter,
+                                     IList<string> warnings,
+                                     IList<string> diagnostics)
+        {
+            if (double.IsFinite(currentValue) && Math.Abs(currentValue - normalized) <= 1e-12)
+                return;
+
+            warnings.Add($"Convexification {name} was normalized from {currentValue:G6} to {normalized:G6}.");
+            setter(normalized);
+            AppendDiagnostic(diagnostics, $"Convexification normalized {name} to {normalized:G6}.");
+        }
+
+        private void AppendEffectiveParameterDiagnostics(IList<string> diagnostics, int cycleLength)
+        {
+            var (conductivityMinimumBound, conductivityMaximumBound) = ResolveConductivityBounds();
+            double effectiveMinimumScale = ConvexificationOperators.ResolveMinimumScale(_options, conductivityMinimumBound);
+            AppendDiagnostic(diagnostics,
+                             $"Convexification parameters: cycleLength={cycleLength}, " +
+                             $"lambda={_options.Lambda:G6}, epsilon={_options.Epsilon:G6}, " +
+                             $"beta={_options.Beta:G6}, innerStep={_options.StepSize:G6}, " +
+                             $"minimumInnerStep={_options.MinimumStepSize:G6}, " +
+                             $"lineSearchDecay={_options.LineSearchDecay:G6}, " +
+                             $"acceptTol={_options.ObjectiveAcceptanceTolerance:G6}, " +
+                             $"lineSearchRelativeTol={_options.LineSearchRelativeTolerance:G6}, " +
+                             $"residualWeight={_options.InteriorResidualWeight:G6}, " +
+                             $"boundaryDirichlet={_options.BoundaryDirichletWeight:G6}, " +
+                             $"boundaryNeumann={_options.BoundaryNeumannWeight:G6}, " +
+                             $"VResidual={_options.VRecoveryResidualWeight:G6}, " +
+                             $"VDirichlet={_options.VRecoveryDirichletWeight:G6}, " +
+                             $"VNeumann={_options.VRecoveryNeumannWeight:G6}, " +
+                             $"VGradient={_options.VRecoveryGradientWeight:G6}, " +
+                             $"VStabilization={_options.VRecoveryStabilizationWeight:G6}, " +
+                             $"VMass={_options.VRecoveryMassWeight:G6}, " +
+                             $"conductivityBounds=[{conductivityMinimumBound:G6}, {conductivityMaximumBound:G6}], " +
+                             $"minimumScale={effectiveMinimumScale:G6}.");
+        }
+
+        private void AppendBoundaryDataDiagnostics(IReadOnlyList<ConvexificationBoundaryData> boundaryData, IList<string> diagnostics)
+        {
+            if (boundaryData.Count == 0)
+                return;
+
+            double averageShift = boundaryData.Average(frame => frame.PositivityShift);
+            double maximumShift = boundaryData.Max(frame => frame.PositivityShift);
+            AppendDiagnostic(diagnostics,
+                             $"Convexification boundary proxies: frames={boundaryData.Count}, average positivity shift={averageShift:G6}, maximum positivity shift={maximumShift:G6}.");
+        }
+
+        private void AppendIterationDiagnostics(IList<string> diagnostics,
+                                                int iteration,
+                                                double acceptedDamping,
+                                                double objectiveValue,
+                                                double relativeObjectiveChange,
+                                                double directionNorm,
+                                                IReadOnlyList<PotentialDistribution> wFields,
+                                                PotentialDistribution coefficientField,
+                                                PotentialDistribution scaleField,
+                                                ConductivityDistribution rawConductivity,
+                                                ConductivityDistribution clippedConductivity,
+                                                double rawSigmaBelowMinimumFraction,
+                                                double rawSigmaAboveMaximumFraction)
+        {
+            var wRange = ConvexificationOperators.ComputeFiniteRange(wFields.SelectMany(field => field.Potentials.Values));
+            var coefficientRange = ConvexificationOperators.ComputeFiniteRange(coefficientField.Potentials.Values);
+            var scaleRange = ConvexificationOperators.ComputeFiniteRange(scaleField.Potentials.Values);
+            var rawSigmaRange = ConvexificationOperators.ComputeFiniteRange(rawConductivity.Conductivities.Values);
+            double clippedFraction = ComputeClippedFraction(rawConductivity, clippedConductivity);
+
+            AppendDiagnostic(diagnostics,
+                             $"Convexification inner {iteration}: objective={objectiveValue:G6}, relativeChange={relativeObjectiveChange:G6}, acceptedDamping={acceptedDamping:G6}, directionNorm={directionNorm:G6}, wRange=[{wRange.Minimum:G6}, {wRange.Maximum:G6}], aRange=[{coefficientRange.Minimum:G6}, {coefficientRange.Maximum:G6}], VRange=[{scaleRange.Minimum:G6}, {scaleRange.Maximum:G6}], rawSigmaRange=[{rawSigmaRange.Minimum:G6}, {rawSigmaRange.Maximum:G6}], rawBelowMin={rawSigmaBelowMinimumFraction:P1}, rawAboveMax={rawSigmaAboveMaximumFraction:P1}, clipped={clippedFraction:P1}.");
+        }
+
+        private void AppendRecoveryDiagnostics(IList<string> diagnostics,
+                                               string diagnosticLabel,
+                                               IReadOnlyList<PotentialDistribution> wFields,
+                                               PotentialDistribution coefficientField,
+                                               PotentialDistribution scaleField,
+                                               (double Minimum, double Maximum, double BelowFraction, double AboveFraction) rawSigmaStats,
+                                               double clippedFraction)
+        {
+            var wRange = ConvexificationOperators.ComputeFiniteRange(wFields.SelectMany(field => field.Potentials.Values));
+            var coefficientRange = ConvexificationOperators.ComputeFiniteRange(coefficientField.Potentials.Values);
+            var scaleRange = ConvexificationOperators.ComputeFiniteRange(scaleField.Potentials.Values);
+
+            AppendDiagnostic(diagnostics,
+                             $"Convexification recovery {diagnosticLabel}: wRange=[{wRange.Minimum:G6}, {wRange.Maximum:G6}], aRange=[{coefficientRange.Minimum:G6}, {coefficientRange.Maximum:G6}], VRange=[{scaleRange.Minimum:G6}, {scaleRange.Maximum:G6}], rawSigmaRange=[{rawSigmaStats.Minimum:G6}, {rawSigmaStats.Maximum:G6}], rawBelowMin={rawSigmaStats.BelowFraction:P1}, rawAboveMax={rawSigmaStats.AboveFraction:P1}, clipped={clippedFraction:P1}.");
+        }
+
+        private (double Minimum, double Maximum) ResolveConductivityBounds()
+        {
+            if (_runtimeContext == null)
+                return (ConductivityClipper.MinimumBound, ConductivityClipper.MaximumBound);
+
+            return (_runtimeContext.ConductivityMinimumBound, _runtimeContext.ConductivityMaximumBound);
+        }
+
+        private static double ComputeClippedFraction(ConductivityDistribution rawConductivity,
+                                                     ConductivityDistribution clippedConductivity)
+        {
+            int count = rawConductivity.Conductivities.Count;
+            if (count == 0)
+                return 0.0;
+
+            int changed = 0;
+            foreach (var pair in rawConductivity.Conductivities)
+            {
+                double clipped = clippedConductivity.GetConductivity(pair.Key);
+                double tolerance = 1e-10 * Math.Max(1.0, Math.Abs(pair.Value));
+                if (Math.Abs(clipped - pair.Value) > tolerance)
+                    changed++;
+            }
+
+            return changed / (double)count;
+        }
+
+        private static bool ShouldWarnOnRawSigmaCollapse((double Minimum, double Maximum, double BelowFraction, double AboveFraction) rawSigmaStats,
+                                                         double conductivityMinimumBound)
+        {
+            if (!double.IsFinite(rawSigmaStats.Minimum) || !double.IsFinite(rawSigmaStats.Maximum))
+                return true;
+
+            return rawSigmaStats.BelowFraction > 0.5
+                   || rawSigmaStats.Maximum <= conductivityMinimumBound * 1.05;
+        }
+
+        private void AppendDiagnostic(IList<string> diagnostics, string message)
+        {
+            if (!_options.EnableDiagnostics || string.IsNullOrWhiteSpace(message))
+                return;
+
+            diagnostics.Add(message);
         }
 
         private static void ApplyContactImpedanceDefaults(FEMMesh mesh, ReconstructionRuntimeContext parameters)
@@ -437,7 +665,8 @@ namespace BusinessLayer
                  IReadOnlyList<double> ObjectiveHistory,
                  double RelativeConductivityChange,
                  int IterationCount,
-                 bool Converged) OptimizeFields(
+                 bool Converged,
+                 IReadOnlyList<double> AcceptedDampingHistory) OptimizeFields(
             IReadOnlyList<ConvexificationBoundaryData> boundaryData,
             IReadOnlyList<FEMElectrode> electrodes,
             Matrix laplacian,
@@ -446,7 +675,8 @@ namespace BusinessLayer
             IReadOnlyList<PotentialDistribution> initialSFields,
             ConductivityDistribution initialDistribution,
             IList<ReconstructionFrame> publishedFrames,
-            IList<string> warnings)
+            IList<string> warnings,
+            IList<string> diagnostics)
         {
             if (_mesh == null || _numericSolver == null)
                 throw new InvalidOperationException("Convexification persistence is not ready.");
@@ -466,6 +696,8 @@ namespace BusinessLayer
             bool converged = false;
             int completedIterations = 0;
             double lastConductivityChange = double.PositiveInfinity;
+            var acceptedDampingHistory = new List<double>();
+            var (initialStepSize, minimumStepSize, lineSearchDecay) = ConvexificationOperators.NormalizeLineSearchParameters(_options);
 
             for (int iteration = 0; iteration < _options.MaxIterations; iteration++)
             {
@@ -478,71 +710,118 @@ namespace BusinessLayer
                                                                                                                                 currentObjective,
                                                                                                                                 carlemanWeights,
                                                                                                                                 laplacian,
-                                                                                                                                _numericSolver,
-                                                                                                                                _options);
+                                                                                                                                 _numericSolver,
+                                                                                                                                 _options);
                 if (directionNorm < _options.InnerGradientTolerance)
                 {
+                    AppendDiagnostic(diagnostics,
+                                     $"Convexification inner {iteration + 1}: descent direction norm {directionNorm:G6} fell below tolerance {_options.InnerGradientTolerance:G6}; treating the cycle as stationary.");
                     converged = true;
                     break;
                 }
 
-                double damping = Math.Clamp(_options.StepSize, _options.MinimumStepSize, 1.0);
+                double damping = initialStepSize;
+                double directionScale = 1.0 / Math.Max(1.0, directionNorm);
                 List<PotentialDistribution>? acceptedR = null;
                 List<PotentialDistribution>? acceptedS = null;
                 ConvexificationObjectiveSnapshot? acceptedObjectiveSnapshot = null;
                 double acceptedObjective = previousObjective;
+                double acceptedDamping = double.NaN;
+                double bestCandidateObjective = double.PositiveInfinity;
+                double bestCandidateDamping = double.NaN;
+                string lastRejectionReason = "no candidate was evaluated";
 
-                while (damping >= _options.MinimumStepSize)
+                while (damping >= minimumStepSize)
                 {
                     var blendedR = currentR.Zip(rDirections,
-                                                (baseline, increment) => ConvexificationOperators.AddScaledIncrement(baseline, increment, damping))
+                                                (baseline, increment) => ConvexificationOperators.AddScaledIncrement(baseline, increment, damping * directionScale))
                         .ToList();
                     var blendedS = currentS.Zip(sDirections,
-                                                (baseline, increment) => ConvexificationOperators.AddScaledIncrement(baseline, increment, damping))
+                                                (baseline, increment) => ConvexificationOperators.AddScaledIncrement(baseline, increment, damping * directionScale))
                         .ToList();
 
                     var snapshot = ConvexificationOperators.EvaluateObjective(_mesh,
                                                                               boundaryData,
                                                                               electrodes,
                                                                               blendedR,
-                                                                              blendedS,
-                                                                              _options,
-                                                                              carlemanWeights);
+                                                                               blendedS,
+                                                                               _options,
+                                                                               carlemanWeights);
                     double objective = snapshot.TotalValue;
-                    if (!double.IsFinite(previousObjective) || objective <= previousObjective)
+                    if (double.IsFinite(objective) && objective < bestCandidateObjective)
+                    {
+                        bestCandidateObjective = objective;
+                        bestCandidateDamping = damping;
+                    }
+
+                    var (accepted, reason) = ConvexificationOperators.EvaluateObjectiveAcceptance(previousObjective,
+                                                                                                   objective,
+                                                                                                   _options);
+                    AppendDiagnostic(diagnostics,
+                                     $"Convexification inner {iteration + 1}, line search: damping={damping:G6}, effectiveStep={damping * directionScale:G6}, previousObjective={previousObjective:G6}, candidateObjective={objective:G6}, accepted={accepted}, reason={reason}.");
+                    if (accepted)
                     {
                         acceptedR = blendedR;
                         acceptedS = blendedS;
                         acceptedObjective = objective;
                         acceptedObjectiveSnapshot = snapshot;
+                        acceptedDamping = damping;
                         break;
                     }
 
-                    damping *= _options.LineSearchDecay;
+                    lastRejectionReason = reason;
+                    damping *= lineSearchDecay;
                 }
 
                 if (acceptedR == null || acceptedS == null)
                 {
-                    warnings.Add("Convexification line search stalled before a stable update was found.");
+                    string bestCandidateText = double.IsFinite(bestCandidateObjective)
+                        ? $"best candidate objective {bestCandidateObjective:G6} at damping {bestCandidateDamping:G6}"
+                        : "no finite candidate objective was found";
+                    string message = $"Convexification line search stalled before a stable update was found. Initial damping {initialStepSize:G6}, minimum damping {minimumStepSize:G6}, direction scale {directionScale:G6}, {bestCandidateText}. Last rejection reason: {lastRejectionReason}.";
+                    warnings.Add(message);
+                    AppendDiagnostic(diagnostics, message);
                     break;
                 }
 
                 double relativeChange = Math.Abs(previousObjective - acceptedObjective)
                                         / Math.Max(1.0, Math.Abs(previousObjective));
+                acceptedDampingHistory.Add(acceptedDamping);
                 currentR = acceptedR;
                 currentS = acceptedS;
                 previousObjective = acceptedObjective;
                 currentObjective = acceptedObjectiveSnapshot ?? currentObjective;
                 objectiveHistory.Add(previousObjective);
 
-                var (wFields, _, _, reconstructedConductivity) = RecoverConductivityEstimate(laplacian,
-                                                                                             electrodes,
-                                                                                             currentR,
-                                                                                             currentS,
-                                                                                             warnings);
+                var (wFields,
+                     coefficientField,
+                     scaleField,
+                     rawConductivity,
+                     reconstructedConductivity,
+                     rawSigmaBelowMinimumFraction,
+                     rawSigmaAboveMaximumFraction) = RecoverConductivityEstimate(laplacian,
+                                                                                 electrodes,
+                                                                                 currentR,
+                                                                                 currentS,
+                                                                                 warnings,
+                                                                                 diagnostics,
+                                                                                 $"inner {iteration + 1}");
                 UpdateCurrentDistribution(reconstructedConductivity);
                 lastConductivityChange = ConvexificationOperators.ComputeRelativeConductivityChange(previousDistribution,
                                                                                                     reconstructedConductivity);
+                AppendIterationDiagnostics(diagnostics,
+                                           iteration + 1,
+                                           acceptedDamping,
+                                           previousObjective,
+                                           relativeChange,
+                                           directionNorm,
+                                           wFields,
+                                           coefficientField,
+                                           scaleField,
+                                           rawConductivity,
+                                           reconstructedConductivity,
+                                           rawSigmaBelowMinimumFraction,
+                                           rawSigmaAboveMaximumFraction);
 
                 var frame = BuildIterationFrame(boundaryData,
                                                 electrodes,
@@ -574,18 +853,24 @@ namespace BusinessLayer
                     objectiveHistory,
                     lastConductivityChange,
                     completedIterations,
-                    converged);
+                    converged,
+                    acceptedDampingHistory);
         }
 
         private (List<PotentialDistribution> WFields,
                  PotentialDistribution CoefficientField,
                  PotentialDistribution ScaleField,
-                 ConductivityDistribution Conductivity) RecoverConductivityEstimate(
+                 ConductivityDistribution RawConductivity,
+                 ConductivityDistribution Conductivity,
+                 double RawSigmaBelowMinimumFraction,
+                 double RawSigmaAboveMaximumFraction) RecoverConductivityEstimate(
             Matrix laplacian,
             IReadOnlyList<FEMElectrode> electrodes,
             IReadOnlyList<PotentialDistribution> rFields,
             IReadOnlyList<PotentialDistribution> sFields,
-            IList<string> warnings)
+            IList<string> warnings,
+            IList<string> diagnostics,
+            string diagnosticLabel)
         {
             if (_mesh == null || _numericSolver == null)
                 throw new InvalidOperationException("Convexification conductivity recovery is not initialised.");
@@ -612,7 +897,8 @@ namespace BusinessLayer
                                                                         coefficientField,
                                                                         electrodes,
                                                                         _numericSolver,
-                                                                        _options);
+                                                                        _options,
+                                                                        ResolveConductivityBounds().Minimum);
             }
             catch (Exception ex)
             {
@@ -620,8 +906,34 @@ namespace BusinessLayer
                 scaleField = new PotentialDistribution(_mesh.Vertices.ToDictionary(vertex => vertex.GlobalId, _ => 1.0));
             }
 
-            var conductivity = ConductivityClipper.Clip(ConvexificationOperators.RecoverConductivity(_mesh, scaleField));
-            return (wFields, coefficientField, scaleField, conductivity);
+            var rawConductivity = ConvexificationOperators.RecoverConductivity(_mesh, scaleField);
+            var (conductivityMinimumBound, conductivityMaximumBound) = ResolveConductivityBounds();
+            var rawStats = ConvexificationOperators.SummarizeConductivity(rawConductivity,
+                                                                          conductivityMinimumBound,
+                                                                          conductivityMaximumBound);
+            var conductivity = ConductivityClipper.Clip(new ConductivityDistribution(rawConductivity.Conductivities));
+            double clippedFraction = ComputeClippedFraction(rawConductivity, conductivity);
+
+            AppendRecoveryDiagnostics(diagnostics,
+                                      diagnosticLabel,
+                                      wFields,
+                                      coefficientField,
+                                      scaleField,
+                                      rawStats,
+                                      clippedFraction);
+
+            if (ShouldWarnOnRawSigmaCollapse(rawStats, conductivityMinimumBound))
+            {
+                warnings.Add($"Recovered raw conductivity is collapsing during {diagnosticLabel}: min={rawStats.Minimum:G6}, max={rawStats.Maximum:G6}, below-min fraction={rawStats.BelowFraction:P1}.");
+            }
+
+            return (wFields,
+                    coefficientField,
+                    scaleField,
+                    rawConductivity,
+                    conductivity,
+                    rawStats.BelowFraction,
+                    rawStats.AboveFraction);
         }
 
         private ReconstructionFrame BuildIterationFrame(IReadOnlyList<ConvexificationBoundaryData> boundaryData,

@@ -19,7 +19,12 @@ namespace Utility.Classes.Reconstruction.Convexification
         public required int IterationCount { get; init; }
         public required bool Converged { get; init; }
         public IReadOnlyList<double> ObjectiveHistory { get; init; } = [];
+        public IReadOnlyList<double> AcceptedDampingHistory { get; init; } = [];
         public double RelativeConductivityChange { get; init; }
+        public ConductivityDistribution? RawRecoveredConductivity { get; init; }
+        public double RawSigmaBelowMinimumFraction { get; init; }
+        public double RawSigmaAboveMaximumFraction { get; init; }
+        public IReadOnlyList<string> Diagnostics { get; init; } = [];
         public IReadOnlyList<string> Warnings { get; init; } = [];
     }
 }

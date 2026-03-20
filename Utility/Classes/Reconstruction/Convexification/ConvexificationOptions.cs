@@ -39,13 +39,28 @@ namespace Utility.Classes.Reconstruction.Convexification
         /// Damping factor used when blending the latest objective-driven update.
         /// Values in (0, 1] are recommended.
         /// </summary>
-        public double StepSize { get; set; } = 0.2;
+        public double StepSize { get; set; } = 0.65;
 
         /// <summary>Maximum number of inner least-squares descent iterations per reconstruction cycle.</summary>
         public int MaxIterations { get; set; } = 24;
 
         /// <summary>Relative objective tolerance for convergence.</summary>
         public double Tolerance { get; set; } = 5e-6;
+
+        /// <summary>
+        /// Relative/absolute tolerance used when accepting a line-search candidate.
+        /// This prevents numerical roundoff from rejecting a candidate whose
+        /// objective differs only in the last few digits.
+        /// </summary>
+        public double ObjectiveAcceptanceTolerance { get; set; } = 1e-6;
+
+        /// <summary>
+        /// Additional relative acceptance tolerance for the practical
+        /// preconditioned line search. The current P1-based surrogate is not an
+        /// exact steepest-descent direction, so very small relative objective
+        /// increases can still be treated as numerically stable updates.
+        /// </summary>
+        public double LineSearchRelativeTolerance { get; set; } = 5e-5;
 
         /// <summary>
         /// Norm threshold for the preconditioned descent field below which the
@@ -110,7 +125,7 @@ namespace Utility.Classes.Reconstruction.Convexification
         public double LineSearchDecay { get; set; } = 0.5;
 
         /// <summary>Smallest admissible damping factor before the line search gives up.</summary>
-        public double MinimumStepSize { get; set; } = 1e-3;
+        public double MinimumStepSize { get; set; } = 1e-2;
 
         /// <summary>Fallback lower bound for electrode lengths that are missing or degenerate.</summary>
         public double ElectrodeLengthFloor { get; set; } = 1e-6;
@@ -125,7 +140,7 @@ namespace Utility.Classes.Reconstruction.Convexification
         public double SigmaRecoveryRegularization { get; set; } = 1e-6;
 
         /// <summary>Small positive floor enforced on the recovered scale field V.</summary>
-        public double MinimumScale { get; set; } = 1e-3;
+        public double MinimumScale { get; set; } = System.Math.Sqrt(0.1);
 
         /// <summary>
         /// Weight of the PDE residual term in the quasi-reversibility recovery
@@ -151,9 +166,22 @@ namespace Utility.Classes.Reconstruction.Convexification
         public double VRecoveryGradientWeight { get; set; } = 8e-3;
 
         /// <summary>
+        /// Small diagonal stabilization in the V-stage normal equations. This is
+        /// separate from the mass anchor because it does not bias the solution
+        /// towards 1; it only keeps the least-squares system well-conditioned.
+        /// </summary>
+        public double VRecoveryStabilizationWeight { get; set; } = 5e-5;
+
+        /// <summary>
         /// Small mass penalty anchoring the recovered V field near 1 away from
         /// the boundary so the least-squares stage does not collapse to a floor.
         /// </summary>
         public double VRecoveryMassWeight { get; set; } = 1e-4;
+
+        /// <summary>
+        /// When enabled, the service logs per-cycle and per-iteration
+        /// convexification diagnostics into the shared workspace/logger stream.
+        /// </summary>
+        public bool EnableDiagnostics { get; set; } = true;
     }
 }
