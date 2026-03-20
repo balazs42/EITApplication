@@ -12,6 +12,40 @@ using Matrix = MathNet.Numerics.LinearAlgebra.Matrix<double>;
 namespace Utility.Classes.Reconstruction.Convexification
 {
     /// <summary>
+    /// Per-frame diagnostics of the practical convexification objective. The
+    /// current FEM basis is only a surrogate of the chapter's H2 setting, so
+    /// these values are meant for stable least-squares descent rather than
+    /// exact functional analysis.
+    /// </summary>
+    public sealed class ConvexificationFrameObjectiveSnapshot
+    {
+        public required Dictionary<int, double> L1 { get; init; }
+        public required Dictionary<int, double> L2 { get; init; }
+        public required double[] DirichletMismatchR { get; init; }
+        public required double[] DirichletMismatchS { get; init; }
+        public required double[] NeumannMismatchR { get; init; }
+        public required double[] NeumannMismatchS { get; init; }
+        public double InteriorValue { get; init; }
+        public double BoundaryValue { get; init; }
+        public double RegularizationValue { get; init; }
+        public double TotalValue => InteriorValue + BoundaryValue + RegularizationValue;
+    }
+
+    /// <summary>
+    /// Aggregated diagnostics of the Carleman-weighted convexification objective.
+    /// The persistence layer uses this to drive the inner least-squares descent
+    /// and to expose objective trends for validation.
+    /// </summary>
+    public sealed class ConvexificationObjectiveSnapshot
+    {
+        public required IReadOnlyList<ConvexificationFrameObjectiveSnapshot> Frames { get; init; }
+        public double InteriorValue { get; init; }
+        public double BoundaryValue { get; init; }
+        public double RegularizationValue { get; init; }
+        public double TotalValue => InteriorValue + BoundaryValue + RegularizationValue;
+    }
+
+    /// <summary>
     /// Discrete helper operators shared by the convexification persistence and
     /// the associated self-tests. The methods below are intentionally isolated
     /// because the current FEM basis is only a practical surrogate of the
@@ -63,6 +97,25 @@ namespace Utility.Classes.Reconstruction.Convexification
                                                              IReadOnlyList<int> stepIndices,
                                                              int cycleLength,
                                                              bool usePeriodicWhenAvailable)
+            => ComputeDriveDerivatives(samples,
+                                       stepIndices,
+                                       cycleLength,
+                                       usePeriodicWhenAvailable,
+                                       smoothingWindow: 0,
+                                       smoothingPasses: 0,
+                                       usePeriodicSmoothing: true);
+
+        /// <summary>
+        /// Computes frame-wise drive derivatives for electrode-wise signals, with
+        /// optional pre-smoothing before the finite-difference stage.
+        /// </summary>
+        public static List<double[]> ComputeDriveDerivatives(IReadOnlyList<double[]> samples,
+                                                             IReadOnlyList<int> stepIndices,
+                                                             int cycleLength,
+                                                             bool usePeriodicWhenAvailable,
+                                                             int smoothingWindow,
+                                                             int smoothingPasses,
+                                                             bool usePeriodicSmoothing)
         {
             if (samples == null)
                 throw new ArgumentNullException(nameof(samples));
@@ -92,6 +145,16 @@ namespace Utility.Classes.Reconstruction.Convexification
                                && cycleLength > 1
                                && ordered.Count == cycleLength
                                && distinctOrdering;
+            bool usePeriodicSmoothingMode = usePeriodicSmoothing
+                                            && cycleLength > 1
+                                            && ordered.Count == cycleLength
+                                            && distinctOrdering;
+
+            var smoothedSamples = SmoothOrderedSamples(ordered,
+                                                       signalLength,
+                                                       smoothingWindow,
+                                                       smoothingPasses,
+                                                       usePeriodicSmoothingMode);
 
             var derivativeBySortedIndex = new double[ordered.Count][];
             for (int i = 0; i < ordered.Count; i++)
@@ -102,6 +165,7 @@ namespace Utility.Classes.Reconstruction.Convexification
                 for (int electrode = 0; electrode < signalLength; electrode++)
                 {
                     derivativeBySortedIndex[i][electrode] = DifferentiateAt(ordered,
+                                                                            smoothedSamples,
                                                                             i,
                                                                             electrode,
                                                                             cycleLength,
@@ -117,6 +181,59 @@ namespace Utility.Classes.Reconstruction.Convexification
             {
                 int originalIndex = ordered[sortedIndex].OriginalIndex;
                 restored[originalIndex] = derivativeBySortedIndex[sortedIndex];
+            }
+
+            return restored;
+        }
+
+        /// <summary>
+        /// Applies optional electrode-wise smoothing along the ordered drive cycle.
+        /// The smoothing is disabled when the window is 0 or 1, matching the
+        /// "off by default" behavior requested by the task.
+        /// </summary>
+        public static List<double[]> SmoothDriveSamples(IReadOnlyList<double[]> samples,
+                                                        IReadOnlyList<int> stepIndices,
+                                                        int cycleLength,
+                                                        int smoothingWindow,
+                                                        int smoothingPasses,
+                                                        bool usePeriodicSmoothing)
+        {
+            if (samples == null)
+                throw new ArgumentNullException(nameof(samples));
+            if (stepIndices == null)
+                throw new ArgumentNullException(nameof(stepIndices));
+            if (samples.Count != stepIndices.Count)
+                throw new ArgumentException("Sample count and step-index count must agree.");
+            if (samples.Count == 0)
+                return [];
+
+            int signalLength = samples[0].Length;
+            var ordered = samples
+                .Select((frame, index) => new OrderedFrame(index, NormalizeStep(stepIndices[index], cycleLength), frame))
+                .ToList();
+
+            bool distinctOrdering = ordered.Select(item => item.StepIndex).Distinct().Count() == ordered.Count;
+            if (distinctOrdering)
+                ordered.Sort((left, right) => left.StepIndex.CompareTo(right.StepIndex));
+
+            bool periodic = usePeriodicSmoothing
+                            && cycleLength > 1
+                            && ordered.Count == cycleLength
+                            && distinctOrdering;
+            var smoothed = SmoothOrderedSamples(ordered,
+                                                signalLength,
+                                                smoothingWindow,
+                                                smoothingPasses,
+                                                periodic);
+
+            var restored = Enumerable.Range(0, ordered.Count)
+                .Select(_ => new double[signalLength])
+                .ToList();
+
+            for (int sortedIndex = 0; sortedIndex < ordered.Count; sortedIndex++)
+            {
+                int originalIndex = ordered[sortedIndex].OriginalIndex;
+                restored[originalIndex] = smoothed[sortedIndex];
             }
 
             return restored;
@@ -436,6 +553,251 @@ namespace Utility.Classes.Reconstruction.Convexification
         }
 
         /// <summary>
+        /// Evaluates the practical Carleman-weighted convexification objective on
+        /// the current P1 FEM basis. This is the discrete functional the inner
+        /// solver minimizes. It is not an exact Argyris/HCT realization, but it
+        /// keeps the residual, Dirichlet, Neumann and stabilization terms
+        /// separated so the update law can be driven by the objective itself.
+        /// </summary>
+        public static ConvexificationObjectiveSnapshot EvaluateObjective(FEMMesh mesh,
+                                                                         IReadOnlyList<ConvexificationBoundaryData> boundaryData,
+                                                                         IReadOnlyList<FEMElectrode> electrodes,
+                                                                         IReadOnlyList<PotentialDistribution> rFields,
+                                                                         IReadOnlyList<PotentialDistribution> sFields,
+                                                                         ConvexificationOptions options,
+                                                                         IReadOnlyDictionary<int, double> carlemanWeights)
+        {
+            if (mesh == null)
+                throw new ArgumentNullException(nameof(mesh));
+            if (boundaryData == null)
+                throw new ArgumentNullException(nameof(boundaryData));
+            if (electrodes == null)
+                throw new ArgumentNullException(nameof(electrodes));
+            if (rFields == null)
+                throw new ArgumentNullException(nameof(rFields));
+            if (sFields == null)
+                throw new ArgumentNullException(nameof(sFields));
+            if (options == null)
+                throw new ArgumentNullException(nameof(options));
+            if (carlemanWeights == null)
+                throw new ArgumentNullException(nameof(carlemanWeights));
+            if (boundaryData.Count != rFields.Count || boundaryData.Count != sFields.Count)
+                throw new ArgumentException("Boundary-data count and field counts must agree.");
+
+            double h = Math.Max(options.ElectrodeLengthFloor,
+                                electrodes.Count > 0
+                                    ? electrodes.Average(electrode => ResolveElectrodeLength(electrode, options.ElectrodeLengthFloor))
+                                    : options.ElectrodeLengthFloor);
+            double dirichletScale = options.BoundaryDirichletWeight / Math.Pow(h, 3);
+            double neumannScale = options.BoundaryNeumannWeight / h;
+
+            double totalInterior = 0.0;
+            double totalBoundary = 0.0;
+            double totalRegularization = 0.0;
+            var frames = new List<ConvexificationFrameObjectiveSnapshot>(boundaryData.Count);
+
+            for (int frameIndex = 0; frameIndex < boundaryData.Count; frameIndex++)
+            {
+                var frame = boundaryData[frameIndex];
+                var residuals = ComputeResiduals(mesh, rFields[frameIndex], sFields[frameIndex], options.Epsilon);
+                var gradR = FiniteElementOperators.CalculateElementWiseGradient(mesh, rFields[frameIndex]);
+                var gradS = FiniteElementOperators.CalculateElementWiseGradient(mesh, sFields[frameIndex]);
+
+                double frameInterior = 0.0;
+                double frameBoundary = 0.0;
+                double frameRegularization = 0.0;
+
+                foreach (var element in mesh.ElementsTyped.Cast<FEMElement>())
+                {
+                    double weight = carlemanWeights.TryGetValue(element.Id, out double carleman) ? carleman : 1.0;
+                    double l1 = residuals.L1.TryGetValue(element.Id, out double rValue) ? rValue : 0.0;
+                    double l2 = residuals.L2.TryGetValue(element.Id, out double sValue) ? sValue : 0.0;
+                    var gradRValue = gradR.GetVector(element.Id);
+                    var gradSValue = gradS.GetVector(element.Id);
+                    double regularization = gradRValue.X * gradRValue.X
+                                            + gradRValue.Y * gradRValue.Y
+                                            + gradSValue.X * gradSValue.X
+                                            + gradSValue.Y * gradSValue.Y;
+
+                    frameInterior += options.InteriorResidualWeight * weight * element.Area * (l1 * l1 + l2 * l2);
+                    frameRegularization += options.Beta * weight * element.Area * regularization;
+                }
+
+                var boundaryGradR = FiniteElementOperators.CalculateElementWiseGradient(mesh, rFields[frameIndex]);
+                var boundaryGradS = FiniteElementOperators.CalculateElementWiseGradient(mesh, sFields[frameIndex]);
+                var dirichletMismatchR = new double[electrodes.Count];
+                var dirichletMismatchS = new double[electrodes.Count];
+                var neumannMismatchR = new double[electrodes.Count];
+                var neumannMismatchS = new double[electrodes.Count];
+
+                for (int electrodeIndex = 0; electrodeIndex < electrodes.Count; electrodeIndex++)
+                {
+                    double avgR = ComputeElectrodeAverage(mesh, electrodes[electrodeIndex], rFields[frameIndex]);
+                    double avgS = ComputeElectrodeAverage(mesh, electrodes[electrodeIndex], sFields[frameIndex]);
+                    double dnR = ComputeElectrodeNormalDerivative(mesh, electrodes[electrodeIndex], boundaryGradR);
+                    double dnS = ComputeElectrodeNormalDerivative(mesh, electrodes[electrodeIndex], boundaryGradS);
+
+                    dirichletMismatchR[electrodeIndex] = avgR - frame.B0[electrodeIndex];
+                    dirichletMismatchS[electrodeIndex] = avgS - frame.BEpsilon[electrodeIndex];
+                    neumannMismatchR[electrodeIndex] = dnR - frame.C0[electrodeIndex];
+                    neumannMismatchS[electrodeIndex] = dnS - frame.CEpsilon[electrodeIndex];
+
+                    frameBoundary += dirichletScale * (dirichletMismatchR[electrodeIndex] * dirichletMismatchR[electrodeIndex]
+                                                     + dirichletMismatchS[electrodeIndex] * dirichletMismatchS[electrodeIndex]);
+
+                    if (ShouldApplyNeumannPenalty(frame, electrodeIndex, options))
+                    {
+                        frameBoundary += neumannScale * (neumannMismatchR[electrodeIndex] * neumannMismatchR[electrodeIndex]
+                                                       + neumannMismatchS[electrodeIndex] * neumannMismatchS[electrodeIndex]);
+                    }
+                }
+
+                totalInterior += frameInterior;
+                totalBoundary += frameBoundary;
+                totalRegularization += frameRegularization;
+
+                frames.Add(new ConvexificationFrameObjectiveSnapshot
+                {
+                    L1 = residuals.L1,
+                    L2 = residuals.L2,
+                    DirichletMismatchR = dirichletMismatchR,
+                    DirichletMismatchS = dirichletMismatchS,
+                    NeumannMismatchR = neumannMismatchR,
+                    NeumannMismatchS = neumannMismatchS,
+                    InteriorValue = frameInterior,
+                    BoundaryValue = frameBoundary,
+                    RegularizationValue = frameRegularization
+                });
+            }
+
+            return new ConvexificationObjectiveSnapshot
+            {
+                Frames = frames,
+                InteriorValue = totalInterior,
+                BoundaryValue = totalBoundary,
+                RegularizationValue = totalRegularization
+            };
+        }
+
+        /// <summary>
+        /// Builds preconditioned descent directions for the practical
+        /// convexification objective. The directions are obtained by
+        /// back-projecting the weighted residuals and boundary mismatches and
+        /// solving a Poisson-type Riesz map on the current P1 space. This is a
+        /// Gauss-Newton-like surrogate tailored to the existing FEM basis.
+        /// </summary>
+        public static (List<PotentialDistribution> RDirections,
+                       List<PotentialDistribution> SDirections,
+                       double DirectionNorm) BuildPreconditionedDescentDirections(
+            FEMMesh mesh,
+            IReadOnlyList<ConvexificationBoundaryData> boundaryData,
+            IReadOnlyList<FEMElectrode> electrodes,
+            IReadOnlyList<PotentialDistribution> currentR,
+            IReadOnlyList<PotentialDistribution> currentS,
+            ConvexificationObjectiveSnapshot objective,
+            IReadOnlyDictionary<int, double> carlemanWeights,
+            Matrix laplacian,
+            INumericSolver numericSolver,
+            ConvexificationOptions options)
+        {
+            if (mesh == null)
+                throw new ArgumentNullException(nameof(mesh));
+            if (boundaryData == null)
+                throw new ArgumentNullException(nameof(boundaryData));
+            if (electrodes == null)
+                throw new ArgumentNullException(nameof(electrodes));
+            if (currentR == null)
+                throw new ArgumentNullException(nameof(currentR));
+            if (currentS == null)
+                throw new ArgumentNullException(nameof(currentS));
+            if (objective == null)
+                throw new ArgumentNullException(nameof(objective));
+            if (carlemanWeights == null)
+                throw new ArgumentNullException(nameof(carlemanWeights));
+            if (laplacian == null)
+                throw new ArgumentNullException(nameof(laplacian));
+            if (numericSolver == null)
+                throw new ArgumentNullException(nameof(numericSolver));
+            if (options == null)
+                throw new ArgumentNullException(nameof(options));
+
+            double h = Math.Max(options.ElectrodeLengthFloor,
+                                electrodes.Count > 0
+                                    ? electrodes.Average(electrode => ResolveElectrodeLength(electrode, options.ElectrodeLengthFloor))
+                                    : options.ElectrodeLengthFloor);
+
+            var rDirections = new List<PotentialDistribution>(currentR.Count);
+            var sDirections = new List<PotentialDistribution>(currentS.Count);
+            double directionNorm = 0.0;
+
+            for (int frameIndex = 0; frameIndex < currentR.Count; frameIndex++)
+            {
+                var frameObjective = objective.Frames[frameIndex];
+
+                var elementSourceR = new Dictionary<int, double>(mesh.ElementsTyped.Count);
+                var elementSourceS = new Dictionary<int, double>(mesh.ElementsTyped.Count);
+                foreach (var element in mesh.ElementsTyped.Cast<FEMElement>())
+                {
+                    double weight = carlemanWeights.TryGetValue(element.Id, out double carleman) ? carleman : 1.0;
+                    double l1 = frameObjective.L1.TryGetValue(element.Id, out double rValue) ? rValue : 0.0;
+                    double l2 = frameObjective.L2.TryGetValue(element.Id, out double sValue) ? sValue : 0.0;
+
+                    // Practical Gauss-Newton surrogate:
+                    // r influences both L1 and L2 more directly, so its descent
+                    // source uses 2*L1 + L2. The s update uses the symmetric
+                    // 2*L2 + L1 combination.
+                    elementSourceR[element.Id] = options.InteriorResidualWeight * weight * (2.0 * l1 + l2);
+                    elementSourceS[element.Id] = options.InteriorResidualWeight * weight * (l1 + 2.0 * l2);
+                }
+
+                var vertexSourceR = ProjectElementFieldToVertices(mesh, elementSourceR);
+                var vertexSourceS = ProjectElementFieldToVertices(mesh, elementSourceS);
+                var lapR = FiniteElementOperators.CalculateLaplacian(mesh, currentR[frameIndex]);
+                var lapS = FiniteElementOperators.CalculateLaplacian(mesh, currentS[frameIndex]);
+
+                foreach (var vertex in mesh.Vertices)
+                {
+                    int vertexId = vertex.GlobalId;
+                    vertexSourceR.SetValue(vertexId, vertexSourceR.GetPotential(vertexId) - options.Beta * lapR.GetPotential(vertexId));
+                    vertexSourceS.SetValue(vertexId, vertexSourceS.GetPotential(vertexId) - options.Beta * lapS.GetPotential(vertexId));
+                }
+
+                double[] boundaryDescentR = BuildBoundaryDescentValues(boundaryData[frameIndex],
+                                                                        frameObjective.DirichletMismatchR,
+                                                                        frameObjective.NeumannMismatchR,
+                                                                        electrodes,
+                                                                        h,
+                                                                        options);
+                double[] boundaryDescentS = BuildBoundaryDescentValues(boundaryData[frameIndex],
+                                                                        frameObjective.DirichletMismatchS,
+                                                                        frameObjective.NeumannMismatchS,
+                                                                        electrodes,
+                                                                        h,
+                                                                        options);
+
+                var directionR = SolveDirichletPoisson(mesh,
+                                                       laplacian,
+                                                       CreateBoundaryValueMap(mesh, electrodes, boundaryDescentR),
+                                                       vertexSourceR.Potentials,
+                                                       numericSolver,
+                                                       options.SigmaRecoveryRegularization);
+                var directionS = SolveDirichletPoisson(mesh,
+                                                       laplacian,
+                                                       CreateBoundaryValueMap(mesh, electrodes, boundaryDescentS),
+                                                       vertexSourceS.Potentials,
+                                                       numericSolver,
+                                                       options.SigmaRecoveryRegularization);
+
+                rDirections.Add(directionR);
+                sDirections.Add(directionS);
+                directionNorm += ComputeFieldNorm(directionR);
+                directionNorm += ComputeFieldNorm(directionS);
+            }
+
+            return (rDirections, sDirections, directionNorm);
+        }
+
+        /// <summary>
         /// Computes the average of a nodal scalar field on one electrode patch.
         /// </summary>
         public static double ComputeElectrodeAverage(FEMMesh mesh, FEMElectrode electrode, ScalarField field)
@@ -479,29 +841,8 @@ namespace Utility.Classes.Reconstruction.Convexification
             if (contactIds.Count == 0 || boundary.Count == 0)
                 return 0.0;
 
-            double boundaryCx = boundary.Average(vertex => vertex.X);
-            double boundaryCy = boundary.Average(vertex => vertex.Y);
-
-            double ex = 0.0;
-            double ey = 0.0;
-            foreach (int id in contactIds)
-            {
-                var vertex = mesh.GetVertexById(id);
-                ex += vertex.X;
-                ey += vertex.Y;
-            }
-
-            ex /= contactIds.Count;
-            ey /= contactIds.Count;
-
-            double nx = ex - boundaryCx;
-            double ny = ey - boundaryCy;
-            double norm = Math.Sqrt(nx * nx + ny * ny);
-            if (norm < SmallDenominator)
+            if (!TryGetElectrodeOutwardNormal(mesh, contactIds, out double nx, out double ny))
                 return 0.0;
-
-            nx /= norm;
-            ny /= norm;
 
             var touchingElements = mesh.ElementsTyped
                 .Cast<FEMElement>()
@@ -519,6 +860,70 @@ namespace Utility.Classes.Reconstruction.Convexification
             }
 
             return total / touchingElements.Count;
+        }
+
+        /// <summary>
+        /// Builds a linear operator that maps nodal V values to electrode-average
+        /// normal derivatives. This is used in the quasi-reversibility V-stage so
+        /// the practical Neumann condition d_n V = 0 enters the least-squares
+        /// system directly rather than as a post-hoc tweak.
+        /// </summary>
+        public static Matrix BuildElectrodeNormalDerivativeMatrix(FEMMesh mesh,
+                                                                  IReadOnlyList<FEMElectrode> electrodes)
+        {
+            if (mesh == null)
+                throw new ArgumentNullException(nameof(mesh));
+            if (electrodes == null)
+                throw new ArgumentNullException(nameof(electrodes));
+
+            int vertexCount = mesh.Vertices.Count;
+            var idToIndex = mesh.Vertices
+                .Select((vertex, index) => (vertex.GlobalId, index))
+                .ToDictionary(item => item.GlobalId, item => item.index);
+            var matrix = DenseMatrix.Create(electrodes.Count, vertexCount, 0.0);
+
+            for (int electrodeIndex = 0; electrodeIndex < electrodes.Count; electrodeIndex++)
+            {
+                var contactIds = GetElectrodeVertexIds(electrodes[electrodeIndex]).ToHashSet();
+                if (contactIds.Count == 0)
+                    continue;
+                if (!TryGetElectrodeOutwardNormal(mesh, contactIds, out double nx, out double ny))
+                    continue;
+
+                var touchingElements = mesh.ElementsTyped
+                    .Cast<FEMElement>()
+                    .Where(element => element.Vertices.Any(vertex => contactIds.Contains(vertex.GlobalId)))
+                    .ToList();
+
+                if (touchingElements.Count == 0)
+                    continue;
+
+                double scale = 1.0 / touchingElements.Count;
+                foreach (var element in touchingElements)
+                {
+                    double twoA = 2.0 * Math.Max(element.Area, SmallDenominator);
+                    var v1 = element.Vertices[0];
+                    var v2 = element.Vertices[1];
+                    var v3 = element.Vertices[2];
+
+                    var gradients = new (FEMVertex Vertex, double Gx, double Gy)[]
+                    {
+                        (v1, (v2.Y - v3.Y) / twoA, (v3.X - v2.X) / twoA),
+                        (v2, (v3.Y - v1.Y) / twoA, (v1.X - v3.X) / twoA),
+                        (v3, (v1.Y - v2.Y) / twoA, (v2.X - v1.X) / twoA)
+                    };
+
+                    foreach (var basis in gradients)
+                    {
+                        if (!idToIndex.TryGetValue(basis.Vertex.GlobalId, out int column))
+                            continue;
+
+                        matrix[electrodeIndex, column] += scale * (basis.Gx * nx + basis.Gy * ny);
+                    }
+                }
+            }
+
+            return matrix;
         }
 
         /// <summary>
@@ -693,15 +1098,16 @@ namespace Utility.Classes.Reconstruction.Convexification
         }
 
         /// <summary>
-        /// Recovers the scale field V from Delta V + aV = 0 with V = 1 enforced
-        /// on the boundary through a discrete Dirichlet solve.
+        /// Applies a practical H1-like smoothing pass to the recovered coefficient
+        /// field. This reduces the boundary-layer amplification produced by the
+        /// recovered Laplacian on the current P1 basis before the V stage.
         /// </summary>
-        public static PotentialDistribution RecoverScaleField(FEMMesh mesh,
-                                                              Matrix laplacian,
-                                                              PotentialDistribution coefficientField,
-                                                              INumericSolver numericSolver,
-                                                              double regularization,
-                                                              double minimumScale)
+        public static PotentialDistribution SmoothRecoveredCoefficientField(FEMMesh mesh,
+                                                                            Matrix laplacian,
+                                                                            PotentialDistribution coefficientField,
+                                                                            INumericSolver numericSolver,
+                                                                            double smoothingWeight,
+                                                                            double regularization)
         {
             if (mesh == null)
                 throw new ArgumentNullException(nameof(mesh));
@@ -711,54 +1117,106 @@ namespace Utility.Classes.Reconstruction.Convexification
                 throw new ArgumentNullException(nameof(coefficientField));
             if (numericSolver == null)
                 throw new ArgumentNullException(nameof(numericSolver));
-
-            var boundaryValues = mesh.GetOrderedBoundaryVertices()
-                .ToDictionary(vertex => vertex.GlobalId, _ => 1.0);
+            if (smoothingWeight <= 0.0)
+                return new PotentialDistribution(coefficientField.Potentials);
 
             int vertexCount = mesh.Vertices.Count;
-            var idToIndex = mesh.Vertices
-                .Select((vertex, index) => (vertex.GlobalId, index))
-                .ToDictionary(item => item.GlobalId, item => item.index);
-            var indexToId = mesh.Vertices.Select(vertex => vertex.GlobalId).ToArray();
+            var system = DenseMatrix.Create(vertexCount, vertexCount, (row, column) => -smoothingWeight * laplacian[row, column]);
+            var rhs = DenseVector.Create(vertexCount, index => coefficientField.GetPotential(mesh.Vertices[index].GlobalId));
 
-            var boundaryIndices = boundaryValues.Keys
-                .Where(idToIndex.ContainsKey)
-                .Select(id => idToIndex[id])
-                .OrderBy(index => index)
-                .ToArray();
-            var interiorIndices = Enumerable.Range(0, vertexCount)
-                .Where(index => !boundaryIndices.Contains(index))
-                .ToArray();
+            for (int index = 0; index < vertexCount; index++)
+                system[index, index] += 1.0 + regularization;
 
-            var values = Enumerable.Repeat(1.0, vertexCount).ToArray();
-            if (interiorIndices.Length == 0)
-                return ToPotentialDistribution(mesh, values);
+            var solution = numericSolver.SolveLinearSystem(system, rhs);
+            var values = new Dictionary<int, double>(vertexCount);
+            for (int index = 0; index < vertexCount; index++)
+                values[mesh.Vertices[index].GlobalId] = solution[index];
 
-            var system = DenseMatrix.Create(interiorIndices.Length, interiorIndices.Length, 0.0);
-            var rhs = DenseVector.Create(interiorIndices.Length, 0.0);
+            return new PotentialDistribution(values);
+        }
 
-            for (int row = 0; row < interiorIndices.Length; row++)
+        /// <summary>
+        /// Recovers the scale field V from Delta V + aV = 0 using a practical
+        /// quasi-reversibility least-squares surrogate. Both V = 1 and d_n V = 0
+        /// are enforced through penalty terms because the current P1 FEM basis is
+        /// not a true H2/C1 space.
+        /// </summary>
+        public static PotentialDistribution RecoverScaleField(FEMMesh mesh,
+                                                              Matrix laplacian,
+                                                              PotentialDistribution coefficientField,
+                                                              IReadOnlyList<FEMElectrode> electrodes,
+                                                              INumericSolver numericSolver,
+                                                              ConvexificationOptions options)
+        {
+            if (mesh == null)
+                throw new ArgumentNullException(nameof(mesh));
+            if (laplacian == null)
+                throw new ArgumentNullException(nameof(laplacian));
+            if (coefficientField == null)
+                throw new ArgumentNullException(nameof(coefficientField));
+            if (electrodes == null)
+                throw new ArgumentNullException(nameof(electrodes));
+            if (numericSolver == null)
+                throw new ArgumentNullException(nameof(numericSolver));
+            int vertexCount = mesh.Vertices.Count;
+            var identity = DenseMatrix.CreateIdentity(vertexCount);
+            var pdeOperator = DenseMatrix.Create(vertexCount,
+                                                 vertexCount,
+                                                 (row, column) => laplacian[row, column]);
+
+            for (int index = 0; index < vertexCount; index++)
             {
-                int globalRow = interiorIndices[row];
-                int vertexId = indexToId[globalRow];
+                int vertexId = mesh.Vertices[index].GlobalId;
+                pdeOperator[index, index] += coefficientField.GetPotential(vertexId);
+            }
 
-                for (int column = 0; column < interiorIndices.Length; column++)
-                    system[row, column] = laplacian[globalRow, interiorIndices[column]];
+            // Sign convention note:
+            // laplacian approximates Delta with positive off-diagonals and
+            // negative row sums, i.e. (Delta_h u)_i ~ Σ_j w_ij (u_j - u_i).
+            // Therefore Delta V + aV = 0 is assembled as
+            // (L + diag(a)) V = 0 and the QRM residual term uses that operator
+            // directly, not its negation.
+            Matrix normalMatrix = pdeOperator.TransposeThisAndMultiply(pdeOperator) * options.VRecoveryResidualWeight;
+            var rhs = DenseVector.Create(vertexCount, 0.0);
 
-                system[row, row] += coefficientField.GetPotential(vertexId) - regularization;
+            if (options.VRecoveryGradientWeight > 0.0)
+                normalMatrix += laplacian.Multiply(-options.VRecoveryGradientWeight);
 
-                for (int column = 0; column < boundaryIndices.Length; column++)
+            double massWeight = Math.Max(0.0, options.VRecoveryMassWeight);
+            double regularization = Math.Max(0.0, options.SigmaRecoveryRegularization);
+            if (massWeight > 0.0 || regularization > 0.0)
+            {
+                double diagonal = massWeight + regularization;
+                normalMatrix += identity * diagonal;
+                if (massWeight > 0.0)
                 {
-                    int boundaryIndex = boundaryIndices[column];
-                    rhs[row] -= laplacian[globalRow, boundaryIndex] * values[boundaryIndex];
+                    for (int index = 0; index < vertexCount; index++)
+                        rhs[index] += massWeight;
                 }
             }
 
-            var solution = numericSolver.SolveLinearSystem(system, rhs);
-            for (int row = 0; row < interiorIndices.Length; row++)
-                values[interiorIndices[row]] = Math.Max(minimumScale, solution[row]);
+            foreach (var boundaryVertex in mesh.GetOrderedBoundaryVertices())
+            {
+                int index = mesh.Vertices.FindIndex(vertex => vertex.GlobalId == boundaryVertex.GlobalId);
+                if (index < 0)
+                    continue;
 
-            return ToPotentialDistribution(mesh, values);
+                normalMatrix[index, index] += options.VRecoveryDirichletWeight;
+                rhs[index] += options.VRecoveryDirichletWeight;
+            }
+
+            if (options.VRecoveryNeumannWeight > 0.0 && electrodes.Count > 0)
+            {
+                var neumannOperator = BuildElectrodeNormalDerivativeMatrix(mesh, electrodes);
+                normalMatrix += neumannOperator.TransposeThisAndMultiply(neumannOperator) * options.VRecoveryNeumannWeight;
+            }
+
+            var solution = numericSolver.SolveLinearSystem(normalMatrix, rhs);
+            var values = new Dictionary<int, double>(vertexCount);
+            for (int index = 0; index < vertexCount; index++)
+                values[mesh.Vertices[index].GlobalId] = Math.Max(options.MinimumScale, solution[index]);
+
+            return new PotentialDistribution(values);
         }
 
         /// <summary>
@@ -801,6 +1259,48 @@ namespace Utility.Classes.Reconstruction.Convexification
             return new PotentialDistribution(values);
         }
 
+        /// <summary>
+        /// Applies a scaled increment to a nodal field.
+        /// </summary>
+        public static PotentialDistribution AddScaledIncrement(PotentialDistribution baseline,
+                                                               PotentialDistribution increment,
+                                                               double scale)
+        {
+            if (baseline == null)
+                throw new ArgumentNullException(nameof(baseline));
+            if (increment == null)
+                throw new ArgumentNullException(nameof(increment));
+
+            var values = baseline.Potentials.ToDictionary(
+                pair => pair.Key,
+                pair => pair.Value + scale * increment.GetPotential(pair.Key));
+            return new PotentialDistribution(values);
+        }
+
+        /// <summary>
+        /// Computes the relative change between two conductivity fields.
+        /// </summary>
+        public static double ComputeRelativeConductivityChange(ConductivityDistribution previous,
+                                                               ConductivityDistribution current)
+        {
+            if (previous == null)
+                throw new ArgumentNullException(nameof(previous));
+            if (current == null)
+                throw new ArgumentNullException(nameof(current));
+
+            double numerator = 0.0;
+            double denominator = 0.0;
+            foreach (var pair in current.Conductivities)
+            {
+                double before = previous.GetConductivity(pair.Key);
+                double delta = pair.Value - before;
+                numerator += delta * delta;
+                denominator += before * before;
+            }
+
+            return Math.Sqrt(numerator) / Math.Max(1e-12, Math.Sqrt(denominator));
+        }
+
         private static int NormalizeStep(int stepIndex, int cycleLength)
         {
             if (cycleLength <= 0)
@@ -811,6 +1311,7 @@ namespace Utility.Classes.Reconstruction.Convexification
         }
 
         private static double DifferentiateAt(IReadOnlyList<OrderedFrame> ordered,
+                                              IReadOnlyList<double[]> smoothedSamples,
                                               int frameIndex,
                                               int electrodeIndex,
                                               int cycleLength,
@@ -831,27 +1332,27 @@ namespace Utility.Classes.Reconstruction.Convexification
                 if (nextIndex < frameIndex)
                     nextStep += cycleLength;
 
-                return SafeDifference(ordered[nextIndex].Values[electrodeIndex],
-                                      ordered[previousIndex].Values[electrodeIndex],
+                return SafeDifference(smoothedSamples[nextIndex][electrodeIndex],
+                                      smoothedSamples[previousIndex][electrodeIndex],
                                       nextStep - previousStep);
             }
 
             if (frameIndex == 0)
             {
-                return SafeDifference(ordered[1].Values[electrodeIndex],
-                                      ordered[0].Values[electrodeIndex],
+                return SafeDifference(smoothedSamples[1][electrodeIndex],
+                                      smoothedSamples[0][electrodeIndex],
                                       ordered[1].StepIndex - ordered[0].StepIndex);
             }
 
             if (frameIndex == ordered.Count - 1)
             {
-                return SafeDifference(ordered[frameIndex].Values[electrodeIndex],
-                                      ordered[frameIndex - 1].Values[electrodeIndex],
+                return SafeDifference(smoothedSamples[frameIndex][electrodeIndex],
+                                      smoothedSamples[frameIndex - 1][electrodeIndex],
                                       ordered[frameIndex].StepIndex - ordered[frameIndex - 1].StepIndex);
             }
 
-            return SafeDifference(ordered[frameIndex + 1].Values[electrodeIndex],
-                                  ordered[frameIndex - 1].Values[electrodeIndex],
+            return SafeDifference(smoothedSamples[frameIndex + 1][electrodeIndex],
+                                  smoothedSamples[frameIndex - 1][electrodeIndex],
                                   ordered[frameIndex + 1].StepIndex - ordered[frameIndex - 1].StepIndex);
         }
 
@@ -861,6 +1362,73 @@ namespace Utility.Classes.Reconstruction.Convexification
                 return 0.0;
 
             return (upper - lower) / delta;
+        }
+
+        private static List<double[]> SmoothOrderedSamples(IReadOnlyList<OrderedFrame> ordered,
+                                                           int signalLength,
+                                                           int smoothingWindow,
+                                                           int smoothingPasses,
+                                                           bool usePeriodic)
+        {
+            var smoothed = ordered
+                .Select(frame => (double[])frame.Values.Clone())
+                .ToList();
+
+            int window = NormalizeSmoothingWindow(smoothingWindow);
+            if (window <= 1 || smoothingPasses <= 0)
+                return smoothed;
+
+            int halfWindow = window / 2;
+            for (int pass = 0; pass < smoothingPasses; pass++)
+            {
+                var next = Enumerable.Range(0, smoothed.Count)
+                    .Select(_ => new double[signalLength])
+                    .ToList();
+
+                for (int frameIndex = 0; frameIndex < smoothed.Count; frameIndex++)
+                {
+                    for (int electrodeIndex = 0; electrodeIndex < signalLength; electrodeIndex++)
+                    {
+                        double weightedSum = 0.0;
+                        double totalWeight = 0.0;
+
+                        for (int offset = -halfWindow; offset <= halfWindow; offset++)
+                        {
+                            int sampleIndex = frameIndex + offset;
+                            if (usePeriodic)
+                            {
+                                sampleIndex %= smoothed.Count;
+                                if (sampleIndex < 0)
+                                    sampleIndex += smoothed.Count;
+                            }
+                            else if (sampleIndex < 0 || sampleIndex >= smoothed.Count)
+                            {
+                                continue;
+                            }
+
+                            double weight = halfWindow + 1 - Math.Abs(offset);
+                            weightedSum += weight * smoothed[sampleIndex][electrodeIndex];
+                            totalWeight += weight;
+                        }
+
+                        next[frameIndex][electrodeIndex] = totalWeight > 0.0
+                            ? weightedSum / totalWeight
+                            : smoothed[frameIndex][electrodeIndex];
+                    }
+                }
+
+                smoothed = next;
+            }
+
+            return smoothed;
+        }
+
+        private static int NormalizeSmoothingWindow(int smoothingWindow)
+        {
+            if (smoothingWindow <= 1)
+                return smoothingWindow;
+
+            return smoothingWindow % 2 == 0 ? smoothingWindow + 1 : smoothingWindow;
         }
 
         private static PotentialDistribution ToPotentialDistribution(FEMMesh mesh, IReadOnlyList<double> values)
@@ -880,6 +1448,101 @@ namespace Utility.Classes.Reconstruction.Convexification
                 return new[] { electrode.MeshId };
 
             return [];
+        }
+
+        private static double[] BuildBoundaryDescentValues(ConvexificationBoundaryData boundaryData,
+                                                           IReadOnlyList<double> dirichletMismatch,
+                                                           IReadOnlyList<double> neumannMismatch,
+                                                           IReadOnlyList<FEMElectrode> electrodes,
+                                                           double h,
+                                                           ConvexificationOptions options)
+        {
+            double dirichletScale = options.BoundaryDirichletWeight / Math.Pow(Math.Max(h, options.ElectrodeLengthFloor), 3);
+            double neumannScale = options.BoundaryNeumannWeight / Math.Max(h, options.ElectrodeLengthFloor);
+            double normalizer = Math.Max(1.0, dirichletScale + neumannScale);
+
+            var values = new double[dirichletMismatch.Count];
+            for (int electrodeIndex = 0; electrodeIndex < values.Length; electrodeIndex++)
+            {
+                double boundaryGradient = dirichletScale * dirichletMismatch[electrodeIndex];
+                if (ShouldApplyNeumannPenalty(boundaryData, electrodeIndex, options))
+                    boundaryGradient += neumannScale * h * neumannMismatch[electrodeIndex];
+
+                values[electrodeIndex] = -boundaryGradient / normalizer;
+            }
+
+            return values;
+        }
+
+        private static bool ShouldApplyNeumannPenalty(ConvexificationBoundaryData boundaryData,
+                                                      int electrodeIndex,
+                                                      ConvexificationOptions options)
+        {
+            if (options.UseAllElectrodesForNeumannPenalty || boundaryData.PatternStep == null)
+                return true;
+
+            int excitation = boundaryData.PatternStep.Excitation.First;
+            int ground = boundaryData.PatternStep.Excitation.Second;
+            return electrodeIndex != excitation && electrodeIndex != ground;
+        }
+
+        private static bool TryGetElectrodeOutwardNormal(FEMMesh mesh,
+                                                         IReadOnlyCollection<int> contactIds,
+                                                         out double nx,
+                                                         out double ny)
+        {
+            nx = 0.0;
+            ny = 0.0;
+
+            var boundary = mesh.GetOrderedBoundaryVertices();
+            if (contactIds.Count == 0 || boundary.Count == 0)
+                return false;
+
+            double boundaryCx = boundary.Average(vertex => vertex.X);
+            double boundaryCy = boundary.Average(vertex => vertex.Y);
+
+            double ex = 0.0;
+            double ey = 0.0;
+            foreach (int id in contactIds)
+            {
+                var vertex = mesh.GetVertexById(id);
+                ex += vertex.X;
+                ey += vertex.Y;
+            }
+
+            ex /= contactIds.Count;
+            ey /= contactIds.Count;
+
+            nx = ex - boundaryCx;
+            ny = ey - boundaryCy;
+            double norm = Math.Sqrt(nx * nx + ny * ny);
+            if (norm < SmallDenominator)
+                return false;
+
+            nx /= norm;
+            ny /= norm;
+            return true;
+        }
+
+        private static double ComputeFieldNorm(PotentialDistribution field)
+        {
+            double sum = 0.0;
+            foreach (double value in field.Potentials.Values)
+                sum += value * value;
+
+            return Math.Sqrt(sum);
+        }
+
+        private static double ResolveElectrodeLength(FEMElectrode electrode, double floor)
+        {
+            if (electrode == null)
+                return floor;
+
+            double length = electrode.Length;
+            if (!double.IsFinite(length) || length <= floor)
+                return floor;
+
+            return length;
         }
 
         private static Dictionary<long, double> BuildCotangentWeights(FEMMesh mesh)

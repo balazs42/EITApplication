@@ -36,6 +36,16 @@ namespace ElectricalImpedanceTomography.ViewModels
         }
 
         /// <summary>
+        /// Relative weight of the interior Carleman residual compared with the
+        /// boundary penalties.
+        /// </summary>
+        public double ConvexificationInteriorResidualWeight
+        {
+            get => Options.InteriorResidualWeight;
+            set => SetDoubleOption(value, Options.InteriorResidualWeight, v => Options.InteriorResidualWeight = v);
+        }
+
+        /// <summary>
         /// Stabilization weight used in the Carleman residual regularization term.
         /// </summary>
         public double ConvexificationBeta
@@ -90,7 +100,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         }
 
         /// <summary>
-        /// Damping factor used when blending each fixed-point update.
+        /// Damping factor used when blending each inner descent update.
         /// </summary>
         public double ConvexificationStepSize
         {
@@ -99,7 +109,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         }
 
         /// <summary>
-        /// Maximum number of inner fixed-point iterations performed per cycle.
+        /// Maximum number of inner least-squares iterations performed per cycle.
         /// </summary>
         public int ConvexificationInnerIterations
         {
@@ -117,7 +127,35 @@ namespace ElectricalImpedanceTomography.ViewModels
         }
 
         /// <summary>
-        /// Line-search decay used when the fixed-point update needs damping.
+        /// Stationarity threshold for the preconditioned inner descent field.
+        /// </summary>
+        public double ConvexificationInnerGradientTolerance
+        {
+            get => Options.InnerGradientTolerance;
+            set => SetDoubleOption(value, Options.InnerGradientTolerance, v => Options.InnerGradientTolerance = v);
+        }
+
+        /// <summary>
+        /// Optional explicit number of outer convexification cycles for the
+        /// background run. Zero falls back to the generic page iteration count.
+        /// </summary>
+        public int ConvexificationOuterIterations
+        {
+            get => Options.OuterIterations;
+            set => SetIntOption(Math.Max(0, value), Options.OuterIterations, v => Options.OuterIterations = v);
+        }
+
+        /// <summary>
+        /// Early-stop tolerance for repeated outer cycles.
+        /// </summary>
+        public double ConvexificationOuterTolerance
+        {
+            get => Options.OuterTolerance;
+            set => SetDoubleOption(value, Options.OuterTolerance, v => Options.OuterTolerance = v);
+        }
+
+        /// <summary>
+        /// Line-search decay used when the inner descent update needs damping.
         /// </summary>
         public double ConvexificationLineSearchDecay
         {
@@ -171,6 +209,60 @@ namespace ElectricalImpedanceTomography.ViewModels
         }
 
         /// <summary>
+        /// H1-like smoothing weight applied to the recovered coefficient a(x).
+        /// </summary>
+        public double ConvexificationCoefficientSmoothingWeight
+        {
+            get => Options.CoefficientSmoothingWeight;
+            set => SetDoubleOption(value, Options.CoefficientSmoothingWeight, v => Options.CoefficientSmoothingWeight = v);
+        }
+
+        /// <summary>
+        /// Residual weight in the QRM-style V recovery stage.
+        /// </summary>
+        public double ConvexificationVRecoveryResidualWeight
+        {
+            get => Options.VRecoveryResidualWeight;
+            set => SetDoubleOption(value, Options.VRecoveryResidualWeight, v => Options.VRecoveryResidualWeight = v);
+        }
+
+        /// <summary>
+        /// Dirichlet collar weight in the QRM-style V recovery stage.
+        /// </summary>
+        public double ConvexificationVRecoveryDirichletWeight
+        {
+            get => Options.VRecoveryDirichletWeight;
+            set => SetDoubleOption(value, Options.VRecoveryDirichletWeight, v => Options.VRecoveryDirichletWeight = v);
+        }
+
+        /// <summary>
+        /// Neumann collar weight in the QRM-style V recovery stage.
+        /// </summary>
+        public double ConvexificationVRecoveryNeumannWeight
+        {
+            get => Options.VRecoveryNeumannWeight;
+            set => SetDoubleOption(value, Options.VRecoveryNeumannWeight, v => Options.VRecoveryNeumannWeight = v);
+        }
+
+        /// <summary>
+        /// H1-style smoothing weight in the QRM-style V recovery stage.
+        /// </summary>
+        public double ConvexificationVRecoveryGradientWeight
+        {
+            get => Options.VRecoveryGradientWeight;
+            set => SetDoubleOption(value, Options.VRecoveryGradientWeight, v => Options.VRecoveryGradientWeight = v);
+        }
+
+        /// <summary>
+        /// Mass anchor weight in the QRM-style V recovery stage.
+        /// </summary>
+        public double ConvexificationVRecoveryMassWeight
+        {
+            get => Options.VRecoveryMassWeight;
+            set => SetDoubleOption(value, Options.VRecoveryMassWeight, v => Options.VRecoveryMassWeight = v);
+        }
+
+        /// <summary>
         /// X-component of the Carleman direction omega.
         /// </summary>
         public double ConvexificationOmegaX
@@ -195,6 +287,33 @@ namespace ElectricalImpedanceTomography.ViewModels
         {
             get => Options.UsePeriodicDriveDerivative;
             set => SetBoolOption(value, Options.UsePeriodicDriveDerivative, v => Options.UsePeriodicDriveDerivative = v);
+        }
+
+        /// <summary>
+        /// Optional smoothing window applied before drive differentiation.
+        /// </summary>
+        public int ConvexificationDerivativeSmoothingWindow
+        {
+            get => Options.DerivativeSmoothingWindow;
+            set => SetIntOption(Math.Max(0, value), Options.DerivativeSmoothingWindow, v => Options.DerivativeSmoothingWindow = v);
+        }
+
+        /// <summary>
+        /// Number of smoothing passes applied before drive differentiation.
+        /// </summary>
+        public int ConvexificationDerivativeSmoothingPasses
+        {
+            get => Options.DerivativeSmoothingPasses;
+            set => SetIntOption(Math.Max(0, value), Options.DerivativeSmoothingPasses, v => Options.DerivativeSmoothingPasses = v);
+        }
+
+        /// <summary>
+        /// Enables periodic smoothing before differentiation when a full cycle is available.
+        /// </summary>
+        public bool ConvexificationUsePeriodicDerivativeSmoothing
+        {
+            get => Options.UsePeriodicDerivativeSmoothing;
+            set => SetBoolOption(value, Options.UsePeriodicDerivativeSmoothing, v => Options.UsePeriodicDerivativeSmoothing = v);
         }
 
         /// <summary>
@@ -314,6 +433,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         private void NotifyConvexificationOptionBindingsChanged()
         {
             OnPropertyChanged(nameof(ConvexificationLambda));
+            OnPropertyChanged(nameof(ConvexificationInteriorResidualWeight));
             OnPropertyChanged(nameof(ConvexificationBeta));
             OnPropertyChanged(nameof(ConvexificationEpsilon));
             OnPropertyChanged(nameof(ConvexificationD0));
@@ -323,15 +443,27 @@ namespace ElectricalImpedanceTomography.ViewModels
             OnPropertyChanged(nameof(ConvexificationStepSize));
             OnPropertyChanged(nameof(ConvexificationInnerIterations));
             OnPropertyChanged(nameof(ConvexificationTolerance));
+            OnPropertyChanged(nameof(ConvexificationInnerGradientTolerance));
+            OnPropertyChanged(nameof(ConvexificationOuterIterations));
+            OnPropertyChanged(nameof(ConvexificationOuterTolerance));
             OnPropertyChanged(nameof(ConvexificationLineSearchDecay));
             OnPropertyChanged(nameof(ConvexificationMinimumInnerStep));
             OnPropertyChanged(nameof(ConvexificationElectrodeLengthFloor));
             OnPropertyChanged(nameof(ConvexificationLargeShiftWarningThreshold));
             OnPropertyChanged(nameof(ConvexificationSigmaRecoveryRegularization));
             OnPropertyChanged(nameof(ConvexificationMinimumScale));
+            OnPropertyChanged(nameof(ConvexificationCoefficientSmoothingWeight));
+            OnPropertyChanged(nameof(ConvexificationVRecoveryResidualWeight));
+            OnPropertyChanged(nameof(ConvexificationVRecoveryDirichletWeight));
+            OnPropertyChanged(nameof(ConvexificationVRecoveryNeumannWeight));
+            OnPropertyChanged(nameof(ConvexificationVRecoveryGradientWeight));
+            OnPropertyChanged(nameof(ConvexificationVRecoveryMassWeight));
             OnPropertyChanged(nameof(ConvexificationOmegaX));
             OnPropertyChanged(nameof(ConvexificationOmegaY));
             OnPropertyChanged(nameof(ConvexificationUsePeriodicDriveDerivative));
+            OnPropertyChanged(nameof(ConvexificationDerivativeSmoothingWindow));
+            OnPropertyChanged(nameof(ConvexificationDerivativeSmoothingPasses));
+            OnPropertyChanged(nameof(ConvexificationUsePeriodicDerivativeSmoothing));
             OnPropertyChanged(nameof(ConvexificationUseAllElectrodesForNeumannPenalty));
             OnPropertyChanged(nameof(ConvexificationAverageRecoveredCoefficientAcrossCycle));
             OnPropertyChanged(nameof(ConvexificationParameterNote));

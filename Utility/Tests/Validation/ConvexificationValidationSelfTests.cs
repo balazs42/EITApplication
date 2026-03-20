@@ -74,4 +74,45 @@ public static class ConvexificationValidationSelfTests
                 throw new Exception("Positivity-shift rule failed to produce strictly positive g0 values.");
         }
     }
+
+    /// <summary>
+    /// Verifies that optional periodic smoothing leaves a constant electrode
+    /// signal unchanged before differentiation.
+    /// </summary>
+    public static void TestDerivativeSmoothingPreservesConstantSignal()
+    {
+        var samples = new List<double[]>
+        {
+            new[] { 2.0, -1.0 },
+            new[] { 2.0, -1.0 },
+            new[] { 2.0, -1.0 },
+            new[] { 2.0, -1.0 }
+        };
+
+        var smoothed = ConvexificationOperators.SmoothDriveSamples(samples,
+                                                                   new[] { 0, 1, 2, 3 },
+                                                                   cycleLength: 4,
+                                                                   smoothingWindow: 3,
+                                                                   smoothingPasses: 2,
+                                                                   usePeriodicSmoothing: true);
+        var derivatives = ConvexificationOperators.ComputeDriveDerivatives(samples,
+                                                                           new[] { 0, 1, 2, 3 },
+                                                                           cycleLength: 4,
+                                                                           usePeriodicWhenAvailable: true,
+                                                                           smoothingWindow: 3,
+                                                                           smoothingPasses: 2,
+                                                                           usePeriodicSmoothing: true);
+
+        foreach (var frame in smoothed)
+        {
+            if (Math.Abs(frame[0] - 2.0) > 1e-12 || Math.Abs(frame[1] + 1.0) > 1e-12)
+                throw new Exception("Periodic smoothing changed a constant drive signal.");
+        }
+
+        foreach (var frame in derivatives)
+        {
+            if (Math.Abs(frame[0]) > 1e-12 || Math.Abs(frame[1]) > 1e-12)
+                throw new Exception("Derivative of a constant smoothed drive signal was not zero.");
+        }
+    }
 }

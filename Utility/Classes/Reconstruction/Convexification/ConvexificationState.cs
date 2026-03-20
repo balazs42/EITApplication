@@ -18,6 +18,8 @@ namespace Utility.Classes.Reconstruction.Convexification
         public required double ObjectiveValue { get; init; }
         public required int IterationCount { get; init; }
         public required bool Converged { get; init; }
+        public IReadOnlyList<double> ObjectiveHistory { get; init; } = [];
+        public double RelativeConductivityChange { get; init; }
         public IReadOnlyList<string> Warnings { get; init; } = [];
     }
 }

@@ -28,6 +28,7 @@ public static class ValidationSelfTests
         Try("Homogeneous CEM matrix comparison", TestHomogeneousCem, failures);
         Try("Convexification periodic derivative consistency", ConvexificationValidationSelfTests.TestPeriodicDerivativeConsistency, failures);
         Try("Convexification positivity-shift safety", ConvexificationValidationSelfTests.TestPositivityShiftSafety, failures);
+        Try("Convexification derivative smoothing preserves constant signal", ConvexificationValidationSelfTests.TestDerivativeSmoothingPreservesConstantSignal, failures);
 
         if (failures.Count > 0)
         {

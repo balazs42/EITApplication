@@ -28,6 +28,7 @@ namespace ServiceLayer
         private bool _initialized;
         private int _frameIndex;
         private ReconstructionResult? _lastCycleResult;
+        private ConvexificationState? _lastCycleState;
 
         public override bool IsInitialized => _initialized && _runtimeContext != null;
 
@@ -92,6 +93,7 @@ namespace ServiceLayer
             _persistence.ResetResults();
             _frameIndex = 0;
             _lastCycleResult = null;
+            _lastCycleState = null;
             _initialized = true;
         }
 
@@ -112,14 +114,35 @@ namespace ServiceLayer
                                                    double excitationAmplitude,
                                                    CancellationToken cancellationToken)
         {
-            await WaitWhilePausedAsync(cancellationToken);
-            if (cancellationToken.IsCancellationRequested)
-                return;
+            int completedOuterIterations = 0;
+            int targetOuterIterations = ResolveOuterIterationCount(maxIterationCount);
+            double previousObjective = double.PositiveInfinity;
 
-            _ = ExecuteFullCycle(stepSize, regularizationWeight, excitationAmplitude);
+            while (!cancellationToken.IsCancellationRequested && completedOuterIterations < targetOuterIterations)
+            {
+                await WaitWhilePausedAsync(cancellationToken);
+                if (cancellationToken.IsCancellationRequested)
+                    break;
 
-            if (VisualizeIterations)
-                await Task.Yield();
+                var result = ExecuteFullCycle(stepSize, regularizationWeight, excitationAmplitude);
+                var state = _lastCycleState;
+                if (result == null || state == null)
+                    break;
+
+                completedOuterIterations++;
+
+                double outerTolerance = _runtimeContext?.ConvexificationOptions.OuterTolerance ?? 5e-4;
+                bool objectiveStable = double.IsFinite(previousObjective)
+                                       && Math.Abs(previousObjective - state.ObjectiveValue) / Math.Max(1.0, Math.Abs(previousObjective)) < outerTolerance;
+                bool conductivityStable = state.RelativeConductivityChange < outerTolerance;
+                previousObjective = state.ObjectiveValue;
+
+                if (state.Converged && objectiveStable && conductivityStable)
+                    break;
+
+                if (VisualizeIterations)
+                    await Task.Yield();
+            }
         }
 
         private ReconstructionResult? ExecuteFullCycle(double stepSize,
@@ -152,7 +175,9 @@ namespace ServiceLayer
                 throw new InvalidOperationException("Convexification runtime context is not available.");
 
             _lastCycleResult = null;
+            _lastCycleState = null;
             var state = _persistence.RunReconstructionCycle(cycle);
+            _lastCycleState = state;
             foreach (var warning in state.Warnings)
                 _logger.LogWarning(warning);
 
@@ -209,6 +234,15 @@ namespace ServiceLayer
                 _runtimeContext.ConvexificationOptions.StepSize = stepSize;
             if (regularizationWeight > 0.0)
                 _runtimeContext.ConvexificationOptions.Beta = regularizationWeight;
+        }
+
+        private int ResolveOuterIterationCount(int maxIterationCount)
+        {
+            int optionValue = _runtimeContext?.ConvexificationOptions.OuterIterations ?? 0;
+            if (optionValue > 0)
+                return optionValue;
+
+            return Math.Max(1, maxIterationCount);
         }
 
         private void EnsureInitialized()

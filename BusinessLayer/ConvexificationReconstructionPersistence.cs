@@ -20,7 +20,8 @@ namespace BusinessLayer
     /// Persistence backend for the convexification reconstruction path.
     /// The implementation keeps the existing FEM mesh and measurement pipeline,
     /// but solves the convexification variables directly on electrode-level data
-    /// using a practical fixed-point surrogate of the chapter's H2 formulation.
+    /// using a practical residual-minimizing least-squares surrogate of the
+    /// chapter's H2 formulation.
     /// </summary>
     public sealed class ConvexificationReconstructionPersistence : ReconstructionPersistenceBase
     {
@@ -164,16 +165,23 @@ namespace BusinessLayer
                 : _mesh.GetConductivityDistribution();
 
             var (rFields, sFields) = CreateInitialFields(boundaryData, realElectrodes, laplacian);
-            var (optimizedR, optimizedS, objectiveValue, iterationCount, converged) = OptimizeFields(boundaryData,
-                                                                                                     realElectrodes,
-                                                                                                     laplacian,
-                                                                                                     carlemanWeights,
-                                                                                                     rFields,
-                                                                                                     sFields,
-                                                                                                     initialDistribution,
-                                                                                                     iterationFrames,
-                                                                                                     warnings);
+            var (optimizedR,
+                 optimizedS,
+                 objectiveValue,
+                 objectiveHistory,
+                 relativeConductivityChange,
+                 iterationCount,
+                 converged) = OptimizeFields(boundaryData,
+                                             realElectrodes,
+                                             laplacian,
+                                             carlemanWeights,
+                                             rFields,
+                                             sFields,
+                                             initialDistribution,
+                                             iterationFrames,
+                                             warnings);
             var (wFields, coefficientField, scaleField, reconstructedConductivity) = RecoverConductivityEstimate(laplacian,
+                                                                                                                 realElectrodes,
                                                                                                                  optimizedR,
                                                                                                                  optimizedS,
                                                                                                                  warnings);
@@ -211,6 +219,8 @@ namespace BusinessLayer
                 ObjectiveValue = objectiveValue,
                 IterationCount = iterationCount,
                 Converged = converged,
+                ObjectiveHistory = objectiveHistory,
+                RelativeConductivityChange = relativeConductivityChange,
                 Warnings = warnings
             };
         }
@@ -359,11 +369,17 @@ namespace BusinessLayer
             var s0Derivatives = ConvexificationOperators.ComputeDriveDerivatives(boundaryData.Select(data => data.S0).ToList(),
                                                                                  stepIndices,
                                                                                  cycleLength,
-                                                                                 _options.UsePeriodicDriveDerivative);
+                                                                                 _options.UsePeriodicDriveDerivative,
+                                                                                 _options.DerivativeSmoothingWindow,
+                                                                                 _options.DerivativeSmoothingPasses,
+                                                                                 _options.UsePeriodicDerivativeSmoothing);
             var s1Derivatives = ConvexificationOperators.ComputeDriveDerivatives(boundaryData.Select(data => data.S1).ToList(),
                                                                                  stepIndices,
                                                                                  cycleLength,
-                                                                                 _options.UsePeriodicDriveDerivative);
+                                                                                 _options.UsePeriodicDriveDerivative,
+                                                                                 _options.DerivativeSmoothingWindow,
+                                                                                 _options.DerivativeSmoothingPasses,
+                                                                                 _options.UsePeriodicDerivativeSmoothing);
 
             for (int frameIndex = 0; frameIndex < boundaryData.Count; frameIndex++)
             {
@@ -375,6 +391,8 @@ namespace BusinessLayer
                 boundaryData[frameIndex].CEpsilon = s1Derivatives[frameIndex]
                     .Select((value, index) => value - _options.Epsilon * boundaryData[frameIndex].S1[index])
                     .ToArray();
+
+                ValidateBoundaryFrame(boundaryData[frameIndex], warnings);
             }
 
             return boundaryData;
@@ -416,6 +434,8 @@ namespace BusinessLayer
         private (List<PotentialDistribution> RFields,
                  List<PotentialDistribution> SFields,
                  double ObjectiveValue,
+                 IReadOnlyList<double> ObjectiveHistory,
+                 double RelativeConductivityChange,
                  int IterationCount,
                  bool Converged) OptimizeFields(
             IReadOnlyList<ConvexificationBoundaryData> boundaryData,
@@ -434,72 +454,67 @@ namespace BusinessLayer
             var currentR = initialRFields.Select(field => new PotentialDistribution(field.Potentials)).ToList();
             var currentS = initialSFields.Select(field => new PotentialDistribution(field.Potentials)).ToList();
             var previousDistribution = new ConductivityDistribution(initialDistribution.Conductivities);
-            double previousObjective = EvaluateObjective(boundaryData, electrodes, currentR, currentS, carlemanWeights);
+            var currentObjective = ConvexificationOperators.EvaluateObjective(_mesh,
+                                                                              boundaryData,
+                                                                              electrodes,
+                                                                              currentR,
+                                                                              currentS,
+                                                                              _options,
+                                                                              carlemanWeights);
+            double previousObjective = currentObjective.TotalValue;
+            var objectiveHistory = new List<double> { previousObjective };
             bool converged = false;
             int completedIterations = 0;
+            double lastConductivityChange = double.PositiveInfinity;
 
             for (int iteration = 0; iteration < _options.MaxIterations; iteration++)
             {
                 completedIterations = iteration + 1;
-
-                var candidateR = new List<PotentialDistribution>(boundaryData.Count);
-                var candidateS = new List<PotentialDistribution>(boundaryData.Count);
-
-                for (int frameIndex = 0; frameIndex < boundaryData.Count; frameIndex++)
+                var (rDirections, sDirections, directionNorm) = ConvexificationOperators.BuildPreconditionedDescentDirections(_mesh,
+                                                                                                                                boundaryData,
+                                                                                                                                electrodes,
+                                                                                                                                currentR,
+                                                                                                                                currentS,
+                                                                                                                                currentObjective,
+                                                                                                                                carlemanWeights,
+                                                                                                                                laplacian,
+                                                                                                                                _numericSolver,
+                                                                                                                                _options);
+                if (directionNorm < _options.InnerGradientTolerance)
                 {
-                    ConvexificationBoundaryData convexificationBoundaryData = boundaryData[frameIndex];
-                    var sourceByElement = ConvexificationOperators.ComputeNonlinearSource(_mesh,
-                                                                                          currentR[frameIndex],
-                                                                                          currentS[frameIndex],
-                                                                                          _options.Epsilon);
-                    var sourceByVertex = ConvexificationOperators.ProjectElementFieldToVertices(_mesh, sourceByElement);
-
-                    var correctedR = ApplyNeumannCorrection(convexificationBoundaryData.B0,
-                                                            convexificationBoundaryData.C0,
-                                                            electrodes,
-                                                            currentR[frameIndex]);
-                    var correctedS = ApplyNeumannCorrection(convexificationBoundaryData.BEpsilon,
-                                                            convexificationBoundaryData.CEpsilon,
-                                                            electrodes,
-                                                            currentS[frameIndex]);
-
-                    var boundaryMapR = ConvexificationOperators.CreateBoundaryValueMap(_mesh, electrodes, correctedR);
-                    var boundaryMapS = ConvexificationOperators.CreateBoundaryValueMap(_mesh, electrodes, correctedS);
-
-                    candidateR.Add(ConvexificationOperators.SolveDirichletPoisson(_mesh,
-                                                                                   laplacian,
-                                                                                   boundaryMapR,
-                                                                                   sourceByVertex.Potentials,
-                                                                                   _numericSolver,
-                                                                                   _options.SigmaRecoveryRegularization));
-                    candidateS.Add(ConvexificationOperators.SolveDirichletPoisson(_mesh,
-                                                                                   laplacian,
-                                                                                   boundaryMapS,
-                                                                                   sourceByVertex.Potentials,
-                                                                                   _numericSolver,
-                                                                                   _options.SigmaRecoveryRegularization));
+                    converged = true;
+                    break;
                 }
 
                 double damping = Math.Clamp(_options.StepSize, _options.MinimumStepSize, 1.0);
                 List<PotentialDistribution>? acceptedR = null;
                 List<PotentialDistribution>? acceptedS = null;
+                ConvexificationObjectiveSnapshot? acceptedObjectiveSnapshot = null;
                 double acceptedObjective = previousObjective;
 
                 while (damping >= _options.MinimumStepSize)
                 {
-                    var blendedR = currentR.Zip(candidateR,
-                                                (baseline, candidate) => ConvexificationOperators.Blend(baseline, candidate, damping))
+                    var blendedR = currentR.Zip(rDirections,
+                                                (baseline, increment) => ConvexificationOperators.AddScaledIncrement(baseline, increment, damping))
                         .ToList();
-                    var blendedS = currentS.Zip(candidateS,
-                                                (baseline, candidate) => ConvexificationOperators.Blend(baseline, candidate, damping))
+                    var blendedS = currentS.Zip(sDirections,
+                                                (baseline, increment) => ConvexificationOperators.AddScaledIncrement(baseline, increment, damping))
                         .ToList();
 
-                    double objective = EvaluateObjective(boundaryData, electrodes, blendedR, blendedS, carlemanWeights);
+                    var snapshot = ConvexificationOperators.EvaluateObjective(_mesh,
+                                                                              boundaryData,
+                                                                              electrodes,
+                                                                              blendedR,
+                                                                              blendedS,
+                                                                              _options,
+                                                                              carlemanWeights);
+                    double objective = snapshot.TotalValue;
                     if (!double.IsFinite(previousObjective) || objective <= previousObjective)
                     {
                         acceptedR = blendedR;
                         acceptedS = blendedS;
                         acceptedObjective = objective;
+                        acceptedObjectiveSnapshot = snapshot;
                         break;
                     }
 
@@ -517,12 +532,17 @@ namespace BusinessLayer
                 currentR = acceptedR;
                 currentS = acceptedS;
                 previousObjective = acceptedObjective;
+                currentObjective = acceptedObjectiveSnapshot ?? currentObjective;
+                objectiveHistory.Add(previousObjective);
 
                 var (wFields, _, _, reconstructedConductivity) = RecoverConductivityEstimate(laplacian,
+                                                                                             electrodes,
                                                                                              currentR,
                                                                                              currentS,
                                                                                              warnings);
                 UpdateCurrentDistribution(reconstructedConductivity);
+                lastConductivityChange = ConvexificationOperators.ComputeRelativeConductivityChange(previousDistribution,
+                                                                                                    reconstructedConductivity);
 
                 var frame = BuildIterationFrame(boundaryData,
                                                 electrodes,
@@ -541,106 +561,20 @@ namespace BusinessLayer
                                                        [frame]));
                 previousDistribution = new ConductivityDistribution(reconstructedConductivity.Conductivities);
 
-                if (relativeChange < _options.Tolerance)
+                if (relativeChange < _options.Tolerance || lastConductivityChange < _options.InnerGradientTolerance)
                 {
                     converged = true;
                     break;
                 }
             }
 
-            return (currentR, currentS, previousObjective, completedIterations, converged);
-        }
-
-        private double EvaluateObjective(IReadOnlyList<ConvexificationBoundaryData> boundaryData,
-                                         IReadOnlyList<FEMElectrode> electrodes,
-                                         IReadOnlyList<PotentialDistribution> rFields,
-                                         IReadOnlyList<PotentialDistribution> sFields,
-                                         IReadOnlyDictionary<int, double> carlemanWeights)
-        {
-            if (_mesh == null)
-                throw new InvalidOperationException("Convexification mesh is not initialised.");
-
-            double h = Math.Max(_options.ElectrodeLengthFloor,
-                                electrodes.Count > 0
-                                    ? electrodes.Average(electrode => ResolveElectrodeLength(electrode))
-                                    : _options.ElectrodeLengthFloor);
-            double dirichletScale = _options.BoundaryDirichletWeight / Math.Pow(h, 3);
-            double neumannScale = _options.BoundaryNeumannWeight / h;
-            double objective = 0.0;
-
-            for (int frameIndex = 0; frameIndex < boundaryData.Count; frameIndex++)
-            {
-                var frame = boundaryData[frameIndex];
-                var residuals = ConvexificationOperators.ComputeResiduals(_mesh, rFields[frameIndex], sFields[frameIndex], _options.Epsilon);
-                var gradR = FiniteElementOperators.CalculateElementWiseGradient(_mesh, rFields[frameIndex]);
-                var gradS = FiniteElementOperators.CalculateElementWiseGradient(_mesh, sFields[frameIndex]);
-
-                foreach (var element in _mesh.ElementsTyped)
-                {
-                    double weight = carlemanWeights.TryGetValue(element.Id, out double carleman) ? carleman : 1.0;
-                    double l1 = residuals.L1.TryGetValue(element.Id, out double rValue) ? rValue : 0.0;
-                    double l2 = residuals.L2.TryGetValue(element.Id, out double sValue) ? sValue : 0.0;
-                    var gradRValue = gradR.GetVector(element.Id);
-                    var gradSValue = gradS.GetVector(element.Id);
-                    double regularization = gradRValue.X * gradRValue.X
-                                            + gradRValue.Y * gradRValue.Y
-                                            + gradSValue.X * gradSValue.X
-                                            + gradSValue.Y * gradSValue.Y;
-
-                    objective += weight * element.Area * (l1 * l1 + l2 * l2 + _options.Beta * regularization);
-                }
-
-                var fieldGradR = FiniteElementOperators.CalculateElementWiseGradient(_mesh, rFields[frameIndex]);
-                var fieldGradS = FiniteElementOperators.CalculateElementWiseGradient(_mesh, sFields[frameIndex]);
-
-                for (int electrodeIndex = 0; electrodeIndex < electrodes.Count; electrodeIndex++)
-                {
-                    double avgR = ConvexificationOperators.ComputeElectrodeAverage(_mesh, electrodes[electrodeIndex], rFields[frameIndex]);
-                    double avgS = ConvexificationOperators.ComputeElectrodeAverage(_mesh, electrodes[electrodeIndex], sFields[frameIndex]);
-                    double dnR = ConvexificationOperators.ComputeElectrodeNormalDerivative(_mesh, electrodes[electrodeIndex], fieldGradR);
-                    double dnS = ConvexificationOperators.ComputeElectrodeNormalDerivative(_mesh, electrodes[electrodeIndex], fieldGradS);
-
-                    double dirichletR = avgR - frame.B0[electrodeIndex];
-                    double dirichletS = avgS - frame.BEpsilon[electrodeIndex];
-                    double neumannR = dnR - frame.C0[electrodeIndex];
-                    double neumannS = dnS - frame.CEpsilon[electrodeIndex];
-
-                    objective += dirichletScale * (dirichletR * dirichletR + dirichletS * dirichletS);
-                    objective += neumannScale * (neumannR * neumannR + neumannS * neumannS);
-                }
-            }
-
-            return objective;
-        }
-
-        private double[] ApplyNeumannCorrection(IReadOnlyList<double> dirichletTargets,
-                                                IReadOnlyList<double> neumannTargets,
-                                                IReadOnlyList<FEMElectrode> electrodes,
-                                                PotentialDistribution field)
-        {
-            if (_mesh == null)
-                throw new InvalidOperationException("Convexification mesh is not initialised.");
-
-            double h = Math.Max(_options.ElectrodeLengthFloor,
-                                electrodes.Count > 0
-                                    ? electrodes.Average(electrode => ResolveElectrodeLength(electrode))
-                                    : _options.ElectrodeLengthFloor);
-            var corrected = dirichletTargets.ToArray();
-            var gradients = FiniteElementOperators.CalculateElementWiseGradient(_mesh, field);
-
-            for (int electrodeIndex = 0; electrodeIndex < corrected.Length; electrodeIndex++)
-            {
-                if (!_options.UseAllElectrodesForNeumannPenalty && electrodes[electrodeIndex].IsSource)
-                    continue;
-
-                double currentNormalDerivative = ConvexificationOperators.ComputeElectrodeNormalDerivative(_mesh,
-                                                                                                            electrodes[electrodeIndex],
-                                                                                                            gradients);
-                double mismatch = neumannTargets[electrodeIndex] - currentNormalDerivative;
-                corrected[electrodeIndex] += 0.1 * _options.BoundaryNeumannWeight * h * mismatch;
-            }
-
-            return corrected;
+            return (currentR,
+                    currentS,
+                    previousObjective,
+                    objectiveHistory,
+                    lastConductivityChange,
+                    completedIterations,
+                    converged);
         }
 
         private (List<PotentialDistribution> WFields,
@@ -648,6 +582,7 @@ namespace BusinessLayer
                  PotentialDistribution ScaleField,
                  ConductivityDistribution Conductivity) RecoverConductivityEstimate(
             Matrix laplacian,
+            IReadOnlyList<FEMElectrode> electrodes,
             IReadOnlyList<PotentialDistribution> rFields,
             IReadOnlyList<PotentialDistribution> sFields,
             IList<string> warnings)
@@ -659,9 +594,15 @@ namespace BusinessLayer
                 .Zip(sFields, (rField, sField) => ConvexificationOperators.BuildWField(rField, sField, _options.Epsilon))
                 .ToList();
 
-            var coefficientField = ConvexificationOperators.RecoverCoefficientField(_mesh,
-                                                                                     wFields,
-                                                                                     _options.AverageRecoveredCoefficientAcrossCycle);
+            var rawCoefficientField = ConvexificationOperators.RecoverCoefficientField(_mesh,
+                                                                                        wFields,
+                                                                                        _options.AverageRecoveredCoefficientAcrossCycle);
+            var coefficientField = ConvexificationOperators.SmoothRecoveredCoefficientField(_mesh,
+                                                                                            laplacian,
+                                                                                            rawCoefficientField,
+                                                                                            _numericSolver,
+                                                                                            _options.CoefficientSmoothingWeight,
+                                                                                            _options.SigmaRecoveryRegularization);
 
             PotentialDistribution scaleField;
             try
@@ -669,9 +610,9 @@ namespace BusinessLayer
                 scaleField = ConvexificationOperators.RecoverScaleField(_mesh,
                                                                         laplacian,
                                                                         coefficientField,
+                                                                        electrodes,
                                                                         _numericSolver,
-                                                                        _options.SigmaRecoveryRegularization,
-                                                                        _options.MinimumScale);
+                                                                        _options);
             }
             catch (Exception ex)
             {
@@ -926,6 +867,34 @@ namespace BusinessLayer
                 return electrode.ZContact;
 
             return _runtimeContext?.ContactImpedanceOhms ?? 0.0;
+        }
+
+        private static void ValidateBoundaryFrame(ConvexificationBoundaryData frame, IList<string> warnings)
+        {
+            ValidateArray(frame.G0, nameof(frame.G0), frame.RequestedStepIndex, warnings, requirePositive: true);
+            ValidateArray(frame.S0, nameof(frame.S0), frame.RequestedStepIndex, warnings);
+            ValidateArray(frame.S1, nameof(frame.S1), frame.RequestedStepIndex, warnings);
+            ValidateArray(frame.B0, nameof(frame.B0), frame.RequestedStepIndex, warnings);
+            ValidateArray(frame.C0, nameof(frame.C0), frame.RequestedStepIndex, warnings);
+            ValidateArray(frame.BEpsilon, nameof(frame.BEpsilon), frame.RequestedStepIndex, warnings);
+            ValidateArray(frame.CEpsilon, nameof(frame.CEpsilon), frame.RequestedStepIndex, warnings);
+        }
+
+        private static void ValidateArray(IReadOnlyList<double> values,
+                                          string name,
+                                          int stepIndex,
+                                          IList<string> warnings,
+                                          bool requirePositive = false)
+        {
+            for (int index = 0; index < values.Count; index++)
+            {
+                double value = values[index];
+                if (!double.IsFinite(value) || (requirePositive && value <= 0.0))
+                {
+                    warnings.Add($"Boundary proxy {name} became invalid at step {stepIndex}, electrode {index}; a stable fallback was used.");
+                    break;
+                }
+            }
         }
 
         private static int NormalizeStep(int stepIndex, int cycleLength)
