@@ -74,7 +74,7 @@ namespace ElectricalImpedanceTomography.Views
             var info = e.Info;
             canvas.Clear(SKColors.Transparent);
 
-            string text = "ITERATE";
+            string text = "IMPALA";
             float x = info.Width / 2;
             float y = (info.Height + _textPaint.TextSize) / 2 - 10; // Center vertically roughly
 

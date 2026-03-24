@@ -5,13 +5,8 @@ using ElectricalImpedanceTomography.ViewModels;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
 using SkiaSharp.Views.Maui.Controls;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Utility.Classes;
 using Utility.Classes.Measurement;
 using Utility.Classes.Discretizer;
@@ -23,7 +18,6 @@ using Utility.Rendering;
 using Workspace = Utility.Classes.Application.Workspace;
 using Utility.Exports;
 using CommunityToolkit.Maui.Core;
-using Utility.Classes.Factories;
 
 namespace ElectricalImpedanceTomography.Views;
 

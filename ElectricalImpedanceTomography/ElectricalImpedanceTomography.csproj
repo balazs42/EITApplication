@@ -122,6 +122,9 @@
           <MauiXaml Update="Views\MeshingPage.xaml">
             <Generator>MSBuild:Compile</Generator>
           </MauiXaml>
+          <MauiXaml Update="Views\PostAnalysisPage.xaml">
+            <Generator>MSBuild:Compile</Generator>
+          </MauiXaml>
           <MauiXaml Update="Views\PostProcessingPage.xaml">
             <Generator>MSBuild:Compile</Generator>
           </MauiXaml>

@@ -2,6 +2,7 @@ using ElectricalImpedanceTomography.ViewModels;
 using System;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading.Tasks;
 using Utility.Classes.Application;
 using Utility.Composition;
 using Utility.Tests;
@@ -14,6 +15,7 @@ namespace ElectricalImpedanceTomography
         public App()
         {
             InitializeComponent();
+            TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
 
             // Initialize Unity container, which will resolve DI objects
             Container.InitializeContainer();
@@ -32,6 +34,12 @@ namespace ElectricalImpedanceTomography
             Workspace.ResetApplicationLifetimeState();
             Workspace.Initialize(new DefaultUser(1, "Test1", "Test1@factroymail.com"), null, null);
             //ConvexificationReconstructionSelfTests.RunAll();
+        }
+
+        private static void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+        {
+            Debug.WriteLine($"Unobserved task exception: {e.Exception}");
+            e.SetObserved();
         }
 
         protected override Window CreateWindow(IActivationState? activationState)

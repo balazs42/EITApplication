@@ -13,6 +13,7 @@ using ElectricalImpedanceTomography.Controls;
             Routing.RegisterRoute(nameof(Views.MeshingPage), typeof(Views.MeshingPage));
             Routing.RegisterRoute(nameof(Views.ReconstructionPage), typeof(Views.ReconstructionPage));
             Routing.RegisterRoute(nameof(Views.ReconstructionConfigurationPage), typeof(Views.ReconstructionConfigurationPage));
+            Routing.RegisterRoute(nameof(Views.PostAnalysisPage), typeof(Views.PostAnalysisPage));
             Routing.RegisterRoute(nameof(Views.PostProcessingPage), typeof(Views.PostProcessingPage));
 
             Navigated += OnNavigated;

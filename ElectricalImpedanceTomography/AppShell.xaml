@@ -27,6 +27,9 @@
         <ShellContent Title="Convexification" Route="ConvexificationPage">
             <views:ConvexificationPage />
         </ShellContent>
+        <ShellContent Title="Post Analysis" Route="PostAnalysisPage">
+            <views:PostAnalysisPage />
+        </ShellContent>
         <ShellContent Title="Post Processing" Route="PostProcessingPage">
             <views:PostProcessingPage />
         </ShellContent>

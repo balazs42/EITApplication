@@ -1,12 +1,783 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewmodels="clr-namespace:ElectricalImpedanceTomography.ViewModels"
+             xmlns:oxy="clr-namespace:OxyPlot.Maui.Skia;assembly=OxyPlot.Maui.Skia"
              x:Class="ElectricalImpedanceTomography.Views.PostAnalysisPage"
-             Title="PostAnalysisPage">
-    <VerticalStackLayout>
-        <Label 
-            Text="Welcome to .NET MAUI!"
-            VerticalOptions="Center" 
-            HorizontalOptions="Center" />
-    </VerticalStackLayout>
+             x:Name="PostAnalysisRoot"
+             x:DataType="viewmodels:PostAnalysisPageViewModel"
+             Title="Post Analysis"
+             Shell.NavBarIsVisible="False"
+             BackgroundColor="#1E1E2E">
+    <ContentPage.Resources>
+        <ResourceDictionary>
+            <Color x:Key="BgPanel">#252535</Color>
+            <Color x:Key="NodeBg">#3A3A4E</Color>
+            <Color x:Key="Accent">#4CC9F0</Color>
+            <Color x:Key="TextMain">#E0E0E0</Color>
+            <Color x:Key="TextMuted">#AAAAAA</Color>
+            <Color x:Key="InputBg">#1A1A24</Color>
+            <Color x:Key="CanvasBg">#1E1E2E</Color>
+            <Color x:Key="Danger">#FF4757</Color>
+            <Color x:Key="Success">#2E8B57</Color>
+
+            <Style TargetType="Label" x:Key="SectionHeaderLabel">
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="FontAttributes" Value="Bold" />
+                <Setter Property="TextColor" Value="{StaticResource TextMuted}" />
+            </Style>
+
+            <Style TargetType="Border" x:Key="PanelSectionBorder">
+                <Setter Property="BackgroundColor" Value="{StaticResource NodeBg}" />
+                <Setter Property="Stroke" Value="#444444" />
+                <Setter Property="StrokeThickness" Value="1" />
+                <Setter Property="StrokeShape" Value="RoundRectangle 8" />
+                <Setter Property="Padding" Value="12" />
+            </Style>
+
+            <Style TargetType="Button" x:Key="PanelButton">
+                <Setter Property="BackgroundColor" Value="{StaticResource NodeBg}" />
+                <Setter Property="TextColor" Value="{StaticResource TextMain}" />
+                <Setter Property="BorderColor" Value="#444444" />
+                <Setter Property="BorderWidth" Value="1" />
+                <Setter Property="CornerRadius" Value="6" />
+                <Setter Property="HeightRequest" Value="40" />
+                <Setter Property="FontSize" Value="13" />
+            </Style>
+
+            <Style TargetType="Entry" x:Key="PanelEntry">
+                <Setter Property="BackgroundColor" Value="{StaticResource InputBg}" />
+                <Setter Property="TextColor" Value="{StaticResource TextMain}" />
+                <Setter Property="PlaceholderColor" Value="{StaticResource TextMuted}" />
+                <Setter Property="FontSize" Value="13" />
+            </Style>
+
+            <Style TargetType="Picker" x:Key="PanelPicker">
+                <Setter Property="BackgroundColor" Value="{StaticResource InputBg}" />
+                <Setter Property="TextColor" Value="{StaticResource TextMain}" />
+                <Setter Property="TitleColor" Value="{StaticResource TextMuted}" />
+                <Setter Property="FontSize" Value="13" />
+            </Style>
+        </ResourceDictionary>
+    </ContentPage.Resources>
+
+    <Grid ColumnDefinitions="320,*,340">
+        <Border x:Name="LeftPanel"
+                Grid.Column="0"
+                BackgroundColor="{StaticResource BgPanel}"
+                StrokeThickness="0"
+                Padding="16">
+            <Grid RowDefinitions="Auto,Auto,*" RowSpacing="14">
+                <VerticalStackLayout Spacing="6">
+                    <Label Text="POST ANALYSIS"
+                           Style="{StaticResource SectionHeaderLabel}" />
+                    <Label Text="Import reconstruction iteration metrics, compare runs, and inspect the raw CSV values."
+                           FontSize="13"
+                           TextColor="{StaticResource TextMain}"
+                           LineBreakMode="WordWrap" />
+                    <Label Text="{Binding StatusMessage}"
+                           FontSize="11"
+                           TextColor="{StaticResource Accent}"
+                           LineBreakMode="WordWrap" />
+                </VerticalStackLayout>
+
+                <Border Grid.Row="1" Style="{StaticResource PanelSectionBorder}">
+                    <VerticalStackLayout Spacing="10">
+                        <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="8">
+                            <Button Text="Add Folder"
+                                    Grid.Row="0"
+                                    Grid.Column="0"
+                                    Command="{Binding AddFolderCommand}"
+                                    Style="{StaticResource PanelButton}"
+                                    BackgroundColor="#3A7CA5" />
+                            <Button Text="Scan Tree"
+                                    Grid.Row="0"
+                                    Grid.Column="1"
+                                    Command="{Binding ScanFolderTreeCommand}"
+                                    Style="{StaticResource PanelButton}"
+                                    BackgroundColor="{StaticResource Accent}"
+                                    TextColor="Black" />
+                            <Button Text="Remove"
+                                    Grid.Row="1"
+                                    Grid.Column="0"
+                                    Command="{Binding RemoveSelectedDatasetCommand}"
+                                    Style="{StaticResource PanelButton}"
+                                    BackgroundColor="{StaticResource Danger}"
+                                    IsEnabled="{Binding CanRemoveSelectedDataset}" />
+                            <Button Text="Clear All"
+                                    Grid.Row="1"
+                                    Grid.Column="1"
+                                    Command="{Binding ClearDatasetsCommand}"
+                                    Style="{StaticResource PanelButton}" />
+                        </Grid>
+
+                        <Label Text="{Binding ImportSummary}"
+                               FontSize="12"
+                               TextColor="{StaticResource TextMuted}" />
+
+                        <CollectionView ItemsSource="{Binding ImportedDatasets}"
+                                        SelectedItem="{Binding SelectedDataset}"
+                                        SelectionMode="Single"
+                                        HeightRequest="220"
+                                        BackgroundColor="Transparent">
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate x:DataType="viewmodels:ImportedMetricDatasetViewModel">
+                                    <Border Style="{StaticResource PanelSectionBorder}"
+                                            BackgroundColor="{StaticResource InputBg}"
+                                            Padding="10"
+                                            Margin="0,0,0,8">
+                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                            <BoxView WidthRequest="10"
+                                                     HeightRequest="42"
+                                                     Color="{Binding AccentColor}"
+                                                     VerticalOptions="Center" />
+                                            <VerticalStackLayout Grid.Column="1" Spacing="4">
+                                                <Entry Text="{Binding Name}"
+                                                       Style="{StaticResource PanelEntry}" />
+                                                <Label Text="{Binding SourceFolderPath}"
+                                                       FontSize="10"
+                                                       TextColor="{StaticResource TextMuted}"
+                                                       LineBreakMode="TailTruncation" />
+                                                <Label Text="{Binding Summary}"
+                                                       FontSize="10"
+                                                       TextColor="{StaticResource TextMain}" />
+                                            </VerticalStackLayout>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Grid.Row="2" Style="{StaticResource PanelSectionBorder}">
+                    <Grid RowDefinitions="Auto,*" RowSpacing="10">
+                        <VerticalStackLayout Spacing="4">
+                            <Label Text="ITERATION TABLE"
+                                   Style="{StaticResource SectionHeaderLabel}" />
+                            <Label Text="{Binding SelectedDataset.Name}"
+                                   FontSize="16"
+                                   FontAttributes="Bold"
+                                   TextColor="{StaticResource TextMain}" />
+                            <!--
+                            <Label Text="{Binding SelectedDataset.MetricsFilePath}"
+                                   FontSize="10"
+                                   TextColor="{StaticResource TextMuted}"
+                                   LineBreakMode="WordWrap" />
+                            -->
+                        </VerticalStackLayout>
+
+                        <Grid Grid.Row="1">
+                            <ScrollView Orientation="Horizontal"
+                                        HeightRequest="430">
+                                <Grid RowDefinitions="Auto,*"
+                                      RowSpacing="0">
+                                    <HorizontalStackLayout BindableLayout.ItemsSource="{Binding SelectedDataset.TableColumns}"
+                                                           Spacing="0">
+                                        <BindableLayout.ItemTemplate>
+                                            <DataTemplate x:DataType="viewmodels:MetricTableColumnViewModel">
+                                                <Border BackgroundColor="#2E2E40"
+                                                        Stroke="#444444"
+                                                        StrokeThickness="1"
+                                                        WidthRequest="120"
+                                                        HeightRequest="36"
+                                                        Padding="8">
+                                                    <Label Text="{Binding Title}"
+                                                           FontSize="11"
+                                                           FontAttributes="Bold"
+                                                           TextColor="{StaticResource TextMain}"
+                                                           HorizontalTextAlignment="Center"
+                                                           LineBreakMode="TailTruncation" />
+                                                </Border>
+                                            </DataTemplate>
+                                        </BindableLayout.ItemTemplate>
+                                    </HorizontalStackLayout>
+
+                                    <CollectionView Grid.Row="1"
+                                                    ItemsSource="{Binding SelectedDataset.TableRows}"
+                                                    SelectionMode="None"
+                                                    HeightRequest="394"
+                                                    ItemSizingStrategy="MeasureFirstItem"
+                                                    BackgroundColor="Transparent">
+                                        <CollectionView.ItemTemplate>
+                                            <DataTemplate x:DataType="viewmodels:MetricTableRowViewModel">
+                                                <HorizontalStackLayout BindableLayout.ItemsSource="{Binding Cells}"
+                                                                       Spacing="0">
+                                                    <BindableLayout.ItemTemplate>
+                                                        <DataTemplate x:DataType="viewmodels:MetricTableCellViewModel">
+                                                            <Border BackgroundColor="{StaticResource InputBg}"
+                                                                    Stroke="#343448"
+                                                                    StrokeThickness="1"
+                                                                    WidthRequest="120"
+                                                                    HeightRequest="34"
+                                                                    Padding="8,6">
+                                                                <Label Text="{Binding Text}"
+                                                                       FontSize="11"
+                                                                       TextColor="{StaticResource TextMain}"
+                                                                       HorizontalTextAlignment="Center"
+                                                                       LineBreakMode="TailTruncation" />
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </BindableLayout.ItemTemplate>
+                                                </HorizontalStackLayout>
+                                            </DataTemplate>
+                                        </CollectionView.ItemTemplate>
+                                    </CollectionView>
+                                </Grid>
+                            </ScrollView>
+
+                            <VerticalStackLayout HorizontalOptions="Center"
+                                                 VerticalOptions="Center"
+                                                 Spacing="10">
+                                <VerticalStackLayout.Triggers>
+                                    <DataTrigger TargetType="VerticalStackLayout"
+                                                 Binding="{Binding HasImportedDatasets}"
+                                                 Value="True">
+                                        <Setter Property="IsVisible" Value="False" />
+                                    </DataTrigger>
+                                </VerticalStackLayout.Triggers>
+                                <Label Text="No iteration table loaded"
+                                       FontSize="18"
+                                       TextColor="{StaticResource TextMain}"
+                                       HorizontalTextAlignment="Center" />
+                                <Label Text="Import one or more folders to inspect their iteration_metrics.csv contents."
+                                       FontSize="11"
+                                       TextColor="{StaticResource TextMuted}"
+                                       HorizontalTextAlignment="Center"
+                                       LineBreakMode="WordWrap" />
+                            </VerticalStackLayout>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+        <Grid x:Name="CenterPanel"
+              Grid.Column="1"
+              RowDefinitions="Auto,*">
+            <Border Grid.Row="0"
+                    BackgroundColor="{StaticResource BgPanel}"
+                    StrokeThickness="0"
+                    Padding="16,14">
+                <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto" ColumnSpacing="10">
+                    <Button Text="Add Plot"
+                            Grid.Column="0"
+                            Command="{Binding AddPlotCommand}"
+                            Style="{StaticResource PanelButton}"
+                            BackgroundColor="{StaticResource Accent}"
+                            TextColor="Black"
+                            IsEnabled="{Binding CanAddPlot}" />
+                    <Button Text="Remove Plot"
+                            Grid.Column="1"
+                            Command="{Binding RemoveSelectedPlotCommand}"
+                            Style="{StaticResource PanelButton}"
+                            BackgroundColor="{StaticResource Danger}"
+                            IsEnabled="{Binding CanRemoveSelectedPlot}" />
+                    <Button Text="Save PNG"
+                            Grid.Column="2"
+                            Command="{Binding RequestPlotExportCommand}"
+                            Style="{StaticResource PanelButton}"
+                            BackgroundColor="{StaticResource Success}" />
+                    <Label Grid.Column="4"
+                           Text="{Binding PlotSummary}"
+                           VerticalOptions="Center"
+                           TextColor="{StaticResource TextMain}"
+                           FontSize="12" />
+                    <Label Grid.Column="5"
+                           Text="{Binding ImportSummary}"
+                           VerticalOptions="Center"
+                           HorizontalTextAlignment="End"
+                           TextColor="{StaticResource TextMuted}"
+                           FontSize="12" />
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="1"
+                    BackgroundColor="{StaticResource CanvasBg}"
+                    StrokeThickness="0"
+                    Padding="14">
+                <Grid ColumnDefinitions="*,*"
+                      RowDefinitions="Auto,Auto"
+                      ColumnSpacing="14"
+                      RowSpacing="14">
+                        <Border Grid.Row="0"
+                                Grid.Column="0"
+                                BindingContext="{Binding PlotSlot1}"
+                                x:DataType="viewmodels:AnalysisPlotViewModel"
+                                BackgroundColor="{StaticResource BgPanel}"
+                                Stroke="#444444"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 10"
+                                Padding="12"
+                                HeightRequest="380"
+                                IsVisible="{Binding Source={x:Reference PostAnalysisRoot}, Path=BindingContext.HasPlotSlot1}">
+                            <Border.Triggers>
+                                <DataTrigger TargetType="Border"
+                                             Binding="{Binding Source={x:Reference PostAnalysisRoot}, Path=BindingContext.PlotCount}"
+                                             Value="1">
+                                    <Setter Property="Grid.ColumnSpan" Value="2" />
+                                </DataTrigger>
+                                <DataTrigger TargetType="Border"
+                                             Binding="{Binding IsSelected}"
+                                             Value="True">
+                                    <Setter Property="Stroke" Value="{StaticResource Accent}" />
+                                    <Setter Property="StrokeThickness" Value="2" />
+                                </DataTrigger>
+                            </Border.Triggers>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding Source={x:Reference PostAnalysisRoot}, Path=BindingContext.SelectPlotCommand}"
+                                                      CommandParameter="{Binding .}" />
+                            </Border.GestureRecognizers>
+                            <Grid RowDefinitions="Auto,250,Auto" RowSpacing="10">
+                                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                    <VerticalStackLayout Spacing="2">
+                                        <Label Text="{Binding Title}"
+                                               FontSize="16"
+                                               FontAttributes="Bold"
+                                               TextColor="{StaticResource TextMain}"
+                                               LineBreakMode="TailTruncation" />
+                                        <Label Text="{Binding PlotBadge}"
+                                               FontSize="11"
+                                               TextColor="{StaticResource Accent}" />
+                                    </VerticalStackLayout>
+                                    <Button Grid.Column="1"
+                                            Text="Edit"
+                                            Command="{Binding Source={x:Reference PostAnalysisRoot}, Path=BindingContext.SelectPlotCommand}"
+                                            CommandParameter="{Binding .}"
+                                            Style="{StaticResource PanelButton}"
+                                            HeightRequest="34"
+                                            WidthRequest="72" />
+                                    <Button Grid.Column="2"
+                                            Text="PNG"
+                                            Command="{Binding Source={x:Reference PostAnalysisRoot}, Path=BindingContext.RequestPlotExportCommand}"
+                                            CommandParameter="{Binding .}"
+                                            Style="{StaticResource PanelButton}"
+                                            BackgroundColor="{StaticResource Success}"
+                                            HeightRequest="34"
+                                            WidthRequest="72" />
+                                </Grid>
+                                <oxy:PlotView Grid.Row="1"
+                                              Model="{Binding PlotModel}"
+                                              BackgroundColor="Transparent"
+                                              InputTransparent="True"
+                                              HeightRequest="250" />
+                                <Grid Grid.Row="2"
+                                      ColumnDefinitions="Auto,*"
+                                      ColumnSpacing="10">
+                                    <Label Text="{Binding LineSummary}"
+                                           FontSize="11"
+                                           TextColor="{StaticResource TextMain}" />
+                                    <Label Grid.Column="1"
+                                           Text="{Binding PlotStatus}"
+                                           FontSize="10"
+                                           TextColor="{StaticResource TextMuted}"
+                                           LineBreakMode="TailTruncation"
+                                           MaxLines="2" />
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="0"
+                                Grid.Column="1"
+                                BindingContext="{Binding PlotSlot2}"
+                                x:DataType="viewmodels:AnalysisPlotViewModel"
+                                BackgroundColor="{StaticResource BgPanel}"
+                                Stroke="#444444"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 10"
+                                Padding="12"
+                                HeightRequest="380"
+                                IsVisible="{Binding Source={x:Reference PostAnalysisRoot}, Path=BindingContext.HasPlotSlot2}">
+                            <Border.Triggers>
+                                <DataTrigger TargetType="Border"
+                                             Binding="{Binding IsSelected}"
+                                             Value="True">
+                                    <Setter Property="Stroke" Value="{StaticResource Accent}" />
+                                    <Setter Property="StrokeThickness" Value="2" />
+                                </DataTrigger>
+                            </Border.Triggers>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding Source={x:Reference PostAnalysisRoot}, Path=BindingContext.SelectPlotCommand}"
+                                                      CommandParameter="{Binding .}" />
+                            </Border.GestureRecognizers>
+                            <Grid RowDefinitions="Auto,250,Auto" RowSpacing="10">
+                                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                    <VerticalStackLayout Spacing="2">
+                                        <Label Text="{Binding Title}"
+                                               FontSize="16"
+                                               FontAttributes="Bold"
+                                               TextColor="{StaticResource TextMain}"
+                                               LineBreakMode="TailTruncation" />
+                                        <Label Text="{Binding PlotBadge}"
+                                               FontSize="11"
+                                               TextColor="{StaticResource Accent}" />
+                                    </VerticalStackLayout>
+                                    <Button Grid.Column="1"
+                                            Text="Edit"
+                                            Command="{Binding Source={x:Reference PostAnalysisRoot}, Path=BindingContext.SelectPlotCommand}"
+                                            CommandParameter="{Binding .}"
+                                            Style="{StaticResource PanelButton}"
+                                            HeightRequest="34"
+                                            WidthRequest="72" />
+                                    <Button Grid.Column="2"
+                                            Text="PNG"
+                                            Command="{Binding Source={x:Reference PostAnalysisRoot}, Path=BindingContext.RequestPlotExportCommand}"
+                                            CommandParameter="{Binding .}"
+                                            Style="{StaticResource PanelButton}"
+                                            BackgroundColor="{StaticResource Success}"
+                                            HeightRequest="34"
+                                            WidthRequest="72" />
+                                </Grid>
+                                <oxy:PlotView Grid.Row="1"
+                                              Model="{Binding PlotModel}"
+                                              BackgroundColor="Transparent"
+                                              InputTransparent="True"
+                                              HeightRequest="250" />
+                                <Grid Grid.Row="2"
+                                      ColumnDefinitions="Auto,*"
+                                      ColumnSpacing="10">
+                                    <Label Text="{Binding LineSummary}"
+                                           FontSize="11"
+                                           TextColor="{StaticResource TextMain}" />
+                                    <Label Grid.Column="1"
+                                           Text="{Binding PlotStatus}"
+                                           FontSize="10"
+                                           TextColor="{StaticResource TextMuted}"
+                                           LineBreakMode="TailTruncation"
+                                           MaxLines="2" />
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="1"
+                                Grid.Column="0"
+                                BindingContext="{Binding PlotSlot3}"
+                                x:DataType="viewmodels:AnalysisPlotViewModel"
+                                BackgroundColor="{StaticResource BgPanel}"
+                                Stroke="#444444"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 10"
+                                Padding="12"
+                                HeightRequest="380"
+                                IsVisible="{Binding Source={x:Reference PostAnalysisRoot}, Path=BindingContext.HasPlotSlot3}">
+                            <Border.Triggers>
+                                <DataTrigger TargetType="Border"
+                                             Binding="{Binding IsSelected}"
+                                             Value="True">
+                                    <Setter Property="Stroke" Value="{StaticResource Accent}" />
+                                    <Setter Property="StrokeThickness" Value="2" />
+                                </DataTrigger>
+                            </Border.Triggers>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding Source={x:Reference PostAnalysisRoot}, Path=BindingContext.SelectPlotCommand}"
+                                                      CommandParameter="{Binding .}" />
+                            </Border.GestureRecognizers>
+                            <Grid RowDefinitions="Auto,250,Auto" RowSpacing="10">
+                                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                    <VerticalStackLayout Spacing="2">
+                                        <Label Text="{Binding Title}"
+                                               FontSize="16"
+                                               FontAttributes="Bold"
+                                               TextColor="{StaticResource TextMain}"
+                                               LineBreakMode="TailTruncation" />
+                                        <Label Text="{Binding PlotBadge}"
+                                               FontSize="11"
+                                               TextColor="{StaticResource Accent}" />
+                                    </VerticalStackLayout>
+                                    <Button Grid.Column="1"
+                                            Text="Edit"
+                                            Command="{Binding Source={x:Reference PostAnalysisRoot}, Path=BindingContext.SelectPlotCommand}"
+                                            CommandParameter="{Binding .}"
+                                            Style="{StaticResource PanelButton}"
+                                            HeightRequest="34"
+                                            WidthRequest="72" />
+                                    <Button Grid.Column="2"
+                                            Text="PNG"
+                                            Command="{Binding Source={x:Reference PostAnalysisRoot}, Path=BindingContext.RequestPlotExportCommand}"
+                                            CommandParameter="{Binding .}"
+                                            Style="{StaticResource PanelButton}"
+                                            BackgroundColor="{StaticResource Success}"
+                                            HeightRequest="34"
+                                            WidthRequest="72" />
+                                </Grid>
+                                <oxy:PlotView Grid.Row="1"
+                                              Model="{Binding PlotModel}"
+                                              BackgroundColor="Transparent"
+                                              InputTransparent="True"
+                                              HeightRequest="250" />
+                                <Grid Grid.Row="2"
+                                      ColumnDefinitions="Auto,*"
+                                      ColumnSpacing="10">
+                                    <Label Text="{Binding LineSummary}"
+                                           FontSize="11"
+                                           TextColor="{StaticResource TextMain}" />
+                                    <Label Grid.Column="1"
+                                           Text="{Binding PlotStatus}"
+                                           FontSize="10"
+                                           TextColor="{StaticResource TextMuted}"
+                                           LineBreakMode="TailTruncation"
+                                           MaxLines="2" />
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="1"
+                                Grid.Column="1"
+                                BindingContext="{Binding PlotSlot4}"
+                                x:DataType="viewmodels:AnalysisPlotViewModel"
+                                BackgroundColor="{StaticResource BgPanel}"
+                                Stroke="#444444"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 10"
+                                Padding="12"
+                                HeightRequest="380"
+                                IsVisible="{Binding Source={x:Reference PostAnalysisRoot}, Path=BindingContext.HasPlotSlot4}">
+                            <Border.Triggers>
+                                <DataTrigger TargetType="Border"
+                                             Binding="{Binding IsSelected}"
+                                             Value="True">
+                                    <Setter Property="Stroke" Value="{StaticResource Accent}" />
+                                    <Setter Property="StrokeThickness" Value="2" />
+                                </DataTrigger>
+                            </Border.Triggers>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding Source={x:Reference PostAnalysisRoot}, Path=BindingContext.SelectPlotCommand}"
+                                                      CommandParameter="{Binding .}" />
+                            </Border.GestureRecognizers>
+                            <Grid RowDefinitions="Auto,250,Auto" RowSpacing="10">
+                                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                    <VerticalStackLayout Spacing="2">
+                                        <Label Text="{Binding Title}"
+                                               FontSize="16"
+                                               FontAttributes="Bold"
+                                               TextColor="{StaticResource TextMain}"
+                                               LineBreakMode="TailTruncation" />
+                                        <Label Text="{Binding PlotBadge}"
+                                               FontSize="11"
+                                               TextColor="{StaticResource Accent}" />
+                                    </VerticalStackLayout>
+                                    <Button Grid.Column="1"
+                                            Text="Edit"
+                                            Command="{Binding Source={x:Reference PostAnalysisRoot}, Path=BindingContext.SelectPlotCommand}"
+                                            CommandParameter="{Binding .}"
+                                            Style="{StaticResource PanelButton}"
+                                            HeightRequest="34"
+                                            WidthRequest="72" />
+                                    <Button Grid.Column="2"
+                                            Text="PNG"
+                                            Command="{Binding Source={x:Reference PostAnalysisRoot}, Path=BindingContext.RequestPlotExportCommand}"
+                                            CommandParameter="{Binding .}"
+                                            Style="{StaticResource PanelButton}"
+                                            BackgroundColor="{StaticResource Success}"
+                                            HeightRequest="34"
+                                            WidthRequest="72" />
+                                </Grid>
+                                <oxy:PlotView Grid.Row="1"
+                                              Model="{Binding PlotModel}"
+                                              BackgroundColor="Transparent"
+                                              InputTransparent="True"
+                                              HeightRequest="250" />
+                                <Grid Grid.Row="2"
+                                      ColumnDefinitions="Auto,*"
+                                      ColumnSpacing="10">
+                                    <Label Text="{Binding LineSummary}"
+                                           FontSize="11"
+                                           TextColor="{StaticResource TextMain}" />
+                                    <Label Grid.Column="1"
+                                           Text="{Binding PlotStatus}"
+                                           FontSize="10"
+                                           TextColor="{StaticResource TextMuted}"
+                                           LineBreakMode="TailTruncation"
+                                           MaxLines="2" />
+                                </Grid>
+                            </Grid>
+                        </Border>
+                </Grid>
+            </Border>
+        </Grid>
+        <Border x:Name="RightPanel"
+                Grid.Column="2"
+                BackgroundColor="{StaticResource BgPanel}"
+                StrokeThickness="0"
+                Padding="16">
+            <Grid RowDefinitions="Auto,*" RowSpacing="14">
+                <VerticalStackLayout Spacing="6">
+                    <Label Text="PLOT SETTINGS"
+                           Style="{StaticResource SectionHeaderLabel}" />
+                    <Label Text="Select a plot card in the middle to edit its metric, axis labels, line selection, and display behavior."
+                           FontSize="13"
+                           TextColor="{StaticResource TextMain}"
+                           LineBreakMode="WordWrap" />
+                </VerticalStackLayout>
+
+                <ScrollView Grid.Row="1">
+                    <VerticalStackLayout BindingContext="{Binding SelectedPlot}"
+                                         x:DataType="viewmodels:AnalysisPlotViewModel"
+                                         Spacing="14">
+                        <Border Style="{StaticResource PanelSectionBorder}">
+                            <VerticalStackLayout Spacing="10">
+                                <Label Text="Selected Plot"
+                                       Style="{StaticResource SectionHeaderLabel}" />
+                                <Entry Text="{Binding Title}"
+                                       Placeholder="Plot title"
+                                       Style="{StaticResource PanelEntry}" />
+                                <Picker ItemsSource="{Binding Source={x:Reference PostAnalysisRoot}, Path=BindingContext.AvailableMetrics}"
+                                        SelectedItem="{Binding SelectedMetric}"
+                                        Title="Metric"
+                                        Style="{StaticResource PanelPicker}" />
+                                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                    <Label Text="{Binding LineSummary}"
+                                           FontSize="12"
+                                           TextColor="{StaticResource TextMain}" />
+                                    <Label Grid.Column="1"
+                                           Text="{Binding PlotBadge}"
+                                           FontSize="12"
+                                           TextColor="{StaticResource Accent}"
+                                           HorizontalTextAlignment="End" />
+                                </Grid>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Border Style="{StaticResource PanelSectionBorder}">
+                            <VerticalStackLayout Spacing="10">
+                                <Label Text="Axis Labels"
+                                       Style="{StaticResource SectionHeaderLabel}" />
+                                <Entry Text="{Binding XAxisTitle}"
+                                       Placeholder="X axis"
+                                       Style="{StaticResource PanelEntry}" />
+                                <Entry Text="{Binding YAxisTitle}"
+                                       Placeholder="Y axis"
+                                       Style="{StaticResource PanelEntry}" />
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                    <Label Text="Auto-scale Y axis"
+                                           VerticalOptions="Center"
+                                           TextColor="{StaticResource TextMain}"
+                                           FontSize="12" />
+                                    <Switch Grid.Column="1"
+                                            IsToggled="{Binding AutoScaleYAxis}" />
+                                </Grid>
+                                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                    <Entry Grid.Column="0"
+                                           Text="{Binding YAxisMinimumText}"
+                                           Placeholder="Y min"
+                                           Style="{StaticResource PanelEntry}" />
+                                    <Entry Grid.Column="1"
+                                           Text="{Binding YAxisMaximumText}"
+                                           Placeholder="Y max"
+                                           Style="{StaticResource PanelEntry}" />
+                                </Grid>
+                                <Label Text="Turn auto-scale off and enter both values to lock the Y axis range."
+                                       FontSize="10"
+                                       TextColor="{StaticResource TextMuted}" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Border Style="{StaticResource PanelSectionBorder}">
+                            <VerticalStackLayout Spacing="10">
+                                <Label Text="Behavior"
+                                       Style="{StaticResource SectionHeaderLabel}" />
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                    <Label Text="Show legend"
+                                           VerticalOptions="Center"
+                                           TextColor="{StaticResource TextMain}"
+                                           FontSize="12" />
+                                    <CheckBox Grid.Column="1"
+                                              IsChecked="{Binding ShowLegend}"
+                                              Color="{StaticResource Accent}" />
+                                </Grid>
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                    <Label Text="Show markers"
+                                           VerticalOptions="Center"
+                                           TextColor="{StaticResource TextMain}"
+                                           FontSize="12" />
+                                    <CheckBox Grid.Column="1"
+                                              IsChecked="{Binding ShowMarkers}"
+                                              Color="{StaticResource Accent}" />
+                                </Grid>
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                    <Label Text="Logarithmic Y axis"
+                                           VerticalOptions="Center"
+                                           TextColor="{StaticResource TextMain}"
+                                           FontSize="12" />
+                                    <CheckBox Grid.Column="1"
+                                              IsChecked="{Binding UseLogarithmicYAxis}"
+                                              Color="{StaticResource Accent}" />
+                                </Grid>
+                                <VerticalStackLayout Spacing="4">
+                                    <Label Text="{Binding LineThickness, StringFormat='{}Line thickness: {0:F1}'}"
+                                           FontSize="12"
+                                           TextColor="{StaticResource TextMain}" />
+                                    <Slider Minimum="1"
+                                            Maximum="4"
+                                            Value="{Binding LineThickness}"
+                                            ThumbColor="{StaticResource Accent}"
+                                            MinimumTrackColor="{StaticResource Accent}"
+                                            MaximumTrackColor="#50505F" />
+                                </VerticalStackLayout>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Border Style="{StaticResource PanelSectionBorder}">
+                            <VerticalStackLayout Spacing="10">
+                                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                    <Label Text="Plot Lines"
+                                           Style="{StaticResource SectionHeaderLabel}"
+                                           VerticalOptions="Center" />
+                                    <Button Grid.Column="1"
+                                            Text="Fill"
+                                            Command="{Binding Source={x:Reference PostAnalysisRoot}, Path=BindingContext.FillSelectedPlotCommand}"
+                                            Style="{StaticResource PanelButton}"
+                                            HeightRequest="34"
+                                            WidthRequest="72" />
+                                    <Button Grid.Column="2"
+                                            Text="Clear"
+                                            Command="{Binding Source={x:Reference PostAnalysisRoot}, Path=BindingContext.ClearSelectedPlotLinesCommand}"
+                                            Style="{StaticResource PanelButton}"
+                                            HeightRequest="34"
+                                            WidthRequest="72" />
+                                </Grid>
+                                <Label Text="Each plot can display at most 16 run lines."
+                                       FontSize="10"
+                                       TextColor="{StaticResource TextMuted}" />
+                                <CollectionView ItemsSource="{Binding DatasetSelections}"
+                                                SelectionMode="None"
+                                                HeightRequest="420"
+                                                BackgroundColor="Transparent">
+                                    <CollectionView.ItemTemplate>
+                                        <DataTemplate x:DataType="viewmodels:PlotDatasetSelectionViewModel">
+                                            <Border BackgroundColor="{StaticResource InputBg}"
+                                                    Stroke="#343448"
+                                                    StrokeThickness="1"
+                                                    StrokeShape="RoundRectangle 8"
+                                                    Padding="10"
+                                                    Margin="0,0,0,8">
+                                                <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="10">
+                                                    <CheckBox IsChecked="{Binding IsSelected}"
+                                                              Color="{StaticResource Accent}"
+                                                              VerticalOptions="Center" />
+                                                    <BoxView Grid.Column="1"
+                                                             WidthRequest="10"
+                                                             HeightRequest="42"
+                                                             Color="{Binding AccentColor}"
+                                                             VerticalOptions="Center" />
+                                                    <VerticalStackLayout Grid.Column="2" Spacing="4">
+                                                        <Label Text="{Binding DisplayName}"
+                                                               FontSize="13"
+                                                               FontAttributes="Bold"
+                                                               TextColor="{StaticResource TextMain}" />
+                                                        <Label Text="{Binding SourceFolderName}"
+                                                               FontSize="10"
+                                                               TextColor="{StaticResource TextMuted}" />
+                                                    </VerticalStackLayout>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </CollectionView.ItemTemplate>
+                                </CollectionView>
+                            </VerticalStackLayout>
+                        </Border>
+                    </VerticalStackLayout>
+                </ScrollView>
+            </Grid>
+        </Border>
+    </Grid>
 </ContentPage>
