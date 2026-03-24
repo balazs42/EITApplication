@@ -1,8 +1,4 @@
 using BusinessLayer;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Utility.Classes;
 using Utility.Classes.Application;
 using Utility.Classes.Discretizer;
@@ -130,10 +126,8 @@ namespace ServiceLayer
                 ReconstructionResult? result = null;
                 int cycleLength = Math.Max(1, _measurementService.FramesPerCycle);
                 for (int i = 0; i < cycleLength; i++)
-                {
                     result = ExecuteReconstructionStep(stepSize, regularizationWeight, excitationAmplitude);
-                }
-
+                
                 return result;
             });
 

@@ -1,46 +1,96 @@
+using MathNet.Numerics;
+using MathNet.Numerics.LinearAlgebra.Factorization;
 using Utility.Classes.ReconstructionParameters;
-
-using Vector = MathNet.Numerics.LinearAlgebra.Vector<double>;
 using Matrix = MathNet.Numerics.LinearAlgebra.Matrix<double>;
+using Vector = MathNet.Numerics.LinearAlgebra.Vector<double>;
 
 namespace Utility.Classes.Reconstruction.NumericSolvers
 {
-    /// <summary>
-    /// Solves Ax = b using LU decomposition. Best for square, well-conditioned, non-singular matrices.
-    /// This is a fast and direct solver.
-    /// </summary>
     public sealed class LuDecompositionSolver : INumericSolver
     {
+        private static int _providersInitialized;
+        private readonly object _sync = new();
+
         private Matrix? _cachedMatrix;
-        private MathNet.Numerics.LinearAlgebra.Factorization.LU<double>? _cachedFactorization;
+        private LU<double>? _cachedFactorization;
+
+        public LuDecompositionSolver()
+        {
+            InitializeProvidersOnce();
+        }
 
         public Vector SolveLinearSystem(Matrix A, Vector b)
         {
-            if (A == null)
-                throw new ArgumentNullException(nameof(A));
-            if (b == null)
-                throw new ArgumentNullException(nameof(b));
+            ArgumentNullException.ThrowIfNull(A);
+            ArgumentNullException.ThrowIfNull(b);
 
-            if (A.RowCount != b.Count)
-                throw new ArgumentException("Matrix and vector dimensions do not agree.");
             if (A.RowCount != A.ColumnCount)
-                throw new ArgumentException("LU decomposition requires a square matrix.");
+                throw new ArgumentException("LU requires a square matrix.", nameof(A));
+            if (A.RowCount != b.Count)
+                throw new ArgumentException("Matrix and vector dimensions do not agree.", nameof(b));
 
-            if (A.Enumerate().Any(d => double.IsNaN(d) || double.IsInfinity(d)) ||
-                b.Enumerate().Any(d => double.IsNaN(d) || double.IsInfinity(d)))
-                throw new InvalidOperationException("System contains invalid entries.");
-
-            if (!ReferenceEquals(_cachedMatrix, A) || _cachedFactorization == null)
+            lock (_sync)
             {
-                var lu = A.LU();
-                if (lu.Determinant == 0.0)
-                    throw new InvalidOperationException("Matrix is singular or nearly so.");
+                EnsureFactorized(A);
+                return _cachedFactorization!.Solve(b);
+            }
+        }
 
+        // Use this whenever you have multiple RHS vectors.
+        public Matrix SolveLinearSystems(Matrix A, Matrix B)
+        {
+            ArgumentNullException.ThrowIfNull(A);
+            ArgumentNullException.ThrowIfNull(B);
+
+            if (A.RowCount != A.ColumnCount)
+                throw new ArgumentException("LU requires a square matrix.", nameof(A));
+            if (A.RowCount != B.RowCount)
+                throw new ArgumentException("Matrix and RHS dimensions do not agree.", nameof(B));
+
+            lock (_sync)
+            {
+                EnsureFactorized(A);
+                return _cachedFactorization!.Solve(B);
+            }
+        }
+
+        public void InvalidateCache()
+        {
+            lock (_sync)
+            {
+                _cachedMatrix = null;
+                _cachedFactorization = null;
+            }
+        }
+
+        private void EnsureFactorized(Matrix A)
+        {
+            // IMPORTANT:
+            // This assumes A is immutable while cached.
+            // If A can be modified in place, call InvalidateCache() before reuse.
+            if (!ReferenceEquals(_cachedMatrix, A) || _cachedFactorization is null)
+            {
+                _cachedFactorization = A.LU();
                 _cachedMatrix = A;
-                _cachedFactorization = lu;
+            }
+        }
+
+        private static void InitializeProvidersOnce()
+        {
+            if (Interlocked.Exchange(ref _providersInitialized, 1) != 0)
+                return;
+
+            // Lowest-friction acceleration path inside Math.NET:
+            // try CUDA first, then MKL, then OpenBLAS.
+            if (!Control.TryUseNativeCUDA())
+            {
+                if (!Control.TryUseNativeMKL())
+                {
+                    Control.TryUseNativeOpenBLAS();
+                }
             }
 
-            return _cachedFactorization.Solve(b);
+            Control.UseMultiThreading();
         }
     }
 }

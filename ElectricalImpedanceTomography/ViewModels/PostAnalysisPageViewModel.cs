@@ -109,6 +109,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         private bool canRemoveSelectedDataset;
 
         public event EventHandler<PlotExportRequest>? PlotExportRequested;
+        public event EventHandler<PlotResizeRequest>? PlotResizeRequested;
         public int PlotCount => Plots.Count;
         public AnalysisPlotViewModel? PlotSlot1 => GetPlotAt(0);
         public AnalysisPlotViewModel? PlotSlot2 => GetPlotAt(1);
@@ -121,6 +122,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         public bool UseSinglePlotLayout => PlotCount <= 1;
         public bool UseTwoPlotLayout => PlotCount == 2;
         public bool UseQuadPlotLayout => PlotCount >= 3;
+        public bool HasVisiblePlots => Plots.Any(plot => plot.IsVisibleOnCanvas);
 
         public PostAnalysisPageViewModel()
         {
@@ -202,6 +204,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             Plots.Remove(SelectedPlot);
             SelectedPlot = Plots[Math.Max(0, Math.Min(index - 1, Plots.Count - 1))];
+            ApplyDefaultCanvasLayout();
             StatusMessage = "Removed the selected plot.";
         }
 
@@ -258,6 +261,48 @@ namespace ElectricalImpedanceTomography.ViewModels
             PlotExportRequested?.Invoke(this, new PlotExportRequest(targetPlot));
         }
 
+        [RelayCommand]
+        private void MinimizePlot(AnalysisPlotViewModel? plot)
+        {
+            if (plot == null)
+                return;
+
+            plot.IsMinimized = true;
+
+            if (ReferenceEquals(SelectedPlot, plot))
+                SelectedPlot = Plots.FirstOrDefault(candidate => !candidate.IsMinimized) ?? Plots.FirstOrDefault();
+
+            ApplyDefaultCanvasLayout();
+            StatusMessage = $"{plot.Title} minimized.";
+        }
+
+        [RelayCommand]
+        private void ActivatePlotWindow(AnalysisPlotViewModel? plot)
+        {
+            if (plot == null)
+                return;
+
+            bool wasMinimized = plot.IsMinimized;
+            plot.IsMinimized = false;
+
+            if (wasMinimized)
+                ApplyDefaultCanvasLayout();
+
+            SelectedPlot = plot;
+            StatusMessage = wasMinimized ? $"{plot.Title} restored." : $"Selected {plot.Title}.";
+        }
+
+        [RelayCommand]
+        private void RequestPlotResize(AnalysisPlotViewModel? plot)
+        {
+            if (plot == null)
+                return;
+
+            plot.IsMinimized = false;
+            SelectedPlot = plot;
+            PlotResizeRequested?.Invoke(this, new PlotResizeRequest(plot));
+        }
+
         partial void OnSelectedDatasetChanged(ImportedMetricDatasetViewModel? value)
         {
             CanRemoveSelectedDataset = value != null;
@@ -281,6 +326,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 plot.SelectFirstAvailableDatasets();
 
             Plots.Add(plot);
+            ApplyDefaultCanvasLayout();
             return plot;
         }
 
@@ -377,6 +423,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                     }
 
                     SelectedPlot ??= Plots[0];
+                    ApplyDefaultCanvasLayout();
                 }
                 catch (Exception ex)
                 {
@@ -542,6 +589,8 @@ namespace ElectricalImpedanceTomography.ViewModels
                 OnPropertyChanged(nameof(UseSinglePlotLayout));
                 OnPropertyChanged(nameof(UseTwoPlotLayout));
                 OnPropertyChanged(nameof(UseQuadPlotLayout));
+                OnPropertyChanged(nameof(HasVisiblePlots));
+                ApplyDefaultCanvasLayout();
             }
             catch (Exception ex)
             {
@@ -650,6 +699,140 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         private AnalysisPlotViewModel? GetPlotAt(int index)
             => index >= 0 && index < Plots.Count ? Plots[index] : null;
+
+        public void ApplyCanvasSnap(AnalysisPlotViewModel plot, PlotCanvasSnapOption snapOption)
+        {
+            if (!Plots.Contains(plot))
+                return;
+
+            plot.IsMinimized = false;
+            SelectedPlot = plot;
+
+            var targetLayout = ResolveSnapLayout(snapOption);
+            var occupiedCells = BuildOccupiedCellSet(targetLayout);
+
+            plot.ApplyCanvasPlacement(targetLayout.row, targetLayout.column, targetLayout.rowSpan, targetLayout.columnSpan, true);
+
+            var freeCells = EnumerateAllGridCells()
+                .Where(cell => !occupiedCells.Contains(cell))
+                .ToList();
+
+            foreach (var otherPlot in Plots.Where(candidate => !ReferenceEquals(candidate, plot)))
+            {
+                if (otherPlot.IsMinimized)
+                {
+                    otherPlot.ApplyCanvasPlacement(otherPlot.CanvasRow, otherPlot.CanvasColumn, otherPlot.CanvasRowSpan, otherPlot.CanvasColumnSpan, false);
+                    continue;
+                }
+
+                if (freeCells.Count == 0)
+                {
+                    otherPlot.IsMinimized = true;
+                    otherPlot.ApplyCanvasPlacement(otherPlot.CanvasRow, otherPlot.CanvasColumn, otherPlot.CanvasRowSpan, otherPlot.CanvasColumnSpan, false);
+                    continue;
+                }
+
+                var nextCell = freeCells[0];
+                freeCells.RemoveAt(0);
+                otherPlot.ApplyCanvasPlacement(nextCell.row, nextCell.column, 1, 1, true);
+            }
+
+            OnPropertyChanged(nameof(HasVisiblePlots));
+            StatusMessage = $"{plot.Title} snapped to {DescribeSnapOption(snapOption)}.";
+        }
+
+        private void ApplyDefaultCanvasLayout()
+        {
+            var visiblePlots = Plots.Where(plot => !plot.IsMinimized).ToList();
+
+            if (visiblePlots.Count == 0)
+            {
+                foreach (var plot in Plots)
+                    plot.ApplyCanvasPlacement(plot.CanvasRow, plot.CanvasColumn, plot.CanvasRowSpan, plot.CanvasColumnSpan, false);
+
+                OnPropertyChanged(nameof(HasVisiblePlots));
+                return;
+            }
+
+            if (visiblePlots.Count == 1)
+            {
+                visiblePlots[0].ApplyCanvasPlacement(0, 0, 2, 2, true);
+            }
+            else if (visiblePlots.Count == 2)
+            {
+                visiblePlots[0].ApplyCanvasPlacement(0, 0, 2, 1, true);
+                visiblePlots[1].ApplyCanvasPlacement(0, 1, 2, 1, true);
+            }
+            else
+            {
+                var targetCells = new (int row, int column)[]
+                {
+                    (0, 0),
+                    (0, 1),
+                    (1, 0),
+                    (1, 1)
+                };
+
+                for (int index = 0; index < visiblePlots.Count; index++)
+                {
+                    var targetCell = targetCells[Math.Min(index, targetCells.Length - 1)];
+                    visiblePlots[index].ApplyCanvasPlacement(targetCell.row, targetCell.column, 1, 1, true);
+                }
+            }
+
+            foreach (var plot in Plots.Except(visiblePlots))
+                plot.ApplyCanvasPlacement(plot.CanvasRow, plot.CanvasColumn, plot.CanvasRowSpan, plot.CanvasColumnSpan, false);
+
+            OnPropertyChanged(nameof(HasVisiblePlots));
+        }
+
+        private static (int row, int column, int rowSpan, int columnSpan) ResolveSnapLayout(PlotCanvasSnapOption snapOption)
+            => snapOption switch
+            {
+                PlotCanvasSnapOption.TopLeft => (0, 0, 1, 1),
+                PlotCanvasSnapOption.TopRight => (0, 1, 1, 1),
+                PlotCanvasSnapOption.BottomLeft => (1, 0, 1, 1),
+                PlotCanvasSnapOption.BottomRight => (1, 1, 1, 1),
+                PlotCanvasSnapOption.TopRow => (0, 0, 1, 2),
+                PlotCanvasSnapOption.BottomRow => (1, 0, 1, 2),
+                PlotCanvasSnapOption.LeftColumn => (0, 0, 2, 1),
+                PlotCanvasSnapOption.RightColumn => (0, 1, 2, 1),
+                _ => (0, 0, 2, 2)
+            };
+
+        private static HashSet<(int row, int column)> BuildOccupiedCellSet((int row, int column, int rowSpan, int columnSpan) layout)
+        {
+            var cells = new HashSet<(int row, int column)>();
+            for (int row = layout.row; row < layout.row + layout.rowSpan; row++)
+            {
+                for (int column = layout.column; column < layout.column + layout.columnSpan; column++)
+                    cells.Add((row, column));
+            }
+
+            return cells;
+        }
+
+        private static IEnumerable<(int row, int column)> EnumerateAllGridCells()
+        {
+            yield return (0, 0);
+            yield return (0, 1);
+            yield return (1, 0);
+            yield return (1, 1);
+        }
+
+        private static string DescribeSnapOption(PlotCanvasSnapOption snapOption)
+            => snapOption switch
+            {
+                PlotCanvasSnapOption.TopLeft => "the top-left cell",
+                PlotCanvasSnapOption.TopRight => "the top-right cell",
+                PlotCanvasSnapOption.BottomLeft => "the bottom-left cell",
+                PlotCanvasSnapOption.BottomRight => "the bottom-right cell",
+                PlotCanvasSnapOption.TopRow => "the top row",
+                PlotCanvasSnapOption.BottomRow => "the bottom row",
+                PlotCanvasSnapOption.LeftColumn => "the left column",
+                PlotCanvasSnapOption.RightColumn => "the right column",
+                _ => "the full grid"
+            };
 
         private void HandleUnexpectedException(string context, Exception ex)
         {
@@ -1014,13 +1197,36 @@ namespace ElectricalImpedanceTomography.ViewModels
         [ObservableProperty]
         private bool isSelected;
 
+        [ObservableProperty]
+        private bool isMinimized;
+
+        [ObservableProperty]
+        private bool isVisibleOnCanvas = true;
+
+        [ObservableProperty]
+        private int canvasRow;
+
+        [ObservableProperty]
+        private int canvasColumn;
+
+        [ObservableProperty]
+        private int canvasRowSpan = 1;
+
+        [ObservableProperty]
+        private int canvasColumnSpan = 1;
+
         public event EventHandler<string>? StatusChanged;
 
         public string PlotBadge => SelectedMetric;
         public string LineSummary => $"{VisibleSelectionCount}/{PostAnalysisPageViewModel.MaxLinesPerPlot} lines";
+        public string WindowButtonTitle => IsMinimized ? $"{Title} [minimized]" : Title;
         private int VisibleSelectionCount => DatasetSelections.Count(selection => selection.IsSelected);
 
-        partial void OnTitleChanged(string value) => RefreshPlotModel();
+        partial void OnTitleChanged(string value)
+        {
+            OnPropertyChanged(nameof(WindowButtonTitle));
+            RefreshPlotModel();
+        }
         partial void OnXAxisTitleChanged(string value) => RefreshPlotModel();
         partial void OnYAxisTitleChanged(string value) => RefreshPlotModel();
         partial void OnShowLegendChanged(bool value) => RefreshPlotModel();
@@ -1030,6 +1236,7 @@ namespace ElectricalImpedanceTomography.ViewModels
         partial void OnYAxisMinimumTextChanged(string value) => RefreshPlotModel();
         partial void OnYAxisMaximumTextChanged(string value) => RefreshPlotModel();
         partial void OnLineThicknessChanged(double value) => RefreshPlotModel();
+        partial void OnIsMinimizedChanged(bool value) => OnPropertyChanged(nameof(WindowButtonTitle));
 
         partial void OnSelectedMetricChanged(string value)
         {
@@ -1186,6 +1393,15 @@ namespace ElectricalImpedanceTomography.ViewModels
             }
 
             OnPropertyChanged(nameof(LineSummary));
+        }
+
+        public void ApplyCanvasPlacement(int row, int column, int rowSpan, int columnSpan, bool isVisible)
+        {
+            CanvasRow = row;
+            CanvasColumn = column;
+            CanvasRowSpan = rowSpan;
+            CanvasColumnSpan = columnSpan;
+            IsVisibleOnCanvas = isVisible && !IsMinimized;
         }
 
         private void OnDatasetSelectionsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -1508,4 +1724,18 @@ namespace ElectricalImpedanceTomography.ViewModels
     }
 
     public readonly record struct PlotExportRequest(AnalysisPlotViewModel Plot);
+    public readonly record struct PlotResizeRequest(AnalysisPlotViewModel Plot);
+
+    public enum PlotCanvasSnapOption
+    {
+        TopLeft,
+        TopRight,
+        BottomLeft,
+        BottomRight,
+        TopRow,
+        BottomRow,
+        LeftColumn,
+        RightColumn,
+        FullGrid
+    }
 }
