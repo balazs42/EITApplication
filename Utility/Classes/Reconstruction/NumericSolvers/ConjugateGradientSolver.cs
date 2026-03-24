@@ -13,6 +13,9 @@ namespace Utility.Classes.Reconstruction.NumericSolvers
     /// </summary>
     public sealed class ConjugateGradientSolver : INumericSolver
     {
+        private Matrix? _cachedMatrix;
+        private double[]? _cachedDiagonal;
+
         public Vector SolveLinearSystem(Matrix A, Vector b)
         {
             if (A == null)
@@ -35,20 +38,26 @@ namespace Utility.Classes.Reconstruction.NumericSolvers
             if (r.L2Norm() < tolerance)
                 return x;
 
-            var diagonal = new double[n];
-            for (int i = 0; i < n; i++)
+            if (!ReferenceEquals(_cachedMatrix, A) || _cachedDiagonal == null || _cachedDiagonal.Length != n)
             {
-                double d = A[i, i];
-                if (Math.Abs(d) < 1e-14)
-                    throw new InvalidOperationException("Matrix diagonal contains zeros making Jacobi preconditioning impossible.");
-                diagonal[i] = d;
+                var diagonal = new double[n];
+                for (int i = 0; i < n; i++)
+                {
+                    double d = A[i, i];
+                    if (Math.Abs(d) < 1e-14)
+                        throw new InvalidOperationException("Matrix diagonal contains zeros making Jacobi preconditioning impossible.");
+                    diagonal[i] = d;
+                }
+
+                _cachedMatrix = A;
+                _cachedDiagonal = diagonal;
             }
 
             Vector Precondition(Vector residual)
             {
                 var z = Vector.Build.Dense(residual.Count);
                 for (int i = 0; i < residual.Count; i++)
-                    z[i] = residual[i] / diagonal[i];
+                    z[i] = residual[i] / _cachedDiagonal[i];
                 return z;
             }
 

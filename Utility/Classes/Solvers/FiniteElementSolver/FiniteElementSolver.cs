@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Numerics;
 using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Double;
+using Utility.Classes;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Measurement;
@@ -13,6 +14,13 @@ using Matrix = MathNet.Numerics.LinearAlgebra.Matrix<double>;
 
 namespace Utility.Classes.Solvers.FiniteElementSolver
 {
+    internal enum FiniteElementAssemblyMode
+    {
+        SerialCpu,
+        ParallelCpu,
+        Cuda
+    }
+
     /// <summary>
     /// Core FEM engine for the Complete Electrode Model (CEM).
     /// Equations referenced inline:
@@ -25,8 +33,11 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
     /// </summary>
     public sealed class FiniteElementSolver : ISolver
     {
+        internal const int DefaultCudaAssemblyThresholdElements = 4096;
+
         private readonly INumericSolver _numericSolver;
         private readonly bool _useOmpParallelization;
+        private readonly bool _useCudaAcceleration;
         private FEMMesh _referenceMesh;
 
         private readonly Dictionary<int, IReadOnlyList<int>> _electrodeContactCache = [];
@@ -34,6 +45,16 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         private readonly object _cacheGuard = new();
         private bool _boundaryMatricesDirty = true;
         private double[] _cachedContactImpedances;
+        private ElementStiffnessStencil[] _elementStiffnessStencils;
+        private Dictionary<long, double> _stiffnessContributionCache = [];
+        private Dictionary<long, double> _robinMassContributionCache = [];
+        private Dictionary<long, double> _couplingContributionCache = [];
+        private readonly Dictionary<int, Dictionary<long, double>> _systemBoundaryTemplateCache = [];
+        private int _lastStiffnessConductivityRevision = -1;
+        private int _lastSystemConductivityRevision = -1;
+        private int _lastSystemGroundElectrodeId = -1;
+        private int _boundaryTemplateVersion;
+        private int _lastSystemBoundaryTemplateVersion = -1;
 
         private Matrix _stiffnessMatrix;
         private Matrix _robinMassMatrix;
@@ -43,9 +64,12 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         private Vector _systemRhs;
         private int _groundElectrodeId;
         private int _referenceNodeId = 0;   // Reference node is treated as the 0 potential node so everything is shifted by its value.
+        private GpuStiffnessAssemblyPlan? _gpuAssemblyPlan;
+        private FiniteElementAssemblyMode _lastStiffnessAssemblyMode = FiniteElementAssemblyMode.SerialCpu;
 
         public int N_phi { get; }
         public int L { get; }
+        internal FiniteElementAssemblyMode LastStiffnessAssemblyMode => _lastStiffnessAssemblyMode;
 
         // Sub-block matrices
         public Matrix K => _stiffnessMatrix;
@@ -60,12 +84,16 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         /// <summary>
         /// Initialize solver with mesh sizes and numeric solver.
         /// </summary>
-        public FiniteElementSolver(FEMMesh mesh, INumericSolver numericSolver, bool useOmpParallelization = false)
+        public FiniteElementSolver(FEMMesh mesh,
+                                   INumericSolver numericSolver,
+                                   bool useOmpParallelization = false,
+                                   bool useCudaAcceleration = false)
         {
             N_phi = mesh.Vertices.Count;
             L = mesh.GetElectrodes().Count;
             _numericSolver = numericSolver ?? throw new ArgumentNullException(nameof(numericSolver));
             _useOmpParallelization = useOmpParallelization;
+            _useCudaAcceleration = useCudaAcceleration;
 
             _referenceMesh = mesh;
 
@@ -76,8 +104,25 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             _systemMatrix = SparseMatrix.Create(N_phi + Math.Max(0, L - 1), N_phi + Math.Max(0, L - 1), 0.0);
             _systemRhs = Vector.Build.Sparse(N_phi + Math.Max(0, L - 1));
             _cachedContactImpedances = Enumerable.Repeat(double.NaN, L).ToArray();
+            _elementStiffnessStencils = BuildElementStiffnessStencils(mesh);
+            _gpuAssemblyPlan = _useCudaAcceleration ? BuildGpuAssemblyPlan(_elementStiffnessStencils) : null;
             _groundElectrodeId = 0;
             _referenceNodeId = 0;
+        }
+
+        internal static FiniteElementAssemblyMode SelectStiffnessAssemblyMode(
+            bool useOmpParallelization,
+            bool useCudaAcceleration,
+            int elementCount,
+            bool cudaAvailable)
+        {
+            if (useCudaAcceleration && cudaAvailable && elementCount >= DefaultCudaAssemblyThresholdElements)
+                return FiniteElementAssemblyMode.Cuda;
+
+            if (useOmpParallelization && elementCount > 1)
+                return FiniteElementAssemblyMode.ParallelCpu;
+
+            return FiniteElementAssemblyMode.SerialCpu;
         }
 
         /// <summary>
@@ -199,7 +244,7 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
 
             BuildStiffnessMatrix(mesh);
             BuildBoundaryMatrices(mesh, electrodes);
-            BuildSystemMatrix(electrodes);
+            BuildSystemMatrix(mesh);
             BuildRhsVector(electrodes);
         }
 
@@ -213,18 +258,62 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
                 _electrodeContactCache.Clear();
                 _segmentCache.Clear();
                 _boundaryMatricesDirty = true;
+                _stiffnessContributionCache.Clear();
+                _robinMassContributionCache.Clear();
+                _couplingContributionCache.Clear();
+                _systemBoundaryTemplateCache.Clear();
+                _lastStiffnessConductivityRevision = -1;
+                _lastSystemConductivityRevision = -1;
+                _lastSystemGroundElectrodeId = -1;
+                _boundaryTemplateVersion = 0;
+                _lastSystemBoundaryTemplateVersion = -1;
                 _referenceMesh = mesh;
                 _cachedContactImpedances = Enumerable.Repeat(double.NaN, mesh.GetElectrodes().Count).ToArray();
+                _elementStiffnessStencils = BuildElementStiffnessStencils(mesh);
+                _gpuAssemblyPlan = _useCudaAcceleration ? BuildGpuAssemblyPlan(_elementStiffnessStencils) : null;
             }
         }
 
         private void BuildStiffnessMatrix(FEMMesh mesh)
         {
+            int conductivityRevision = mesh.ConductivityRevision;
+            if (_lastStiffnessConductivityRevision == conductivityRevision && _stiffnessContributionCache.Count > 0)
+                return;
+
             var sigma = mesh.GetConductivityDistribution();
             var elements = mesh.ElementsTyped;
             int elementCount = elements.Count;
             int estimatedContributionCount = Math.Max(elementCount * 9, 16);
+            bool cudaAvailable = _useCudaAcceleration && FiniteElementCudaContext.IsAvailable;
 
+            var selectedMode = SelectStiffnessAssemblyMode(
+                _useOmpParallelization,
+                _useCudaAcceleration,
+                elementCount,
+                cudaAvailable);
+
+            Dictionary<long, double> contributions;
+            if (selectedMode == FiniteElementAssemblyMode.Cuda &&
+                TryBuildStiffnessContributionsCuda(elements, sigma, out contributions))
+            {
+            }
+            else
+            {
+                contributions = BuildStiffnessContributionsCpu(elements, sigma, estimatedContributionCount);
+            }
+
+            _stiffnessContributionCache = contributions;
+            _stiffnessMatrix = SparseMatrix.OfIndexed(N_phi, N_phi, EnumerateContributions(contributions));
+            _lastStiffnessConductivityRevision = conductivityRevision;
+            _lastSystemConductivityRevision = -1;
+        }
+
+        private Dictionary<long, double> BuildStiffnessContributionsCpu(
+            IReadOnlyList<FEMElement> elements,
+            ConductivityDistribution sigma,
+            int estimatedContributionCount)
+        {
+            int elementCount = elements.Count;
             Dictionary<long, double> contributions;
 
             if (_useOmpParallelization && elementCount > 1)
@@ -239,7 +328,7 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
                     (range, _, local) =>
                     {
                         for (int i = range.Item1; i < range.Item2; i++)
-                            AccumulateElementStiffness(elements[i], sigma, local);
+                            AccumulateElementStiffness(_elementStiffnessStencils[i], sigma.GetConductivity(elements[i].Id), local);
                         return local;
                     },
                     local => bag.Add(local));
@@ -247,15 +336,56 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
                 contributions = new Dictionary<long, double>(estimatedContributionCount);
                 foreach (var local in bag)
                     MergeContributions(contributions, local);
-            }
-            else
-            {
-                contributions = new Dictionary<long, double>(estimatedContributionCount);
-                for (int i = 0; i < elementCount; i++)
-                    AccumulateElementStiffness(elements[i], sigma, contributions);
+
+                _lastStiffnessAssemblyMode = FiniteElementAssemblyMode.ParallelCpu;
+                return contributions;
             }
 
-            _stiffnessMatrix = SparseMatrix.OfIndexed(N_phi, N_phi, EnumerateContributions(contributions));
+            contributions = new Dictionary<long, double>(estimatedContributionCount);
+            for (int i = 0; i < elementCount; i++)
+                AccumulateElementStiffness(_elementStiffnessStencils[i], sigma.GetConductivity(elements[i].Id), contributions);
+
+            _lastStiffnessAssemblyMode = FiniteElementAssemblyMode.SerialCpu;
+            return contributions;
+        }
+
+        private bool TryBuildStiffnessContributionsCuda(
+            IReadOnlyList<FEMElement> elements,
+            ConductivityDistribution sigma,
+            out Dictionary<long, double> contributions)
+        {
+            contributions = [];
+
+            if (!_useCudaAcceleration || _gpuAssemblyPlan == null)
+                return false;
+
+            var conductivityValues = new double[elements.Count];
+            for (int i = 0; i < elements.Count; i++)
+                conductivityValues[i] = sigma.GetConductivity(elements[i].Id);
+
+            if (!FiniteElementCudaContext.TryAssembleStiffnessValues(
+                _gpuAssemblyPlan.EntryElementIndices,
+                _gpuAssemblyPlan.EntryContributionSlots,
+                _gpuAssemblyPlan.EntryBaseValues,
+                conductivityValues,
+                _gpuAssemblyPlan.ContributionKeys.Length,
+                out var assembledValues))
+            {
+                return false;
+            }
+
+            contributions = new Dictionary<long, double>(_gpuAssemblyPlan.ContributionKeys.Length);
+            for (int i = 0; i < assembledValues.Length; i++)
+            {
+                double value = assembledValues[i];
+                if (Math.Abs(value) < 1e-30)
+                    continue;
+
+                contributions[_gpuAssemblyPlan.ContributionKeys[i]] = value;
+            }
+
+            _lastStiffnessAssemblyMode = FiniteElementAssemblyMode.Cuda;
+            return true;
         }
 
         private void BuildBoundaryMatrices(FEMMesh mesh, List<FEMElectrode> electrodes)
@@ -281,43 +411,37 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             for (int ell = 0; ell < electrodes.Count; ell++)
                 AccumulateElectrodeMatrices(mesh, electrodes[ell], ell, massContrib, coupContrib, diag);
 
+            _robinMassContributionCache = massContrib;
+            _couplingContributionCache = coupContrib;
             _robinMassMatrix = SparseMatrix.OfIndexed(N_phi, N_phi, EnumerateContributions(massContrib));
             _couplingMatrix = SparseMatrix.OfIndexed(N_phi, electrodes.Count, EnumerateContributions(coupContrib));
             _electrodeDiagonal = Vector.Build.Dense(diag);
             _boundaryMatricesDirty = false;
+            _systemBoundaryTemplateCache.Clear();
+            _boundaryTemplateVersion++;
+            _lastSystemBoundaryTemplateVersion = -1;
         }
 
-        private void BuildSystemMatrix(List<FEMElectrode> electrodes)
+        private void BuildSystemMatrix(FEMMesh mesh)
         {
+            int conductivityRevision = mesh.ConductivityRevision;
+            if (_lastSystemConductivityRevision == conductivityRevision &&
+                _lastSystemGroundElectrodeId == _groundElectrodeId &&
+                _lastSystemBoundaryTemplateVersion == _boundaryTemplateVersion)
+            {
+                return;
+            }
+
             int systemSize = N_phi + Math.Max(0, L - 1);
-            var contributions = new Dictionary<long, double>();
-
-            foreach (var (row, col, value) in _stiffnessMatrix.EnumerateIndexed(Zeros.AllowSkip))
-                AddContribution(contributions, row, col, value);
-
-            foreach (var (row, col, value) in _robinMassMatrix.EnumerateIndexed(Zeros.AllowSkip))
-                AddContribution(contributions, row, col, value);
-
-            foreach (var (row, col, value) in _couplingMatrix.EnumerateIndexed(Zeros.AllowSkip))
-            {
-                if (col == _groundElectrodeId)
-                    continue;
-
-                int c = ElectrodeColumn(col);
-                AddContribution(contributions, row, c, -value);
-                AddContribution(contributions, c, row, -value);
-            }
-
-            for (int ell = 0; ell < L; ell++)
-            {
-                if (ell == _groundElectrodeId)
-                    continue;
-
-                int c = ElectrodeColumn(ell);
-                AddContribution(contributions, c, c, _electrodeDiagonal[ell]);
-            }
+            var boundaryTemplate = GetOrBuildSystemBoundaryTemplate();
+            var contributions = new Dictionary<long, double>(_stiffnessContributionCache.Count + boundaryTemplate.Count);
+            MergeContributions(contributions, _stiffnessContributionCache);
+            MergeContributions(contributions, boundaryTemplate);
 
             _systemMatrix = SparseMatrix.OfIndexed(systemSize, systemSize, EnumerateContributions(contributions));
+            _lastSystemConductivityRevision = conductivityRevision;
+            _lastSystemGroundElectrodeId = _groundElectrodeId;
+            _lastSystemBoundaryTemplateVersion = _boundaryTemplateVersion;
         }
 
         private void BuildRhsVector(List<FEMElectrode> electrodes)
@@ -341,24 +465,133 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         private int ElectrodeColumn(int electrodeId)
             => electrodeId < _groundElectrodeId ? N_phi + electrodeId : N_phi + electrodeId - 1;
 
-        private static void AccumulateElementStiffness(FEMElement elem, ConductivityDistribution sigma, Dictionary<long, double> target)
+        /// <summary>
+        /// Builds the part of the CEM saddle-point system that depends only on
+        /// the boundary matrices and the currently eliminated ground electrode.
+        /// The conductivity-dependent stiffness block is merged separately so it
+        /// can be rebuilt independently.
+        /// </summary>
+        private Dictionary<long, double> GetOrBuildSystemBoundaryTemplate()
         {
-            double area = elem.Area;
-            double conductivity = sigma.GetConductivity(elem.Id);
-            if (conductivity == 0.0 || area <= 0.0)
+            if (_systemBoundaryTemplateCache.TryGetValue(_groundElectrodeId, out var cached))
+                return cached;
+
+            var template = new Dictionary<long, double>(_robinMassContributionCache.Count + _couplingContributionCache.Count * 2 + L);
+            MergeContributions(template, _robinMassContributionCache);
+
+            foreach (var kv in _couplingContributionCache)
+            {
+                int row = (int)(kv.Key >> 32);
+                int col = (int)(kv.Key & 0xFFFFFFFF);
+                if (col == _groundElectrodeId)
+                    continue;
+
+                int electrodeColumn = ElectrodeColumn(col);
+                AddContribution(template, row, electrodeColumn, -kv.Value);
+                AddContribution(template, electrodeColumn, row, -kv.Value);
+            }
+
+            for (int ell = 0; ell < L; ell++)
+            {
+                if (ell == _groundElectrodeId)
+                    continue;
+
+                AddContribution(template, ElectrodeColumn(ell), ElectrodeColumn(ell), _electrodeDiagonal[ell]);
+            }
+
+            _systemBoundaryTemplateCache[_groundElectrodeId] = template;
+            return template;
+        }
+
+        private static void AccumulateElementStiffness(ElementStiffnessStencil stencil, double conductivity, Dictionary<long, double> target)
+        {
+            if (conductivity == 0.0)
                 return;
 
-            var grads = elem.GradPhi;
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < stencil.EntryCount; i++)
             {
-                int row = elem.Vertices[i].GlobalId;
-                for (int j = 0; j < 3; j++)
+                AddContribution(target,
+                                stencil.Rows[i],
+                                stencil.Columns[i],
+                                conductivity * stencil.BaseValues[i]);
+            }
+        }
+
+        private static ElementStiffnessStencil[] BuildElementStiffnessStencils(FEMMesh mesh)
+        {
+            var elements = mesh.ElementsTyped;
+            var stencils = new ElementStiffnessStencil[elements.Count];
+            for (int elementIndex = 0; elementIndex < elements.Count; elementIndex++)
+            {
+                var element = elements[elementIndex];
+                var rows = new int[9];
+                var columns = new int[9];
+                var baseValues = new double[9];
+                int cursor = 0;
+                double area = element.Area;
+
+                if (area > 0.0)
                 {
-                    int col = elem.Vertices[j].GlobalId;
-                    double gdot = grads[i][0] * grads[j][0] + grads[i][1] * grads[j][1];
-                    AddContribution(target, row, col, conductivity * area * gdot);
+                    var grads = element.GradPhi;
+                    for (int i = 0; i < 3; i++)
+                    {
+                        int row = element.Vertices[i].GlobalId;
+                        for (int j = 0; j < 3; j++)
+                        {
+                            int col = element.Vertices[j].GlobalId;
+                            double gdot = grads[i][0] * grads[j][0] + grads[i][1] * grads[j][1];
+                            rows[cursor] = row;
+                            columns[cursor] = col;
+                            baseValues[cursor] = area * gdot;
+                            cursor++;
+                        }
+                    }
+                }
+
+                stencils[elementIndex] = new ElementStiffnessStencil(rows, columns, baseValues, cursor);
+            }
+
+            return stencils;
+        }
+
+        private static GpuStiffnessAssemblyPlan BuildGpuAssemblyPlan(IReadOnlyList<ElementStiffnessStencil> stencils)
+        {
+            int totalEntryCount = 0;
+            for (int i = 0; i < stencils.Count; i++)
+                totalEntryCount += stencils[i].EntryCount;
+
+            var entryElementIndices = new int[totalEntryCount];
+            var entryContributionSlots = new int[totalEntryCount];
+            var entryBaseValues = new double[totalEntryCount];
+            var contributionKeys = new List<long>(Math.Max(stencils.Count * 6, 16));
+            var keyToContributionSlot = new Dictionary<long, int>(Math.Max(stencils.Count * 6, 16));
+
+            int cursor = 0;
+            for (int elementIndex = 0; elementIndex < stencils.Count; elementIndex++)
+            {
+                var stencil = stencils[elementIndex];
+                for (int i = 0; i < stencil.EntryCount; i++)
+                {
+                    long key = PackKey(stencil.Rows[i], stencil.Columns[i]);
+                    if (!keyToContributionSlot.TryGetValue(key, out int contributionSlot))
+                    {
+                        contributionSlot = contributionKeys.Count;
+                        keyToContributionSlot[key] = contributionSlot;
+                        contributionKeys.Add(key);
+                    }
+
+                    entryElementIndices[cursor] = elementIndex;
+                    entryContributionSlots[cursor] = contributionSlot;
+                    entryBaseValues[cursor] = stencil.BaseValues[i];
+                    cursor++;
                 }
             }
+
+            return new GpuStiffnessAssemblyPlan(
+                contributionKeys.ToArray(),
+                entryElementIndices,
+                entryContributionSlots,
+                entryBaseValues);
         }
 
         private void AccumulateElectrodeMatrices(
@@ -556,6 +789,42 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
             }
 
             return total / count;
+        }
+
+        private readonly struct ElementStiffnessStencil
+        {
+            public ElementStiffnessStencil(int[] rows, int[] columns, double[] baseValues, int entryCount)
+            {
+                Rows = rows;
+                Columns = columns;
+                BaseValues = baseValues;
+                EntryCount = entryCount;
+            }
+
+            public int[] Rows { get; }
+            public int[] Columns { get; }
+            public double[] BaseValues { get; }
+            public int EntryCount { get; }
+        }
+
+        private sealed class GpuStiffnessAssemblyPlan
+        {
+            public GpuStiffnessAssemblyPlan(
+                long[] contributionKeys,
+                int[] entryElementIndices,
+                int[] entryContributionSlots,
+                double[] entryBaseValues)
+            {
+                ContributionKeys = contributionKeys;
+                EntryElementIndices = entryElementIndices;
+                EntryContributionSlots = entryContributionSlots;
+                EntryBaseValues = entryBaseValues;
+            }
+
+            public long[] ContributionKeys { get; }
+            public int[] EntryElementIndices { get; }
+            public int[] EntryContributionSlots { get; }
+            public double[] EntryBaseValues { get; }
         }
 
         #endregion

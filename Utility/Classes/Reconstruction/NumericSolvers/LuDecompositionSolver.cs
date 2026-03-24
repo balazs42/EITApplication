@@ -11,6 +11,9 @@ namespace Utility.Classes.Reconstruction.NumericSolvers
     /// </summary>
     public sealed class LuDecompositionSolver : INumericSolver
     {
+        private Matrix? _cachedMatrix;
+        private MathNet.Numerics.LinearAlgebra.Factorization.LU<double>? _cachedFactorization;
+
         public Vector SolveLinearSystem(Matrix A, Vector b)
         {
             if (A == null)
@@ -27,11 +30,17 @@ namespace Utility.Classes.Reconstruction.NumericSolvers
                 b.Enumerate().Any(d => double.IsNaN(d) || double.IsInfinity(d)))
                 throw new InvalidOperationException("System contains invalid entries.");
 
-            var lu = A.LU();
-            if (lu.Determinant == 0.0)
-                throw new InvalidOperationException("Matrix is singular or nearly so.");
+            if (!ReferenceEquals(_cachedMatrix, A) || _cachedFactorization == null)
+            {
+                var lu = A.LU();
+                if (lu.Determinant == 0.0)
+                    throw new InvalidOperationException("Matrix is singular or nearly so.");
 
-            return lu.Solve(b);
+                _cachedMatrix = A;
+                _cachedFactorization = lu;
+            }
+
+            return _cachedFactorization.Solve(b);
         }
     }
 }

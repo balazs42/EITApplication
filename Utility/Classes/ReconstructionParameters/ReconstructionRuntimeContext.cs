@@ -61,6 +61,9 @@ namespace Utility.Classes.ReconstructionParameters
         private bool useCudaAcceleration = false;
 
         [ObservableProperty]
+        private bool useParallelFrameEvaluation = false;
+
+        [ObservableProperty]
         private bool useLbmGaussianFilter = false;
 
         [ObservableProperty]
@@ -139,6 +142,7 @@ namespace Utility.Classes.ReconstructionParameters
             UsePotentialDifferences = false;
             UseOmpParallelization = false;
             UseCudaAcceleration = false;
+            UseParallelFrameEvaluation = false;
             Mesh = DiscretizationType.FEM;
         }
 
@@ -171,6 +175,7 @@ namespace Utility.Classes.ReconstructionParameters
             UsePotentialDifferences = usePotentialDifferences;
             UseOmpParallelization = false;
             UseCudaAcceleration = false;
+            UseParallelFrameEvaluation = false;
 
             Mesh = (differentialEquationSolver == DifferentialEquationSolver.FEM) ? DiscretizationType.FEM : DiscretizationType.LBM;
         }

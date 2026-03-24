@@ -36,6 +36,7 @@ namespace Utility.Classes.Discretizer
         public abstract PotentialDistribution PotentialDistribution { get; protected set; }
 
         public DiscretizationMetaData Metadata { get; set; } = new();
+        public int ConductivityRevision { get; protected set; }
 
         public ConductivityDistribution GetConductivityDistribution() => ConductivityDistribution;
         public PotentialDistribution GetPotentialDistribution() => PotentialDistribution;
@@ -96,6 +97,8 @@ namespace Utility.Classes.Discretizer
             foreach (var e in _elements)
                 if (cd.Conductivities.TryGetValue(e.Id, out var value))
                     e.Conductivity = value;
+
+            ConductivityRevision++;
         }
 
         public sealed override void SetPotentialDistribution(PotentialDistribution pd)
@@ -135,6 +138,7 @@ namespace Utility.Classes.Discretizer
 
             el.Conductivity = value;
             ConductivityDistribution.Conductivities[id] = value;
+            ConductivityRevision++;
         }
 
         protected virtual void RefreshElectrodePotentialsFromState()

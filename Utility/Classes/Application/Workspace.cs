@@ -15,6 +15,7 @@ namespace Utility.Classes.Application
     public static class Workspace
     {
         private const int MaxMessageCount = 200;
+        private static readonly object _messagesSync = new();
 
         private static User _user { get; set; } = new DefaultUser(0, "No User");
         private static ReconstructionRuntimeContext _reconstructionParameters = new();
@@ -305,9 +306,16 @@ namespace Utility.Classes.Application
         {
             DateTime time = DateTime.Now;
             var msg = new WorkspaceMessage(time, message, type);
-            _messages.Add(msg);
-            EnforceMessageLimit();
-            MessageAdded?.Invoke(msg);
+            Action<WorkspaceMessage>? handlers;
+
+            lock (_messagesSync)
+            {
+                _messages.Add(msg);
+                EnforceMessageLimitUnsafe();
+                handlers = MessageAdded;
+            }
+
+            handlers?.Invoke(msg);
         }
 
         public static void AddWarningMessage(string message, WorkspaceMessageType type = WorkspaceMessageType.Warning) => AddMessage("Warning: " + message, type);
@@ -316,9 +324,22 @@ namespace Utility.Classes.Application
         public static void AddInfoMessage(string message, WorkspaceMessageType type = WorkspaceMessageType.Info) => AddMessage("Info: " + message, type);
         public static void AddLogMessage(string source, string message, WorkspaceMessageType type = WorkspaceMessageType.Log) => AddMessage(source + ": " + message, type);
 
-        public static IReadOnlyList<WorkspaceMessage> GetMessages() => _messages;
+        /// <summary>
+        /// Returns a stable snapshot of the current workspace messages.
+        /// The backing store is updated by background reconstruction tasks, so
+        /// callers must not enumerate the live list directly.
+        /// </summary>
+        public static IReadOnlyList<WorkspaceMessage> GetMessages()
+        {
+            lock (_messagesSync)
+                return _messages.ToArray();
+        }
 
-        private static void EnforceMessageLimit()
+        /// <summary>
+        /// Trims the in-memory message buffer to the configured limit.
+        /// The caller must hold <see cref="_messagesSync"/> while invoking this method.
+        /// </summary>
+        private static void EnforceMessageLimitUnsafe()
         {
             while (_messages.Count > MaxMessageCount)
             {

@@ -49,7 +49,7 @@ namespace BusinessLayer
         private double _regularizationWeight = 0.001;       // weight of regularization contribution
         private InitialDistributionTypes _initialDistributionType = InitialDistributionTypes.SlightlyDiffering;
         private bool _useOmpParallelization = false;        // enable OMP for FEM assembly
-        private bool _useCudaParallelization = false;       // enable CUDA in LBM routines
+        private bool _useCudaParallelization = false;       // effective CUDA usage for auto-accelerated FEM or explicit LBM routines
         private bool _usePotentialDifferences = false;      // represent data as sequential potential differences instead of absolute values
         private bool _useLbmConductivityFilter = false;     // apply smoothing to conductivity updates on LBM grids
         private int _lbmConductivityFilterInterval = 5;     // iteration cadence for conductivity smoothing
@@ -118,18 +118,27 @@ namespace BusinessLayer
 
                 // --- Numeric linear solver / parallelization choices ---
                 _numericSolverChoice = parameters.NumericSolver;
-                _numericSolver = NumericSolverFactory.Create(_numericSolverChoice);
                 _useOmpParallelization = parameters.UseOmpParallelization;
-                _useCudaParallelization = parameters.UseCudaAcceleration;
+                bool autoUseCudaForFem = parameters.DifferentialEquationSolver == Utility.Classes.ReconstructionParameters.DifferentialEquationSolver.FEM
+                                         && discretization is FEMMesh femMesh
+                                         && FiniteElementGpuExecutionPolicy.ShouldUseCudaForReconstruction(femMesh);
+                _useCudaParallelization = autoUseCudaForFem || (parameters.DifferentialEquationSolver == Utility.Classes.ReconstructionParameters.DifferentialEquationSolver.LBM
+                    && parameters.UseCudaAcceleration);
+                _numericSolver = NumericSolverFactory.Create(_numericSolverChoice,
+                                                             _useOmpParallelization,
+                                                             _useCudaParallelization);
 
                 // Inform user about assembly/solver mode
-                if (parameters.DifferentialEquationSolver is FiniteElementDESolver)
+                if (parameters.DifferentialEquationSolver == Utility.Classes.ReconstructionParameters.DifferentialEquationSolver.FEM)
                 {
-                    Workspace.AddLogMessage("Reconstruction", _useOmpParallelization
-                        ? "Using OMP-accelerated finite element assembly."
-                        : "Using standard finite element assembly.");
+                    Workspace.AddLogMessage("Reconstruction",
+                        autoUseCudaForFem
+                            ? "Large FEM mesh detected; enabling CUDA stiffness assembly when available."
+                            : _useOmpParallelization
+                                ? "Using OMP-accelerated finite element assembly."
+                                : "Using standard finite element assembly.");
                 }
-                else if (parameters.DifferentialEquationSolver is LatticeBoltzmannDESolver)
+                else if (parameters.DifferentialEquationSolver == Utility.Classes.ReconstructionParameters.DifferentialEquationSolver.LBM)
                 {
                     Workspace.AddLogMessage("Reconstruction", _useCudaParallelization
                         ? "Using CUDA-accelerated Lattice Boltzmann solver."
@@ -650,32 +659,16 @@ namespace BusinessLayer
             var phiGradient = FiniteElementOperators.CalculateElementWiseGradient(mesh, phi, _useOmpParallelization);
             var muGradient = FiniteElementOperators.CalculateElementWiseGradient(mesh, mu, _useOmpParallelization);
 
-            // Data gradient: -(?µ·??)·Area per element
-            var dataGradientValues = new Dictionary<int, double>(elements.Count);
-            if (_useOmpParallelization && elements.Count > 1)
-            {
-                var entries = new KeyValuePair<int, double>[elements.Count];
-                Parallel.For(0, elements.Count, index =>
-                {
-                    var element = elements[index];
-                    var gPhi = phiGradient.GetVector(element.Id);
-                    var gMu = muGradient.GetVector(element.Id);
-                    entries[index] = new KeyValuePair<int, double>(element.Id, -(gMu.X * gPhi.X + gMu.Y * gPhi.Y) * element.Area);
-                });
-
-                for (int i = 0; i < entries.Length; i++)
-                    dataGradientValues[entries[i].Key] = entries[i].Value;
-            }
-            else
-            {
-                foreach (var element in elements)
-                {
-                    var gPhi = phiGradient.GetVector(element.Id);
-                    var gMu = muGradient.GetVector(element.Id);
-                    dataGradientValues[element.Id] = -(gMu.X * gPhi.X + gMu.Y * gPhi.Y) * element.Area;
-                }
-            }
-            ConductivityDistribution dataGrad = new ConductivityDistribution(dataGradientValues);
+            ConductivityDistribution dataGrad = new ConductivityDistribution(
+                elements.ToDictionary(
+                    el => el.Id,
+                    el =>
+                    {
+                        var gPhi = phiGradient.GetVector(el.Id);
+                        var gMu = muGradient.GetVector(el.Id);
+                        return -(gMu.X * gPhi.X + gMu.Y * gPhi.Y) * el.Area;
+                    })
+            );
 
             // Regularization gradient for the current sigma
             ConductivityDistribution sigma = mesh.GetConductivityDistribution();

@@ -5,6 +5,7 @@ using Utility.Classes.Factories;
 using Utility.Classes.Measurement;
 using Utility.Classes;
 using Utility.Classes.ReconstructionParameters;
+using Utility.Classes.Solvers.FiniteElementSolver;
 
 namespace BusinessLayer
 {
@@ -14,7 +15,7 @@ namespace BusinessLayer
     /// </summary>
     public static class ReconstructionConfigurationMaterializer
     {
-        public static ReconstructionRuntimeContext Materialize(CompleteReconstructionConfiguration configuration)
+        public static ReconstructionRuntimeContext Materialize(CompleteReconstructionConfiguration configuration, FEMMesh? meshOverride = null)
         {
             if (configuration == null)
                 throw new ArgumentNullException(nameof(configuration));
@@ -50,11 +51,23 @@ namespace BusinessLayer
                 }
             }
 
-            var mesh = Workspace.GetDiscretization() as FEMMesh
+            var mesh = meshOverride
+                       ?? Workspace.GetDiscretization() as FEMMesh
                 ?? throw new InvalidOperationException("FEM mesh is required before starting reconstruction.");
 
-            var numericSolver = NumericSolverFactory.Create(parameters.NumericSolver, parameters.UseOmpParallelization, parameters.UseCudaAcceleration);
-            var differentialEquationSolver = DifferentialEquationSolverFactory.Create(mesh, parameters.DifferentialEquationSolver, numericSolver);
+            bool useOmpParallelization = parameters.UseOmpParallelization;
+            bool useCudaAcceleration = parameters.DifferentialEquationSolver == DifferentialEquationSolver.FEM
+                ? FiniteElementGpuExecutionPolicy.ShouldUseCudaForReconstruction(mesh)
+                : parameters.UseCudaAcceleration;
+
+            var numericSolver = NumericSolverFactory.Create(parameters.NumericSolver, useOmpParallelization, useCudaAcceleration);
+            var differentialEquationSolver = DifferentialEquationSolverFactory.Create(mesh,
+                                                                                      parameters.DifferentialEquationSolver,
+                                                                                      numericSolver,
+                                                                                      useOmpParallelization,
+                                                                                      useCudaAcceleration,
+                                                                                      parameters.UseLbmGaussianFilter,
+                                                                                      parameters.LbmGaussianFilterSize);
 
             // Capture the target/original distribution from the workspace snapshot when available
             // so the initialization logic cannot overwrite the ground truth by reference.
@@ -215,6 +228,7 @@ namespace BusinessLayer
                 UsePotentialDifferences = source.UsePotentialDifferences,
                 UseOmpParallelization = source.UseOmpParallelization,
                 UseCudaAcceleration = source.UseCudaAcceleration,
+                UseParallelFrameEvaluation = source.UseParallelFrameEvaluation,
                 UseLbmGaussianFilter = source.UseLbmGaussianFilter,
                 UseLbmConductivityFilter = source.UseLbmConductivityFilter,
                 LbmGaussianFilterSize = source.LbmGaussianFilterSize,

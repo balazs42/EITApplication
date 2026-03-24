@@ -16,7 +16,7 @@ namespace Utility.Classes.Factories
             NumericSolver.LU => CreateLUDecompositionSolver(),
             NumericSolver.SVD => CreateSVDSolver(),
             NumericSolver.tSVD => CreatetSVDSolver(),
-            NumericSolver.GMRES => CreateGMRESSolver(),
+            NumericSolver.GMRES => CreateGMRESSolver(useCudaAcceleration),
             NumericSolver.ConjugateGradient => CreateConjugateGradientSolver(),
             _ => throw new NotSupportedException()
         };
@@ -45,11 +45,14 @@ namespace Utility.Classes.Factories
 
             return solver;
         }
-        private static GmresSolver CreateGMRESSolver()
+        private static GmresSolver CreateGMRESSolver(bool useCudaAcceleration)
         {
-            var solver = new GmresSolver();
+            var solver = new GmresSolver(useCudaAcceleration);
 
-            Workspace.AddLogMessage("NumericSolverFactory","Created GRMES Numeric Solver object.");
+            Workspace.AddLogMessage("NumericSolverFactory",
+                useCudaAcceleration
+                    ? "Created GMRES Numeric Solver object with CUDA support for large vector workloads."
+                    : "Created GMRES Numeric Solver object.");
 
             return solver;
         }

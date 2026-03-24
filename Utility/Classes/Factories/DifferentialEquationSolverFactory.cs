@@ -20,15 +20,18 @@ namespace Utility.Classes.Factories
                                                          bool useLbmPotentialFilter = false,
                                                          int lbmGaussianKernelSize = 3) => des switch
         {
-            DifferentialEquationSolver.FEM => CreateFiniteElementSolver((FEMMesh)discretization, numericSolver, useOmpParallelization),
+            DifferentialEquationSolver.FEM => CreateFiniteElementSolver((FEMMesh)discretization, numericSolver, useOmpParallelization, useCudaAcceleration),
             DifferentialEquationSolver.LBM => CreateLatticeBoltzmannSolver(useCudaAcceleration, useLbmPotentialFilter, lbmGaussianKernelSize),
             DifferentialEquationSolver.Graph => CreateGraphBasedSolver((FEMMesh)discretization, numericSolver),
             _ => throw new NotSupportedException()
         };
 
-        private static FiniteElementDESolver CreateFiniteElementSolver(FEMMesh mesh, INumericSolver numericSolver, bool useOmpParallelization)
+        private static FiniteElementDESolver CreateFiniteElementSolver(FEMMesh mesh,
+                                                                       INumericSolver numericSolver,
+                                                                       bool useOmpParallelization,
+                                                                       bool useCudaAcceleration)
         {
-            var deSolver = new FiniteElementDESolver(mesh, numericSolver, useOmpParallelization);
+            var deSolver = new FiniteElementDESolver(mesh, numericSolver, useOmpParallelization, useCudaAcceleration);
 
             Workspace.AddLogMessage("DifferentialEquationSolverFactory", "Created Finite Element solver object.");
 

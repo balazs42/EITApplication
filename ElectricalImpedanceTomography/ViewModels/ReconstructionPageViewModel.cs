@@ -2229,6 +2229,7 @@ namespace ElectricalImpedanceTomography.ViewModels
                 parameters.DrivePattern,
                 parameters.DrivePatternSkip,
                 parameters.UsePotentialDifferences,
+                parameters.UseParallelFrameEvaluation,
                 parameters.UseOmpParallelization,
                 parameters.UseCudaAcceleration);
 
@@ -2475,6 +2476,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             DrivePattern DrivePattern,
             int DrivePatternSkip,
             bool UsePotentialDifferences,
+            bool UseParallelFrameEvaluation,
             bool UseOmpParallelization,
             bool UseCudaAcceleration);
 

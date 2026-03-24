@@ -378,8 +378,32 @@
                             </VerticalStackLayout>
 
                             <BoxView Grid.Row="5" Color="#BBBBBB" HeightRequest="1"/>
+
+                            <VerticalStackLayout Grid.Row="6"
+                                                 Spacing="6"
+                                                 IsVisible="{Binding UseBlockConfiguration}">
+                                <HorizontalStackLayout Spacing="10">
+                                    <Label HorizontalOptions="Start"
+                                           VerticalOptions="Center"
+                                           Text="Parallelize Excitation Frames"
+                                           FontFamily="SF Pro Text"
+                                           FontAttributes="None"/>
+                                    <Switch IsToggled="{Binding ReconstructionParameters.UseParallelFrameEvaluation}"
+                                            HorizontalOptions="Start"/>
+                                </HorizontalStackLayout>
+                                <Label Text="Block FEM only. Runs one full drive cycle in parallel, accumulates the cycle gradient once, and publishes only the final cycle result."
+                                       FontSize="Micro"
+                                       FontAttributes="None"
+                                       LineBreakMode="WordWrap"
+                                       TextColor="#D5DFF4"/>
+                            </VerticalStackLayout>
+
+                            <BoxView Grid.Row="7"
+                                     Color="#BBBBBB"
+                                     HeightRequest="1"
+                                     IsVisible="{Binding UseBlockConfiguration}"/>
                             
-                            <HorizontalStackLayout Grid.Row="6" Spacing="10">
+                            <HorizontalStackLayout Grid.Row="8" Spacing="10">
                                 <Label HorizontalOptions="Start"
                                        VerticalOptions="Center"
                                        Text="Use Potential Differences"
@@ -389,7 +413,7 @@
                                         HorizontalOptions="Start"/>    
                             </HorizontalStackLayout>
 
-                            <BoxView Grid.Row="7" Color="#BBBBBB" HeightRequest="1"/>
+                            <BoxView Grid.Row="9" Color="#BBBBBB" HeightRequest="1"/>
 <!--
                             <HorizontalStackLayout Grid.Row="8" Spacing="40">
                                 <Label Grid.Row="3" Text="Starting Excitation Electrode" FontAttributes="None" VerticalOptions="Center"/>

@@ -72,17 +72,19 @@ namespace BusinessLayer
                     ?? Workspace.GetDiscretization() as FEMMesh
                     ?? throw new InvalidOperationException("Convexification reconstruction requires an initialized FEM mesh.");
             _mesh.UpdateElectrodeLengths();
+            bool useOmpParallelization = parameters.UseOmpParallelization;
+            bool useCudaAcceleration = FiniteElementGpuExecutionPolicy.ShouldUseCudaForReconstruction(_mesh);
 
             _numericSolver = parameters.RuntimeNumericSolver
                              ?? NumericSolverFactory.Create(parameters.NumericSolver,
-                                                            parameters.UseOmpParallelization,
-                                                            parameters.UseCudaAcceleration);
+                                                            useOmpParallelization,
+                                                            useCudaAcceleration);
             _differentialEquationSolver = parameters.RuntimeDifferentialEquationSolver
                                           ?? DifferentialEquationSolverFactory.Create(_mesh,
                                                                                       Utility.Classes.ReconstructionParameters.DifferentialEquationSolver.FEM,
                                                                                       _numericSolver,
-                                                                                      parameters.UseOmpParallelization,
-                                                                                      parameters.UseCudaAcceleration);
+                                                                                      useOmpParallelization,
+                                                                                      useCudaAcceleration);
 
             _originalDistribution = parameters.OriginalDistribution
                                     ?? Workspace.GetOriginalConductivityDistribution()

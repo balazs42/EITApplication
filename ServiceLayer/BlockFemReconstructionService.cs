@@ -43,6 +43,7 @@ namespace ServiceLayer
         // Buffer to accumulate frames of the current drive-pattern cycle; flushed into a result when the cycle completes
         private readonly List<ReconstructionFrame> _cycleFrames = new();
         private ConductivityDistribution? _cycleInitialSigma;
+        private bool UseParallelFrameEvaluation => Workspace.GetReconstructionParameters().UseParallelFrameEvaluation;
 
         public override bool IsInitialized => _initialized && _runtimeContext != null;
 
@@ -65,7 +66,7 @@ namespace ServiceLayer
 
             // 2) Initialize the persistence with the configuration which materializes runtime objects
             //    (mesh, solvers, optimizers, regularizers, etc.) and exposes them via the runtime context.
-            _persistence.Initialize(configuration, reinit);
+            _persistence.Initialize(configuration, reinit, discretization as FEMMesh);
             _runtimeContext = _persistence.RuntimeContext
                               ?? throw new InvalidOperationException("Failed to materialize reconstruction runtime context.");
 
@@ -117,6 +118,12 @@ namespace ServiceLayer
                                                                                      double excitationAmplitude)
             => Task.Run(() =>
             {
+                if (UseParallelFrameEvaluation)
+                    return ExecuteParallelReconstructionCycle(stepSize,
+                                                              regularizationWeight,
+                                                              excitationAmplitude,
+                                                              CancellationToken.None);
+
                 // Execute exactly one complete drive-pattern cycle of reconstruction.
                 // Each call to ExecuteReconstructionStep processes one measurement frame and may emit a result
                 // only when the cycle completes. We return the last non-null result from the loop.
@@ -133,7 +140,12 @@ namespace ServiceLayer
         protected override Task<ReconstructionResult?> StepCoreAsync(double stepSize,
                                                                      double regularizationWeight,
                                                                      double excitationAmplitude)
-            => Task.Run(() => ExecuteReconstructionStep(stepSize, regularizationWeight, excitationAmplitude));
+            => Task.Run(() => UseParallelFrameEvaluation
+                ? ExecuteParallelReconstructionCycle(stepSize,
+                                                    regularizationWeight,
+                                                    excitationAmplitude,
+                                                    CancellationToken.None)
+                : ExecuteReconstructionStep(stepSize, regularizationWeight, excitationAmplitude));
 
         protected override async Task RunCoreAsync(int maxIterationCount,
                                                    double stepSize,
@@ -148,6 +160,17 @@ namespace ServiceLayer
                 await WaitWhilePausedAsync(cancellationToken);
                 if (cancellationToken.IsCancellationRequested)
                     break;
+
+                if (UseParallelFrameEvaluation)
+                {
+                    var parallelResult = ExecuteParallelReconstructionCycle(stepSize,
+                                                                           regularizationWeight,
+                                                                           excitationAmplitude,
+                                                                           cancellationToken);
+                    if (parallelResult != null)
+                        _currentIteration++;
+                    continue;
+                }
 
                 ReconstructionResult? result = null;
                 int cycleLength = Math.Max(1, _measurementService.FramesPerCycle);
@@ -252,14 +275,106 @@ namespace ServiceLayer
             }
         }
 
+        // Optional cycle-batched execution mode for block FEM reconstruction.
+        // Each drive-pattern excitation is solved on its own worker mesh so frame
+        // calculations can run in parallel. The conductivity update is then
+        // applied once per full cycle from the accumulated frame gradients.
+        private ReconstructionResult? ExecuteParallelReconstructionCycle(double stepSize,
+                                                                         double regularizationWeight,
+                                                                         double excitationAmplitude,
+                                                                         CancellationToken cancellationToken)
+        {
+            if (!_initialized)
+            {
+                var discretization = Workspace.GetDiscretization()
+                                    ?? throw new InvalidOperationException("Block reconstruction requires an initialized discretization.");
+                var parameters = Workspace.GetReconstructionParameters();
+                InitializeReconstruction(discretization, parameters, false);
+            }
+            if (_runtimeContext == null)
+                throw new InvalidOperationException("Reconstruction runtime context is not available.");
+
+            try
+            {
+                var mesh = _runtimeContext.RuntimeMesh
+                          ?? throw new InvalidOperationException("Runtime mesh missing from reconstruction context.");
+
+                if (_cycleFrames.Count == 0)
+                    _cycleInitialSigma = mesh.GetConductivityDistribution().CreateCompactHistoryClone();
+
+                var cycleMeasurements = PrepareMeasurementCycle(excitationAmplitude);
+                if (cycleMeasurements.Count == 0)
+                    return null;
+
+                var configuration = Workspace.GetCompleteReconstructionConfiguration()
+                                   ?? throw new InvalidOperationException("Block reconstruction requires a configured reconstruction canvas.");
+                var sigmaSnapshot = mesh.GetConductivityDistribution().CreateCompactHistoryClone();
+                var frames = new ReconstructionFrame[cycleMeasurements.Count];
+
+                var parallelOptions = new ParallelOptions
+                {
+                    CancellationToken = cancellationToken,
+                    MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount)
+                };
+
+                Parallel.For(0, cycleMeasurements.Count, parallelOptions, frameIndex =>
+                {
+                    parallelOptions.CancellationToken.ThrowIfCancellationRequested();
+
+                    var workerMesh = (FEMMesh)mesh.DeepCopy();
+                    var workerSigma = new ConductivityDistribution(sigmaSnapshot.Conductivities);
+                    workerMesh.SetConductivityDistribution(workerSigma);
+
+                    var worker = new BlockFemReconstructionPersistence();
+                    worker.Initialize(configuration, true, workerMesh);
+                    worker.UpdateCurrentDistribution(workerSigma);
+
+                    var workerFrames = worker.Step(cycleMeasurements[frameIndex], _frameIndex + frameIndex);
+                    frames[frameIndex] = workerFrames.Count > 0
+                        ? workerFrames[0]
+                        : throw new InvalidOperationException("Parallel block FEM worker did not produce a reconstruction frame.");
+                });
+
+                foreach (var frame in frames)
+                    StoreFrame(frame, publishToUi: false);
+
+                var updated = ApplyGradientUpdate(frames,
+                                                 mesh.GetConductivityDistribution(),
+                                                 stepSize,
+                                                 regularizationWeight);
+                if (updated == null)
+                    throw new InvalidOperationException("Failed to apply the parallel block FEM optimizer update.");
+
+                _frameIndex += frames.Length;
+
+                var previous = _cycleInitialSigma ?? sigmaSnapshot;
+                var reconstructed = mesh.GetConductivityDistribution().CreateCompactHistoryClone();
+                var result = new ReconstructionResult(mesh.GetDiscretization(),
+                                                      _runtimeContext.OriginalDistribution,
+                                                      previous,
+                                                      reconstructed,
+                                                      new List<ReconstructionFrame>(_cycleFrames));
+
+                PublishResultToWorkspace(result);
+                _cycleFrames.Clear();
+                _cycleInitialSigma = null;
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                throw;
+            }
+        }
+
         /// <summary>
         /// Adds a reconstruction frame to the workspace and optionally notifies listeners for live visualisation.
         /// </summary>
         /// <param name="frame">Frame to surface.</param>
         private void PublishFrameToWorkspace(ReconstructionFrame frame)
         {
-            Workspace.AddReconstructionFrameToWorkspace(frame);
-            base.PublishFrame(frame);
+            StoreFrame(frame, publishToUi: true);
         }
 
         private void PublishResultToWorkspace(ReconstructionResult result)
@@ -290,34 +405,61 @@ namespace ServiceLayer
             var allMeasurements = _measurementService.GetAllMeasurements();
             if (allMeasurements.Count == 0)
             {
-                // No frames available: create an empty measurement with the current pattern only.
-                return new EITMeasurement(new List<double[]>(), _measurementService.CurrentPattern)
-                {   
+                return new EITMeasurement([new double[electrodes.Count]], _measurementService.CurrentPattern)
+                {
                     CurrentAmplitude = excitationAmplitude
                 };
             }
 
-            // Compute the logical step index within the current cycle for pattern reconstruction and BC mapping.
-            int cycleLength = Math.Max(1, _measurementService.FramesPerCycle);
+            int cycleLength = Math.Max(1, Math.Min(_measurementService.FramesPerCycle, allMeasurements.Count));
             int stepIndex = _frameIndex % cycleLength;
+            return CreateMeasurementForStep(electrodes, allMeasurements, stepIndex, excitationAmplitude);
+        }
 
-            // Build the full step context so the block persistence receives both the
-            // prepared frame and the drive-pattern metadata that determines the
-            // excitation/ground electrodes for this step.
+        private List<EITMeasurement> PrepareMeasurementCycle(double excitationAmplitude)
+        {
+            if (_runtimeContext == null)
+                throw new InvalidOperationException("Reconstruction runtime context is not available.");
+
+            _measurementService.EnsureMeasurements(excitationAmplitude);
+
+            var mesh = _runtimeContext.RuntimeMesh
+                       ?? throw new InvalidOperationException("Runtime mesh missing from reconstruction context.");
+            var electrodes = mesh.GetElectrodes().Cast<Electrode>().ToList();
+            var allMeasurements = _measurementService.GetAllMeasurements();
+            if (allMeasurements.Count == 0)
+                return [];
+
+            int cycleLength = Math.Max(1, Math.Min(_measurementService.FramesPerCycle, allMeasurements.Count));
+            var result = new List<EITMeasurement>(cycleLength);
+            for (int stepIndex = 0; stepIndex < cycleLength; stepIndex++)
+                result.Add(CreateMeasurementForStep(electrodes, allMeasurements, stepIndex, excitationAmplitude));
+
+            return result;
+        }
+
+        private EITMeasurement CreateMeasurementForStep(IList<Electrode> electrodes,
+                                                        IReadOnlyList<double[]> allMeasurements,
+                                                        int stepIndex,
+                                                        double excitationAmplitude)
+        {
             var stepContext = _measurementService.BuildStepContext(electrodes, allMeasurements[stepIndex], stepIndex);
-            var preparedFrames = new List<double[]> { stepContext.PreparedFrame };
-            var stepIndices = new List<int> { stepContext.NormalizedStepIndex };
-
-            // Prefer real measurement amplitude if available; otherwise fall back to the requested excitation amplitude.
-            var measurement = new EITMeasurement(preparedFrames,
-                                                 stepContext.Pattern,
-                                                 stepContext.PatternDescription,
-                                                 stepIndices)
+            return new EITMeasurement([stepContext.PreparedFrame],
+                                      stepContext.Pattern,
+                                      stepContext.PatternDescription,
+                                      [stepContext.NormalizedStepIndex])
             {
                 CurrentAmplitude = _measurementService.RealMeasurementAmplitude ?? excitationAmplitude
             };
+        }
 
-            return measurement;
+        private void StoreFrame(ReconstructionFrame frame, bool publishToUi)
+        {
+            _cycleFrames.Add(frame);
+            Workspace.AddReconstructionFrameToWorkspace(frame);
+
+            if (publishToUi)
+                base.PublishFrame(frame);
         }
 
         // Applies an optimization update over one or more already-computed reconstruction frames.

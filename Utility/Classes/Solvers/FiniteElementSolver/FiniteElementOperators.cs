@@ -15,32 +15,28 @@ namespace Utility.Classes.Solvers.FiniteElementSolver
         public static VectorField CalculateElementWiseGradient(FEMMesh femMesh, ScalarField scalarField, bool useParallel = false)
         {
             var elements = femMesh.ElementsTyped;
-            int elementCount = elements.Count;
-
-            var gradientData = new Dictionary<int, (double Gx, double Gy)>(elementCount);
-            
-            if (useParallel && elementCount > 1)
+            if (useParallel && elements.Count > 1)
             {
-                var gradients = new KeyValuePair<int, (double X, double Y)>[elementCount];
-                Parallel.For(0, elementCount, i =>
+                var entries = new KeyValuePair<int, (double X, double Y)>[elements.Count];
+                Parallel.For(0, elements.Count, index =>
                 {
-                    var element = elements[i];
-                    gradients[i] = new KeyValuePair<int, (double X, double Y)>(element.Id, ComputeElementGradient(element, scalarField));
+                    var element = elements[index];
+                    entries[index] = new KeyValuePair<int, (double X, double Y)>(
+                        element.Id,
+                        ComputeElementGradient(element, scalarField));
                 });
 
-                for (int i = 0; i < gradients.Length; i++)
-                    gradientData[gradients[i].Key] = gradients[i].Value;
+                var gradientData = new Dictionary<int, (double X, double Y)>(elements.Count);
+                for (int i = 0; i < entries.Length; i++)
+                    gradientData[entries[i].Key] = entries[i].Value;
 
                 return new VectorField(gradientData);
             }
 
-            for (int i = 0; i < elementCount; i++)
-            {
-                var element = elements[i];
-                gradientData[element.Id] = ComputeElementGradient(element, scalarField);
-            }
-
-            return new VectorField(gradientData);
+            return new VectorField(
+                elements.ToDictionary(
+                    element => element.Id,
+                    element => ComputeElementGradient(element, scalarField)));
         }
 
         /// <summary>

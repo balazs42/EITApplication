@@ -12,10 +12,13 @@ namespace Utility.Classes.Reconstruction.DESolvers
         private readonly FiniteElementSolver _solver;
         private readonly FEMMesh _mesh;
 
-        public FiniteElementDESolver(FEMMesh mesh, INumericSolver numericSolver, bool useOmpParallelization = false)
+        public FiniteElementDESolver(FEMMesh mesh,
+                                     INumericSolver numericSolver,
+                                     bool useOmpParallelization = false,
+                                     bool useCudaAcceleration = false)
         {
             _mesh = mesh;
-            _solver = new FiniteElementSolver(mesh, numericSolver, useOmpParallelization);
+            _solver = new FiniteElementSolver(mesh, numericSolver, useOmpParallelization, useCudaAcceleration);
         }
 
         /// <summary>

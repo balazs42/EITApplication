@@ -152,6 +152,12 @@ namespace BusinessLayer
         /// Used to route gradients to the correct optimizer and blend multiple optimizer outputs.
         /// </summary>
         private Dictionary<string, (double weight, INumericOptimizer optimizer)> _optimizerMap = new();
+        private Dictionary<string, List<(string sourceId, double connectionWeight)>> _optimizerErrorMetricConnections = new();
+        private Dictionary<string, List<(string sourceId, double connectionWeight)>> _optimizerRegularizerConnections = new();
+        private List<FEMElement> _elements = [];
+        private List<FEMElectrode> _electrodes = [];
+        private List<FEMElectrode> _realElectrodes = [];
+        private bool _useOmpParallelization;
 
         /// <summary>
         /// Flag to prevent redundant initialization. Once true, Initialize() becomes a no-op.
@@ -179,7 +185,7 @@ namespace BusinessLayer
         /// <param name="configuration">Complete block-based configuration from the canvas</param>
         /// <exception cref="ArgumentNullException">If configuration is null</exception>
         /// <exception cref="InvalidOperationException">If materialization fails or required components are missing</exception>
-        public void Initialize(CompleteReconstructionConfiguration configuration, bool reinit = false)
+        public void Initialize(CompleteReconstructionConfiguration configuration, bool reinit = false, FEMMesh? meshOverride = null)
         {
             // Guard: prevent re-initialization which could corrupt state
             if (_initialized && !reinit)
@@ -199,6 +205,12 @@ namespace BusinessLayer
                 _regularizerMap = new();
                 _errorMetricMap = new();
                 _optimizerMap = new();
+                _optimizerErrorMetricConnections = new();
+                _optimizerRegularizerConnections = new();
+                _elements = [];
+                _electrodes = [];
+                _realElectrodes = [];
+                _useOmpParallelization = false;
                 _initialized = false;
                 ResetResults();
             }
@@ -209,7 +221,7 @@ namespace BusinessLayer
             // - Creates FEM mesh from geometry and discretization parameters
             // - Instantiates solver, error metrics, regularizers, optimizers based on block types
             // - Applies configured weights and parameters to each component
-            RuntimeContext = ReconstructionConfigurationMaterializer.Materialize(configuration);
+            RuntimeContext = ReconstructionConfigurationMaterializer.Materialize(configuration, meshOverride);
 
             // Extract core components from the materialized context
             _mesh = RuntimeContext.RuntimeMesh;
@@ -226,7 +238,11 @@ namespace BusinessLayer
             
             _measurementSetup = RuntimeContext.MeasurementSetup;
             _usePotentialDifferences = RuntimeContext.UsePotentialDifferences;
+            _useOmpParallelization = RuntimeContext.UseOmpParallelization;
             _connections = RuntimeContext.AllConnections;
+            _elements = _mesh?.ElementsTyped.ToList() ?? [];
+            _electrodes = _mesh?.ElectrodesTyped.ToList() ?? [];
+            _realElectrodes = _electrodes.Where(e => !e.IsVirtual).ToList();
 
             // Build fast lookup dictionaries for gradient assembly
             // This maps block IDs to their runtime instances so we can follow canvas connections efficiently
@@ -269,6 +285,8 @@ namespace BusinessLayer
             _regularizerMap = new Dictionary<string, (double weight, IRegularizer regulizer)>();
             _errorMetricMap = new Dictionary<string, (double weight, IErrorMetric errorMetric)>();
             _optimizerMap = new Dictionary<string, (double weight, INumericOptimizer optimizer)>();
+            _optimizerErrorMetricConnections = new Dictionary<string, List<(string sourceId, double connectionWeight)>>();
+            _optimizerRegularizerConnections = new Dictionary<string, List<(string sourceId, double connectionWeight)>>();
 
             if (_completeReconstructionConfiguration == null)
                 return;
@@ -313,6 +331,36 @@ namespace BusinessLayer
                     var entry = _numericOptimizers[i];
                     // Store the connection weight from optimizer→model and the instance
                     _optimizerMap[blockId] = (entry.connectionWeight, entry.numericOptimizer);
+                }
+            }
+
+            if (_connections == null)
+                return;
+
+            foreach (var connection in _connections)
+            {
+                if (connection.TargetType != BlockType.Optimizer)
+                    continue;
+
+                if (connection.SourceType == BlockType.ErrorMetric)
+                {
+                    if (!_optimizerErrorMetricConnections.TryGetValue(connection.TargetId, out var list))
+                    {
+                        list = new List<(string sourceId, double connectionWeight)>();
+                        _optimizerErrorMetricConnections[connection.TargetId] = list;
+                    }
+
+                    list.Add((connection.SourceId, connection.Weight));
+                }
+                else if (connection.SourceType == BlockType.Regularizer)
+                {
+                    if (!_optimizerRegularizerConnections.TryGetValue(connection.TargetId, out var list))
+                    {
+                        list = new List<(string sourceId, double connectionWeight)>();
+                        _optimizerRegularizerConnections[connection.TargetId] = list;
+                    }
+
+                    list.Add((connection.SourceId, connection.Weight));
                 }
             }
         }
@@ -362,8 +410,8 @@ namespace BusinessLayer
             // Get electrodes from mesh
             // Virtual electrodes may exist for numerical stability (reference potentials)
             // Real electrodes are the physical contacts on the boundary
-            var electrodes = _mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
-            var realElectrodes = electrodes.Where(e => !e.IsVirtual).ToList();
+            var electrodes = _electrodes.Count > 0 ? _electrodes : _mesh.ElectrodesTyped.ToList();
+            var realElectrodes = _realElectrodes.Count > 0 ? _realElectrodes : electrodes.Where(e => !e.IsVirtual).ToList();
             int electrodeCount = realElectrodes.Count;
             if (electrodeCount < 2)
                 throw new InvalidOperationException("At least two electrodes are required for FEM boundary conditions.");
@@ -469,7 +517,7 @@ namespace BusinessLayer
             // Calculate ∇φ at each element center (needed for adjoint gradient computation)
             // Cache this once per frame since it's reused for every optimizer's gradient
             // For triangular elements: ∇φ = Σ φ_i ∇N_i where N_i are shape functions
-            VectorField forwardGradient = FiniteElementOperators.CalculateElementWiseGradient(_mesh, forwardSolution);
+            VectorField forwardGradient = FiniteElementOperators.CalculateElementWiseGradient(_mesh, forwardSolution, _useOmpParallelization);
 
             // ========== STEP 3: EXTRACT ELECTRODE POTENTIALS ==========
             // Get simulated voltages at electrode positions from the FEM solution
@@ -651,7 +699,7 @@ namespace BusinessLayer
         /// <returns>Dictionary mapping block ID to its adjoint solution</returns>
         private Dictionary<string, PotentialDistribution> EvaluateAdjointSolutions(MeasurementProjection projection)
         {
-            var electrodes = _mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
+            var electrodes = _electrodes.Count > 0 ? _electrodes : _mesh.GetElectrodes().Cast<FEMElectrode>().ToList();
 
             // Reset electrode states for adjoint solves
             // Adjoint problem has different boundary conditions than forward problem
@@ -667,8 +715,7 @@ namespace BusinessLayer
             var adjointCache = new Dictionary<Type, PotentialDistribution>();
             var solutions = new Dictionary<string, PotentialDistribution>();
 
-            // Parallel evaluation for efficiency when multiple error metrics exist
-            Parallel.ForEach(_errorMetricMap, kvp =>
+            void EvaluateSingle(KeyValuePair<string, (double weight, IErrorMetric errorMetric)> kvp)
             {
                 var errorMetricType = kvp.Value.errorMetric.GetType();
 
@@ -711,7 +758,12 @@ namespace BusinessLayer
                 {
                     solutions[kvp.Key] = adjointSolution;
                 }
-            });
+            }
+
+            // The FEM solver instance caches assembly state internally, so adjoint PDE solves
+            // must remain serialized here. Element-wise post-processing remains parallel.
+            foreach (var kvp in _errorMetricMap)
+                EvaluateSingle(kvp);
 
             return solutions;
         }
@@ -733,17 +785,22 @@ namespace BusinessLayer
         {
             var adjointGradients = new Dictionary<string, VectorField>();
 
-            // Parallel computation for efficiency with multiple adjoint fields
-            Parallel.ForEach(adjointSolutionsByBlock, kvp =>
+            void ComputeGradient(KeyValuePair<string, PotentialDistribution> kvp)
             {
                 // For triangular elements: ∇μ = Σ μ_i ∇N_i where N_i are shape functions
                 // This gives constant gradient per element (piecewise linear approximation)
-                var gradient = FiniteElementOperators.CalculateElementWiseGradient(_mesh, kvp.Value);
+                var gradient = FiniteElementOperators.CalculateElementWiseGradient(_mesh, kvp.Value, _useOmpParallelization);
                 lock (adjointGradients)
                 {
                     adjointGradients[kvp.Key] = gradient;
                 }
-            });
+            }
+
+            if (_useOmpParallelization && adjointSolutionsByBlock.Count > 1)
+                Parallel.ForEach(adjointSolutionsByBlock, ComputeGradient);
+            else
+                foreach (var kvp in adjointSolutionsByBlock)
+                    ComputeGradient(kvp);
 
             return adjointGradients;
         }
@@ -779,63 +836,91 @@ namespace BusinessLayer
                                                                                         Dictionary<string, VectorField> adjointGradientsByBlock)
         {
             var optimizerGradients = new Dictionary<string, ConductivityDistribution>();
-            var elements = _mesh.GetElements().Cast<FEMElement>().ToList();
+            var elements = _elements.Count > 0 ? _elements : _mesh.GetElements().Cast<FEMElement>().ToList();
+            int elementCount = elements.Count;
+            var elementIds = new int[elementCount];
+            var elementAreas = new double[elementCount];
+            var forwardGx = new double[elementCount];
+            var forwardGy = new double[elementCount];
+
+            for (int index = 0; index < elementCount; index++)
+            {
+                var element = elements[index];
+                var gradPhi = forwardGradient.GetVector(element.Id);
+                elementIds[index] = element.Id;
+                elementAreas[index] = element.Area;
+                forwardGx[index] = gradPhi.X;
+                forwardGy[index] = gradPhi.Y;
+            }
 
             // For each optimizer in the configuration
             foreach (var optimizer in _optimizerMap)
             {
                 var optimizerId = optimizer.Key;
-                
-                // Find all ErrorMetric → Optimizer connections targeting this optimizer
-                var connectedErrorMetrics = _connections?
-                    .Where(c => c.TargetId == optimizerId && c.SourceType == BlockType.ErrorMetric)
-                    .ToList() ?? new List<WeightedConnectionSnapshot>();
+                if (!_optimizerErrorMetricConnections.TryGetValue(optimizerId, out var connectedErrorMetrics) ||
+                    connectedErrorMetrics.Count == 0)
+                {
+                    optimizerGradients[optimizerId] = new ConductivityDistribution(new Dictionary<int, double>());
+                    continue;
+                }
 
-                // Accumulator for weighted gradient contributions
-                var gradientAccumulator = new Dictionary<int, double>();
+                // Accumulator is dense in element-order to avoid lock contention on dictionary writes.
+                var gradientAccumulator = new double[elementCount];
 
                 // For each connected error metric
                 foreach (var connection in connectedErrorMetrics)
                 {
-                    var errorMetricId = connection.SourceId;
+                    var errorMetricId = connection.sourceId;
 
                     // Get the adjoint gradient for this error metric
                     if (!adjointGradientsByBlock.TryGetValue(errorMetricId, out var adjointGradient))
                         continue;
 
-                    // Compute gradient contribution for each element in parallel
-                    Parallel.ForEach(elements, element =>
+                    double solverWeight = GetSolverToErrorMetricWeight(errorMetricId);
+                    var connectionAccumulator = new double[elementCount];
+
+                    void AccumulateRange(int start, int end)
                     {
-                        // Get forward gradient ∇φ at this element
-                        var gradPhi = forwardGradient.GetVector(element.Id);
-
-                        // Get adjoint gradient ∇μ at this element
-                        var gradMu = adjointGradient.GetVector(element.Id);
-
-                        // Compute dot product weighted by element area: -(∇φ · ∇μ) * A
-                        // This approximates the integral ∫_Ω_e ∇φ · ∇μ dΩ
-                        double dotProduct = -(gradPhi.X * gradMu.X + gradPhi.Y * gradMu.Y) * element.Area;
-
-                        // Apply both the Solver→ErrorMetric weight and the ErrorMetric→Optimizer
-                        // weight so the executable gradient matches the canvas wiring.
-                        double weighted = ApplyErrorMetricToOptimizerWeight(errorMetricId,
-                                                                            optimizerId,
-                                                                            GetSolverToErrorMetricWeight(errorMetricId) * dotProduct,
-                                                                            connection.Weight);
-
-                        // Accumulate into this optimizer's gradient
-                        lock (gradientAccumulator)
+                        for (int index = start; index < end; index++)
                         {
-                            if (gradientAccumulator.ContainsKey(element.Id))
-                                gradientAccumulator[element.Id] += weighted;
-                            else
-                                gradientAccumulator[element.Id] = weighted;
+                            var gradMu = adjointGradient.GetVector(elementIds[index]);
+
+                            // Compute dot product weighted by element area: -(∇φ · ∇μ) * A
+                            // This approximates the integral ∫_Ω_e ∇φ · ∇μ dΩ
+                            double dotProduct = -(forwardGx[index] * gradMu.X + forwardGy[index] * gradMu.Y) * elementAreas[index];
+                            connectionAccumulator[index] = ApplyErrorMetricToOptimizerWeight(errorMetricId,
+                                                                                              optimizerId,
+                                                                                              solverWeight * dotProduct,
+                                                                                              connection.connectionWeight);
                         }
-                    });
+                    }
+
+                    if (_useOmpParallelization && elementCount > 1)
+                    {
+                        Parallel.ForEach(System.Collections.Concurrent.Partitioner.Create(0, elementCount),
+                                         range => AccumulateRange(range.Item1, range.Item2));
+                    }
+                    else
+                    {
+                        AccumulateRange(0, elementCount);
+                    }
+
+                    for (int index = 0; index < elementCount; index++)
+                        gradientAccumulator[index] += connectionAccumulator[index];
+                }
+
+                var gradientDictionary = new Dictionary<int, double>(elementCount);
+                for (int index = 0; index < elementCount; index++)
+                {
+                    double value = gradientAccumulator[index];
+                    if (value != 0.0)
+                        gradientDictionary[elementIds[index]] = value;
+                    else
+                        gradientDictionary[elementIds[index]] = 0.0;
                 }
 
                 // Store this optimizer's assembled gradient
-                optimizerGradients[optimizerId] = new ConductivityDistribution(gradientAccumulator);
+                optimizerGradients[optimizerId] = new ConductivityDistribution(gradientDictionary);
             }
 
             return optimizerGradients;
@@ -869,8 +954,7 @@ namespace BusinessLayer
 
             var regularizations = new Dictionary<string, ConductivityDistribution>();
 
-            // Evaluate each regularizer in parallel
-            Parallel.ForEach(_regularizerMap, kvp =>
+            void EvaluateSingle(KeyValuePair<string, (double weight, IRegularizer regulizer)> kvp)
             {
                 // Compute ∂R/∂σ for this regularizer and apply the Solver→Regularizer weight here.
                 // The Regularizer→Optimizer connection weight is applied later during assembly.
@@ -881,7 +965,13 @@ namespace BusinessLayer
                 {
                     regularizations[kvp.Key] = weighted;
                 }
-            });
+            }
+
+            if (_useOmpParallelization && _regularizerMap.Count > 1)
+                Parallel.ForEach(_regularizerMap, EvaluateSingle);
+            else
+                foreach (var kvp in _regularizerMap)
+                    EvaluateSingle(kvp);
 
             return regularizations;
         }
@@ -917,11 +1007,12 @@ namespace BusinessLayer
             foreach (var optimizer in _optimizerMap)
             {
                 var optimizerId = optimizer.Key;
-                
-                // Find all Regularizer → Optimizer connections targeting this optimizer
-                var connectedRegularizers = _connections?
-                    .Where(c => c.TargetId == optimizerId && c.SourceType == BlockType.Regularizer)
-                    .ToList() ?? new List<WeightedConnectionSnapshot>();
+                if (!_optimizerRegularizerConnections.TryGetValue(optimizerId, out var connectedRegularizers) ||
+                    connectedRegularizers.Count == 0)
+                {
+                    optimizerRegularizations[optimizerId] = new ConductivityDistribution(new Dictionary<int, double>());
+                    continue;
+                }
 
                 // Accumulator for weighted regularization contributions
                 var accumulator = new Dictionary<int, double>();
@@ -929,7 +1020,7 @@ namespace BusinessLayer
                 // For each connected regularizer
                 foreach (var connection in connectedRegularizers)
                 {
-                    var regId = connection.SourceId;
+                    var regId = connection.sourceId;
 
                     // Get the pre-computed regularization gradient (unweighted; connection scaling applied below)
                     if (!regularizerGradients.TryGetValue(regId, out var reg))
@@ -938,7 +1029,7 @@ namespace BusinessLayer
                     // Weight by regularizer→optimizer connection and accumulate
                     foreach (var kvp in reg.IdValuePairs)
                     {
-                        double weighted = ApplyRegularizerToOptimizerWeight(regId, optimizerId, kvp.Value, connection.Weight);
+                        double weighted = ApplyRegularizerToOptimizerWeight(regId, optimizerId, kvp.Value, connection.connectionWeight);
 
                         if (accumulator.ContainsKey(kvp.Key))
                             accumulator[kvp.Key] += weighted;
