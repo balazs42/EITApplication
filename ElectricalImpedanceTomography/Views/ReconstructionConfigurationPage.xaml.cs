@@ -77,6 +77,7 @@ namespace ElectricalImpedanceTomography.Views
             BindingContext = _viewModel;
 
             _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+            _viewModel.ReconstructionExportLoaded += OnReconstructionExportLoaded;
 
             // Rebuild the node visuals whenever blocks change
             _viewModel.Blocks.CollectionChanged += OnBlocksChanged;
@@ -95,6 +96,12 @@ namespace ElectricalImpedanceTomography.Views
             base.OnAppearing();
             // Ensure mesh preview is up-to-date when the page becomes visible
             MeshPreviewCanvas?.InvalidateSurface();
+        }
+
+        private void OnReconstructionExportLoaded()
+        {
+            MeshPreviewCanvas?.InvalidateSurface();
+            ConnectionsCanvas?.InvalidateSurface();
         }
 
         private void OnBlocksChanged(object? sender, NotifyCollectionChangedEventArgs e)

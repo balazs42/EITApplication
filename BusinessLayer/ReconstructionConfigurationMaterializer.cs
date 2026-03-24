@@ -177,6 +177,10 @@ namespace BusinessLayer
 
         private static ConductivityDistribution BuildInitialDistribution(FEMMesh mesh, ReconstructionRuntimeContext parameters, IReadOnlyList<ConfiguredBlockSnapshot> blocks)
         {
+            var continuation = Workspace.GetContinuationConductivityDistribution();
+            if (TryProjectContinuationDistribution(mesh, continuation, out var projectedContinuation))
+                return projectedContinuation;
+
             var initBlock = blocks.FirstOrDefault(b => b.Type == BlockType.Initialization);
 
             double max = ParseDouble(GetParameterValue(initBlock, "rand_max"), 1.0);
@@ -192,6 +196,31 @@ namespace BusinessLayer
                 InitialDistributionTypes.CloseToTarget => ConductivityDistributionFactory.CreateCloseToTarget(mesh),
                 _ => ConductivityDistributionFactory.CreateHomogeneous(mesh)
             };
+        }
+
+        private static bool TryProjectContinuationDistribution(FEMMesh mesh,
+                                                               ConductivityDistribution? continuation,
+                                                               out ConductivityDistribution distribution)
+        {
+            distribution = null!;
+
+            if (continuation?.Conductivities == null || continuation.Conductivities.Count == 0)
+                return false;
+
+            var projected = new Dictionary<int, double>();
+            foreach (var element in mesh.ElementsTyped)
+            {
+                if (!continuation.Conductivities.TryGetValue(element.Id, out var sigma))
+                {
+                    Workspace.SetContinuationConductivityDistribution(null);
+                    return false;
+                }
+
+                projected[element.Id] = sigma;
+            }
+
+            distribution = new ConductivityDistribution(projected);
+            return true;
         }
 
         private static string GetParameterValue(ConfiguredBlockSnapshot? block, string key)

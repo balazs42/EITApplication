@@ -114,7 +114,10 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
             WriteGradientMetricsCsv(request.TargetDirectory, request.Frames);
             WriteConfigurationSnapshot(request.TargetDirectory, request.Configuration);
 
-            ExportMeshArtifacts(request.TargetDirectory, request.Discretization, latestSnapshot.Result);
+            ExportMeshArtifacts(request.TargetDirectory,
+                                request.Discretization,
+                                latestSnapshot.Result,
+                                request.Continuation);
 
             return DataExportResult.CreateSuccess(request.TargetDirectory);
         }
@@ -428,7 +431,10 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
         metadata.Add(("Measurement Mode", DescribeMeasurementPattern(pattern)));
     }
 
-    private static void ExportMeshArtifacts(string directory, IDiscretization discretization, ReconstructionResult latestResult)
+    private static void ExportMeshArtifacts(string directory,
+                                            IDiscretization discretization,
+                                            ReconstructionResult latestResult,
+                                            ReconstructionContinuationSnapshot? continuation)
     {
         try
         {
@@ -440,24 +446,20 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
                     ? "reconstruction_mesh"
                     : string.Join("_", baseName.Split(Path.GetInvalidFileNameChars()));
 
-                var vertexOrder = new List<int>(fem.Vertices.Count);
                 string stlPath = Path.Combine(directory, $"{baseName}_{timestamp:yyyyMMdd_HHmmss}.stl");
-                SaveFemMeshAsStl(fem, stlPath, vertexOrder);
+                SaveFemMeshAsStl(fem, stlPath);
 
                 var conductivitySource = latestResult.ReconstructedConductivityDistribution
                                          ?? discretization.GetConductivityDistribution();
 
-                var export = new
-                {
-                    stlPath = Path.GetFileName(stlPath),
-                    vertexOrder,
-                    elementConductivities = conductivitySource.Conductivities
-                };
+                var exportMesh = (FEMMesh)fem.DeepCopy();
+                exportMesh.SetConductivityDistribution(new ConductivityDistribution(conductivitySource.Conductivities));
 
-                var options = new JsonSerializerOptions { WriteIndented = true };
-                string jsonPath = Path.ChangeExtension(stlPath, ".json")
-                                   ?? Path.Combine(directory, $"{baseName}_{timestamp:yyyyMMdd_HHmmss}.json");
-                File.WriteAllText(jsonPath, JsonSerializer.Serialize(export, options));
+                var description = FemMeshDescriptionSerializer.Create(exportMesh,
+                                                                      baseName,
+                                                                      Path.GetFileName(stlPath),
+                                                                      continuation);
+                FemMeshDescriptionSerializer.Write(stlPath, description);
             }
             else if (discretization is LBMGrid lbm)
             {
@@ -481,11 +483,10 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
         }
     }
 
-    private static void SaveFemMeshAsStl(FEMMesh mesh, string file, IList<int> stlVertexOrder)
+    private static void SaveFemMeshAsStl(FEMMesh mesh, string file)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(file) ?? string.Empty);
 
-        HashSet<int> seenVertices = new();
         using var writer = new StreamWriter(file, false, new System.Text.UTF8Encoding(false));
 
         string safeName = Path.GetFileNameWithoutExtension(file);
@@ -534,9 +535,6 @@ public sealed class ReconstructionExportRepository : IReconstructionExportReposi
 
         void WriteVertex(StreamWriter writer, FEMVertex vertex)
         {
-            if (seenVertices.Add(vertex.GlobalId))
-                stlVertexOrder.Add(vertex.GlobalId);
-
             writer.WriteLine(string.Format(CultureInfo.InvariantCulture,
                 "      vertex {0:G17} {1:G17} 0", vertex.X, vertex.Y));
         }

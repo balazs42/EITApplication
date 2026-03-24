@@ -2,17 +2,27 @@
 /// \brief ViewModel responsible for orchestrating the reconstruction configuration canvas state.
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DataAccessLayer;
+using Microsoft.Maui.Devices;
+using Microsoft.Maui.Storage;
 using System;
-using System.Collections.Specialized;
-using System.Collections.ObjectModel;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Text.Json;
+using Utility.Classes;
 using Utility.Classes.Application;
 using Utility.Classes.Configurations.ReconstructionConfiguration;
 using Utility.Classes.Configurations.ReconstructionConfiguration.Rules;
+using Utility.Classes.Discretizer.FiniteElementMesh;
+using Utility.Classes.Measurement;
+using Utility.Classes.Reconstruction;
 using Utility.Classes.ReconstructionParameters;
+using Utility.Exports;
 
 namespace ElectricalImpedanceTomography.ViewModels
 {
@@ -62,6 +72,11 @@ namespace ElectricalImpedanceTomography.ViewModels
         public const double MaxGridSpacing = 96;
         private const double DefaultGridSpacing = 32;
         private bool _isNormalizingWeights;
+        private bool _isRestoringState;
+
+        public event Action? ReconstructionExportLoaded;
+
+        public bool IsModelBlockSelected => SelectedBlock?.Type == BlockType.Model;
 
         public ReconstructionConfigurationPageViewModel()
         {
@@ -138,7 +153,13 @@ namespace ElectricalImpedanceTomography.ViewModels
 
         private void RegisterBlock(ReconstructionConfigurationBlock block)
         {
-            block.ParametersChanged += _ => ApplyConfigurationToWorkspace();
+            block.ParametersChanged += _ =>
+            {
+                if (!_isRestoringState && block.Type == BlockType.Initialization)
+                    Workspace.SetContinuationConductivityDistribution(null);
+
+                ApplyConfigurationToWorkspace();
+            };
             block.PropertyChanged += (_, args) =>
             {
                 if (args.PropertyName == nameof(ReconstructionConfigurationBlock.X) ||
@@ -305,37 +326,8 @@ namespace ElectricalImpedanceTomography.ViewModels
                     return;
                 }
 
-                var dto = new ConfigurationDto
-                {
-                    Blocks = Blocks.Select(b => new BlockDto
-                    {
-                        Id = b.Id,
-                        Type = b.Type,
-                        X = b.X,
-                        Y = b.Y,
-                        FontSize = b.FontSize,
-                        Width = b.Width,
-                        Height = b.Height,
-                        Rotation = b.Rotation,
-                        Parameters = b.Parameters.Select(p => new ParameterDto
-                        {
-                            Key = p.Key,
-                            Value = GetParamValue(p)
-                        }).ToList()
-                    }).ToList(),
-                    Connections = Connections.Select(c => new ConnectionDto
-                    {
-                        SourceId = c.Source.Id,
-                        TargetId = c.Target.Id,
-                        Weight = c.Weight,
-                        ControlOffset1X = c.ControlOffset1X,
-                        ControlOffset1Y = c.ControlOffset1Y,
-                        ControlOffset2X = c.ControlOffset2X,
-                        ControlOffset2Y = c.ControlOffset2Y
-                    }).ToList()
-                };
-
-                string json = JsonSerializer.Serialize(dto, new JsonSerializerOptions { WriteIndented = true });
+                var snapshot = ReconstructionCanvasSnapshotBuilder.Create(Blocks, Connections);
+                string json = JsonSerializer.Serialize(snapshot, new JsonSerializerOptions { WriteIndented = true });
 
                 string fileName = $"config_{DateTime.Now:yyyyMMdd_HHmm}.json";
                 string path = Path.Combine(FileSystem.AppDataDirectory, fileName);
@@ -369,60 +361,71 @@ namespace ElectricalImpedanceTomography.ViewModels
                 if (result == null) return;
 
                 using var stream = await result.OpenReadAsync();
-                var dto = await JsonSerializer.DeserializeAsync<ConfigurationDto>(stream);
+                var snapshot = await TryDeserializeCanvasSnapshotAsync(stream);
+                if (snapshot == null)
+                    return;
 
-                if (dto == null) return;
-
-                Blocks.Clear();
-                Connections.Clear();
-
-                var idMap = new Dictionary<string, ReconstructionConfigurationBlock>();
-
-                foreach (var bDto in dto.Blocks)
-                {
-                    var blk = ReconstructionBlockRegistry.CreateBlock(
-                        bDto.Type,
-                        bDto.X,
-                        bDto.Y,
-                        bDto.Id,
-                        bDto.FontSize <= 0 ? 13 : bDto.FontSize,
-                        bDto.Width <= 0 ? 214 : bDto.Width,
-                        bDto.Height <= 0 ? 80 : bDto.Height,
-                        bDto.Rotation);
-
-                    foreach (var pDto in bDto.Parameters)
-                    {
-                        var param = blk.Parameters.FirstOrDefault(p => p.Key == pDto.Key);
-                        if (param != null) SetParamValue(param, pDto.Value);
-                    }
-
-                    RegisterBlock(blk);
-                    Blocks.Add(blk);
-                    idMap[bDto.Id] = blk;
-                }
-
-                foreach (var cDto in dto.Connections)
-                {
-                    if (idMap.TryGetValue(cDto.SourceId, out var src) && idMap.TryGetValue(cDto.TargetId, out var tgt))
-                    {
-                        Connections.Add(new ReconstructionConnection
-                        {
-                            Source = src,
-                            Target = tgt,
-                            Weight = cDto.Weight,
-                            ControlOffset1X = cDto.ControlOffset1X,
-                            ControlOffset1Y = cDto.ControlOffset1Y,
-                            ControlOffset2X = cDto.ControlOffset2X,
-                            ControlOffset2Y = cDto.ControlOffset2Y
-                        });
-                    }
-                }
-
-                ApplyConfigurationToWorkspace();
+                LoadCanvasSnapshot(snapshot);
             }
             catch (Exception ex)
             {
                 await Shell.Current.DisplayAlert("Error", $"Load failed: {ex.Message}", "OK");
+            }
+        }
+
+        [RelayCommand]
+        public async Task LoadReconstructionExport()
+        {
+            try
+            {
+                var file = await FilePicker.PickAsync(new PickOptions
+                {
+                    PickerTitle = "Select Reconstruction Export",
+                    FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
+                    {
+                        { DevicePlatform.WinUI, new[] { ".stl", ".json" } },
+                        { DevicePlatform.Android, new[] { "model/stl", "application/sla", "application/json" } },
+                        { DevicePlatform.iOS, new[] { "public.json", "public.item" } },
+                        { DevicePlatform.MacCatalyst, new[] { "public.json", "public.item" } }
+                    })
+                });
+
+                if (file == null)
+                    return;
+
+                if (!TryResolveReconstructionPackage(file.FullPath, out var description, out var stlPath, out var errorMessage))
+                {
+                    await Shell.Current.DisplayAlert("Load Failed", errorMessage, "OK");
+                    return;
+                }
+
+                var continuation = description!.Reconstruction;
+                if (continuation?.Canvas == null)
+                {
+                    await Shell.Current.DisplayAlert("Load Failed", "This export does not contain a reconstruction canvas snapshot.", "OK");
+                    return;
+                }
+
+                var repository = new MeshRepository();
+                var mesh = repository.LoadFEMMesh(stlPath!);
+
+                RestoreWorkspaceFromExport(mesh, continuation);
+                LoadCanvasSnapshot(continuation.Canvas);
+                RestoreRuntimeState(continuation);
+
+                Workspace.SetCompleteReconstructionConfiguration(CompleteReconstructionConfigurationBuilder.Create(Blocks, Connections));
+                Workspace.SetUseBlockConfiguration(true);
+
+                var modelBlock = Blocks.FirstOrDefault(block => block.Type == BlockType.Model);
+                if (modelBlock != null)
+                    SelectBlock(modelBlock);
+
+                ReconstructionExportLoaded?.Invoke();
+                await Shell.Current.DisplayAlert("Success", $"Loaded reconstruction export from {Path.GetFileName(stlPath)}.", "OK");
+            }
+            catch (Exception ex)
+            {
+                await Shell.Current.DisplayAlert("Error", $"Failed to load reconstruction export: {ex.Message}", "OK");
             }
         }
 
@@ -451,8 +454,8 @@ namespace ElectricalImpedanceTomography.ViewModels
         private string GetParamValue(ConfigurationParameter p) => p switch
         {
             TextParameter t => t.Value,
-            NumberParameter n => n.Value.ToString(),
-            BoolParameter b => b.Value.ToString(),
+            NumberParameter n => n.Value.ToString("G17", CultureInfo.InvariantCulture),
+            BoolParameter b => b.Value.ToString(CultureInfo.InvariantCulture),
             ChoiceParameter c => c.SelectedOption,
             _ => ""
         };
@@ -462,7 +465,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             try
             {
                 if (p is TextParameter t) t.Value = value;
-                else if (p is NumberParameter n) n.Value = double.Parse(value);
+                else if (p is NumberParameter n) n.Value = double.Parse(value, CultureInfo.InvariantCulture);
                 else if (p is BoolParameter b) b.Value = bool.Parse(value);
                 else if (p is ChoiceParameter c) c.SelectedOption = value;
             }
@@ -750,15 +753,297 @@ namespace ElectricalImpedanceTomography.ViewModels
             UpdateDiagnostics();
         }
 
+        partial void OnSelectedBlockChanged(ReconstructionConfigurationBlock? value)
+        {
+            OnPropertyChanged(nameof(IsModelBlockSelected));
+        }
+
+        private async Task<ReconstructionCanvasSnapshot?> TryDeserializeCanvasSnapshotAsync(Stream stream)
+        {
+            using var memory = new MemoryStream();
+            await stream.CopyToAsync(memory);
+            var json = memory.ToArray();
+
+            var snapshot = JsonSerializer.Deserialize<ReconstructionCanvasSnapshot>(json);
+            if (snapshot != null)
+                return snapshot;
+
+            var dto = JsonSerializer.Deserialize<ConfigurationDto>(json);
+            return dto == null ? null : ToCanvasSnapshot(dto);
+        }
+
+        private void LoadCanvasSnapshot(ReconstructionCanvasSnapshot snapshot)
+        {
+            _isRestoringState = true;
+            try
+            {
+                Blocks.Clear();
+                Connections.Clear();
+                SelectedBlock = null;
+                SelectedConnection = null;
+
+                var idMap = new Dictionary<string, ReconstructionConfigurationBlock>();
+                foreach (var blockSnapshot in snapshot.Blocks)
+                {
+                    var block = ReconstructionBlockRegistry.CreateBlock(
+                        blockSnapshot.Type,
+                        blockSnapshot.X,
+                        blockSnapshot.Y,
+                        blockSnapshot.Id,
+                        blockSnapshot.FontSize <= 0 ? 13 : blockSnapshot.FontSize,
+                        blockSnapshot.Width <= 0 ? 214 : blockSnapshot.Width,
+                        blockSnapshot.Height <= 0 ? 80 : blockSnapshot.Height,
+                        blockSnapshot.Rotation);
+
+                    foreach (var parameterSnapshot in blockSnapshot.Parameters)
+                    {
+                        var parameter = block.Parameters.FirstOrDefault(p => p.Key == parameterSnapshot.Key);
+                        if (parameter != null)
+                            SetParamValue(parameter, parameterSnapshot.Value);
+                    }
+
+                    RegisterBlock(block);
+                    Blocks.Add(block);
+                    idMap[block.Id] = block;
+                }
+
+                foreach (var connectionSnapshot in snapshot.Connections)
+                {
+                    if (idMap.TryGetValue(connectionSnapshot.SourceId, out var source) &&
+                        idMap.TryGetValue(connectionSnapshot.TargetId, out var target))
+                    {
+                        Connections.Add(new ReconstructionConnection
+                        {
+                            Source = source,
+                            Target = target,
+                            Weight = connectionSnapshot.Weight,
+                            ControlOffset1X = connectionSnapshot.ControlOffset1X,
+                            ControlOffset1Y = connectionSnapshot.ControlOffset1Y,
+                            ControlOffset2X = connectionSnapshot.ControlOffset2X,
+                            ControlOffset2Y = connectionSnapshot.ControlOffset2Y
+                        });
+                    }
+                }
+            }
+            finally
+            {
+                _isRestoringState = false;
+            }
+
+            ApplyConfigurationToWorkspace();
+        }
+
+        private void RestoreWorkspaceFromExport(FEMMesh mesh, ReconstructionContinuationSnapshot continuation)
+        {
+            var originalDistribution = CreateDistribution(continuation.OriginalDistribution);
+            var continuationDistribution = CreateDistribution(continuation.CurrentDistribution)
+                                           ?? CreateDistribution(continuation.InitialDistribution)
+                                           ?? new ConductivityDistribution(new Dictionary<int, double>(mesh.GetConductivityDistribution().Conductivities));
+
+            mesh.SetConductivityDistribution(new ConductivityDistribution(continuationDistribution.Conductivities));
+
+            var originalMesh = mesh.DeepCopy() as FEMMesh ?? throw new InvalidOperationException("Unable to clone FEM mesh.");
+            if (originalDistribution != null)
+                originalMesh.SetConductivityDistribution(new ConductivityDistribution(originalDistribution.Conductivities));
+
+            var initialMesh = mesh.DeepCopy() as FEMMesh ?? throw new InvalidOperationException("Unable to clone FEM mesh.");
+            initialMesh.SetConductivityDistribution(new ConductivityDistribution(continuationDistribution.Conductivities));
+
+            Workspace.SetDiscretization(mesh);
+            Workspace.SetOriginalDiscretization(originalMesh);
+            Workspace.SetInitialDiscretization(initialMesh);
+            Workspace.SetOriginalConductivityDistribution(originalDistribution == null
+                ? null
+                : new ConductivityDistribution(originalDistribution.Conductivities));
+            Workspace.SetInitialConductivityDistribution(new ConductivityDistribution(continuationDistribution.Conductivities));
+            Workspace.SetContinuationConductivityDistribution(new ConductivityDistribution(continuationDistribution.Conductivities));
+            Workspace.SetReconstructionResults(new List<ReconstructionResult>());
+            Workspace.SetReconstructionFrames(new List<ReconstructionFrame>());
+            Workspace.SetMeasurementPattern(null);
+        }
+
+        private void RestoreRuntimeState(ReconstructionContinuationSnapshot continuation)
+        {
+            var configuration = continuation.Configuration;
+            var runtime = Workspace.GetReconstructionParameters();
+
+            runtime.DifferentialEquationSolver = ParseEnum(configuration.Reconstruction.DifferentialEquationSolver, runtime.DifferentialEquationSolver);
+            runtime.RegularizationTechnique = ParseEnum(configuration.Reconstruction.RegularizationTechnique, runtime.RegularizationTechnique);
+            runtime.ErrorMetric = ParseEnum(configuration.Reconstruction.ErrorMetric, runtime.ErrorMetric);
+            runtime.NumericSolver = ParseEnum(configuration.Reconstruction.NumericSolver, runtime.NumericSolver);
+            runtime.NumericOptimizer = ParseEnum(configuration.Reconstruction.NumericOptimizer, runtime.NumericOptimizer);
+            runtime.DrivePattern = ParseEnum(
+                string.IsNullOrWhiteSpace(continuation.DrivePattern) ? configuration.Reconstruction.DrivePattern : continuation.DrivePattern,
+                runtime.DrivePattern);
+            runtime.DrivePatternSkip = continuation.DrivePatternSkip;
+            runtime.UsePotentialDifferences = configuration.Reconstruction.UsePotentialDifferences;
+            runtime.UseOmpParallelization = configuration.Reconstruction.UseOmpParallelization;
+            runtime.UseCudaAcceleration = configuration.Reconstruction.UseCudaAcceleration;
+            runtime.MeasurementNoiseType = ParseEnum(configuration.Reconstruction.MeasurementNoiseType, runtime.MeasurementNoiseType);
+            runtime.MeasurementNoiseAmplitude = configuration.Reconstruction.MeasurementNoiseAmplitude;
+            runtime.InitialDistributionType = ParseEnum(configuration.InitialDistribution.InitialDistributionType, runtime.InitialDistributionType);
+            runtime.ConductivityMinimumBound = configuration.Workspace.ConductivityMinimumBound;
+            runtime.ConductivityMaximumBound = configuration.Workspace.ConductivityMaximumBound;
+
+            runtime.VirtualElectrodeSettings.UseVirtualElectrodes = configuration.VirtualElectrodes.UseVirtualElectrodes;
+            runtime.VirtualElectrodeSettings.Method = configuration.VirtualElectrodes.Method;
+            runtime.VirtualElectrodeSettings.VirtualElectrodesPerGap = configuration.VirtualElectrodes.VirtualElectrodesPerGap;
+            runtime.VirtualElectrodeSettings.LinearCombinationAlpha = configuration.VirtualElectrodes.LinearCombinationAlpha;
+            runtime.VirtualElectrodeSettings.HarrachLambda = configuration.VirtualElectrodes.HarrachLambda;
+            runtime.VirtualElectrodeSettings.NdMaxMode = configuration.VirtualElectrodes.NdMaxMode;
+
+            Workspace.MaxIterationCount = configuration.Workspace.MaxIterationCount;
+            Workspace.StepSize = configuration.Workspace.StepSize;
+            Workspace.RegularizationWeight = configuration.Workspace.RegularizationWeight;
+
+            var measurementSetup = ParseEnum(configuration.Measurement.ElectrodeMeasurementSetup, Workspace.GetElectrodeMeasurementSetup());
+            runtime.MeasurementSetup = measurementSetup;
+            Workspace.SetMeasurementSource(ParseEnum(
+                string.IsNullOrWhiteSpace(continuation.MeasurementSource)
+                    ? configuration.Measurement.MeasurementSource
+                    : continuation.MeasurementSource,
+                Workspace.GetMeasurementSource()));
+            Workspace.SetElectrodeMeasurementSetup(measurementSetup);
+            Workspace.SetReconstructionParameters(runtime);
+        }
+
+        private bool TryResolveReconstructionPackage(string selectedPath,
+                                                     out FemMeshDescription? description,
+                                                     out string? stlPath,
+                                                     out string errorMessage)
+        {
+            description = null;
+            stlPath = null;
+            errorMessage = "The selected file does not contain a reconstruction export.";
+
+            if (string.IsNullOrWhiteSpace(selectedPath) || !File.Exists(selectedPath))
+            {
+                errorMessage = "The selected file no longer exists.";
+                return false;
+            }
+
+            var candidateFiles = new List<string> { selectedPath };
+            if (!string.Equals(Path.GetExtension(selectedPath), ".json", StringComparison.OrdinalIgnoreCase))
+            {
+                var siblingJson = Path.ChangeExtension(selectedPath, ".json");
+                if (!string.IsNullOrWhiteSpace(siblingJson) && File.Exists(siblingJson))
+                    candidateFiles.Add(siblingJson);
+            }
+
+            var directory = Path.GetDirectoryName(selectedPath);
+            if (!string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory))
+            {
+                candidateFiles.AddRange(Directory.GetFiles(directory, "*.json")
+                    .Where(path => !string.Equals(path, selectedPath, StringComparison.OrdinalIgnoreCase)));
+            }
+
+            FemMeshDescription? fallbackDescription = null;
+            string? fallbackStl = null;
+
+            foreach (var candidate in candidateFiles.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                var candidateDescription = FemMeshDescriptionSerializer.TryRead(candidate);
+                if (candidateDescription?.Reconstruction == null)
+                    continue;
+
+                var candidateStl = ResolveStlPath(candidate, candidateDescription);
+                if (candidateStl != null && File.Exists(candidateStl))
+                {
+                    description = candidateDescription;
+                    stlPath = candidateStl;
+                    return true;
+                }
+
+                if (fallbackDescription == null)
+                {
+                    fallbackDescription = candidateDescription;
+                    fallbackStl = candidateStl;
+                }
+            }
+
+            if (fallbackDescription != null)
+            {
+                errorMessage = fallbackStl == null
+                    ? "The reconstruction description was found, but its STL file could not be resolved."
+                    : $"The reconstruction description was found, but the STL file is missing: {fallbackStl}";
+            }
+
+            return false;
+        }
+
+        private static string? ResolveStlPath(string sourcePath, FemMeshDescription description)
+        {
+            if (string.Equals(Path.GetExtension(sourcePath), ".stl", StringComparison.OrdinalIgnoreCase))
+                return sourcePath;
+
+            if (!string.IsNullOrWhiteSpace(description.StlFileName))
+            {
+                if (Path.IsPathRooted(description.StlFileName))
+                    return description.StlFileName;
+
+                var directory = Path.GetDirectoryName(sourcePath);
+                if (!string.IsNullOrWhiteSpace(directory))
+                    return Path.Combine(directory, description.StlFileName);
+            }
+
+            return Path.ChangeExtension(sourcePath, ".stl");
+        }
+
+        private static ConductivityDistribution? CreateDistribution(ConductivityDistributionSnapshot? snapshot)
+            => snapshot == null
+                ? null
+                : new ConductivityDistribution(snapshot.Values.ToDictionary(kv => kv.Key, kv => kv.Value));
+
+        private static ReconstructionCanvasSnapshot ToCanvasSnapshot(ConfigurationDto dto)
+            => new(
+                dto.Blocks.Select(block => new ReconstructionCanvasBlockSnapshot(
+                    block.Id,
+                    block.Type,
+                    block.X,
+                    block.Y,
+                    block.FontSize,
+                    block.Width,
+                    block.Height,
+                    block.Rotation,
+                    block.Parameters.Select(parameter => new ReconstructionCanvasParameterSnapshot(parameter.Key, parameter.Value)).ToList()))
+                .ToList(),
+                dto.Connections.Select(connection => new ReconstructionCanvasConnectionSnapshot(
+                    connection.SourceId,
+                    connection.TargetId,
+                    connection.Weight,
+                    connection.ControlOffset1X,
+                    connection.ControlOffset1Y,
+                    connection.ControlOffset2X,
+                    connection.ControlOffset2Y))
+                .ToList());
+
+        private static T ParseEnum<T>(string? value, T fallback) where T : struct, Enum
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return fallback;
+
+            static string Normalize(string input)
+                => new string(input.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+
+            var normalized = Normalize(value);
+            foreach (var name in Enum.GetNames(typeof(T)))
+            {
+                if (Normalize(name) == normalized)
+                    return Enum.Parse<T>(name, true);
+            }
+
+            return Enum.TryParse<T>(value, true, out var parsed) ? parsed : fallback;
+        }
+
         public class ConfigurationDto
         {
-            public List<BlockDto> Blocks { get; set; }
-            public List<ConnectionDto> Connections { get; set; }
+            public List<BlockDto> Blocks { get; set; } = new();
+            public List<ConnectionDto> Connections { get; set; } = new();
         }
 
         public class BlockDto
         {
-            public string Id { get; set; }
+            public string Id { get; set; } = string.Empty;
             public BlockType Type { get; set; }
             public double X { get; set; }
             public double Y { get; set; }
@@ -766,19 +1051,19 @@ namespace ElectricalImpedanceTomography.ViewModels
             public double Width { get; set; }
             public double Height { get; set; }
             public double Rotation { get; set; }
-            public List<ParameterDto> Parameters { get; set; }
+            public List<ParameterDto> Parameters { get; set; } = new();
         }
 
         public class ParameterDto
         {
-            public string Key { get; set; }
-            public string Value { get; set; }
+            public string Key { get; set; } = string.Empty;
+            public string Value { get; set; } = string.Empty;
         }
 
         public class ConnectionDto
         {
-            public string SourceId { get; set; }
-            public string TargetId { get; set; }
+            public string SourceId { get; set; } = string.Empty;
+            public string TargetId { get; set; } = string.Empty;
             public double Weight { get; set; }
             public double ControlOffset1X { get; set; } = 60;
             public double ControlOffset1Y { get; set; }

@@ -137,6 +137,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             Workspace.SetDiscretization(_currentDiscretization);
             Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
+            Workspace.SetContinuationConductivityDistribution(null);
 
             SelectedMeshType = _currentDiscretization is FEMMesh ? DiscretizationType.FEM : DiscretizationType.LBM;
             OnPropertyChanged(nameof(IsFEM));
@@ -207,6 +208,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             // Store it as the current and original discretization
             Workspace.SetDiscretization(_currentDiscretization);
             Workspace.SetOriginalDiscretization(_currentDiscretization.DeepCopy());
+            Workspace.SetContinuationConductivityDistribution(null);
 
             if (_currentDiscretization != null)
             {
@@ -390,6 +392,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
             Workspace.SetDiscretization(null);
             Workspace.SetOriginalDiscretization(null);
+            Workspace.SetContinuationConductivityDistribution(null);
 
             MeshChanged?.Invoke();
         }
@@ -426,6 +429,7 @@ namespace ElectricalImpedanceTomography.ViewModels
 
                 Workspace.SetDiscretization(null);
                 Workspace.SetOriginalDiscretization(null);
+                Workspace.SetContinuationConductivityDistribution(null);
                 
                 MeshChanged?.Invoke();
             }

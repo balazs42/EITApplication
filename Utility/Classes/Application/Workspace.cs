@@ -40,6 +40,7 @@ namespace Utility.Classes.Application
         private static List<WorkspaceMessage> _messages = [];
         private static ConductivityDistribution? _originalConductivityDistribution = null;
         private static ConductivityDistribution? _initialConductivityDistribution = null;
+        private static ConductivityDistribution? _continuationConductivityDistribution = null;
         public static event Action<WorkspaceMessage>? MessageAdded;
 
         private static List<FEMElement>? _currentGlobalFemElements;
@@ -137,6 +138,7 @@ namespace Utility.Classes.Application
             => _completeReconstructionConfiguration = configuration;
         public static void SetOriginalConductivityDistribution(ConductivityDistribution? sigma) => _originalConductivityDistribution = sigma;
         public static void SetInitialConductivityDistribution(ConductivityDistribution? sigma) => _initialConductivityDistribution = sigma;
+        public static void SetContinuationConductivityDistribution(ConductivityDistribution? sigma) => _continuationConductivityDistribution = sigma;
         public static void SetUseBlockConfiguration(bool enabled) => _useBlockConfiguration = enabled;
 
         public static User GetUser() => _user;
@@ -150,6 +152,7 @@ namespace Utility.Classes.Application
         public static CompleteReconstructionConfiguration? GetCompleteReconstructionConfiguration() => _completeReconstructionConfiguration;
         public static ConductivityDistribution? GetOriginalConductivityDistribution() => _originalConductivityDistribution;
         public static ConductivityDistribution? GetInitialConductivityDistribution() => _initialConductivityDistribution;
+        public static ConductivityDistribution? GetContinuationConductivityDistribution() => _continuationConductivityDistribution;
         public static bool GetUseBlockConfiguration() => _useBlockConfiguration;
 
         public static void UpdateCurrentGlobalFemElements(FEMMesh mesh)

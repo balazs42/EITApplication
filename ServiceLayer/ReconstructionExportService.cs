@@ -6,6 +6,7 @@ using Utility.Classes;
 using Utility.Classes.Discretizer;
 using Utility.Classes.Discretizer.FiniteElementMesh;
 using Utility.Classes.Discretizer.LatticeBoltzmannGrid;
+using Utility.Classes.Configurations.ReconstructionConfiguration;
 using Utility.Classes.Measurement;
 using Utility.Classes.Reconstruction.VirtualElectrodes;
 using Utility.Exports;
@@ -66,7 +67,10 @@ public sealed class ReconstructionExportService : IReconstructionExportService
                                                       directory,
                                                       initialDistribution,
                                                       measurementPattern,
-                                                      configuration);
+                                                      configuration,
+                                                      CreateContinuationSnapshot(results,
+                                                                                 configuration,
+                                                                                 initialDistribution));
 
         return Task.Run(() => _repository.ExportReconstructionData(request), cancellationToken);
     }
@@ -227,5 +231,51 @@ public sealed class ReconstructionExportService : IReconstructionExportService
                                                max,
                                                mean,
                                                stdDev);
+    }
+
+    private static ReconstructionContinuationSnapshot? CreateContinuationSnapshot(IReadOnlyList<ReconstructionResult> results,
+                                                                                  ReconstructionConfigurationSnapshot configuration,
+                                                                                  ConductivityDistribution? fallbackInitialDistribution)
+    {
+        if (results == null || results.Count == 0)
+            return null;
+
+        var latest = results.LastOrDefault();
+        if (latest == null)
+            return null;
+
+        var completeConfiguration = Workspace.GetCompleteReconstructionConfiguration();
+        var canvasSnapshot = completeConfiguration != null
+            ? ReconstructionCanvasSnapshotBuilder.Create(completeConfiguration, Workspace.GetReconstructionBlocks())
+            : null;
+
+        var parameters = Workspace.GetReconstructionParameters();
+        var importedMeasurement = Workspace.GetImportedMeasurement();
+        var measurementFrames = importedMeasurement?.Frames?
+            .Select((frame, index) => new MeasurementFrameSnapshot(
+                importedMeasurement.StepIndices.ElementAtOrDefault(index),
+                frame.ToArray()))
+            .ToList();
+
+        return new ReconstructionContinuationSnapshot(
+            configuration,
+            canvasSnapshot,
+            Workspace.GetMeasurementSource().ToString(),
+            Workspace.GetImportedMeasurementLabel(),
+            parameters.DrivePattern.ToString(),
+            parameters.DrivePatternSkip,
+            importedMeasurement?.CurrentAmplitude,
+            measurementFrames,
+            CreateDistributionSnapshot(latest.OriginalConductivityDistribution),
+            CreateDistributionSnapshot(fallbackInitialDistribution ?? latest.InitialConductivitiyDistribution),
+            CreateDistributionSnapshot(latest.ReconstructedConductivityDistribution));
+    }
+
+    private static ConductivityDistributionSnapshot? CreateDistributionSnapshot(ConductivityDistribution? distribution)
+    {
+        if (distribution == null)
+            return null;
+
+        return new ConductivityDistributionSnapshot(new Dictionary<int, double>(distribution.Conductivities));
     }
 }

@@ -213,6 +213,7 @@ namespace ElectricalImpedanceTomography.ViewModels
             _discretization.SetConductivityDistribution(new ConductivityDistribution(_currentDistribution.Conductivities));
             Workspace.SetInitialConductivityDistribution(new ConductivityDistribution(_currentDistribution.Conductivities));
             Workspace.SetInitialDiscretization(_discretization.DeepCopy());
+            Workspace.SetContinuationConductivityDistribution(null);
 
             var parameters = Workspace.GetReconstructionParameters();
             parameters.InitialDistributionType = MapModeToInitialType(SelectedMode);
