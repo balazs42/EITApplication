@@ -59,9 +59,9 @@ namespace Utility.Classes.Application
         private static ElectrodeMeasurementSetup _electrodeMeasurementSetup = ElectrodeMeasurementSetup.Active;
         private static MeasurementPattern? _measurementPattern;
         private static bool _isApplicationShuttingDown;
+        public static event Action? ApplicationShutdownStarted;
 
         public static event Action<ElectrodeMeasurementSetup>? ElectrodeMeasurementSetupChanged;
-        public static event Action? ApplicationShutdownStarted;
 
         public static void Initialize(User user, ReconstructionRuntimeContext? eITReconstructionParameters, IDiscretization? discretization)
         {
